@@ -12,6 +12,13 @@
 //! stay the caller's to free. Every failed transfer returns [`PamojaStatus::Io`] with the
 //! reason in the last error message: nothing answered at the address, the script expected
 //! something else, or the kernel's own words for what went wrong.
+//!
+//! A simulated part is one of three kinds, and one handle holds any of them:
+//! [`PAMOJA_I2C_PART_BYTES`], registers a byte wide, as Bosch's parts have;
+//! [`PAMOJA_I2C_PART_WORDS`], registers sixteen bits wide, as Texas Instruments' parts have;
+//! and [`PAMOJA_I2C_PART_COMMANDS`], commands that leave replies, as Sensirion's parts take.
+//! A call made on the wrong kind of part is refused with [`PamojaStatus::InvalidArgument`],
+//! or reads as zero where the call returns a value.
 
 use std::os::raw::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -19,9 +26,9 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use pamoja_hal::bus::{BusKind, I2cBus, OpenError};
 use pamoja_hal::i2c::{ErrorKind, I2c, NoAcknowledgeSource};
 use pamoja_hal::script::{I2cScript, I2cStep};
-use pamoja_hal::sim::I2cPart;
+use pamoja_hal::sim::{CommandPart, I2cPart, Part, WordPart};
 
-use crate::{read_bytes, read_str, set_last_error, PamojaStatus};
+use crate::{read_bytes, read_str, set_last_error, PamojaBuffer, PamojaStatus};
 
 /// A bus kind: the kernel's adapter, with real parts on real wires.
 pub const PAMOJA_I2C_BUS_ADAPTER: u8 = 0;
@@ -53,10 +60,34 @@ pub const PAMOJA_I2C_FAULT_OVERRUN: u8 = 5;
 /// A scripted failure of no more particular kind.
 pub const PAMOJA_I2C_FAULT_OTHER: u8 = 6;
 
-/// A part that is not there, answering from 256 registers. Opaque; release it with
-/// [`pamoja_i2c_part_free`].
+/// A part kind: 256 registers a byte wide.
+pub const PAMOJA_I2C_PART_BYTES: u8 = 0;
+
+/// A part kind: 256 registers sixteen bits wide, each traveling most significant byte first.
+pub const PAMOJA_I2C_PART_WORDS: u8 = 1;
+
+/// A part kind: commands, each leaving the reply it was given for a read to take.
+pub const PAMOJA_I2C_PART_COMMANDS: u8 = 2;
+
+/// A part that is not there, answering from its registers or its commands. Opaque; release it
+/// with [`pamoja_i2c_part_free`].
 pub struct PamojaI2cPart {
-    pub(crate) part: I2cPart,
+    pub(crate) part: Part,
+}
+
+impl PamojaI2cPart {
+    /// Boxes any kind of simulated part for the caller to own.
+    ///
+    /// # Arguments
+    ///
+    /// * `part` - the part.
+    ///
+    /// # Returns
+    ///
+    /// A raw handle the caller releases with [`pamoja_i2c_part_free`].
+    pub(crate) fn into_raw(part: impl Into<Part>) -> *mut PamojaI2cPart {
+        Box::into_raw(Box::new(PamojaI2cPart { part: part.into() }))
+    }
 }
 
 /// The transfers a driver is expected to make, in order, and the replies. Opaque; release it
@@ -71,7 +102,8 @@ pub struct PamojaI2cBus {
     pub(crate) bus: I2cBus,
 }
 
-/// Creates a part answering at one address, with every register reading zero.
+/// Creates a part answering at one address from 256 registers a byte wide, every one reading
+/// zero.
 ///
 /// # Arguments
 ///
@@ -82,12 +114,70 @@ pub struct PamojaI2cBus {
 /// The part, which the caller releases with [`pamoja_i2c_part_free`].
 #[no_mangle]
 pub extern "C" fn pamoja_i2c_part_new(address: u8) -> *mut PamojaI2cPart {
-    Box::into_raw(Box::new(PamojaI2cPart {
-        part: I2cPart::new(address),
-    }))
+    PamojaI2cPart::into_raw(I2cPart::new(address))
 }
 
-/// Puts bytes in a part, from a register on. Past the last register they wrap to the first.
+/// Creates a part answering at one address from 256 registers sixteen bits wide, every one
+/// reading zero. A pointer byte names a register, a write of a word stores it and leaves the
+/// pointer where it was, and a read takes words from the pointer on.
+///
+/// # Arguments
+///
+/// * `address` - the 7-bit address it answers to.
+///
+/// # Returns
+///
+/// The part, which the caller releases with [`pamoja_i2c_part_free`].
+#[no_mangle]
+pub extern "C" fn pamoja_i2c_word_part_new(address: u8) -> *mut PamojaI2cPart {
+    PamojaI2cPart::into_raw(WordPart::new(address))
+}
+
+/// Creates a part answering at one address that takes commands and has been given no replies
+/// yet. A write sends a command and any arguments after it; a read takes the reply that
+/// command left, once, padded with `0xFF`; a read with no reply waiting is not acknowledged.
+///
+/// # Arguments
+///
+/// * `address` - the 7-bit address it answers to.
+/// * `width` - how many bytes a command takes: two for Sensirion's 16-bit commands.
+///
+/// # Returns
+///
+/// The part, which the caller releases with [`pamoja_i2c_part_free`].
+#[no_mangle]
+pub extern "C" fn pamoja_i2c_command_part_new(address: u8, width: usize) -> *mut PamojaI2cPart {
+    PamojaI2cPart::into_raw(CommandPart::new(address, width))
+}
+
+/// Returns which kind of part a handle holds.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+///
+/// # Returns
+///
+/// [`PAMOJA_I2C_PART_BYTES`], [`PAMOJA_I2C_PART_WORDS`], or [`PAMOJA_I2C_PART_COMMANDS`]; the
+/// bytes code for a null part.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_kind(part: *const PamojaI2cPart) -> u8 {
+    if part.is_null() {
+        return PAMOJA_I2C_PART_BYTES;
+    }
+    match (*part).part {
+        Part::Bytes(_) => PAMOJA_I2C_PART_BYTES,
+        Part::Words(_) => PAMOJA_I2C_PART_WORDS,
+        Part::Commands(_) => PAMOJA_I2C_PART_COMMANDS,
+    }
+}
+
+/// Puts bytes in a part whose registers are a byte wide, from a register on. Past the last
+/// register they wrap to the first.
 ///
 /// # Arguments
 ///
@@ -98,8 +188,8 @@ pub extern "C" fn pamoja_i2c_part_new(address: u8) -> *mut PamojaI2cPart {
 ///
 /// # Returns
 ///
-/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a null
-/// `bytes` with a nonzero length.
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part, a null `bytes`
+/// with a nonzero length, or a part of another kind.
 ///
 /// # Safety
 ///
@@ -111,19 +201,20 @@ pub unsafe extern "C" fn pamoja_i2c_part_load(
     bytes: *const u8,
     len: usize,
 ) -> PamojaStatus {
-    if part.is_null() {
-        set_last_error("part must not be null".to_owned());
-        return PamojaStatus::InvalidArgument;
-    }
     let bytes = match read_bytes(bytes, len) {
         Ok(bytes) => bytes,
         Err(status) => return status,
     };
-    (*part).part.load(first, &bytes);
-    PamojaStatus::Ok
+    match byte_part(part) {
+        Ok(part) => {
+            part.load(first, &bytes);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
 }
 
-/// Reads what one of a part's registers holds.
+/// Reads what one register of a part whose registers are a byte wide holds.
 ///
 /// # Arguments
 ///
@@ -132,20 +223,22 @@ pub unsafe extern "C" fn pamoja_i2c_part_load(
 ///
 /// # Returns
 ///
-/// Its value, which is what a driver wrote if it wrote one, or 0 for a null part.
+/// Its value, which is what a driver wrote if it wrote one, or 0 for a null part or a part of
+/// another kind.
 ///
 /// # Safety
 ///
 /// `part` must be a live handle or null.
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_i2c_part_register(part: *const PamojaI2cPart, register: u8) -> u8 {
-    if part.is_null() {
-        return 0;
+    match part.as_ref().map(|part| &part.part) {
+        Some(Part::Bytes(part)) => part.register(register),
+        _ => 0,
     }
-    (*part).part.register(register)
 }
 
-/// Reads consecutive registers of a part, from one register on.
+/// Reads consecutive registers of a part whose registers are a byte wide, from one register
+/// on.
 ///
 /// # Arguments
 ///
@@ -156,7 +249,8 @@ pub unsafe extern "C" fn pamoja_i2c_part_register(part: *const PamojaI2cPart, re
 ///
 /// # Returns
 ///
-/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a part of
+/// another kind.
 ///
 /// # Safety
 ///
@@ -168,20 +262,202 @@ pub unsafe extern "C" fn pamoja_i2c_part_read(
     out: *mut u8,
     len: usize,
 ) -> PamojaStatus {
-    if part.is_null() || (out.is_null() && len > 0) {
-        set_last_error("part and out must not be null".to_owned());
+    let Some(out) = out_bytes(out, len) else {
         return PamojaStatus::InvalidArgument;
-    }
-    if len == 0 {
-        return PamojaStatus::Ok;
-    }
-    let out = std::slice::from_raw_parts_mut(out, len);
+    };
+    let part = match byte_part(part.cast_mut()) {
+        Ok(part) => part,
+        Err(status) => return status,
+    };
     let mut at = first;
     for slot in out {
-        *slot = (*part).part.register(at);
+        *slot = part.register(at);
         at = at.wrapping_add(1);
     }
     PamojaStatus::Ok
+}
+
+/// Puts a value in one register of a part whose registers are sixteen bits wide, read-only
+/// bits included, the way the part itself would.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+/// * `register` - the register.
+/// * `value` - what it holds.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a part of
+/// another kind.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_set_word(
+    part: *mut PamojaI2cPart,
+    register: u8,
+    value: u16,
+) -> PamojaStatus {
+    match word_part(part) {
+        Ok(part) => {
+            part.set(register, value);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// Marks bits of one register of a part whose registers are sixteen bits wide as the part's to
+/// set: a driver's write leaves them as the part holds them, as a conversion-ready flag is.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+/// * `register` - the register.
+/// * `mask` - the bits that are the part's.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a part of
+/// another kind.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_read_only(
+    part: *mut PamojaI2cPart,
+    register: u8,
+    mask: u16,
+) -> PamojaStatus {
+    match word_part(part) {
+        Ok(held) => {
+            *held = held.clone().read_only(register, mask);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// Reads what one register of a part whose registers are sixteen bits wide holds.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+/// * `register` - which register.
+///
+/// # Returns
+///
+/// Its value, which is what a driver wrote there apart from the read-only bits, or 0 for a
+/// null part or a part of another kind.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_word(part: *const PamojaI2cPart, register: u8) -> u16 {
+    match part.as_ref().map(|part| &part.part) {
+        Some(Part::Words(part)) => part.word(register),
+        _ => 0,
+    }
+}
+
+/// Gives a part that takes commands the reply one command leaves, in place of any reply given
+/// before.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+/// * `command` - the command's bytes.
+/// * `command_len` - how many.
+/// * `reply` - what a read after the command returns.
+/// * `reply_len` - how many bytes.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a part of
+/// another kind.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null, `command` must point to `command_len` readable bytes,
+/// and `reply` to `reply_len`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_answer(
+    part: *mut PamojaI2cPart,
+    command: *const u8,
+    command_len: usize,
+    reply: *const u8,
+    reply_len: usize,
+) -> PamojaStatus {
+    let command = match read_bytes(command, command_len) {
+        Ok(command) => command,
+        Err(status) => return status,
+    };
+    let reply = match read_bytes(reply, reply_len) {
+        Ok(reply) => reply,
+        Err(status) => return status,
+    };
+    match command_part(part) {
+        Ok(part) => {
+            part.answer(&command, &reply);
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// Returns how many writes a part that takes commands has received.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+///
+/// # Returns
+///
+/// The count, or 0 for a null part or a part of another kind.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_received_count(part: *const PamojaI2cPart) -> usize {
+    match part.as_ref().map(|part| &part.part) {
+        Some(Part::Commands(part)) => part.received().len(),
+        _ => 0,
+    }
+}
+
+/// Copies one write a part that takes commands received: a command and any arguments after
+/// it.
+///
+/// # Arguments
+///
+/// * `part` - the part.
+/// * `index` - which write, oldest first, below [`pamoja_i2c_part_received_count`].
+///
+/// # Returns
+///
+/// The write's bytes, which the caller releases with [`crate::pamoja_buffer_free`], or null for
+/// a null part, a part of another kind, or an index past the last write.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_i2c_part_received(
+    part: *const PamojaI2cPart,
+    index: usize,
+) -> *mut PamojaBuffer {
+    match part.as_ref().map(|part| &part.part) {
+        Some(Part::Commands(part)) => match part.received().get(index) {
+            Some(write) => PamojaBuffer::into_raw(write.clone()),
+            None => std::ptr::null_mut(),
+        },
+        _ => std::ptr::null_mut(),
+    }
 }
 
 /// Returns the address a part answers to.
@@ -463,11 +739,12 @@ pub unsafe extern "C" fn pamoja_i2c_bus_open(
 #[no_mangle]
 pub extern "C" fn pamoja_i2c_bus_simulated() -> *mut PamojaI2cBus {
     Box::into_raw(Box::new(PamojaI2cBus {
-        bus: I2cBus::simulated(Vec::<I2cPart>::new()),
+        bus: I2cBus::simulated(Vec::<Part>::new()),
     }))
 }
 
-/// Puts a copy of a part on a simulated bus, in place of any part already at its address.
+/// Puts a copy of a part of any kind on a simulated bus, in place of any part already at its
+/// address.
 ///
 /// # Arguments
 ///
@@ -738,8 +1015,9 @@ pub unsafe extern "C" fn pamoja_i2c_bus_waited_micros(bus: *const PamojaI2cBus) 
 ///
 /// # Returns
 ///
-/// A new part, which the caller releases with [`pamoja_i2c_part_free`], or null when the bus
-/// is not simulated, holds no part at the address, or is null.
+/// A new part of the kind that answers at the address, which [`pamoja_i2c_part_kind`] names
+/// and the caller releases with [`pamoja_i2c_part_free`], or null when the bus is not
+/// simulated, holds no part at the address, or is null.
 ///
 /// # Safety
 ///
@@ -752,8 +1030,8 @@ pub unsafe extern "C" fn pamoja_i2c_bus_part(
     if bus.is_null() {
         return std::ptr::null_mut();
     }
-    match (*bus).bus.part(address) {
-        Some(part) => Box::into_raw(Box::new(PamojaI2cPart { part })),
+    match (*bus).bus.part::<Part>(address) {
+        Some(part) => PamojaI2cPart::into_raw(part),
         None => std::ptr::null_mut(),
     }
 }
@@ -791,6 +1069,53 @@ unsafe fn add_step(
         }
         Err(status) => status,
     }
+}
+
+/// A part handle as a part whose registers are a byte wide, or the status that refuses it.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+unsafe fn byte_part<'a>(part: *mut PamojaI2cPart) -> Result<&'a mut I2cPart, PamojaStatus> {
+    match part.as_mut().map(|part| &mut part.part) {
+        Some(Part::Bytes(part)) => Ok(part),
+        other => Err(wrong_kind(other.is_some(), "registers a byte wide")),
+    }
+}
+
+/// A part handle as a part whose registers are sixteen bits wide, or the status that refuses
+/// it.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+unsafe fn word_part<'a>(part: *mut PamojaI2cPart) -> Result<&'a mut WordPart, PamojaStatus> {
+    match part.as_mut().map(|part| &mut part.part) {
+        Some(Part::Words(part)) => Ok(part),
+        other => Err(wrong_kind(other.is_some(), "registers sixteen bits wide")),
+    }
+}
+
+/// A part handle as a part that takes commands, or the status that refuses it.
+///
+/// # Safety
+///
+/// `part` must be a live handle or null.
+unsafe fn command_part<'a>(part: *mut PamojaI2cPart) -> Result<&'a mut CommandPart, PamojaStatus> {
+    match part.as_mut().map(|part| &mut part.part) {
+        Some(Part::Commands(part)) => Ok(part),
+        other => Err(wrong_kind(other.is_some(), "commands")),
+    }
+}
+
+/// Records why a part handle was refused: it was null, or it held another kind of part.
+fn wrong_kind(present: bool, wanted: &str) -> PamojaStatus {
+    if present {
+        set_last_error(format!("only a part with {wanted} takes that call"));
+    } else {
+        set_last_error("part must not be null".to_owned());
+    }
+    PamojaStatus::InvalidArgument
 }
 
 /// The failure a fault code names.
@@ -1006,6 +1331,100 @@ mod tests {
             pamoja_i2c_bus_free(bus);
             pamoja_i2c_script_free(script);
             assert!(pamoja_i2c_bus_scripted(ptr::null()).is_null());
+        }
+    }
+
+    #[test]
+    fn word_and_command_parts_answer_in_their_own_shape() {
+        unsafe {
+            let words = pamoja_i2c_word_part_new(0x48);
+            assert_eq!(pamoja_i2c_part_kind(words), PAMOJA_I2C_PART_WORDS);
+            assert_eq!(
+                pamoja_i2c_part_set_word(words, 0x01, 0x2000),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_i2c_part_read_only(words, 0x01, 0xF000),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_i2c_part_load(words, 0x00, [0x01].as_ptr(), 1),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                last_error(),
+                "only a part with registers a byte wide takes that call"
+            );
+
+            let commands = pamoja_i2c_command_part_new(0x44, 2);
+            assert_eq!(pamoja_i2c_part_kind(commands), PAMOJA_I2C_PART_COMMANDS);
+            assert_eq!(
+                pamoja_i2c_part_answer(
+                    commands,
+                    [0xF3, 0x2D].as_ptr(),
+                    2,
+                    [0x80, 0x10, 0xE1].as_ptr(),
+                    3
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_i2c_part_set_word(commands, 0x00, 0),
+                PamojaStatus::InvalidArgument
+            );
+
+            let bus = pamoja_i2c_bus_simulated();
+            assert_eq!(pamoja_i2c_bus_attach(bus, words), PamojaStatus::Ok);
+            assert_eq!(pamoja_i2c_bus_attach(bus, commands), PamojaStatus::Ok);
+            pamoja_i2c_part_free(words);
+            pamoja_i2c_part_free(commands);
+
+            assert_eq!(
+                pamoja_i2c_bus_write(bus, 0x48, [0x01, 0x00, 0x20].as_ptr(), 3),
+                PamojaStatus::Ok
+            );
+            let mut word = [0u8; 2];
+            assert_eq!(
+                pamoja_i2c_bus_write_read(bus, 0x48, [0x01].as_ptr(), 1, word.as_mut_ptr(), 2),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                word,
+                [0x20, 0x20],
+                "the flag the part keeps, then the write"
+            );
+
+            let mut status = [0u8; 3];
+            assert_eq!(
+                pamoja_i2c_bus_write(bus, 0x44, [0xF3, 0x2D].as_ptr(), 2),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_i2c_bus_read(bus, 0x44, status.as_mut_ptr(), 3),
+                PamojaStatus::Ok
+            );
+            assert_eq!(status, [0x80, 0x10, 0xE1]);
+            assert_eq!(
+                pamoja_i2c_bus_read(bus, 0x44, status.as_mut_ptr(), 3),
+                PamojaStatus::Io,
+                "the reply was taken"
+            );
+
+            let held = pamoja_i2c_bus_part(bus, 0x48);
+            assert_eq!(pamoja_i2c_part_kind(held), PAMOJA_I2C_PART_WORDS);
+            assert_eq!(pamoja_i2c_part_word(held, 0x01), 0x2020);
+            assert_eq!(pamoja_i2c_part_register(held, 0x01), 0);
+            pamoja_i2c_part_free(held);
+
+            let held = pamoja_i2c_bus_part(bus, 0x44);
+            assert_eq!(pamoja_i2c_part_received_count(held), 1);
+            let write = pamoja_i2c_part_received(held, 0);
+            assert_eq!(crate::pamoja_buffer_len(write), 2);
+            assert_eq!(*crate::pamoja_buffer_data(write), 0xF3);
+            crate::pamoja_buffer_free(write);
+            assert!(pamoja_i2c_part_received(held, 1).is_null());
+            pamoja_i2c_part_free(held);
+            pamoja_i2c_bus_free(bus);
         }
     }
 

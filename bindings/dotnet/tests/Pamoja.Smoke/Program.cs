@@ -1251,7 +1251,7 @@ static void Buses()
 
     Assert(bus.Transfers == 11, "initializing and one measurement is eleven transfers");
     Assert(bus.WaitedMicros == 2_000 + 9_300, "the start-up and one measurement's wait");
-    using (I2cPart held = bus.Part(Address)!)
+    using (I2cPart held = bus.Part<I2cPart>(Address)!)
     {
         Assert(
             Bme280.CtrlMeasFromBits(held.Register(Bme280.Register.CtrlMeas)).Mode == Bme280.Mode.Forced,

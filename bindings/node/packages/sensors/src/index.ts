@@ -816,7 +816,7 @@ export const ina219 = {
   },
 }
 
-/** A TI ADS1115 16-bit analogue-to-digital converter. */
+/** A TI ADS1115 16-bit analog-to-digital converter. */
 export const ads1115 = {
   /** The value the configuration register reads after a reset. */
   configReset: 0x8583,

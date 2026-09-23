@@ -14,6 +14,14 @@ use crate::bme280::sim::{self as bme280, rounded, solve};
 /// The status a part reports when it is neither measuring nor loading its calibration.
 pub const STATUS_IDLE: u8 = 0x00;
 
+/// The 24 trimming bytes [`part`] holds from 0x88: the temperature and pressure block of the
+/// real part the BME280 simulation was read from.
+pub const CALIBRATION: [u8; CALIBRATION_LEN] = leading(&bme280::CALIBRATION);
+
+/// The six data registers [`part`] holds from 0xF7: the pressure and temperature of the one
+/// measurement that part took.
+pub const BURST: [u8; DATA_LEN] = leading(&bme280::BURST);
+
 /// The calibration [`part`] holds.
 ///
 /// # Returns
@@ -21,9 +29,18 @@ pub const STATUS_IDLE: u8 = 0x00;
 /// The constants a measurement is compensated against.
 #[must_use]
 pub fn calibration() -> Calibration {
-    let mut bytes = [0u8; CALIBRATION_LEN];
-    bytes.copy_from_slice(&bme280::CALIBRATION[..CALIBRATION_LEN]);
-    Calibration::parse(&bytes)
+    Calibration::parse(&CALIBRATION)
+}
+
+// The first N bytes of a longer block, in a constant.
+const fn leading<const N: usize, const M: usize>(block: &[u8; M]) -> [u8; N] {
+    let mut out = [0u8; N];
+    let mut index = 0;
+    while index < N {
+        out[index] = block[index];
+        index += 1;
+    }
+    out
 }
 
 /// A BMP280 answering at an address, holding a real calibration and one measurement.
@@ -52,8 +69,8 @@ pub fn part(address: u8) -> I2cPart {
     I2cPart::new(address)
         .holding(register::CHIP_ID, &[CHIP_ID])
         .holding(register::STATUS, &[STATUS_IDLE])
-        .holding(register::CALIBRATION, &bme280::CALIBRATION[..CALIBRATION_LEN])
-        .holding(register::DATA, &bme280::BURST[..DATA_LEN])
+        .holding(register::CALIBRATION, &CALIBRATION)
+        .holding(register::DATA, &BURST)
 }
 
 /// A BMP280 that reads what it is asked to.

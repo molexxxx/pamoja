@@ -861,7 +861,11 @@ mod tests {
         assert_eq!(both, [0x66, 0x60, 0x8A, 0x00], "temperature, then humidity");
 
         part.write(0x40, &[0x02, 0xFF, 0xFC]).unwrap();
-        assert_eq!(part.word(0x02), 0xFFFC, "the read-only bits kept their zeros");
+        assert_eq!(
+            part.word(0x02),
+            0xFFFC,
+            "the read-only bits kept their zeros"
+        );
         part.set(0x02, 0x0003);
         assert_eq!(part.word(0x02), 0x0003, "the part itself may set them");
 

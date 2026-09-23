@@ -293,6 +293,7 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
     feature = "bus",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -310,6 +311,7 @@ pub struct PamojaBuffer {
     feature = "bus",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -350,6 +352,7 @@ impl PamojaBuffer {
     feature = "bus",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -380,6 +383,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
     feature = "bus",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -409,6 +413,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
     feature = "bus",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lorawan",
     feature = "modbus",
     feature = "ros2",
@@ -435,6 +440,7 @@ pub unsafe extern "C" fn pamoja_buffer_free(buffer: *mut PamojaBuffer) {
     feature = "mavlink",
     feature = "profile",
     feature = "ros2",
+    feature = "sensors",
     feature = "zenoh"
 ))]
 pub struct PamojaString {
@@ -446,6 +452,7 @@ pub struct PamojaString {
     feature = "mavlink",
     feature = "profile",
     feature = "ros2",
+    feature = "sensors",
     feature = "zenoh"
 ))]
 impl PamojaString {
@@ -487,6 +494,7 @@ impl PamojaString {
     feature = "mavlink",
     feature = "profile",
     feature = "ros2",
+    feature = "sensors",
     feature = "zenoh"
 ))]
 #[no_mangle]
@@ -511,6 +519,7 @@ pub unsafe extern "C" fn pamoja_string_data(string: *const PamojaString) -> *con
     feature = "mavlink",
     feature = "profile",
     feature = "ros2",
+    feature = "sensors",
     feature = "zenoh"
 ))]
 #[no_mangle]
@@ -534,6 +543,7 @@ pub unsafe extern "C" fn pamoja_string_len(string: *const PamojaString) -> usize
     feature = "mavlink",
     feature = "profile",
     feature = "ros2",
+    feature = "sensors",
     feature = "zenoh"
 ))]
 #[no_mangle]

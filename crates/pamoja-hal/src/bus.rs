@@ -570,7 +570,9 @@ mod tests {
         let replaced = bus
             .attach(I2cPart::new(0x76).holding(0xd0, &[0x61]))
             .expect("a simulated bus takes parts");
-        let replaced = replaced.and_then(I2cPart::from_part).map(|part| part.register(0xd0));
+        let replaced = replaced
+            .and_then(I2cPart::from_part)
+            .map(|part| part.register(0xd0));
         assert_eq!(replaced, Some(0x60));
         let held = bus.part::<I2cPart>(0x76).map(|part| part.register(0xd0));
         assert_eq!(held, Some(0x61));

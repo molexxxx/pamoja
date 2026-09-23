@@ -1,14 +1,113 @@
+using Pamoja.Hal;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sensors;
 
 /// <summary>
-/// A Texas Instruments HDC1080 humidity and temperature sensor. Every call goes
-/// straight to the pamoja C ABI, which decodes exactly what the manufacturer's
-/// datasheet specifies.
+/// A Texas Instruments HDC1080 humidity and temperature sensor, and a driver for one on an
+/// I2C bus.
 /// </summary>
-public static class Hdc1080
+/// <remarks>
+/// <para>
+/// The static members are the part's datasheet, decoded exactly as the manufacturer
+/// specifies, and <see cref="Sim"/>, a part that is not there.
+/// </para>
+/// <para>
+/// An instance drives the part over an <see cref="I2cBus"/>, measuring temperature then
+/// humidity from one trigger, as the datasheet's sequential mode does. The part has one
+/// address, <see cref="Address"/>. Nothing is sent until <see cref="Init"/> or the first
+/// <see cref="Measure"/>.
+/// </para>
+/// </remarks>
+public sealed class Hdc1080 : IDisposable
 {
+    /// <summary>The one address the part answers to.</summary>
+    public const byte Address = 0x40;
+
+    private readonly NativeHandle _handle;
+
+    /// <summary>Creates a driver for the part on <paramref name="bus"/>.</summary>
+    /// <param name="bus">The bus the part is on.</param>
+    /// <param name="temperature">The temperature resolution, which sets its conversion time.</param>
+    /// <param name="humidity">The humidity resolution, which sets its conversion time.</param>
+    /// <exception cref="PamojaException">The native driver could not be created.</exception>
+    public Hdc1080(
+        I2cBus bus,
+        TemperatureResolution temperature = TemperatureResolution.Bits14,
+        HumidityResolution humidity = HumidityResolution.Bits14)
+    {
+        ArgumentNullException.ThrowIfNull(bus);
+        var settings = new PamojaHdc1080Settings
+        {
+            TemperatureResolutionBits = (byte)temperature,
+            HumidityResolutionBits = (byte)humidity,
+        };
+        IntPtr sensor = IntPtr.Zero;
+        Status.ThrowIfError(bus.Use(held => NativeMethods.pamoja_hdc1080_new(held, settings, out sensor)));
+        _handle = new NativeHandle(sensor, NativeMethods.pamoja_hdc1080_free);
+    }
+
+    /// <summary>The temperature channel's resolution, as its bit count.</summary>
+    public enum TemperatureResolution : byte
+    {
+        /// <summary>11 bits, 3.65 ms.</summary>
+        Bits11 = 11,
+
+        /// <summary>14 bits, 6.35 ms.</summary>
+        Bits14 = 14,
+    }
+
+    /// <summary>The humidity channel's resolution, as its bit count.</summary>
+    public enum HumidityResolution : byte
+    {
+        /// <summary>8 bits, 2.5 ms.</summary>
+        Bits8 = 8,
+
+        /// <summary>11 bits, 3.85 ms.</summary>
+        Bits11 = 11,
+
+        /// <summary>14 bits, 6.5 ms.</summary>
+        Bits14 = 14,
+    }
+
+    /// <summary>The configuration the driver writes.</summary>
+    public PamojaHdc1080Config Configuration
+    {
+        get
+        {
+            PamojaHdc1080Config config = default;
+            Status.ThrowIfError(_handle.Use(sensor =>
+                NativeMethods.pamoja_hdc1080_configuration(sensor, out config)));
+            return config;
+        }
+    }
+
+    /// <summary>Checks the part is an HDC1080 and writes the configuration.</summary>
+    /// <exception cref="PamojaException">Nothing answered, or either id register is not an HDC1080's.</exception>
+    public void Init() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_hdc1080_init));
+
+    /// <summary>Triggers one acquisition of both channels and reads them, initializing the part first if needed.</summary>
+    /// <returns>The temperature and humidity.</returns>
+    /// <exception cref="PamojaException">
+    /// As <see cref="Init"/>, and when the part does not acknowledge the read, which it refuses
+    /// until its results are ready.
+    /// </exception>
+    public PamojaHdc1080Measurement Measure()
+    {
+        PamojaHdc1080Measurement measurement = default;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_hdc1080_measure(sensor, out measurement)));
+        return measurement;
+    }
+
+    /// <summary>Switches the on-die heater, which runs only during acquisitions, on or off.</summary>
+    /// <param name="on">Whether the heater runs.</param>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void Heater(bool on) =>
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_hdc1080_heater(sensor, on)));
+
+    /// <summary>Releases the driver and its share of the bus.</summary>
+    public void Dispose() => _handle.Dispose();
+
     /// <summary>Converts a raw HDC1080 temperature register to milli-degrees Celsius.</summary>
     /// <param name="raw">The raw.</param>
     /// <returns>The value the C ABI computes.</returns>
@@ -152,5 +251,33 @@ public static class Hdc1080
         uint value;
         Status.ThrowIfError(NativeMethods.pamoja_hdc1080_humidity_conversion_micros(bits, out value));
         return value;
+    }
+
+    /// <summary>An HDC1080 that is not there, for a bus with nothing plugged in.</summary>
+    public static class Sim
+    {
+        /// <summary>The temperature <see cref="Part"/> reports.</summary>
+        public const float Celsius = 22.5f;
+
+        /// <summary>The relative humidity <see cref="Part"/> reports, as a percentage.</summary>
+        public const float RelativeHumidity = 45.0f;
+
+        /// <summary>Makes a part reading <see cref="Celsius"/> and <see cref="RelativeHumidity"/>.</summary>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static WordPart Part() =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_hdc1080_sim_part(),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated HDC1080"));
+
+        /// <summary>Makes a part that reads what it is asked to.</summary>
+        /// <param name="celsius">The temperature it reports.</param>
+        /// <param name="relativeHumidity">The humidity it reports, as a percentage.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static WordPart Reporting(float celsius, float relativeHumidity) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_hdc1080_sim_reporting(celsius, relativeHumidity),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated HDC1080"));
     }
 }

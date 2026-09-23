@@ -564,13 +564,47 @@ pub unsafe extern "C" fn pamoja_ds18b20_parse_scratchpad(
 
     match ds18b20::Scratchpad::parse(&scratchpad) {
         Ok(reading) => {
-            *out_reading = PamojaDs18b20Reading {
-                raw_temperature: reading.raw_temperature(),
-                micro_celsius: reading.temperature_micro_celsius(),
-                alarm_high: reading.alarm_high(),
-                alarm_low: reading.alarm_low(),
-                resolution_bits: reading.resolution().bits(),
-            };
+            *out_reading = reading.into();
+            PamojaStatus::Ok
+        }
+        Err(error) => failed(error),
+    }
+}
+
+/// Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+/// of its `w1_slave` file: the scratchpad in hex with the kernel's CRC verdict, then the
+/// temperature.
+///
+/// # Arguments
+///
+/// * `text` - the file's contents, a null-terminated string.
+/// * `out_reading` - receives the reading.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with `*out_reading` filled in; [`PamojaStatus::Codec`] when the kernel
+/// or this decoder rejects the CRC, or the text is not in the driver's format; or
+/// [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument.
+///
+/// # Safety
+///
+/// `text` must be a null-terminated string or null, and `out_reading` a writable pointer or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ds18b20_parse_w1_slave(
+    text: *const std::os::raw::c_char,
+    out_reading: *mut PamojaDs18b20Reading,
+) -> PamojaStatus {
+    if out_reading.is_null() {
+        set_last_error("out_reading must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let Some(text) = crate::read_str(text, "text") else {
+        return PamojaStatus::InvalidArgument;
+    };
+    match ds18b20::parse_w1_slave(text) {
+        Ok(reading) => {
+            *out_reading = reading.into();
             PamojaStatus::Ok
         }
         Err(error) => failed(error),
@@ -867,6 +901,196 @@ pub extern "C" fn pamoja_ina219_current_microamps(raw: i16, current_lsb_microamp
 #[no_mangle]
 pub extern "C" fn pamoja_ina219_power_microwatts(raw: u16, current_lsb_microamps: u32) -> u32 {
     ina219::power_microwatts(raw, current_lsb_microamps)
+}
+
+/// The INA219 address with both address pins tied to ground; A1 and A0 add to it.
+pub const PAMOJA_INA219_BASE_ADDRESS: u8 = 0x40;
+
+/// The INA219 configuration register's power-on value: the 32 V range, gain 1/8, 12-bit
+/// conversions, shunt and bus continuous.
+pub const PAMOJA_INA219_CONFIG_RESET: u16 = 0x399F;
+
+/// The INA219 configuration register.
+pub const PAMOJA_INA219_REGISTER_CONFIGURATION: u8 = 0x00;
+
+/// The INA219 shunt-voltage register.
+pub const PAMOJA_INA219_REGISTER_SHUNT_VOLTAGE: u8 = 0x01;
+
+/// The INA219 bus-voltage register.
+pub const PAMOJA_INA219_REGISTER_BUS_VOLTAGE: u8 = 0x02;
+
+/// The INA219 power register.
+pub const PAMOJA_INA219_REGISTER_POWER: u8 = 0x03;
+
+/// The INA219 current register.
+pub const PAMOJA_INA219_REGISTER_CURRENT: u8 = 0x04;
+
+/// The INA219 calibration register.
+pub const PAMOJA_INA219_REGISTER_CALIBRATION: u8 = 0x05;
+
+const _: () = assert!(PAMOJA_INA219_BASE_ADDRESS == ina219::BASE_ADDRESS);
+const _: () = assert!(PAMOJA_INA219_CONFIG_RESET == ina219::CONFIG_RESET);
+const _: () = assert!(PAMOJA_INA219_REGISTER_CONFIGURATION == ina219::register::CONFIGURATION);
+const _: () = assert!(PAMOJA_INA219_REGISTER_SHUNT_VOLTAGE == ina219::register::SHUNT_VOLTAGE);
+const _: () = assert!(PAMOJA_INA219_REGISTER_BUS_VOLTAGE == ina219::register::BUS_VOLTAGE);
+const _: () = assert!(PAMOJA_INA219_REGISTER_POWER == ina219::register::POWER);
+const _: () = assert!(PAMOJA_INA219_REGISTER_CURRENT == ina219::register::CURRENT);
+const _: () = assert!(PAMOJA_INA219_REGISTER_CALIBRATION == ina219::register::CALIBRATION);
+
+/// An INA219 configuration register, field by field, each setting as the code the datasheet
+/// prints.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaIna219Config {
+    /// `1` resets the part when this register is written.
+    pub reset: u8,
+    /// The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+    pub bus_range: u8,
+    /// The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+    pub gain: u8,
+    /// The bus ADC code, `0..=15`: a resolution below `8`, a sample count averaged at 12 bits
+    /// from `9` up.
+    pub bus_adc: u8,
+    /// The shunt ADC code, as `bus_adc`.
+    pub shunt_adc: u8,
+    /// The operating-mode code, `0..=7`.
+    pub mode: u8,
+}
+
+/// Assembles the 16-bit INA219 configuration register value.
+///
+/// # Arguments
+///
+/// * `config` - the settings.
+///
+/// # Returns
+///
+/// The register value to write.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_config_bits(config: PamojaIna219Config) -> u16 {
+    ina219::Configuration::from(config).bits()
+}
+
+/// Parses a 16-bit INA219 configuration register value.
+///
+/// # Arguments
+///
+/// * `bits` - the register value, as read from the part.
+/// * `out_config` - receives the settings.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`]. Every register value decodes, so this fails only on a null pointer.
+///
+/// # Safety
+///
+/// `out_config` must point to a writable `PamojaIna219Config`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ina219_config_from_bits(
+    bits: u16,
+    out_config: *mut PamojaIna219Config,
+) -> PamojaStatus {
+    if out_config.is_null() {
+        set_last_error("out_config must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_config = ina219::Configuration::from_bits(bits).into();
+    PamojaStatus::Ok
+}
+
+/// Returns how long one INA219 conversion cycle takes: the shunt and bus conversions the
+/// mode runs, one after the other.
+///
+/// # Arguments
+///
+/// * `config` - the settings.
+///
+/// # Returns
+///
+/// The time in microseconds.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_conversion_micros(config: PamojaIna219Config) -> u32 {
+    ina219::Configuration::from(config).conversion_micros()
+}
+
+/// Returns how long one INA219 conversion takes at an ADC setting.
+///
+/// # Arguments
+///
+/// * `code` - the ADC code, as in [`PamojaIna219Config::bus_adc`].
+///
+/// # Returns
+///
+/// The time in microseconds, from the datasheet's table.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_adc_conversion_micros(code: u8) -> u32 {
+    ina219::Adc::from_code(code).conversion_micros()
+}
+
+/// Returns the shunt-voltage range an INA219 gain code selects.
+///
+/// # Arguments
+///
+/// * `code` - the gain code, `0..=3`.
+///
+/// # Returns
+///
+/// The range in millivolts either side of zero.
+#[no_mangle]
+pub extern "C" fn pamoja_ina219_gain_range_millivolts(code: u8) -> u16 {
+    ina219::Gain::from_code(code).range_millivolts()
+}
+
+/// The ADS1115 address with ADDR tied to ground.
+pub const PAMOJA_ADS1115_ADDRESS_GND: u8 = 0x48;
+
+/// The ADS1115 address with ADDR tied to VDD.
+pub const PAMOJA_ADS1115_ADDRESS_VDD: u8 = 0x49;
+
+/// The ADS1115 address with ADDR tied to SDA.
+pub const PAMOJA_ADS1115_ADDRESS_SDA: u8 = 0x4A;
+
+/// The ADS1115 address with ADDR tied to SCL.
+pub const PAMOJA_ADS1115_ADDRESS_SCL: u8 = 0x4B;
+
+/// The ADS1115 conversion register.
+pub const PAMOJA_ADS1115_REGISTER_CONVERSION: u8 = 0x00;
+
+/// The ADS1115 configuration register.
+pub const PAMOJA_ADS1115_REGISTER_CONFIG: u8 = 0x01;
+
+/// The ADS1115 comparator's low threshold register.
+pub const PAMOJA_ADS1115_REGISTER_LO_THRESH: u8 = 0x02;
+
+/// The ADS1115 comparator's high threshold register.
+pub const PAMOJA_ADS1115_REGISTER_HI_THRESH: u8 = 0x03;
+
+/// The ADS1115 configuration register's power-on value.
+pub const PAMOJA_ADS1115_CONFIG_RESET: u16 = 0x8583;
+
+const _: () = assert!(PAMOJA_ADS1115_ADDRESS_GND == ads1115::address::GND);
+const _: () = assert!(PAMOJA_ADS1115_ADDRESS_VDD == ads1115::address::VDD);
+const _: () = assert!(PAMOJA_ADS1115_ADDRESS_SDA == ads1115::address::SDA);
+const _: () = assert!(PAMOJA_ADS1115_ADDRESS_SCL == ads1115::address::SCL);
+const _: () = assert!(PAMOJA_ADS1115_REGISTER_CONVERSION == ads1115::register::CONVERSION);
+const _: () = assert!(PAMOJA_ADS1115_REGISTER_CONFIG == ads1115::register::CONFIG);
+const _: () = assert!(PAMOJA_ADS1115_REGISTER_LO_THRESH == ads1115::register::LO_THRESH);
+const _: () = assert!(PAMOJA_ADS1115_REGISTER_HI_THRESH == ads1115::register::HI_THRESH);
+const _: () = assert!(PAMOJA_ADS1115_CONFIG_RESET == ads1115::CONFIG_RESET);
+
+/// Returns how long an ADS1115 conversion takes at a data-rate code: one period of the rate
+/// plus the datasheet's ten percent rate variation.
+///
+/// # Arguments
+///
+/// * `data_rate` - the data-rate code, `0..=7`.
+///
+/// # Returns
+///
+/// The time in microseconds.
+#[no_mangle]
+pub extern "C" fn pamoja_ads1115_conversion_micros(data_rate: u8) -> u32 {
+    ads1115::conversion_micros(ads1115::DataRate::from_code(data_rate))
 }
 
 /// Assembles the 16-bit ADS1115 configuration register value.
@@ -4861,8 +5085,46 @@ impl From<ina226::DieId> for PamojaIna226DieId {
     }
 }
 
+impl From<ds18b20::Scratchpad> for PamojaDs18b20Reading {
+    fn from(value: ds18b20::Scratchpad) -> Self {
+        PamojaDs18b20Reading {
+            raw_temperature: value.raw_temperature(),
+            micro_celsius: value.temperature_micro_celsius(),
+            alarm_high: value.alarm_high(),
+            alarm_low: value.alarm_low(),
+            resolution_bits: value.resolution().bits(),
+        }
+    }
+}
+
+impl From<PamojaIna219Config> for ina219::Configuration {
+    fn from(value: PamojaIna219Config) -> Self {
+        ina219::Configuration {
+            reset: value.reset != 0,
+            bus_range: ina219::BusRange::from_code(value.bus_range),
+            gain: ina219::Gain::from_code(value.gain),
+            bus_adc: ina219::Adc::from_code(value.bus_adc),
+            shunt_adc: ina219::Adc::from_code(value.shunt_adc),
+            mode: ina219::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<ina219::Configuration> for PamojaIna219Config {
+    fn from(value: ina219::Configuration) -> Self {
+        PamojaIna219Config {
+            reset: u8::from(value.reset),
+            bus_range: value.bus_range.code(),
+            gain: value.gain.code(),
+            bus_adc: value.bus_adc.code(),
+            shunt_adc: value.shunt_adc.code(),
+            mode: value.mode.code(),
+        }
+    }
+}
+
 /// Maps a code onto the SHT3x repeatability it names.
-fn repeatability_from_code(code: u8) -> Option<sht3x::Repeatability> {
+pub(crate) fn repeatability_from_code(code: u8) -> Option<sht3x::Repeatability> {
     match code {
         0 => Some(sht3x::Repeatability::Low),
         1 => Some(sht3x::Repeatability::Medium),
@@ -4872,7 +5134,7 @@ fn repeatability_from_code(code: u8) -> Option<sht3x::Repeatability> {
 }
 
 /// Records a rejected repeatability and reports it as an invalid argument.
-fn bad_repeatability() -> PamojaStatus {
+pub(crate) fn bad_repeatability() -> PamojaStatus {
     set_last_error("SHT3x repeatability must be 0 low, 1 medium, or 2 high".to_owned());
     PamojaStatus::InvalidArgument
 }
@@ -4896,7 +5158,7 @@ fn bad_rate() -> PamojaStatus {
 }
 
 /// Maps a bit count onto the HDC1080 temperature resolution it names.
-fn temperature_resolution(bits: u8) -> Option<hdc1080::TemperatureResolution> {
+pub(crate) fn temperature_resolution(bits: u8) -> Option<hdc1080::TemperatureResolution> {
     match bits {
         14 => Some(hdc1080::TemperatureResolution::Bits14),
         11 => Some(hdc1080::TemperatureResolution::Bits11),
@@ -4905,13 +5167,13 @@ fn temperature_resolution(bits: u8) -> Option<hdc1080::TemperatureResolution> {
 }
 
 /// Records a rejected temperature resolution and reports it as an invalid argument.
-fn bad_temperature_resolution() -> PamojaStatus {
+pub(crate) fn bad_temperature_resolution() -> PamojaStatus {
     set_last_error("HDC1080 temperature resolution must be 14 or 11 bits".to_owned());
     PamojaStatus::InvalidArgument
 }
 
 /// Maps a bit count onto the HDC1080 humidity resolution it names.
-fn humidity_resolution(bits: u8) -> Option<hdc1080::HumidityResolution> {
+pub(crate) fn humidity_resolution(bits: u8) -> Option<hdc1080::HumidityResolution> {
     match bits {
         14 => Some(hdc1080::HumidityResolution::Bits14),
         11 => Some(hdc1080::HumidityResolution::Bits11),
@@ -4921,13 +5183,13 @@ fn humidity_resolution(bits: u8) -> Option<hdc1080::HumidityResolution> {
 }
 
 /// Records a rejected humidity resolution and reports it as an invalid argument.
-fn bad_humidity_resolution() -> PamojaStatus {
+pub(crate) fn bad_humidity_resolution() -> PamojaStatus {
     set_last_error("HDC1080 humidity resolution must be 14, 11, or 8 bits".to_owned());
     PamojaStatus::InvalidArgument
 }
 
 /// Maps the long-conversion flag onto the OPT3001 conversion time it names.
-fn conversion_time(long_conversion: bool) -> opt3001::ConversionTime {
+pub(crate) fn conversion_time(long_conversion: bool) -> opt3001::ConversionTime {
     if long_conversion {
         opt3001::ConversionTime::Ms800
     } else {
@@ -4936,17 +5198,17 @@ fn conversion_time(long_conversion: bool) -> opt3001::ConversionTime {
 }
 
 /// Maps an averaging code onto the INA226 setting it names.
-fn averaging(code: u8) -> ina226::Averaging {
+pub(crate) fn averaging(code: u8) -> ina226::Averaging {
     ina226::Configuration::from_register(u16::from(code & 0x07) << 9).averaging
 }
 
 /// Maps a conversion-time code onto the INA226 setting it names.
-fn conversion_time_setting(code: u8) -> ina226::ConversionTime {
+pub(crate) fn conversion_time_setting(code: u8) -> ina226::ConversionTime {
     ina226::Configuration::from_register(u16::from(code & 0x07) << 6).bus_conversion_time
 }
 
 /// Maps a mode code onto the INA226 setting it names.
-fn mode(code: u8) -> ina226::Mode {
+pub(crate) fn mode(code: u8) -> ina226::Mode {
     ina226::Configuration::from_register(u16::from(code & 0x07)).mode
 }
 

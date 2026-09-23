@@ -287,145 +287,27 @@ public static class Ds18b20
             NativeMethods.pamoja_ds18b20_max_conversion_micros(bits, out uint value));
         return value;
     }
-}
 
-/// <summary>A TI INA219 current, voltage, and power monitor.</summary>
-public static class Ina219
-{
-    /// <summary>Computes the calibration register for a shunt and resolution.</summary>
-    /// <param name="currentLsbMicroamps">The microamps per count wanted.</param>
-    /// <param name="shuntMilliohms">The shunt resistor value.</param>
-    /// <returns>The register value to write.</returns>
-    public static ushort Calibration(uint currentLsbMicroamps, uint shuntMilliohms) =>
-        NativeMethods.pamoja_ina219_calibration(currentLsbMicroamps, shuntMilliohms);
-
-    /// <summary>Returns the smallest resolution that still covers a maximum.</summary>
-    /// <param name="maxExpectedMicroamps">The largest current measured.</param>
-    /// <returns>The minimum current LSB in microamps.</returns>
-    public static uint MinimumCurrentLsbMicroamps(uint maxExpectedMicroamps) =>
-        NativeMethods.pamoja_ina219_minimum_current_lsb_microamps(maxExpectedMicroamps);
-
-    /// <summary>Builds the shunt-voltage register a monitor reports for a shunt voltage.</summary>
+    /// <summary>Decodes the text the Linux kernel's <c>w1_therm</c> driver serves for a thermometer.</summary>
     /// <remarks>
-    /// The inverse of <see cref="ShuntMicrovolts"/>, so a node can be written and tested
-    /// against what a monitor sends without one attached.
+    /// The <c>w1_slave</c> file holds the scratchpad in hex with the kernel's checksum verdict,
+    /// then the temperature. The scratchpad is parsed and its CRC checked here as well.
     /// </remarks>
-    /// <param name="microvolts">The shunt voltage in microvolts.</param>
-    /// <returns>The signed register value, at 10 uV per count.</returns>
-    public static short ShuntRegister(int microvolts) =>
-        NativeMethods.pamoja_ina219_shunt_register(microvolts);
-
-    /// <summary>Builds the bus-voltage register a monitor reports for a bus voltage.</summary>
-    /// <param name="millivolts">The bus voltage in millivolts.</param>
-    /// <returns>The register value, with the conversion-ready flag set.</returns>
-    public static ushort BusRegister(uint millivolts) =>
-        NativeMethods.pamoja_ina219_bus_register(millivolts);
-
-    /// <summary>Builds the current register a monitor reports for a current.</summary>
-    /// <param name="microamps">The current in microamps.</param>
-    /// <param name="currentLsbMicroamps">The current LSB the calibration was set for.</param>
-    /// <returns>The signed register value.</returns>
-    public static short CurrentRegister(int microamps, uint currentLsbMicroamps) =>
-        NativeMethods.pamoja_ina219_current_register(microamps, currentLsbMicroamps);
-
-    /// <summary>Builds the power register a monitor reports for a power.</summary>
-    /// <param name="microwatts">The power in microwatts.</param>
-    /// <param name="currentLsbMicroamps">The current LSB the calibration was set for.</param>
-    /// <returns>The register value.</returns>
-    public static ushort PowerRegister(uint microwatts, uint currentLsbMicroamps) =>
-        NativeMethods.pamoja_ina219_power_register(microwatts, currentLsbMicroamps);
-
-    /// <summary>Converts a raw shunt-voltage register to microvolts.</summary>
-    /// <param name="raw">The signed register value.</param>
-    /// <returns>The shunt voltage.</returns>
-    public static int ShuntMicrovolts(short raw) =>
-        NativeMethods.pamoja_ina219_shunt_microvolts(raw);
-
-    /// <summary>Converts a raw bus-voltage register to millivolts.</summary>
-    /// <param name="raw">The register value.</param>
-    /// <returns>The bus voltage.</returns>
-    public static uint BusMillivolts(ushort raw) =>
-        NativeMethods.pamoja_ina219_bus_millivolts(raw);
-
-    /// <summary>Reports whether a bus-voltage register says a conversion is ready.</summary>
-    /// <param name="raw">The register value.</param>
-    /// <returns>Whether the conversion-ready flag is set.</returns>
-    public static bool ConversionReady(ushort raw) =>
-        NativeMethods.pamoja_ina219_conversion_ready(raw);
-
-    /// <summary>Reports whether a bus-voltage register flags a math overflow.</summary>
-    /// <param name="raw">The register value.</param>
-    /// <returns>
-    /// Whether the current and power readings are meaningless, which means the
-    /// calibration needs revisiting.
-    /// </returns>
-    public static bool MathOverflow(ushort raw) =>
-        NativeMethods.pamoja_ina219_math_overflow(raw);
-
-    /// <summary>Converts a raw current register to microamps.</summary>
-    /// <param name="raw">The signed register value.</param>
-    /// <param name="currentLsbMicroamps">The resolution the calibration selected.</param>
-    /// <returns>The current.</returns>
-    public static int CurrentMicroamps(short raw, uint currentLsbMicroamps) =>
-        NativeMethods.pamoja_ina219_current_microamps(raw, currentLsbMicroamps);
-
-    /// <summary>Converts a raw power register to microwatts.</summary>
-    /// <param name="raw">The register value.</param>
-    /// <param name="currentLsbMicroamps">The resolution the calibration selected.</param>
-    /// <returns>The power. The power LSB is fixed at twenty times the current LSB.</returns>
-    public static uint PowerMicrowatts(ushort raw, uint currentLsbMicroamps) =>
-        NativeMethods.pamoja_ina219_power_microwatts(raw, currentLsbMicroamps);
-}
-
-/// <summary>A TI ADS1115 16-bit analogue-to-digital converter.</summary>
-public static class Ads1115
-{
-    /// <summary>The value the configuration register reads after a reset.</summary>
-    public const ushort ConfigReset = 0x8583;
-
-    /// <summary>Assembles the 16-bit configuration register value.</summary>
-    /// <param name="config">The settings to encode.</param>
-    /// <returns>The register value to write, most significant bit first.</returns>
-    public static ushort ConfigBits(Ads1115Config config)
+    /// <param name="text">The file's contents.</param>
+    /// <returns>The decoded reading.</returns>
+    /// <exception cref="PamojaException">
+    /// The kernel or this decoder rejects the CRC, or the text is not in the driver's format.
+    /// </exception>
+    public static Ds18b20Reading ParseW1Slave(string text)
     {
-        ArgumentNullException.ThrowIfNull(config);
-        return NativeMethods.pamoja_ads1115_config_bits(config.ToNative());
+        ArgumentNullException.ThrowIfNull(text);
+        Status.ThrowIfError(NativeMethods.pamoja_ds18b20_parse_w1_slave(text, out PamojaDs18b20Reading reading));
+        return Read(reading);
     }
 
-    /// <summary>Parses a 16-bit configuration register value.</summary>
-    /// <param name="bits">The register value, as read from the device.</param>
-    /// <returns>The decoded settings. Every value decodes, so this never throws.</returns>
-    /// <exception cref="PamojaException">The native call failed.</exception>
-    public static Ads1115Config ConfigFromBits(ushort bits)
-    {
-        Status.ThrowIfError(
-            NativeMethods.pamoja_ads1115_config_from_bits(bits, out PamojaAds1115Config config));
-        return Ads1115Config.FromNative(config);
-    }
-
-    /// <summary>Returns the full-scale range a gain code selects.</summary>
-    /// <param name="pga">The gain code, 0 to 7.</param>
-    /// <returns>The full scale in microvolts.</returns>
-    public static uint FullScaleMicrovolts(byte pga) =>
-        NativeMethods.pamoja_ads1115_full_scale_microvolts(pga);
-
-    /// <summary>Returns the sample rate a data-rate code selects.</summary>
-    /// <param name="dataRate">The data-rate code, 0 to 7.</param>
-    /// <returns>The rate in samples per second.</returns>
-    public static ushort SamplesPerSecond(byte dataRate) =>
-        NativeMethods.pamoja_ads1115_samples_per_second(dataRate);
-
-    /// <summary>Converts a raw conversion result to nanovolts.</summary>
-    /// <param name="pga">The gain the conversion was taken at.</param>
-    /// <param name="raw">The signed conversion register value.</param>
-    /// <returns>The measured voltage, exact at every gain setting.</returns>
-    public static long ToNanovolts(byte pga, short raw) =>
-        NativeMethods.pamoja_ads1115_to_nanovolts(pga, raw);
-
-    /// <summary>Converts a raw conversion result to volts.</summary>
-    /// <param name="pga">The gain the conversion was taken at.</param>
-    /// <param name="raw">The signed conversion register value.</param>
-    /// <returns>The measured voltage.</returns>
-    public static float ToVolts(byte pga, short raw) =>
-        NativeMethods.pamoja_ads1115_to_volts(pga, raw);
+    /// <summary>Converts the flat struct the C ABI returns.</summary>
+    /// <param name="reading">The interop representation.</param>
+    /// <returns>The reading.</returns>
+    internal static Ds18b20Reading Read(PamojaDs18b20Reading reading) =>
+        new(reading.RawTemperature, reading.MicroCelsius, reading.AlarmHigh, reading.AlarmLow, reading.ResolutionBits);
 }

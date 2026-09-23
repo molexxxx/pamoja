@@ -213,6 +213,15 @@
 // A scripted failure of no more particular kind.
 #define PAMOJA_I2C_FAULT_OTHER 6
 
+// A part kind: 256 registers a byte wide.
+#define PAMOJA_I2C_PART_BYTES 0
+
+// A part kind: 256 registers sixteen bits wide, each traveling most significant byte first.
+#define PAMOJA_I2C_PART_WORDS 1
+
+// A part kind: commands, each leaving the reply it was given for a read to take.
+#define PAMOJA_I2C_PART_COMMANDS 2
+
 // The number of readings a windowed helper keeps.
 //
 // The Rust helpers are generic over their capacity, which cannot cross a C ABI,
@@ -1174,6 +1183,58 @@
 // The configuration register, `config`.
 #define PAMOJA_BME280_REGISTER_CONFIG 245
 
+// The INA219 address with both address pins tied to ground; A1 and A0 add to it.
+#define PAMOJA_INA219_BASE_ADDRESS 64
+
+// The INA219 configuration register's power-on value: the 32 V range, gain 1/8, 12-bit
+// conversions, shunt and bus continuous.
+#define PAMOJA_INA219_CONFIG_RESET 14751
+
+// The INA219 configuration register.
+#define PAMOJA_INA219_REGISTER_CONFIGURATION 0
+
+// The INA219 shunt-voltage register.
+#define PAMOJA_INA219_REGISTER_SHUNT_VOLTAGE 1
+
+// The INA219 bus-voltage register.
+#define PAMOJA_INA219_REGISTER_BUS_VOLTAGE 2
+
+// The INA219 power register.
+#define PAMOJA_INA219_REGISTER_POWER 3
+
+// The INA219 current register.
+#define PAMOJA_INA219_REGISTER_CURRENT 4
+
+// The INA219 calibration register.
+#define PAMOJA_INA219_REGISTER_CALIBRATION 5
+
+// The ADS1115 address with ADDR tied to ground.
+#define PAMOJA_ADS1115_ADDRESS_GND 72
+
+// The ADS1115 address with ADDR tied to VDD.
+#define PAMOJA_ADS1115_ADDRESS_VDD 73
+
+// The ADS1115 address with ADDR tied to SDA.
+#define PAMOJA_ADS1115_ADDRESS_SDA 74
+
+// The ADS1115 address with ADDR tied to SCL.
+#define PAMOJA_ADS1115_ADDRESS_SCL 75
+
+// The ADS1115 conversion register.
+#define PAMOJA_ADS1115_REGISTER_CONVERSION 0
+
+// The ADS1115 configuration register.
+#define PAMOJA_ADS1115_REGISTER_CONFIG 1
+
+// The ADS1115 comparator's low threshold register.
+#define PAMOJA_ADS1115_REGISTER_LO_THRESH 2
+
+// The ADS1115 comparator's high threshold register.
+#define PAMOJA_ADS1115_REGISTER_HI_THRESH 3
+
+// The ADS1115 configuration register's power-on value.
+#define PAMOJA_ADS1115_CONFIG_RESET 34179
+
 // The number of calibration bytes a BMP280 reports.
 #define PAMOJA_BMP280_CALIBRATION_LEN 24
 
@@ -1643,6 +1704,69 @@
 // calibration.
 #define PAMOJA_BME280_SIM_STATUS_IDLE 0
 
+// The status a simulated BMP280 reports when it is neither measuring nor loading its
+// calibration.
+#define PAMOJA_BMP280_SIM_STATUS_IDLE 0
+
+// The temperature a simulated TMP117 reports unless it is asked for another.
+#define PAMOJA_TMP117_SIM_CELSIUS 21.25
+
+// The illuminance a simulated OPT3001 reports unless it is asked for another.
+#define PAMOJA_OPT3001_SIM_LUX 380.0
+
+// The temperature a simulated HDC1080 reports unless it is asked for another.
+#define PAMOJA_HDC1080_SIM_CELSIUS 22.5
+
+// The relative humidity a simulated HDC1080 reports unless it is asked for another.
+#define PAMOJA_HDC1080_SIM_RELATIVE_HUMIDITY 45.0
+
+// The shunt a simulated INA219 sits across, in milliohms: the common breakout's.
+#define PAMOJA_INA219_SIM_SHUNT_MILLIOHMS 100
+
+// The largest current a simulated INA219 is sized for, in microamps.
+#define PAMOJA_INA219_SIM_MAX_MICROAMPS 3200000
+
+// The bus voltage a simulated INA219 reports unless it is asked for another, in millivolts.
+#define PAMOJA_INA219_SIM_BUS_MILLIVOLTS 12000
+
+// The current a simulated INA219 reports unless it is asked for another, in microamps.
+#define PAMOJA_INA219_SIM_MICROAMPS 500000
+
+// The shunt a simulated INA226 sits across, in milliohms.
+#define PAMOJA_INA226_SIM_SHUNT_MILLIOHMS 100
+
+// The largest current a simulated INA226 is sized for, in microamps.
+#define PAMOJA_INA226_SIM_MAX_MICROAMPS 3200000
+
+// The bus voltage a simulated INA226 reports unless it is asked for another, in microvolts.
+#define PAMOJA_INA226_SIM_BUS_MICROVOLTS 12000000
+
+// The current a simulated INA226 reports unless it is asked for another, in microamps.
+#define PAMOJA_INA226_SIM_MICROAMPS 500000
+
+// The voltage a simulated ADS1115 reports unless it is asked for another: half a 3.3 V
+// supply.
+#define PAMOJA_ADS1115_SIM_VOLTS 1.65
+
+// The temperature a simulated SHT3x reports unless it is asked for another.
+#define PAMOJA_SHT3X_SIM_CELSIUS 22.5
+
+// The relative humidity a simulated SHT3x reports unless it is asked for another.
+#define PAMOJA_SHT3X_SIM_RELATIVE_HUMIDITY 45.0
+
+// The carbon dioxide a simulated SCD4x reports unless it is asked for another, in parts per
+// million.
+#define PAMOJA_SCD4X_SIM_CO2_PPM 800
+
+// The temperature a simulated SCD4x reports unless it is asked for another.
+#define PAMOJA_SCD4X_SIM_CELSIUS 22.5
+
+// The relative humidity a simulated SCD4x reports unless it is asked for another.
+#define PAMOJA_SCD4X_SIM_RELATIVE_HUMIDITY 45.0
+
+// The serial number every simulated SCD4x reports.
+#define PAMOJA_SCD4X_SIM_SERIAL 99286962285375
+
 // The largest payload, in bytes, that a streaming decoder will reassemble.
 //
 // The Rust decoders are generic over their capacity, which cannot cross a C
@@ -2023,6 +2147,9 @@ typedef enum {
   PamojaBootAction_Reverted = 2,
 } PamojaBootAction;
 
+// An ADS1115 driven over an I2C bus. Opaque; release it with [`pamoja_ads1115_free`].
+typedef struct PamojaAds1115 PamojaAds1115;
+
 // An opaque handle to a key-agreement secret.
 //
 // Create it with [`pamoja_agreement_key_from_seed`] and release it with
@@ -2060,6 +2187,9 @@ typedef struct PamojaBme280 PamojaBme280;
 // it for every measurement. Release it with
 // [`pamoja_bme280_calibration_free`].
 typedef struct PamojaBme280Calibration PamojaBme280Calibration;
+
+// A BMP280 driven over an I2C bus. Opaque; release it with [`pamoja_bmp280_free`].
+typedef struct PamojaBmp280 PamojaBmp280;
 
 // An opaque handle to a BMP280's factory calibration.
 //
@@ -2118,6 +2248,14 @@ typedef struct PamojaDepletion PamojaDepletion;
 // An opaque handle to a device's private signing identity.
 typedef struct PamojaDeviceIdentity PamojaDeviceIdentity;
 
+// A DS18B20 the Linux kernel serves as a `w1_slave` file. Opaque; release it with
+// [`pamoja_ds18b20_thermometer_free`].
+typedef struct PamojaDs18b20Thermometer PamojaDs18b20Thermometer;
+
+// The DS18B20s the kernel has found, in order of their directory names. Opaque; release it
+// with [`pamoja_ds18b20_thermometers_free`].
+typedef struct PamojaDs18b20Thermometers PamojaDs18b20Thermometers;
+
 // An opaque handle to one endpoint on an event bus.
 //
 // A handle both publishes and receives. Each subscriber needs its own, taken
@@ -2156,12 +2294,15 @@ typedef struct PamojaGeofence PamojaGeofence;
 // which hands the line back to the kernel.
 typedef struct PamojaGpioLine PamojaGpioLine;
 
+// An HDC1080 driven over an I2C bus. Opaque; release it with [`pamoja_hdc1080_free`].
+typedef struct PamojaHdc1080 PamojaHdc1080;
+
 // One I2C bus, shared with every driver built on it. Opaque; release it with
 // [`pamoja_i2c_bus_free`].
 typedef struct PamojaI2cBus PamojaI2cBus;
 
-// A part that is not there, answering from 256 registers. Opaque; release it with
-// [`pamoja_i2c_part_free`].
+// A part that is not there, answering from its registers or its commands. Opaque; release it
+// with [`pamoja_i2c_part_free`].
 typedef struct PamojaI2cPart PamojaI2cPart;
 
 // The transfers a driver is expected to make, in order, and the replies. Opaque; release it
@@ -2174,6 +2315,12 @@ typedef struct PamojaI2cScript PamojaI2cScript;
 // [`pamoja_image_verifier_update`], and settle it with
 // [`pamoja_image_verifier_finish`], which consumes the handle.
 typedef struct PamojaImageVerifier PamojaImageVerifier;
+
+// An INA219 driven over an I2C bus. Opaque; release it with [`pamoja_ina219_free`].
+typedef struct PamojaIna219 PamojaIna219;
+
+// An INA226 driven over an I2C bus. Opaque; release it with [`pamoja_ina226_free`].
+typedef struct PamojaIna226 PamojaIna226;
 
 // An opaque handle to a one-dimensional Kalman filter.
 typedef struct PamojaKalman PamojaKalman;
@@ -2355,6 +2502,9 @@ typedef struct PamojaMqttClient PamojaMqttClient;
 // An opaque handle to a message received from a subscribed topic.
 typedef struct PamojaMqttMessage PamojaMqttMessage;
 
+// An OPT3001 driven over an I2C bus. Opaque; release it with [`pamoja_opt3001_free`].
+typedef struct PamojaOpt3001 PamojaOpt3001;
+
 // An opaque handle to a PID controller.
 typedef struct PamojaPid PamojaPid;
 
@@ -2407,6 +2557,9 @@ typedef struct PamojaRouter PamojaRouter;
 // it with [`pamoja_samples_free`].
 typedef struct PamojaSamples PamojaSamples;
 
+// An SCD40 or SCD41 driven over an I2C bus. Opaque; release it with [`pamoja_scd4x_free`].
+typedef struct PamojaScd4x PamojaScd4x;
+
 // An opaque handle to a cache of recently seen packets.
 //
 // Feed it every frame a node receives; it answers whether that packet is new, so
@@ -2419,6 +2572,9 @@ typedef struct PamojaSeenCache PamojaSeenCache;
 // Create it with [`pamoja_session_establish`] and release it with
 // [`pamoja_session_free`].
 typedef struct PamojaSession PamojaSession;
+
+// An SHT3x driven over an I2C bus. Opaque; release it with [`pamoja_sht3x_free`].
+typedef struct PamojaSht3x PamojaSht3x;
 
 // An opaque handle to a robot that moves only in arithmetic.
 typedef struct PamojaSimRobot PamojaSimRobot;
@@ -2453,6 +2609,9 @@ typedef struct PamojaSurge PamojaSurge;
 
 // An opaque handle to an on/off controller with hysteresis.
 typedef struct PamojaThermostat PamojaThermostat;
+
+// A TMP117 driven over an I2C bus. Opaque; release it with [`pamoja_tmp117_free`].
+typedef struct PamojaTmp117 PamojaTmp117;
 
 // An opaque handle to one transport, ready to drive or to compose.
 //
@@ -4270,6 +4429,24 @@ typedef struct {
   uint8_t resolution_bits;
 } PamojaDs18b20Reading;
 
+// An INA219 configuration register, field by field, each setting as the code the datasheet
+// prints.
+typedef struct {
+  // `1` resets the part when this register is written.
+  uint8_t reset;
+  // The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+  uint8_t bus_range;
+  // The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+  uint8_t gain;
+  // The bus ADC code, `0..=15`: a resolution below `8`, a sample count averaged at 12 bits
+  // from `9` up.
+  uint8_t bus_adc;
+  // The shunt ADC code, as `bus_adc`.
+  uint8_t shunt_adc;
+  // The operating-mode code, `0..=7`.
+  uint8_t mode;
+} PamojaIna219Config;
+
 // An ADS1115 configuration register, field by field.
 //
 // The multi-way settings carry the code the datasheet prints; the single-bit
@@ -4567,6 +4744,169 @@ typedef struct {
   // The IIR filter code, `0..=4`, where `0` is off.
   uint8_t filter;
 } PamojaBme280Settings;
+
+// How a BMP280 driver measures: the oversampling of each measurement and the IIR filter.
+typedef struct {
+  // The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t temperature;
+  // The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t pressure;
+  // The IIR filter's `filter[2:0]` code, `0` for the filter off, written as given.
+  uint8_t filter;
+} PamojaBmp280Settings;
+
+// A TMP117 temperature result.
+typedef struct {
+  // The temperature register, 7.8125 millidegrees Celsius per count.
+  int16_t raw;
+  // The temperature in micro-degrees Celsius, exact in integer arithmetic.
+  int32_t micro_celsius;
+  // The temperature in degrees Celsius.
+  float celsius;
+} PamojaTmp117Reading;
+
+// The TMP117's alert flags: whether a result since they were last read crossed a limit.
+typedef struct {
+  // `1` when a result was above the high limit.
+  uint8_t high;
+  // `1` when a result was below the low limit.
+  uint8_t low;
+} PamojaTmp117Alerts;
+
+// How an OPT3001 driver measures.
+typedef struct {
+  // `1` integrates each conversion for 800 ms, for resolution; `0` for 100 ms, for speed.
+  uint8_t long_conversion;
+  // The full-scale range number, `0..=11`, or `12` to let the part choose.
+  uint8_t range_number;
+} PamojaOpt3001Settings;
+
+// An OPT3001 illuminance result.
+typedef struct {
+  // The result register: a four-bit exponent over a twelve-bit mantissa.
+  uint16_t raw;
+  // The illuminance in millilux, exact in integer arithmetic.
+  uint32_t milli_lux;
+  // The illuminance in lux.
+  float lux;
+} PamojaOpt3001Reading;
+
+// How an HDC1080 driver measures: the resolution of each channel.
+typedef struct {
+  // The temperature resolution in bits: 14 or 11.
+  uint8_t temperature_resolution_bits;
+  // The humidity resolution in bits: 14, 11, or 8.
+  uint8_t humidity_resolution_bits;
+} PamojaHdc1080Settings;
+
+// How an INA219 driver measures: the shunt, the current it is sized for, and the register
+// settings.
+typedef struct {
+  // The shunt resistance in milliohms.
+  uint32_t shunt_milliohms;
+  // The largest current the shunt will carry, in microamps, which sets the finest current
+  // step the calibration allows.
+  uint32_t max_microamps;
+  // A current step in microamps per count to use instead, such as a round 100, or `0` to
+  // take the finest step for `max_microamps`.
+  uint32_t current_lsb_microamps;
+  // The range, gain, and converter settings; the mode is chosen per conversion.
+  PamojaIna219Config config;
+} PamojaIna219Settings;
+
+// One INA219 conversion: the four result registers as read, and what they mean.
+typedef struct {
+  // The shunt-voltage register.
+  int16_t shunt;
+  // The bus-voltage register, flags included.
+  uint16_t bus;
+  // The current register.
+  int16_t current;
+  // The power register.
+  uint16_t power;
+  // The current step the calibration programmed, in microamps per count.
+  uint32_t current_lsb_microamps;
+  // The shunt voltage in microvolts.
+  int32_t shunt_microvolts;
+  // The bus voltage in millivolts.
+  uint32_t bus_millivolts;
+  // The current in microamps; negative flows the other way through the shunt.
+  int32_t current_microamps;
+  // The power in microwatts.
+  uint32_t power_microwatts;
+  // `1` when the part's arithmetic overflowed and the current and power are meaningless.
+  uint8_t math_overflow;
+} PamojaIna219Reading;
+
+// How an INA226 driver measures: the shunt, the current it is sized for, and the register
+// settings.
+typedef struct {
+  // The shunt resistance in milliohms.
+  uint32_t shunt_milliohms;
+  // The largest current the shunt will carry, in microamps, which sets the finest current
+  // step the calibration allows.
+  uint32_t max_microamps;
+  // A current step in microamps per count to use instead, or `0` to take the finest step
+  // for `max_microamps`.
+  uint32_t current_lsb_microamps;
+  // The averaging and conversion times; the mode is chosen per conversion.
+  PamojaIna226Config config;
+} PamojaIna226Settings;
+
+// One INA226 conversion: the four result registers as read, and what they mean.
+typedef struct {
+  // The shunt-voltage register.
+  int16_t shunt;
+  // The bus-voltage register.
+  uint16_t bus;
+  // The current register.
+  int16_t current;
+  // The power register.
+  uint16_t power;
+  // The current step the calibration programmed, in microamps per count.
+  uint32_t current_lsb_microamps;
+  // The shunt voltage in nanovolts.
+  int32_t shunt_nanovolts;
+  // The shunt voltage in millivolts.
+  float shunt_millivolts;
+  // The bus voltage in microvolts.
+  uint32_t bus_microvolts;
+  // The bus voltage in volts.
+  float bus_volts;
+  // The current in microamps; negative flows the other way through the shunt.
+  int32_t current_microamps;
+  // The current in amps.
+  float current_amps;
+  // The power in microwatts.
+  uint32_t power_microwatts;
+  // The power in watts.
+  float power_watts;
+  // `1` when the part's arithmetic overflowed and the current and power are meaningless.
+  uint8_t math_overflow;
+} PamojaIna226Reading;
+
+// How an ADS1115 driver converts: which input, at which range, how fast.
+typedef struct {
+  // The input multiplexer code, `0..=7`: `0..=3` a differential pair, `4..=7` one input
+  // against ground.
+  uint8_t mux;
+  // The gain code, `0..=7`, which sets the full-scale range.
+  uint8_t pga;
+  // The data-rate code, `0..=7`, from 8 to 860 samples per second.
+  uint8_t data_rate;
+} PamojaAds1115Settings;
+
+// One ADS1115 conversion.
+typedef struct {
+  // The conversion register, two's complement.
+  int16_t raw;
+  // The gain code the conversion ran at.
+  uint8_t pga;
+  // The voltage in nanovolts, exact in integer arithmetic.
+  int64_t nanovolts;
+  // The voltage in volts.
+  float volts;
+} PamojaAds1115Sample;
 
 // The header that travels beside a sealed message.
 //
@@ -7135,7 +7475,8 @@ PamojaStatus pamoja_gpio_line_read(PamojaGpioLine *line, PamojaPinLevel *out_lev
 // `line` must be a handle from one of the open functions that has not been freed, or null.
 void pamoja_gpio_line_free(PamojaGpioLine *line);
 
-// Creates a part answering at one address, with every register reading zero.
+// Creates a part answering at one address from 256 registers a byte wide, every one reading
+// zero.
 //
 // # Arguments
 //
@@ -7146,7 +7487,51 @@ void pamoja_gpio_line_free(PamojaGpioLine *line);
 // The part, which the caller releases with [`pamoja_i2c_part_free`].
 PamojaI2cPart *pamoja_i2c_part_new(uint8_t address);
 
-// Puts bytes in a part, from a register on. Past the last register they wrap to the first.
+// Creates a part answering at one address from 256 registers sixteen bits wide, every one
+// reading zero. A pointer byte names a register, a write of a word stores it and leaves the
+// pointer where it was, and a read takes words from the pointer on.
+//
+// # Arguments
+//
+// * `address` - the 7-bit address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_i2c_word_part_new(uint8_t address);
+
+// Creates a part answering at one address that takes commands and has been given no replies
+// yet. A write sends a command and any arguments after it; a read takes the reply that
+// command left, once, padded with `0xFF`; a read with no reply waiting is not acknowledged.
+//
+// # Arguments
+//
+// * `address` - the 7-bit address it answers to.
+// * `width` - how many bytes a command takes: two for Sensirion's 16-bit commands.
+//
+// # Returns
+//
+// The part, which the caller releases with [`pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_i2c_command_part_new(uint8_t address, uintptr_t width);
+
+// Returns which kind of part a handle holds.
+//
+// # Arguments
+//
+// * `part` - the part.
+//
+// # Returns
+//
+// [`PAMOJA_I2C_PART_BYTES`], [`PAMOJA_I2C_PART_WORDS`], or [`PAMOJA_I2C_PART_COMMANDS`]; the
+// bytes code for a null part.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uint8_t pamoja_i2c_part_kind(const PamojaI2cPart *part);
+
+// Puts bytes in a part whose registers are a byte wide, from a register on. Past the last
+// register they wrap to the first.
 //
 // # Arguments
 //
@@ -7157,8 +7542,8 @@ PamojaI2cPart *pamoja_i2c_part_new(uint8_t address);
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a null
-// `bytes` with a nonzero length.
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part, a null `bytes`
+// with a nonzero length, or a part of another kind.
 //
 // # Safety
 //
@@ -7168,7 +7553,7 @@ PamojaStatus pamoja_i2c_part_load(PamojaI2cPart *part,
                                   const uint8_t *bytes,
                                   uintptr_t len);
 
-// Reads what one of a part's registers holds.
+// Reads what one register of a part whose registers are a byte wide holds.
 //
 // # Arguments
 //
@@ -7177,14 +7562,16 @@ PamojaStatus pamoja_i2c_part_load(PamojaI2cPart *part,
 //
 // # Returns
 //
-// Its value, which is what a driver wrote if it wrote one, or 0 for a null part.
+// Its value, which is what a driver wrote if it wrote one, or 0 for a null part or a part of
+// another kind.
 //
 // # Safety
 //
 // `part` must be a live handle or null.
 uint8_t pamoja_i2c_part_register(const PamojaI2cPart *part, uint8_t register_);
 
-// Reads consecutive registers of a part, from one register on.
+// Reads consecutive registers of a part whose registers are a byte wide, from one register
+// on.
 //
 // # Arguments
 //
@@ -7195,7 +7582,8 @@ uint8_t pamoja_i2c_part_register(const PamojaI2cPart *part, uint8_t register_);
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a part of
+// another kind.
 //
 // # Safety
 //
@@ -7204,6 +7592,120 @@ PamojaStatus pamoja_i2c_part_read(const PamojaI2cPart *part,
                                   uint8_t first,
                                   uint8_t *out,
                                   uintptr_t len);
+
+// Puts a value in one register of a part whose registers are sixteen bits wide, read-only
+// bits included, the way the part itself would.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `register` - the register.
+// * `value` - what it holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a part of
+// another kind.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+PamojaStatus pamoja_i2c_part_set_word(PamojaI2cPart *part, uint8_t register_, uint16_t value);
+
+// Marks bits of one register of a part whose registers are sixteen bits wide as the part's to
+// set: a driver's write leaves them as the part holds them, as a conversion-ready flag is.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `register` - the register.
+// * `mask` - the bits that are the part's.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a part of
+// another kind.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+PamojaStatus pamoja_i2c_part_read_only(PamojaI2cPart *part, uint8_t register_, uint16_t mask);
+
+// Reads what one register of a part whose registers are sixteen bits wide holds.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `register` - which register.
+//
+// # Returns
+//
+// Its value, which is what a driver wrote there apart from the read-only bits, or 0 for a
+// null part or a part of another kind.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uint16_t pamoja_i2c_part_word(const PamojaI2cPart *part, uint8_t register_);
+
+// Gives a part that takes commands the reply one command leaves, in place of any reply given
+// before.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `command` - the command's bytes.
+// * `command_len` - how many.
+// * `reply` - what a read after the command returns.
+// * `reply_len` - how many bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a part of
+// another kind.
+//
+// # Safety
+//
+// `part` must be a live handle or null, `command` must point to `command_len` readable bytes,
+// and `reply` to `reply_len`.
+PamojaStatus pamoja_i2c_part_answer(PamojaI2cPart *part,
+                                    const uint8_t *command,
+                                    uintptr_t command_len,
+                                    const uint8_t *reply,
+                                    uintptr_t reply_len);
+
+// Returns how many writes a part that takes commands has received.
+//
+// # Arguments
+//
+// * `part` - the part.
+//
+// # Returns
+//
+// The count, or 0 for a null part or a part of another kind.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uintptr_t pamoja_i2c_part_received_count(const PamojaI2cPart *part);
+
+// Copies one write a part that takes commands received: a command and any arguments after
+// it.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `index` - which write, oldest first, below [`pamoja_i2c_part_received_count`].
+//
+// # Returns
+//
+// The write's bytes, which the caller releases with [`crate::pamoja_buffer_free`], or null for
+// a null part, a part of another kind, or an index past the last write.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+PamojaBuffer *pamoja_i2c_part_received(const PamojaI2cPart *part, uintptr_t index);
 
 // Returns the address a part answers to.
 //
@@ -7387,7 +7889,8 @@ PamojaStatus pamoja_i2c_bus_open(const char *path, PamojaI2cBus **out_bus);
 // every transfer finds nothing at its address.
 PamojaI2cBus *pamoja_i2c_bus_simulated(void);
 
-// Puts a copy of a part on a simulated bus, in place of any part already at its address.
+// Puts a copy of a part of any kind on a simulated bus, in place of any part already at its
+// address.
 //
 // # Arguments
 //
@@ -7564,8 +8067,9 @@ uint64_t pamoja_i2c_bus_waited_micros(const PamojaI2cBus *bus);
 //
 // # Returns
 //
-// A new part, which the caller releases with [`pamoja_i2c_part_free`], or null when the bus
-// is not simulated, holds no part at the address, or is null.
+// A new part of the kind that answers at the address, which [`pamoja_i2c_part_kind`] names
+// and the caller releases with [`pamoja_i2c_part_free`], or null when the bus is not
+// simulated, holds no part at the address, or is null.
 //
 // # Safety
 //
@@ -18935,6 +19439,27 @@ PamojaStatus pamoja_ds18b20_parse_scratchpad(const uint8_t *bytes,
                                              uintptr_t bytes_len,
                                              PamojaDs18b20Reading *out_reading);
 
+// Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+// of its `w1_slave` file: the scratchpad in hex with the kernel's CRC verdict, then the
+// temperature.
+//
+// # Arguments
+//
+// * `text` - the file's contents, a null-terminated string.
+// * `out_reading` - receives the reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_reading` filled in; [`PamojaStatus::Codec`] when the kernel
+// or this decoder rejects the CRC, or the text is not in the driver's format; or
+// [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument.
+//
+// # Safety
+//
+// `text` must be a null-terminated string or null, and `out_reading` a writable pointer or
+// null.
+PamojaStatus pamoja_ds18b20_parse_w1_slave(const char *text, PamojaDs18b20Reading *out_reading);
+
 // Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
 //
 // This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
@@ -19109,6 +19634,79 @@ int32_t pamoja_ina219_current_microamps(int16_t raw, uint32_t current_lsb_microa
 //
 // The power, at the resolution the calibration selected.
 uint32_t pamoja_ina219_power_microwatts(uint16_t raw, uint32_t current_lsb_microamps);
+
+// Assembles the 16-bit INA219 configuration register value.
+//
+// # Arguments
+//
+// * `config` - the settings.
+//
+// # Returns
+//
+// The register value to write.
+uint16_t pamoja_ina219_config_bits(PamojaIna219Config config);
+
+// Parses a 16-bit INA219 configuration register value.
+//
+// # Arguments
+//
+// * `bits` - the register value, as read from the part.
+// * `out_config` - receives the settings.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]. Every register value decodes, so this fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaIna219Config`.
+PamojaStatus pamoja_ina219_config_from_bits(uint16_t bits, PamojaIna219Config *out_config);
+
+// Returns how long one INA219 conversion cycle takes: the shunt and bus conversions the
+// mode runs, one after the other.
+//
+// # Arguments
+//
+// * `config` - the settings.
+//
+// # Returns
+//
+// The time in microseconds.
+uint32_t pamoja_ina219_conversion_micros(PamojaIna219Config config);
+
+// Returns how long one INA219 conversion takes at an ADC setting.
+//
+// # Arguments
+//
+// * `code` - the ADC code, as in [`PamojaIna219Config::bus_adc`].
+//
+// # Returns
+//
+// The time in microseconds, from the datasheet's table.
+uint32_t pamoja_ina219_adc_conversion_micros(uint8_t code);
+
+// Returns the shunt-voltage range an INA219 gain code selects.
+//
+// # Arguments
+//
+// * `code` - the gain code, `0..=3`.
+//
+// # Returns
+//
+// The range in millivolts either side of zero.
+uint16_t pamoja_ina219_gain_range_millivolts(uint8_t code);
+
+// Returns how long an ADS1115 conversion takes at a data-rate code: one period of the rate
+// plus the datasheet's ten percent rate variation.
+//
+// # Arguments
+//
+// * `data_rate` - the data-rate code, `0..=7`.
+//
+// # Returns
+//
+// The time in microseconds.
+uint32_t pamoja_ads1115_conversion_micros(uint8_t data_rate);
 
 // Assembles the 16-bit ADS1115 configuration register value.
 //
@@ -20687,6 +21285,1535 @@ PamojaStatus pamoja_bme280_sim_burst_for(float celsius,
                                          float hectopascals,
                                          float relative_humidity,
                                          uint8_t *out_burst);
+
+// Returns the settings a BMP280 driver starts with: both measurements at oversampling x1 and
+// the filter off.
+//
+// # Returns
+//
+// The settings.
+PamojaBmp280Settings pamoja_bmp280_settings_default(void);
+
+// Creates a BMP280 driver on a bus. Nothing is sent until [`pamoja_bmp280_init`] or the first
+// [`pamoja_bmp280_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - [`crate::sensors::PAMOJA_BMP280_I2C_ADDRESS_PRIMARY`] with SDO low, or
+//   [`crate::sensors::PAMOJA_BMP280_I2C_ADDRESS_SECONDARY`] with SDO high.
+// * `settings` - the oversampling and the filter.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_bmp280_new(const PamojaI2cBus *bus,
+                               uint8_t address,
+                               PamojaBmp280Settings settings,
+                               PamojaBmp280 **out_sensor);
+
+// Resets the part, checks it is a BMP280, reads its trimming coefficients, and writes the
+// settings, leaving the part asleep.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails or the trimming never finishes loading; or
+// [`PamojaStatus::Codec`] when the part at the address is not a BMP280.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_bmp280_init(PamojaBmp280 *sensor);
+
+// Runs one forced measurement and compensates it, initializing the part first if
+// [`pamoja_bmp280_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_reading` - receives the reading.
+//
+// # Returns
+//
+// As [`pamoja_bmp280_init`], with [`PamojaStatus::Io`] also when the part is still measuring
+// after the datasheet's time.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_bmp280_measure(PamojaBmp280 *sensor, PamojaBmp280Reading *out_reading);
+
+// Copies the trimming coefficients a BMP280 driver read at initialization.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_coefficients` - receives the coefficients.
+//
+// # Returns
+//
+// `true` with the coefficients in `out_coefficients`; `false` before the part has been
+// initialized, or for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_coefficients` a writable pointer or null.
+bool pamoja_bmp280_coefficients(const PamojaBmp280 *sensor,
+                                PamojaBmp280Coefficients *out_coefficients);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_bmp280_new`] that has not been freed, or null.
+void pamoja_bmp280_free(PamojaBmp280 *sensor);
+
+// Creates a simulated BMP280 holding a real part's trimming and one measurement it took,
+// which compensate to 20.44 C and 848.05 hPa.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_bmp280_sim_part(uint8_t address);
+
+// Creates a simulated BMP280 that reads what it is asked to.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `celsius` - the temperature it reports.
+// * `hectopascals` - the pressure it reports.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land within a hundredth of a degree and a hundredth of a hectopascal.
+PamojaI2cPart *pamoja_bmp280_sim_reporting(uint8_t address, float celsius, float hectopascals);
+
+// Copies the 24 trimming bytes a simulated BMP280 holds.
+//
+// # Arguments
+//
+// * `out_calibration` - receives the bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_calibration` must point to 24 writable bytes.
+PamojaStatus pamoja_bmp280_sim_calibration(uint8_t *out_calibration);
+
+// Copies the six data registers a simulated BMP280 holds: one measurement a real part took.
+//
+// # Arguments
+//
+// * `out_burst` - receives the six bytes a burst read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_burst` must point to 6 writable bytes.
+PamojaStatus pamoja_bmp280_sim_burst(uint8_t *out_burst);
+
+// Builds the six data registers a simulated BMP280 holds when it reports a reading.
+//
+// # Arguments
+//
+// * `celsius` - the temperature.
+// * `hectopascals` - the pressure.
+// * `out_burst` - receives the six bytes a burst read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_burst` must point to 6 writable bytes.
+PamojaStatus pamoja_bmp280_sim_burst_for(float celsius, float hectopascals, uint8_t *out_burst);
+
+// Creates a TMP117 driver on a bus. Nothing is sent until [`pamoja_tmp117_init`] or the first
+// [`pamoja_tmp117_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - one of the `PAMOJA_TMP117_ADDRESS_` constants, by where ADD0 is tied.
+// * `averaging` - the averaging code, `0..=3`, for 1, 8, 32, or 64 conversions per result;
+//   `1`, eight, is the factory setting.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_tmp117_new(const PamojaI2cBus *bus,
+                               uint8_t address,
+                               uint8_t averaging,
+                               PamojaTmp117 **out_sensor);
+
+// Checks the part is a TMP117, waits for its EEPROM to finish loading, and writes the
+// settings with the part in shutdown.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails or the EEPROM never reports ready; or
+// [`PamojaStatus::Codec`] when the device id is not a TMP117's.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_tmp117_init(PamojaTmp117 *sensor);
+
+// Runs one conversion and reads the temperature, initializing the part first if
+// [`pamoja_tmp117_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_reading` - receives the temperature.
+//
+// # Returns
+//
+// As [`pamoja_tmp117_init`], with [`PamojaStatus::Io`] also when the part never reports the
+// conversion done.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_tmp117_measure(PamojaTmp117 *sensor, PamojaTmp117Reading *out_reading);
+
+// Writes the high and low limits the part compares each result against.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `high_celsius` - the high limit; the factory value is 192 C.
+// * `low_celsius` - the low limit; the factory value is -256 C.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null driver, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_tmp117_set_alert_limits(PamojaTmp117 *sensor,
+                                            float high_celsius,
+                                            float low_celsius);
+
+// Reads the alert flags: whether a result since the last call was above the high limit or
+// below the low limit, including results the driver's own reads saw.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_alerts` - receives the flags.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_alerts` a writable pointer or null.
+PamojaStatus pamoja_tmp117_alerts(PamojaTmp117 *sensor, PamojaTmp117Alerts *out_alerts);
+
+// Reports the silicon revision a TMP117 driver read at initialization.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_revision` - receives the revision.
+//
+// # Returns
+//
+// `true` with the revision in `out_revision`; `false` before the part has been initialized,
+// or for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_revision` a writable pointer or null.
+bool pamoja_tmp117_silicon_revision(const PamojaTmp117 *sensor, uint8_t *out_revision);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_tmp117_new`] that has not been freed, or null.
+void pamoja_tmp117_free(PamojaTmp117 *sensor);
+
+// Creates a simulated TMP117 reading [`PAMOJA_TMP117_SIM_CELSIUS`].
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_tmp117_sim_part(uint8_t address);
+
+// Creates a simulated TMP117 that reads what it is asked to. Its configuration register keeps
+// the flags the part sets for itself, with the data-ready flag set.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `celsius` - the temperature it reports, which lands on the nearest 7.8125 millidegrees.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_tmp117_sim_reporting(uint8_t address, float celsius);
+
+// Returns the settings an OPT3001 driver starts with, the part's own reset settings: the
+// 800 ms integration time and the range chosen automatically.
+//
+// # Returns
+//
+// The settings.
+PamojaOpt3001Settings pamoja_opt3001_settings_default(void);
+
+// Creates an OPT3001 driver on a bus. Nothing is sent until [`pamoja_opt3001_init`] or the
+// first [`pamoja_opt3001_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - one of the `PAMOJA_OPT3001_I2C_ADDRESS_` constants, by where ADDR is tied.
+// * `settings` - the integration time and the range.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_opt3001_new(const PamojaI2cBus *bus,
+                                uint8_t address,
+                                PamojaOpt3001Settings settings,
+                                PamojaOpt3001 **out_sensor);
+
+// Checks the part is an OPT3001 and writes the settings with the part in shutdown.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when either id register
+// is not an OPT3001's.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_opt3001_init(PamojaOpt3001 *sensor);
+
+// Runs one conversion and reads the illuminance, initializing the part first if
+// [`pamoja_opt3001_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_reading` - receives the illuminance.
+//
+// # Returns
+//
+// As [`pamoja_opt3001_init`], with [`PamojaStatus::Io`] also when the conversion never
+// finishes.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_opt3001_measure(PamojaOpt3001 *sensor, PamojaOpt3001Reading *out_reading);
+
+// Writes the low and high limits the part's interrupt pin compares each result against.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `low_milli_lux` - the low limit, in millilux.
+// * `high_milli_lux` - the high limit, in millilux.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null driver, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_opt3001_set_limits(PamojaOpt3001 *sensor,
+                                       uint32_t low_milli_lux,
+                                       uint32_t high_milli_lux);
+
+// Copies the configuration an OPT3001 driver writes, with the part in shutdown.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_config` - receives the configuration.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_config` a writable pointer or null.
+PamojaStatus pamoja_opt3001_configuration(const PamojaOpt3001 *sensor,
+                                          PamojaOpt3001Config *out_config);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_opt3001_new`] that has not been freed, or null.
+void pamoja_opt3001_free(PamojaOpt3001 *sensor);
+
+// Creates a simulated OPT3001 reading [`PAMOJA_OPT3001_SIM_LUX`].
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_opt3001_sim_part(uint8_t address);
+
+// Creates a simulated OPT3001 that reads what it is asked to. Its configuration register
+// keeps the flags the part sets for itself, with the conversion-ready flag set.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `lux` - the illuminance it reports, which lands on the nearest step its exponent and
+//   mantissa represent.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_opt3001_sim_reporting(uint8_t address, float lux);
+
+// Returns the settings an HDC1080 driver starts with: both channels at 14 bits.
+//
+// # Returns
+//
+// The settings.
+PamojaHdc1080Settings pamoja_hdc1080_settings_default(void);
+
+// Creates an HDC1080 driver on a bus; the part has one address. Nothing is sent until
+// [`pamoja_hdc1080_init`] or the first [`pamoja_hdc1080_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `settings` - the resolution of each channel.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument or a resolution the part does not have.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_hdc1080_new(const PamojaI2cBus *bus,
+                                PamojaHdc1080Settings settings,
+                                PamojaHdc1080 **out_sensor);
+
+// Checks the part is an HDC1080 and writes the configuration.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when either id register
+// is not an HDC1080's.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_hdc1080_init(PamojaHdc1080 *sensor);
+
+// Triggers one acquisition of both channels and reads them, initializing the part first if
+// [`pamoja_hdc1080_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_measurement` - receives the temperature and humidity.
+//
+// # Returns
+//
+// As [`pamoja_hdc1080_init`]. A part that does not acknowledge the read before its results
+// are ready is [`PamojaStatus::Io`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_measurement` a writable pointer or null.
+PamojaStatus pamoja_hdc1080_measure(PamojaHdc1080 *sensor,
+                                    PamojaHdc1080Measurement *out_measurement);
+
+// Switches the on-die heater, which runs only during acquisitions, on or off.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `on` - whether the heater runs.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null driver, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_hdc1080_heater(PamojaHdc1080 *sensor, bool on);
+
+// Copies the configuration an HDC1080 driver writes.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_config` - receives the configuration.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_config` a writable pointer or null.
+PamojaStatus pamoja_hdc1080_configuration(const PamojaHdc1080 *sensor,
+                                          PamojaHdc1080Config *out_config);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_hdc1080_new`] that has not been freed, or null.
+void pamoja_hdc1080_free(PamojaHdc1080 *sensor);
+
+// Creates a simulated HDC1080 reading [`PAMOJA_HDC1080_SIM_CELSIUS`] and
+// [`PAMOJA_HDC1080_SIM_RELATIVE_HUMIDITY`].
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_hdc1080_sim_part(void);
+
+// Creates a simulated HDC1080 that reads what it is asked to.
+//
+// # Arguments
+//
+// * `celsius` - the temperature it reports.
+// * `relative_humidity` - the humidity it reports, as a percentage.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land within three thousandths of a degree and two thousandths of a percent.
+PamojaI2cPart *pamoja_hdc1080_sim_reporting(float celsius, float relative_humidity);
+
+// Returns the settings an INA219 driver starts with: a 100 milliohm shunt sized for 3.2 A,
+// the common breakout, the finest current step for it, and the power-on register settings.
+//
+// # Returns
+//
+// The settings.
+PamojaIna219Settings pamoja_ina219_settings_default(void);
+
+// Creates an INA219 driver on a bus. Nothing is sent until [`pamoja_ina219_init`] or the first
+// [`pamoja_ina219_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - [`crate::sensors::PAMOJA_INA219_BASE_ADDRESS`] plus what A1 and A0 add.
+// * `settings` - the shunt, the current it is sized for, and the register settings.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_ina219_new(const PamojaI2cBus *bus,
+                               uint8_t address,
+                               PamojaIna219Settings settings,
+                               PamojaIna219 **out_sensor);
+
+// Resets the part, writes the configuration and the calibration, and reads the calibration
+// back, which is the identity check a part with no id register allows.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when the calibration
+// register does not hold what was written.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_ina219_init(PamojaIna219 *sensor);
+
+// Triggers one shunt and bus conversion and reads every result, initializing the part first
+// if [`pamoja_ina219_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_reading` - receives the results.
+//
+// # Returns
+//
+// As [`pamoja_ina219_init`], with [`PamojaStatus::Io`] also when the conversion-ready flag
+// never sets.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_ina219_measure(PamojaIna219 *sensor, PamojaIna219Reading *out_reading);
+
+// Returns the current step an INA219 driver programs.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// Microamps per count of the current register, or 0 for a null driver.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+uint32_t pamoja_ina219_current_lsb(const PamojaIna219 *sensor);
+
+// Returns the calibration word an INA219 driver programs.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// The word, from the shunt and the current step by the datasheet's equation, or 0 for a
+// null driver.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+uint16_t pamoja_ina219_calibration_word(const PamojaIna219 *sensor);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_ina219_new`] that has not been freed, or null.
+void pamoja_ina219_free(PamojaIna219 *sensor);
+
+// Creates a simulated INA219 carrying [`PAMOJA_INA219_SIM_MICROAMPS`] at
+// [`PAMOJA_INA219_SIM_BUS_MILLIVOLTS`] through the shunt a driver starts with.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_ina219_sim_part(uint8_t address);
+
+// Creates a simulated INA219 that reads what it is asked to, calibrated for the same shunt and
+// largest current a driver is given.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `shunt_milliohms` - the shunt, as in the driver's settings.
+// * `max_microamps` - the largest current, as in the driver's settings.
+// * `bus_millivolts` - the bus voltage it reports.
+// * `microamps` - the current it reports; negative flows the other way through the shunt.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land on the steps its registers count in: 4 mV of bus, 10 uV of shunt, and the
+// calibration's current step.
+PamojaI2cPart *pamoja_ina219_sim_reporting(uint8_t address,
+                                           uint32_t shunt_milliohms,
+                                           uint32_t max_microamps,
+                                           uint32_t bus_millivolts,
+                                           int32_t microamps);
+
+// Returns the settings an INA226 driver starts with: a 100 milliohm shunt sized for 3.2 A,
+// the finest current step for it, and the power-on register settings.
+//
+// # Returns
+//
+// The settings.
+PamojaIna226Settings pamoja_ina226_settings_default(void);
+
+// Creates an INA226 driver on a bus. Nothing is sent until [`pamoja_ina226_init`] or the first
+// [`pamoja_ina226_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - the address A1 and A0 select, which
+//   [`crate::sensors::pamoja_ina226_address`] works out.
+// * `settings` - the shunt, the current it is sized for, and the register settings.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_ina226_new(const PamojaI2cBus *bus,
+                               uint8_t address,
+                               PamojaIna226Settings settings,
+                               PamojaIna226 **out_sensor);
+
+// Resets the part, checks it is an INA226, writes the configuration and the calibration, and
+// reads the calibration back.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when the id registers
+// are not an INA226's or the calibration does not read back.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_ina226_init(PamojaIna226 *sensor);
+
+// Triggers one shunt and bus conversion and reads every result, initializing the part first
+// if [`pamoja_ina226_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_reading` - receives the results.
+//
+// # Returns
+//
+// As [`pamoja_ina226_init`], with [`PamojaStatus::Io`] also when the conversion-ready flag
+// never sets.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_ina226_measure(PamojaIna226 *sensor, PamojaIna226Reading *out_reading);
+
+// Programs the alert pin: which limit it watches, and the limit.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `mask` - the mask/enable settings, one alert function at a time.
+// * `limit` - the alert-limit register, in the units of the register the function watches.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null driver, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_ina226_set_alert(PamojaIna226 *sensor,
+                                     PamojaIna226MaskEnable mask,
+                                     uint16_t limit);
+
+// Returns the current step an INA226 driver programs.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// Microamps per count of the current register, or 0 for a null driver.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+uint32_t pamoja_ina226_current_lsb(const PamojaIna226 *sensor);
+
+// Returns the calibration word an INA226 driver programs.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// The word, or 0 for a null driver.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+uint16_t pamoja_ina226_calibration_word(const PamojaIna226 *sensor);
+
+// Reports the die id an INA226 driver read at initialization.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_die_id` - receives the device and revision.
+//
+// # Returns
+//
+// `true` with the id in `out_die_id`; `false` before the part has been initialized, or for a
+// null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_die_id` a writable pointer or null.
+bool pamoja_ina226_identity(const PamojaIna226 *sensor, PamojaIna226DieId *out_die_id);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_ina226_new`] that has not been freed, or null.
+void pamoja_ina226_free(PamojaIna226 *sensor);
+
+// Creates a simulated INA226 carrying [`PAMOJA_INA226_SIM_MICROAMPS`] at
+// [`PAMOJA_INA226_SIM_BUS_MICROVOLTS`] through the shunt a driver starts with.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_ina226_sim_part(uint8_t address);
+
+// Creates a simulated INA226 that reads what it is asked to, calibrated for the same shunt and
+// largest current a driver is given.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `shunt_milliohms` - the shunt, as in the driver's settings.
+// * `max_microamps` - the largest current, as in the driver's settings.
+// * `bus_microvolts` - the bus voltage it reports.
+// * `microamps` - the current it reports; negative flows the other way through the shunt.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land on the steps its registers count in: 1.25 mV of bus, 2.5 uV of shunt, and the
+// calibration's current step.
+PamojaI2cPart *pamoja_ina226_sim_reporting(uint8_t address,
+                                           uint32_t shunt_milliohms,
+                                           uint32_t max_microamps,
+                                           uint32_t bus_microvolts,
+                                           int32_t microamps);
+
+// Returns the settings an ADS1115 driver starts with, the part's own reset settings: AIN0
+// against AIN1, the 2.048 V range, and 128 samples per second.
+//
+// # Returns
+//
+// The settings.
+PamojaAds1115Settings pamoja_ads1115_settings_default(void);
+
+// Creates an ADS1115 driver on a bus. Nothing is sent until [`pamoja_ads1115_init`] or the
+// first [`pamoja_ads1115_sample`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - one of the `PAMOJA_ADS1115_ADDRESS_` constants, by where ADDR is tied.
+// * `settings` - the input, the range, and the data rate.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_ads1115_new(const PamojaI2cBus *bus,
+                                uint8_t address,
+                                PamojaAds1115Settings settings,
+                                PamojaAds1115 **out_sensor);
+
+// Writes the input, range, and data rate, and reads the configuration back, which is the
+// identity check a part with no id register allows.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when the configuration
+// reads back differently.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_ads1115_init(PamojaAds1115 *sensor);
+
+// Runs one conversion of the configured input, initializing the part first if
+// [`pamoja_ads1115_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_sample` - receives the conversion, with the range it ran at.
+//
+// # Returns
+//
+// As [`pamoja_ads1115_init`], with [`PamojaStatus::Io`] also when the part never reports the
+// conversion done.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_sample` a writable pointer or null.
+PamojaStatus pamoja_ads1115_sample(PamojaAds1115 *sensor, PamojaAds1115Sample *out_sample);
+
+// Converts another input once, leaving the configured input as it was.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `mux` - the input multiplexer code for this one conversion.
+// * `out_sample` - receives the conversion.
+//
+// # Returns
+//
+// As [`pamoja_ads1115_sample`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_sample` a writable pointer or null.
+PamojaStatus pamoja_ads1115_sample_input(PamojaAds1115 *sensor,
+                                         uint8_t mux,
+                                         PamojaAds1115Sample *out_sample);
+
+// Copies the configuration an ADS1115 driver writes.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_config` - receives the configuration.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_config` a writable pointer or null.
+PamojaStatus pamoja_ads1115_config(const PamojaAds1115 *sensor, PamojaAds1115Config *out_config);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_ads1115_new`] that has not been freed, or null.
+void pamoja_ads1115_free(PamojaAds1115 *sensor);
+
+// Creates a simulated ADS1115 reading [`PAMOJA_ADS1115_SIM_VOLTS`] at the range a driver
+// starts with.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_ads1115_sim_part(uint8_t address);
+
+// Creates a simulated ADS1115 that reads what it is asked to at the range a driver converts
+// at.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `pga` - the gain code the driver converts at.
+// * `volts` - the voltage it reports, held to the range.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its reading
+// lands on the nearest of the 32768 steps either side of zero the range divides into.
+PamojaI2cPart *pamoja_ads1115_sim_reporting(uint8_t address, uint8_t pga, float volts);
+
+// Creates an SHT3x driver on a bus. Nothing is sent until [`pamoja_sht3x_init`] or the first
+// [`pamoja_sht3x_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - `PAMOJA_SHT3X_I2C_ADDRESS_A` with ADDR low, `PAMOJA_SHT3X_I2C_ADDRESS_B` with
+//   ADDR high.
+// * `repeatability` - `0` low, `1` medium, or `2` high, which trades noise against
+//   measurement time.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument or a repeatability code the part does not have.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_sht3x_new(const PamojaI2cBus *bus,
+                              uint8_t address,
+                              uint8_t repeatability,
+                              PamojaSht3x **out_sensor);
+
+// Soft-resets the part and reads its status; a status word whose CRC checks is what confirms
+// an SHT3x answers, as the part has no id register.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when the status word
+// fails its CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_sht3x_init(PamojaSht3x *sensor);
+
+// Runs one single-shot measurement, initializing the part first if [`pamoja_sht3x_init`] has
+// not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_measurement` - receives the CRC-checked temperature and humidity.
+//
+// # Returns
+//
+// As [`pamoja_sht3x_init`], with [`PamojaStatus::Codec`] also when a data word fails its CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_measurement` a writable pointer or null.
+PamojaStatus pamoja_sht3x_measure(PamojaSht3x *sensor, PamojaSht3xMeasurement *out_measurement);
+
+// Reads the status register.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_status` - receives the status.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument,
+// [`PamojaStatus::Io`] when the bus fails, or [`PamojaStatus::Codec`] when the word fails its
+// CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_status` a writable pointer or null.
+PamojaStatus pamoja_sht3x_read_status(PamojaSht3x *sensor, PamojaSht3xStatus *out_status);
+
+// Reports the status an SHT3x driver last read, without reading it again.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_status` - receives the status.
+//
+// # Returns
+//
+// `true` with the status in `out_status`; `false` before the status has been read, or for a
+// null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_status` a writable pointer or null.
+bool pamoja_sht3x_last_status(const PamojaSht3x *sensor, PamojaSht3xStatus *out_status);
+
+// Switches the plausibility-check heater on, initializing the part first if needed, since
+// the reset in initialization switches it off.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// As [`pamoja_sht3x_init`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_sht3x_heater_on(PamojaSht3x *sensor);
+
+// Switches the heater off, which is its state after any reset.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// As [`pamoja_sht3x_init`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_sht3x_heater_off(PamojaSht3x *sensor);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_sht3x_new`] that has not been freed, or null.
+void pamoja_sht3x_free(PamojaSht3x *sensor);
+
+// Creates a simulated SHT3x reading [`PAMOJA_SHT3X_SIM_CELSIUS`] and
+// [`PAMOJA_SHT3X_SIM_RELATIVE_HUMIDITY`].
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_sht3x_sim_part(uint8_t address);
+
+// Creates a simulated SHT3x that reads what it is asked to. It answers every single-shot
+// command, a periodic fetch, and the status command with the replies a real part gives.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `celsius` - the temperature it reports.
+// * `relative_humidity` - the humidity it reports, as a percentage.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land within three thousandths of a degree and two thousandths of a percent.
+PamojaI2cPart *pamoja_sht3x_sim_reporting(uint8_t address, float celsius, float relative_humidity);
+
+// Creates an SCD40 or SCD41 driver on a bus; the part has one address. Nothing is sent until
+// [`pamoja_scd4x_init`] or the first [`pamoja_scd4x_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_scd4x_new(const PamojaI2cBus *bus, PamojaScd4x **out_sensor);
+
+// Stops any running measurement, reads the serial number, and starts periodic measurement,
+// after which the part has a new result every five seconds.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails; or [`PamojaStatus::Codec`] when the serial number
+// fails its CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_scd4x_init(PamojaScd4x *sensor);
+
+// Waits for the next periodic result and reads it, initializing the part first if
+// [`pamoja_scd4x_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_measurement` - receives the carbon dioxide, temperature, and humidity.
+//
+// # Returns
+//
+// As [`pamoja_scd4x_init`], with [`PamojaStatus::Io`] also when no result becomes ready and
+// [`PamojaStatus::Codec`] when a word fails its CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_measurement` a writable pointer or null.
+PamojaStatus pamoja_scd4x_measure(PamojaScd4x *sensor, PamojaScd4xMeasurement *out_measurement);
+
+// Runs one on-demand measurement on an SCD41, which takes five seconds. The part must not be
+// measuring periodically: call [`pamoja_scd4x_stop`] first, or use this in place of
+// [`pamoja_scd4x_init`].
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_measurement` - receives the measurement.
+//
+// # Returns
+//
+// As [`pamoja_scd4x_measure`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_measurement` a writable pointer or null.
+PamojaStatus pamoja_scd4x_measure_single_shot(PamojaScd4x *sensor,
+                                              PamojaScd4xMeasurement *out_measurement);
+
+// Asks the part whether a periodic result is waiting.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_ready` - receives `true` when [`pamoja_scd4x_measure`] would read without waiting.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null argument,
+// [`PamojaStatus::Io`] when the bus fails, or [`PamojaStatus::Codec`] when the status word
+// fails its CRC.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_ready` a writable pointer or null.
+PamojaStatus pamoja_scd4x_poll_ready(PamojaScd4x *sensor, bool *out_ready);
+
+// Stops periodic measurement, after which the part takes its settings commands.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a null driver, or
+// [`PamojaStatus::Io`] when the bus fails.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_scd4x_stop(PamojaScd4x *sensor);
+
+// Starts periodic measurement.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// As [`pamoja_scd4x_stop`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_scd4x_start(PamojaScd4x *sensor);
+
+// Sets the temperature offset that compensates the part's own warmth, stopping periodic
+// measurement to write it and starting it again. The setting lasts until power is lost.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `milli_celsius` - the offset to subtract, in millidegrees.
+//
+// # Returns
+//
+// As [`pamoja_scd4x_stop`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_scd4x_set_temperature_offset(PamojaScd4x *sensor, uint32_t milli_celsius);
+
+// Sets the altitude the part corrects its carbon dioxide reading for, stopping periodic
+// measurement to write it and starting it again.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `meters` - the altitude above sea level.
+//
+// # Returns
+//
+// As [`pamoja_scd4x_stop`].
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_scd4x_set_sensor_altitude(PamojaScd4x *sensor, uint16_t meters);
+
+// Reports the serial number an SCD4x driver read at initialization.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_serial` - receives the 48-bit serial number.
+//
+// # Returns
+//
+// `true` with the serial in `out_serial`; `false` before the part has been initialized, or
+// for a null argument.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_serial` a writable pointer or null.
+bool pamoja_scd4x_serial(const PamojaScd4x *sensor, uint64_t *out_serial);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_scd4x_new`] that has not been freed, or null.
+void pamoja_scd4x_free(PamojaScd4x *sensor);
+
+// Creates a simulated SCD4x reading [`PAMOJA_SCD4X_SIM_CO2_PPM`],
+// [`PAMOJA_SCD4X_SIM_CELSIUS`], and [`PAMOJA_SCD4X_SIM_RELATIVE_HUMIDITY`].
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_scd4x_sim_part(void);
+
+// Creates a simulated SCD4x that reads what it is asked to. It answers the serial number,
+// data-ready, and measurement commands, and always has a result waiting.
+//
+// # Arguments
+//
+// * `co2_ppm` - the carbon dioxide it reports, in parts per million.
+// * `celsius` - the temperature it reports.
+// * `relative_humidity` - the humidity it reports, as a percentage.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_scd4x_sim_reporting(uint16_t co2_ppm, float celsius, float relative_humidity);
+
+// Names a DS18B20 the kernel serves by the serial in its directory name, reading
+// `/sys/bus/w1/devices/28-<serial>/w1_slave`.
+//
+// # Arguments
+//
+// * `serial` - the twelve hex digits after `28-`.
+// * `out_thermometer` - receives the thermometer.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8
+// argument. Nothing is read until [`pamoja_ds18b20_thermometer_read`].
+//
+// # Safety
+//
+// `serial` must be a null-terminated string or null, and `out_thermometer` a writable pointer
+// or null.
+PamojaStatus pamoja_ds18b20_thermometer_new(const char *serial,
+                                            PamojaDs18b20Thermometer **out_thermometer);
+
+// Names a DS18B20 by the path of its `w1_slave` file, for a system that mounts sysfs elsewhere
+// or a test that writes the file itself.
+//
+// # Arguments
+//
+// * `path` - the file to read.
+// * `out_thermometer` - receives the thermometer.
+//
+// # Returns
+//
+// As [`pamoja_ds18b20_thermometer_new`].
+//
+// # Safety
+//
+// `path` must be a null-terminated string or null, and `out_thermometer` a writable pointer or
+// null.
+PamojaStatus pamoja_ds18b20_thermometer_at(const char *path,
+                                           PamojaDs18b20Thermometer **out_thermometer);
+
+// Returns the path of the file a thermometer reads.
+//
+// # Arguments
+//
+// * `thermometer` - the thermometer.
+//
+// # Returns
+//
+// The path, which the caller releases with [`crate::pamoja_string_free`], or null for a null
+// thermometer.
+//
+// # Safety
+//
+// `thermometer` must be a live handle or null.
+PamojaString *pamoja_ds18b20_thermometer_path(const PamojaDs18b20Thermometer *thermometer);
+
+// Reads a thermometer's file, which makes the kernel run a conversion, and decodes it.
+//
+// # Arguments
+//
+// * `thermometer` - the thermometer.
+// * `out_reading` - receives the CRC-checked reading.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument;
+// [`PamojaStatus::Io`] when the file cannot be read, because the 1-Wire overlay is off, the
+// probe is gone, or the process may not read it; or [`PamojaStatus::Codec`] when the kernel or
+// this decoder rejects the CRC.
+//
+// # Safety
+//
+// `thermometer` must be a live handle or null, and `out_reading` a writable pointer or null.
+PamojaStatus pamoja_ds18b20_thermometer_read(const PamojaDs18b20Thermometer *thermometer,
+                                             PamojaDs18b20Reading *out_reading);
+
+// Releases a thermometer. A null pointer is ignored.
+//
+// # Safety
+//
+// `thermometer` must be a handle that has not been freed, or null.
+void pamoja_ds18b20_thermometer_free(PamojaDs18b20Thermometer *thermometer);
+
+// Lists every DS18B20 the kernel has found: one per `28-` directory.
+//
+// # Arguments
+//
+// * `devices` - the directory the kernel lists its 1-Wire devices in, or null for
+//   `/sys/bus/w1/devices`.
+// * `out_thermometers` - receives the list, sorted by directory name.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null `out_thermometers` or a
+// non-UTF-8 directory; or [`PamojaStatus::Io`] when the directory cannot be listed, which
+// usually means the 1-Wire overlay is off.
+//
+// # Safety
+//
+// `devices` must be a null-terminated string or null, and `out_thermometers` a writable
+// pointer or null.
+PamojaStatus pamoja_ds18b20_discover(const char *devices,
+                                     PamojaDs18b20Thermometers **out_thermometers);
+
+// Returns how many thermometers a list holds.
+//
+// # Arguments
+//
+// * `thermometers` - the list.
+//
+// # Returns
+//
+// The count, or 0 for a null list.
+//
+// # Safety
+//
+// `thermometers` must be a live handle or null.
+uintptr_t pamoja_ds18b20_thermometers_len(const PamojaDs18b20Thermometers *thermometers);
+
+// Copies one thermometer out of a list.
+//
+// # Arguments
+//
+// * `thermometers` - the list.
+// * `index` - which one, below [`pamoja_ds18b20_thermometers_len`].
+//
+// # Returns
+//
+// A new thermometer, which the caller releases with [`pamoja_ds18b20_thermometer_free`], or
+// null for a null list or an index past the end.
+//
+// # Safety
+//
+// `thermometers` must be a live handle or null.
+PamojaDs18b20Thermometer *pamoja_ds18b20_thermometers_get(const PamojaDs18b20Thermometers *thermometers,
+                                                          uintptr_t index);
+
+// Releases a list of thermometers. A null pointer is ignored.
+//
+// # Safety
+//
+// `thermometers` must be a handle that has not been freed, or null.
+void pamoja_ds18b20_thermometers_free(PamojaDs18b20Thermometers *thermometers);
 
 // Frames a payload as a SLIP packet (RFC 1055).
 //

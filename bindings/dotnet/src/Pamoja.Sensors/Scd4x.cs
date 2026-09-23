@@ -1,13 +1,110 @@
+using Pamoja.Hal;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sensors;
 
 /// <summary>
-/// A Sensirion SCD40 or SCD41 carbon dioxide sensor. Every call goes straight to the
-/// pamoja C ABI, which decodes exactly what the manufacturer's datasheet specifies.
+/// A Sensirion SCD40 or SCD41 carbon dioxide sensor, and a driver for one on an I2C bus.
 /// </summary>
-public static class Scd4x
+/// <remarks>
+/// <para>
+/// The static members are the part's datasheet, decoded exactly as the manufacturer
+/// specifies, and <see cref="Sim"/>, a part that is not there.
+/// </para>
+/// <para>
+/// An instance drives the part over an <see cref="I2cBus"/> in periodic measurement: the part
+/// produces a result every five seconds, and <see cref="Measure"/> waits for the next one. The
+/// part has one address, <see cref="Address"/>. Nothing is sent until <see cref="Init"/> or the
+/// first <see cref="Measure"/>.
+/// </para>
+/// </remarks>
+public sealed class Scd4x : IDisposable
 {
+    /// <summary>The one address the part answers to.</summary>
+    public const byte Address = 0x62;
+
+    private readonly NativeHandle _handle;
+
+    /// <summary>Creates a driver for the part on <paramref name="bus"/>.</summary>
+    /// <param name="bus">The bus the part is on.</param>
+    /// <exception cref="PamojaException">The native driver could not be created.</exception>
+    public Scd4x(I2cBus bus)
+    {
+        ArgumentNullException.ThrowIfNull(bus);
+        IntPtr sensor = IntPtr.Zero;
+        Status.ThrowIfError(bus.Use(held => NativeMethods.pamoja_scd4x_new(held, out sensor)));
+        _handle = new NativeHandle(sensor, NativeMethods.pamoja_scd4x_free);
+    }
+
+    /// <summary>The 48-bit serial number read at initialization, or null before it.</summary>
+    public ulong? Serial =>
+        _handle.Use(sensor => NativeMethods.pamoja_scd4x_serial(sensor, out ulong serial)
+            ? serial
+            : (ulong?)null);
+
+    /// <summary>Stops any running measurement, reads the serial number, and starts periodic measurement.</summary>
+    /// <exception cref="PamojaException">Nothing answered, or the serial number failed its checksum.</exception>
+    public void Init() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_scd4x_init));
+
+    /// <summary>Waits for the next periodic result and reads it, initializing the part first if needed.</summary>
+    /// <returns>The carbon dioxide, temperature, and humidity.</returns>
+    /// <exception cref="PamojaException">
+    /// As <see cref="Init"/>, when no result becomes ready, and when a word fails its checksum.
+    /// </exception>
+    public PamojaScd4xMeasurement Measure()
+    {
+        PamojaScd4xMeasurement measurement = default;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_scd4x_measure(sensor, out measurement)));
+        return measurement;
+    }
+
+    /// <summary>Runs one on-demand measurement on an SCD41, which takes five seconds.</summary>
+    /// <remarks>The part must not be measuring periodically: call <see cref="Stop"/> first, or use this instead of <see cref="Init"/>.</remarks>
+    /// <returns>The measurement.</returns>
+    /// <exception cref="PamojaException">As <see cref="Measure"/>.</exception>
+    public PamojaScd4xMeasurement MeasureSingleShot()
+    {
+        PamojaScd4xMeasurement measurement = default;
+        Status.ThrowIfError(_handle.Use(sensor =>
+            NativeMethods.pamoja_scd4x_measure_single_shot(sensor, out measurement)));
+        return measurement;
+    }
+
+    /// <summary>Asks the part whether a periodic result is waiting.</summary>
+    /// <returns>Whether <see cref="Measure"/> would read without waiting.</returns>
+    /// <exception cref="PamojaException">The transfer failed, or the status word failed its checksum.</exception>
+    public bool DataReady()
+    {
+        bool ready = false;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_scd4x_poll_ready(sensor, out ready)));
+        return ready;
+    }
+
+    /// <summary>Stops periodic measurement, after which the part takes its settings commands.</summary>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void Stop() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_scd4x_stop));
+
+    /// <summary>Starts periodic measurement.</summary>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void Start() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_scd4x_start));
+
+    /// <summary>Sets the temperature offset that compensates the part's own warmth, until power is lost.</summary>
+    /// <param name="milliCelsius">The offset to subtract, in millidegrees.</param>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void SetTemperatureOffset(uint milliCelsius) =>
+        Status.ThrowIfError(_handle.Use(sensor =>
+            NativeMethods.pamoja_scd4x_set_temperature_offset(sensor, milliCelsius)));
+
+    /// <summary>Sets the altitude the part corrects its carbon dioxide reading for.</summary>
+    /// <param name="meters">The altitude above sea level.</param>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void SetSensorAltitude(ushort meters) =>
+        Status.ThrowIfError(_handle.Use(sensor =>
+            NativeMethods.pamoja_scd4x_set_sensor_altitude(sensor, meters)));
+
+    /// <summary>Releases the driver and its share of the bus.</summary>
+    public void Dispose() => _handle.Dispose();
+
     /// <summary>Computes the CRC-8 an SCD4x appends to every data word.</summary>
     /// <param name="data">The data.</param>
     /// <returns>The value the C ABI computes.</returns>
@@ -231,5 +328,45 @@ public static class Scd4x
         byte[] bytes = new byte[NativeMethods.Scd4xMeasurementLen];
         Status.ThrowIfError(NativeMethods.pamoja_scd4x_serial_number_frame(serial, bytes));
         return bytes;
+    }
+
+    /// <summary>An SCD4x that is not there, for a bus with nothing plugged in.</summary>
+    /// <remarks>
+    /// It answers the serial number, data-ready, and measurement commands, each word with its
+    /// checksum, and always has a result waiting; starting, stopping, and the settings commands
+    /// answer with nothing, as the real part's do.
+    /// </remarks>
+    public static class Sim
+    {
+        /// <summary>The carbon dioxide <see cref="Part"/> reports, in parts per million.</summary>
+        public const ushort Co2Ppm = 800;
+
+        /// <summary>The temperature <see cref="Part"/> reports.</summary>
+        public const float Celsius = 22.5f;
+
+        /// <summary>The relative humidity <see cref="Part"/> reports, as a percentage.</summary>
+        public const float RelativeHumidity = 45.0f;
+
+        /// <summary>The serial number every simulated part reports.</summary>
+        public const ulong Serial = 0x0000_5A4D_0C1E_2B3F;
+
+        /// <summary>Makes a part reading <see cref="Co2Ppm"/>, <see cref="Celsius"/>, and <see cref="RelativeHumidity"/>.</summary>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static CommandPart Part() =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_scd4x_sim_part(),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated SCD4x"));
+
+        /// <summary>Makes a part that reads what it is asked to.</summary>
+        /// <param name="co2Ppm">The carbon dioxide it reports, in parts per million.</param>
+        /// <param name="celsius">The temperature it reports.</param>
+        /// <param name="relativeHumidity">The humidity it reports, as a percentage.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static CommandPart Reporting(ushort co2Ppm, float celsius, float relativeHumidity) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_scd4x_sim_reporting(co2Ppm, celsius, relativeHumidity),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated SCD4x"));
     }
 }

@@ -68,7 +68,11 @@ pub fn reporting(address: u8, celsius: f32, relative_humidity: f32) -> CommandPa
     let mut part = CommandPart::new(address, 2)
         .answering(&command::READ_STATUS.to_be_bytes(), &status)
         .answering(&command::FETCH_DATA.to_be_bytes(), &reading);
-    for repeatability in [Repeatability::Low, Repeatability::Medium, Repeatability::High] {
+    for repeatability in [
+        Repeatability::Low,
+        Repeatability::Medium,
+        Repeatability::High,
+    ] {
         for stretching in [false, true] {
             part.answer(
                 &single_shot(repeatability, stretching).to_be_bytes(),

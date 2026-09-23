@@ -9,9 +9,7 @@
 
 use pamoja_hal::sim::CommandPart;
 
-use super::{
-    command, command_frame, serial_number_frame, word_frame, Measurement, I2C_ADDRESS,
-};
+use super::{command, command_frame, serial_number_frame, word_frame, Measurement, I2C_ADDRESS};
 
 /// The carbon dioxide concentration [`part`] reports, in parts per million.
 pub const CO2_PPM: u16 = 800;

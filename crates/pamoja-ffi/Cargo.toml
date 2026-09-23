@@ -76,8 +76,9 @@ can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio", "pamoja-gpio/linux"]
 # One I2C bus over the kernel's adapter, simulated parts, or a script.
 hal = ["dep:pamoja-hal", "pamoja-hal/linux"]
-# The decoders, and the drivers that run over a bus.
-sensors = ["dep:pamoja-sensors", "hal"]
+# The decoders, the drivers that run over a bus with a simulated part for each, and the
+# kernel's 1-Wire thermometer files.
+sensors = ["dep:pamoja-sensors", "hal", "pamoja-sensors/alloc", "pamoja-sensors/linux"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora", "pamoja-lora/alloc"]
 # The channel plans, mirroring how pamoja-lora selects them. A slim build takes
