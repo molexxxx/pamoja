@@ -154,11 +154,12 @@ which is what lets it run hundreds of meters through an electrically noisy
 plant. The design guide states the standard's figures: a driver puts at least
 1.5 V across the pair, a receiver detects 200 mV, noise couples into both wires
 alike and cancels, the cable is twisted pair with a characteristic impedance of
-120 ohms, and the trunk is terminated with a 120 ohm resistor at each end.
-Standard drivers carry 32 unit loads; transceivers rated at a fraction of a
-unit load allow more nodes on one bus. The bus is a daisy chain with short
-stubs, and one node transmits at a time, so a driver enable line goes with the
-data.
+120 ohms, and the trunk is terminated with a 120 ohm resistor at each end; the
+Modbus specification also names 150 ohms, or 120 ohms in series with 1 nF on a
+line that is biased. Standard drivers carry 32 unit loads; transceivers rated at
+a fraction of a unit load allow more nodes on one bus. The bus is a daisy chain
+with short stubs, and one node transmits at a time, so a driver enable line goes
+with the data.
 
 Modbus RTU is the protocol most field instruments speak over it: one byte of
 address, one of function code, the data, and a CRC-16, with a silence of three
@@ -166,9 +167,11 @@ and a half characters marking each frame's edges. A Linux board or a
 microcontroller joins the bus through a transceiver on a UART, or a USB
 adapter that carries one.
 
-pamoja: [`pamoja-modbus`](guides/modbus.md) carries the CRC, the RTU frame,
-the standard requests, and response decoding. Sources: TI's RS-485 design
-guide, [SLLA272](https://www.ti.com/lit/an/slla272d/slla272d.pdf), and the
+pamoja: [`pamoja-modbus`](guides/modbus.md) carries a client that polls the
+line through a serial port with the silences and timeouts the specification sets,
+servers that answer as devices do, and beneath both the CRC, the RTU frame, the
+standard requests, and their replies. Sources: TI's RS-485 design guide,
+[SLLA272](https://www.ti.com/lit/an/slla272d/slla272d.pdf), and the
 [Modbus over serial line specification](https://www.modbus.org/file/secure/modbusoverserial.pdf),
 V1.02, which fixes the addresses at 1 to 247 with 0 as broadcast, and the frame
 at 256 bytes.

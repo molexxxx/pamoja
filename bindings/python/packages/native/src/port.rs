@@ -16,7 +16,7 @@ use pamoja_hal::port::{Parity, PortKind, PortStep, SerialPort as Port, Settings,
 
 use crate::PamojaError;
 
-fn settings(baud: u32, parity: &str, stop_bits: u8) -> PyResult<Settings> {
+pub(crate) fn settings(baud: u32, parity: &str, stop_bits: u8) -> PyResult<Settings> {
     if baud == 0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "the speed must be above zero",

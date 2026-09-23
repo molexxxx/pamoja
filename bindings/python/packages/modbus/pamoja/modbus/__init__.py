@@ -1,9 +1,11 @@
 """Idiomatic Modbus RTU facade.
 
 Modbus over RS485 is what cheap industrial sensing speaks: energy meters, soil
-probes, water-quality transmitters, pump controllers. Each request builder here
-returns a complete frame with its CRC, ready to write to a port, and a reply comes
-back through :func:`parse_frame` as an object that reads its own values.
+probes, water-quality transmitters, pump controllers. A :class:`ModbusClient` runs whole
+transactions over a serial port, with the timing the serial line specification sets, and a
+:class:`ModbusServer` is a device a :class:`ModbusLine` puts on the far end of a simulated
+one. Underneath, each request builder here returns a complete frame with its CRC, and a
+reply comes back through :func:`parse_frame` as an object that reads its own values.
 """
 
 from __future__ import annotations
@@ -11,7 +13,11 @@ from __future__ import annotations
 import enum
 from typing import Sequence
 
+from pamoja._native import ModbusClient as _NativeClient
+from pamoja._native import ModbusClientError
 from pamoja._native import ModbusFrame
+from pamoja._native import ModbusLine as _NativeLine
+from pamoja._native import ModbusServer
 from pamoja._native import modbus_crc16 as _crc16
 from pamoja._native import modbus_parse_frame as _parse_frame
 from pamoja._native import modbus_raw as _raw
@@ -29,11 +35,17 @@ from pamoja._native import modbus_write_multiple_coils as _write_multiple_coils
 from pamoja._native import modbus_write_multiple_registers as _write_multiple_registers
 from pamoja._native import modbus_write_single_coil as _write_single_coil
 from pamoja._native import modbus_write_single_register as _write_single_register
+from pamoja.hal import Parity, SerialPort, SerialSettings
 
 __all__ = [
+    "BROADCAST",
     "Exception_",
     "Function",
+    "ModbusClient",
+    "ModbusClientError",
     "ModbusFrame",
+    "ModbusLine",
+    "ModbusServer",
     "crc16",
     "parse_frame",
     "raw",
@@ -93,7 +105,7 @@ class Exception_(int, enum.Enum):
     MEMORY_PARITY_ERROR = 0x08
     #: A gateway could not route the request to the target path.
     GATEWAY_PATH_UNAVAILABLE = 0x0A
-    #: A gateway reached the target device but got no response.
+    #: A gateway got no response from the target device, usually one not on the network.
     GATEWAY_TARGET_FAILED_TO_RESPOND = 0x0B
 
 
@@ -244,3 +256,207 @@ def parse_frame(data: bytes) -> ModbusFrame:
         match its contents.
     """
     return _parse_frame(bytes(data))
+
+
+#: The unit address every device acts on and none answers.
+BROADCAST = 0
+
+
+class ModbusLine:
+    """Several devices on one simulated line, as devices share an RS485 pair.
+
+    Every frame reaches all of them, the one it is addressed to answers, and each carries
+    out a broadcast write. The line shares each :class:`ModbusServer` put on it, so the
+    program's own object still reads and changes the device. :meth:`port` makes a
+    :class:`~pamoja.hal.SerialPort` with the line on its far end for a :class:`ModbusClient`
+    to poll; nothing on it waits, and the silences and timeouts of a real line are counted
+    in its ``waited_micros``.
+
+    >>> meter = ModbusServer(17)
+    >>> meter.set_holding_registers(107, [2301, 418, 0])
+    >>> line = ModbusLine().attach(meter)
+    >>> client = ModbusClient(line.port(SerialSettings(19_200, Parity.EVEN)))
+    >>> client.read_holding_registers(17, 107, 3)
+    [2301, 418, 0]
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self) -> None:
+        """Make a line with no devices on it."""
+        self._native = _NativeLine()
+
+    def attach(self, server: ModbusServer) -> ModbusLine:
+        """Put a device on the line, which shares it.
+
+        :param server: The device.
+        :returns: This line, to put another device on.
+        """
+        self._native.attach(server)
+        return self
+
+    def __len__(self) -> int:
+        """How many devices are on the line."""
+        return len(self._native)
+
+    def port(self, settings: SerialSettings) -> SerialPort:
+        """Make a serial port with the line on its far end.
+
+        Devices put on the line later are on the port too.
+
+        :param settings: The speed and character format the line runs at.
+        :returns: The port.
+        """
+        return SerialPort(
+            self._native.port(settings.baud, Parity(settings.parity).value, settings.stop_bits)
+        )
+
+
+class ModbusClient:
+    """A Modbus RTU client on a serial line: the gateway, the master in the specification's
+    words, that sends each request and waits for its reply.
+
+    Each transaction follows the Modbus over Serial Line specification. The client leaves
+    the line silent for 3.5 characters, or 1.75 ms above 19200 baud; drops anything stale
+    waiting in the port; writes the request; and reads the reply to the length the request
+    implies, against :attr:`response_timeout`. The reply's CRC, unit, and function are
+    checked before a value is read out of it, and any failure raises
+    :class:`ModbusClientError`, whose ``kind`` says why. A write to :data:`BROADCAST` reaches
+    every device and draws no reply, so the client waits out :attr:`turnaround` instead.
+    Each call releases the interpreter while the line is busy.
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self, port: SerialPort, response_timeout: float = 1.0, turnaround: float = 0.1
+    ) -> None:
+        """Make a client on a port.
+
+        :param port: The line, opened at the speed and format the devices on it use.
+        :param response_timeout: How long to wait for a whole reply, in seconds.
+        :param turnaround: How long to leave the line quiet after a broadcast, in seconds.
+        """
+        self._native = _NativeClient(port._native)
+        self.response_timeout = response_timeout
+        self.turnaround = turnaround
+
+    @staticmethod
+    def frame_gap_nanos(settings: SerialSettings) -> int:
+        """The silence that separates two frames: 3.5 characters at the line's speed and
+        format, and a fixed 1750 microseconds above 19200 baud.
+
+        :param settings: The line's speed and character format.
+        :returns: The silence, in nanoseconds, rounded up.
+        """
+        return _NativeClient.frame_gap_nanos(
+            settings.baud, Parity(settings.parity).value, settings.stop_bits
+        )
+
+    @property
+    def response_timeout(self) -> float:
+        """How long the client waits for a whole reply, in seconds."""
+        return self._native.response_timeout_micros / 1_000_000
+
+    @response_timeout.setter
+    def response_timeout(self, seconds: float) -> None:
+        self._native.set_response_timeout_micros(_micros(seconds))
+
+    @property
+    def turnaround(self) -> float:
+        """How long the client leaves the line quiet after a broadcast, in seconds."""
+        return self._native.turnaround_micros / 1_000_000
+
+    @turnaround.setter
+    def turnaround(self, seconds: float) -> None:
+        self._native.set_turnaround_micros(_micros(seconds))
+
+    def read_coils(self, unit: int, start: int, quantity: int) -> list[bool]:
+        """Read coils, function ``0x01``.
+
+        :param unit: The device, 1 to 247.
+        :param start: The first coil's address.
+        :param quantity: How many, 1 to 2000.
+        :returns: The coils' states, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        return self._native.read_coils(unit, start, quantity)
+
+    def read_discrete_inputs(self, unit: int, start: int, quantity: int) -> list[bool]:
+        """Read discrete inputs, function ``0x02``.
+
+        :param unit: The device, 1 to 247.
+        :param start: The first input's address.
+        :param quantity: How many, 1 to 2000.
+        :returns: The inputs' states, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        return self._native.read_discrete_inputs(unit, start, quantity)
+
+    def read_holding_registers(self, unit: int, start: int, quantity: int) -> list[int]:
+        """Read holding registers, function ``0x03``.
+
+        :param unit: The device, 1 to 247.
+        :param start: The first register's address.
+        :param quantity: How many, 1 to 125.
+        :returns: The registers' values, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        return self._native.read_holding_registers(unit, start, quantity)
+
+    def read_input_registers(self, unit: int, start: int, quantity: int) -> list[int]:
+        """Read input registers, function ``0x04``.
+
+        :param unit: The device, 1 to 247.
+        :param start: The first register's address.
+        :param quantity: How many, 1 to 125.
+        :returns: The registers' values, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        return self._native.read_input_registers(unit, start, quantity)
+
+    def write_single_coil(self, unit: int, address: int, on: bool) -> None:
+        """Write one coil, function ``0x05``.
+
+        :param unit: The device, 1 to 247, or :data:`BROADCAST` for every device.
+        :param address: The coil's address.
+        :param on: The state to write.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        self._native.write_single_coil(unit, address, bool(on))
+
+    def write_single_register(self, unit: int, address: int, value: int) -> None:
+        """Write one holding register, function ``0x06``.
+
+        :param unit: The device, 1 to 247, or :data:`BROADCAST` for every device.
+        :param address: The register's address.
+        :param value: The value to write.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        self._native.write_single_register(unit, address, value)
+
+    def write_multiple_coils(self, unit: int, start: int, values: Sequence[bool]) -> None:
+        """Write a run of coils, function ``0x0F``.
+
+        :param unit: The device, 1 to 247, or :data:`BROADCAST` for every device.
+        :param start: The first coil's address.
+        :param values: The states to write, 1 to 1968 of them, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        self._native.write_multiple_coils(unit, start, [bool(value) for value in values])
+
+    def write_multiple_registers(self, unit: int, start: int, values: Sequence[int]) -> None:
+        """Write a run of holding registers, function ``0x10``.
+
+        :param unit: The device, 1 to 247, or :data:`BROADCAST` for every device.
+        :param start: The first register's address.
+        :param values: The values to write, 1 to 123 of them, in address order.
+        :raises ModbusClientError: When the transaction fails.
+        """
+        self._native.write_multiple_registers(unit, start, list(values))
+
+
+def _micros(seconds: float) -> int:
+    if not seconds >= 0:
+        raise ValueError("a time must be zero or more seconds")
+    return round(seconds * 1_000_000)

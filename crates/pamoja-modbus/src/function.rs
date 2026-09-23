@@ -113,7 +113,8 @@ pub enum Exception {
     MemoryParityError,
     /// A gateway could not route the request to the target path. Exception code `0x0A`.
     GatewayPathUnavailable,
-    /// A gateway reached the target device but got no response. Exception code `0x0B`.
+    /// A gateway got no response from the target device, which usually means the device is
+    /// not on the network. Exception code `0x0B`.
     GatewayTargetFailedToRespond,
 }
 
@@ -159,6 +160,24 @@ impl Exception {
             0x0B => Some(Exception::GatewayTargetFailedToRespond),
             _ => None,
         }
+    }
+}
+
+/// Writes the exception's name as the application protocol specification gives it, in lower
+/// case: `illegal data address` for `0x02`.
+impl core::fmt::Display for Exception {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Exception::IllegalFunction => "illegal function",
+            Exception::IllegalDataAddress => "illegal data address",
+            Exception::IllegalDataValue => "illegal data value",
+            Exception::ServerDeviceFailure => "server device failure",
+            Exception::Acknowledge => "acknowledge",
+            Exception::ServerDeviceBusy => "server device busy",
+            Exception::MemoryParityError => "memory parity error",
+            Exception::GatewayPathUnavailable => "gateway path unavailable",
+            Exception::GatewayTargetFailedToRespond => "gateway target device failed to respond",
+        })
     }
 }
 

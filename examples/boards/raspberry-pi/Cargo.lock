@@ -63,6 +63,7 @@ dependencies = [
  "pamoja-hal",
  "pamoja-kit",
  "pamoja-lora",
+ "pamoja-modbus",
  "pamoja-mqtt",
  "pamoja-profile",
  "pamoja-radios",
@@ -616,6 +617,13 @@ dependencies = [
 [[package]]
 name = "pamoja-mesh"
 version = "0.1.18"
+
+[[package]]
+name = "pamoja-modbus"
+version = "0.1.18"
+dependencies = [
+ "pamoja-hal",
+]
 
 [[package]]
 name = "pamoja-mqtt"

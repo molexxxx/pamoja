@@ -63,7 +63,7 @@ security = ["dep:pamoja-security"]
 codec = ["dep:pamoja-codec"]
 kit = ["dep:pamoja-kit"]
 serial = ["dep:pamoja-serial"]
-modbus = ["dep:pamoja-modbus"]
+modbus = ["dep:pamoja-modbus", "pamoja-modbus/port", "hal"]
 can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio", "pamoja-gpio/linux"]
 # One I2C bus over the kernel's adapter, simulated parts, or a script.

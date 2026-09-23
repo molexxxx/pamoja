@@ -99,6 +99,7 @@ async function main() {
   laterSensors();
   await buses();
   await serialPorts();
+  await modbusClients();
   await sensorDrivers();
   await actuatorDrivers();
   await stepperDrivers();
@@ -551,6 +552,69 @@ async function serialPorts() {
   }
 }
 
+// A Modbus client polls devices on a simulated line as it would a real one: it reads and writes
+// every table, a broadcast reaches every device and draws no answer, a refusal comes back as the
+// device's exception, and a unit that never answers times out after the response timeout,
+// counted rather than waited.
+async function modbusClients() {
+  const { ModbusClient, ModbusClientError, ModbusLine, ModbusServer, BROADCAST, ExceptionCode } =
+    modbus;
+  const { Parity } = hal;
+  const settings = { baud: 19200, parity: Parity.Even };
+  assert.strictEqual(ModbusClient.frameGapNanos({ baud: 9600, parity: Parity.Even }), 4010419);
+  assert.strictEqual(ModbusClient.frameGapNanos(settings), 2005210);
+  assert.strictEqual(ModbusClient.frameGapNanos({ baud: 115200 }), 1750000);
+
+  const meter = new ModbusServer(17);
+  meter.setHoldingRegisters(107, [2301, 418, 0]);
+  meter.setCoils(0, [false, false]);
+  const pump = new ModbusServer(18);
+  pump.setHoldingRegisters(109, [0]);
+  const line = new ModbusLine();
+  line.attach(meter);
+  line.attach(pump);
+  assert.strictEqual(line.count, 2);
+  const port = line.port(settings);
+  const client = new ModbusClient(port, { responseTimeoutMs: 250 });
+  assert.strictEqual(client.responseTimeoutMs, 250);
+  assert.strictEqual(client.turnaroundMs, 100);
+
+  assert.deepStrictEqual(await client.readHoldingRegisters(17, 107, 3), [2301, 418, 0]);
+  await client.writeSingleCoil(17, 1, true);
+  assert.deepStrictEqual(await client.readCoils(17, 0, 2), [false, true]);
+  await client.writeMultipleRegisters(17, 107, [2300, 420]);
+  assert.strictEqual(meter.holdingRegister(108), 420);
+  assert.strictEqual(meter.holdingRegister(110), null);
+
+  await client.writeSingleRegister(BROADCAST, 109, 5);
+  assert.strictEqual(meter.holdingRegister(109), 5);
+  assert.strictEqual(pump.holdingRegister(109), 5);
+  await assert.rejects(
+    client.readHoldingRegisters(BROADCAST, 107, 1),
+    (error) => error instanceof ModbusClientError && error.kind === "BroadcastRead",
+  );
+
+  await assert.rejects(client.readHoldingRegisters(17, 108, 3), (error) => {
+    assert.ok(error instanceof ModbusClientError);
+    assert.strictEqual(error.kind, "Exception");
+    assert.strictEqual(error.exception, ExceptionCode.IllegalDataAddress);
+    assert.strictEqual(error.functionCode, 3);
+    assert.strictEqual(error.unit, 17);
+    return true;
+  });
+
+  const before = port.waitedMicros;
+  await assert.rejects(
+    client.readHoldingRegisters(19, 0, 1),
+    (error) => error.kind === "Timeout" && error.received === 0,
+  );
+  assert.strictEqual(port.waitedMicros - before, 2005 + 250000);
+  assert.strictEqual(meter.served, 5, "the refusal is not counted");
+
+  assert.throws(() => new ModbusServer(0), /broadcast/);
+  assert.strictEqual(meter.answer(modbus.readHoldingRegisters(18, 109, 1)), null);
+  assert.ok(meter.answer(modbus.readHoldingRegisters(17, 109, 1)).length > 0);
+}
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
 // drivers' own tests, with every wait counted rather than slept.
 async function stepperDrivers() {

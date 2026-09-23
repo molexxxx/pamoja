@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">57 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">58 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -233,7 +233,7 @@ The wire formats readings and manifests are written in.
 
 The buses and framings that reach a part on the end of a wire.
 
-<nav class="hw-index" aria-label="Field I/O index"><a href="#rfc-1055">RFC 1055, STD 47</a><a href="#cobs">Cheshire and Baker 1999</a><a href="#crc-16-modbus">CRC-16/MODBUS</a><a href="#modbus-serial">Modbus over Serial Line V1.02</a><a href="#iso-11898-1">ISO 11898-1:2024</a><a href="#sae-j1939-21">SAE J1939-21</a><a href="#um10204">UM10204 Rev. 7.0</a><a href="#crc-8-maxim">CRC-8/MAXIM-DOW</a></nav>
+<nav class="hw-index" aria-label="Field I/O index"><a href="#rfc-1055">RFC 1055, STD 47</a><a href="#cobs">Cheshire and Baker 1999</a><a href="#crc-16-modbus">CRC-16/MODBUS</a><a href="#modbus-application">MODBUS Application Protocol Specification V1.1b3</a><a href="#modbus-serial">Modbus over Serial Line V1.02</a><a href="#iso-11898-1">ISO 11898-1:2024</a><a href="#sae-j1939-21">SAE J1939-21</a><a href="#um10204">UM10204 Rev. 7.0</a><a href="#crc-8-maxim">CRC-8/MAXIM-DOW</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="rfc-1055">
 <header class="hw-head">
@@ -274,17 +274,30 @@ The buses and framings that reach a part on the end of a wire.
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-modbus/src/crc.rs#L48"><span class="hw-main"><b>The test</b><small><code>crc.rs</code> line 48</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
+<article class="hw-card" aria-labelledby="modbus-application">
+<header class="hw-head">
+
+### MODBUS Application Protocol Specification V1.1b3 {#modbus-application}
+
+<p class="hw-by">Modbus Organization</p>
+<p class="hw-summary">The function codes and their limits, the four data tables, and the exception responses a device answers with</p>
+</header>
+<p class="hw-summary">The worked request and reply of each of the eight functions in section 6, the exception example in section 7, and the register-count example given for exception 0x02.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://modbus.org/specs.php"><span class="hw-main"><b>The document</b><small>MODBUS Application Protocol Specification V1.1b3</small><small class="hw-note">modbus.org answers 403 to a scripted client, so a person opens the specification index.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-modbus/src/server.rs#L447"><span class="hw-main"><b>The test</b><small><code>server.rs</code> line 447</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
 <article class="hw-card" aria-labelledby="modbus-serial">
 <header class="hw-head">
 
 ### Modbus over Serial Line V1.02 {#modbus-serial}
 
 <p class="hw-by">Modbus Organization</p>
-<p class="hw-summary">The RTU frame, its function codes and its exception responses</p>
+<p class="hw-summary">The RTU frame, the silence between frames, unit addresses and broadcasts, and a client's timeouts</p>
 </header>
-<p class="hw-summary">The specification's own request and response examples.</p><div class="hw-foot">
+<p class="hw-summary">The 3.5-character gap and its fixed 1.75 ms above 19200 baud from section 2.5.1.1; a broadcast carried out and not answered, and a frame that fails its CRC left unanswered, from sections 2.2 and 2.6.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://modbus.org/specs.php"><span class="hw-main"><b>The document</b><small>Modbus over Serial Line V1.02</small><small class="hw-note">modbus.org answers 403 to a scripted client, so a person opens the specification index.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-modbus/src/pdu.rs#L337"><span class="hw-main"><b>The test</b><small><code>pdu.rs</code> line 337</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-modbus/src/client.rs#L602"><span class="hw-main"><b>The test</b><small><code>client.rs</code> line 602</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="iso-11898-1">

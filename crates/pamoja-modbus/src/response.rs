@@ -90,7 +90,7 @@ impl<'a> Response<'a> {
         if data.len() % 2 != 0 {
             return Err(ModbusError::MalformedResponse);
         }
-        Ok(Registers { data })
+        Ok(Registers::over(data))
     }
 
     /// Reads the coils or discrete inputs from a read-bits response.
@@ -115,18 +115,22 @@ impl<'a> Response<'a> {
         if data.len() != usize::from(count).div_ceil(8) {
             return Err(ModbusError::MalformedResponse);
         }
-        Ok(Coils {
-            data,
-            index: 0,
-            remaining: usize::from(count),
-        })
+        Ok(Coils::over(data, usize::from(count)))
     }
 }
 
-/// An iterator over the 16-bit registers of a read-registers response.
+/// An iterator over the 16-bit registers of a read-registers response, or of a
+/// write-multiple-registers request.
 #[derive(Clone, Copy, Debug)]
 pub struct Registers<'a> {
     data: &'a [u8],
+}
+
+impl<'a> Registers<'a> {
+    // Reads big-endian pairs out of bytes whose length the caller has checked is even.
+    pub(crate) fn over(data: &'a [u8]) -> Self {
+        Registers { data }
+    }
 }
 
 impl Iterator for Registers<'_> {
@@ -149,12 +153,25 @@ impl Iterator for Registers<'_> {
 
 impl ExactSizeIterator for Registers<'_> {}
 
-/// An iterator over the bits of a read-coils or read-discrete-inputs response.
+/// An iterator over the bits of a read-coils or read-discrete-inputs response, or of a
+/// write-multiple-coils request.
 #[derive(Clone, Copy, Debug)]
 pub struct Coils<'a> {
     data: &'a [u8],
     index: usize,
     remaining: usize,
+}
+
+impl<'a> Coils<'a> {
+    // Unpacks `count` bits, least significant first, from bytes the caller has checked hold
+    // at least that many.
+    pub(crate) fn over(data: &'a [u8], count: usize) -> Self {
+        Coils {
+            data,
+            index: 0,
+            remaining: count,
+        }
+    }
 }
 
 impl Iterator for Coils<'_> {

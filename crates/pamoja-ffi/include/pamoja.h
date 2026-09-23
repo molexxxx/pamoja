@@ -867,6 +867,37 @@
 // A reasonable duplicate-cache size for a caller with no reason to choose one.
 #define PAMOJA_MESH_SEEN_DEFAULT_CAPACITY 64
 
+// A client error kind: the call succeeded.
+#define PAMOJA_MODBUS_CLIENT_OK 0
+
+// A client error kind: the request could not be built, from a quantity outside what one
+// request carries.
+#define PAMOJA_MODBUS_CLIENT_REQUEST 1
+
+// A client error kind: a read was addressed to the broadcast address, which no device answers.
+#define PAMOJA_MODBUS_CLIENT_BROADCAST_READ 2
+
+// A client error kind: the serial port failed.
+#define PAMOJA_MODBUS_CLIENT_PORT 3
+
+// A client error kind: no complete reply arrived within the response timeout.
+#define PAMOJA_MODBUS_CLIENT_TIMEOUT 4
+
+// A client error kind: the reply failed its CRC or is not the shape its function gives.
+#define PAMOJA_MODBUS_CLIENT_FRAME 5
+
+// A client error kind: a reply came back from another unit.
+#define PAMOJA_MODBUS_CLIENT_WRONG_UNIT 6
+
+// A client error kind: a reply answered another function.
+#define PAMOJA_MODBUS_CLIENT_WRONG_FUNCTION 7
+
+// A client error kind: a well-formed reply that does not answer the request.
+#define PAMOJA_MODBUS_CLIENT_MISMATCH 8
+
+// A client error kind: the device refused the request with an exception.
+#define PAMOJA_MODBUS_CLIENT_EXCEPTION 9
+
 // No parity bit.
 #define PAMOJA_PARITY_NONE 0
 
@@ -2571,11 +2602,22 @@ typedef struct PamojaMeshFrame PamojaMeshFrame;
 // handle serves them rather than a near-identical type per transport.
 typedef struct PamojaMessage PamojaMessage;
 
+// A Modbus RTU client on a serial port. Opaque; release it with [`pamoja_modbus_client_free`].
+typedef struct PamojaModbusClient PamojaModbusClient;
+
 // An opaque handle to a parsed Modbus RTU frame with a verified CRC.
 //
 // Read it with the `pamoja_modbus_frame_*` calls, then release it with
 // [`pamoja_modbus_frame_free`].
 typedef struct PamojaModbusFrame PamojaModbusFrame;
+
+// Several devices on one simulated line. Opaque; release it with
+// [`pamoja_modbus_line_free`]. A port made from it keeps its own share of it.
+typedef struct PamojaModbusLine PamojaModbusLine;
+
+// A Modbus device: a unit address and the four tables it serves. Opaque; release it with
+// [`pamoja_modbus_server_free`]. A line it is on keeps its own share of it.
+typedef struct PamojaModbusServer PamojaModbusServer;
 
 // An opaque handle to an MQTT client transport.
 typedef struct PamojaMqttClient PamojaMqttClient;
@@ -4213,6 +4255,32 @@ typedef struct {
   uintptr_t offset;
 } PamojaMavlinkFieldInfo;
 
+// A port's speed and character format: eight data bits, with the parity and stop bits given.
+typedef struct {
+  // The speed, in bits a second.
+  uint32_t baud;
+  // [`PAMOJA_PARITY_NONE`], [`PAMOJA_PARITY_EVEN`], or [`PAMOJA_PARITY_ODD`].
+  uint8_t parity;
+  // 1 or 2.
+  uint8_t stop_bits;
+} PamojaSerialSettings;
+
+// Why a client call failed, for a program that branches on it.
+typedef struct {
+  // One of the `PAMOJA_MODBUS_CLIENT_*` kinds, [`PAMOJA_MODBUS_CLIENT_OK`] on success.
+  uint8_t kind;
+  // The unit the call asked.
+  uint8_t unit;
+  // The function the call asked, for an exception or a reply to another function.
+  uint8_t function;
+  // What the reply named instead: the unit that answered, or the function it answered.
+  uint8_t found;
+  // The exception code the device answered with.
+  uint8_t exception;
+  // How many bytes of a reply had arrived before a timeout.
+  uint32_t received;
+} PamojaModbusClientError;
+
 // Connection settings for an MQTT client.
 //
 // `client_id` and `host` are borrowed null-terminated UTF-8 strings. A
@@ -4231,16 +4299,6 @@ typedef struct {
   // Default quality of service for publishes and subscriptions.
   PamojaQos qos;
 } PamojaMqttConfig;
-
-// A port's speed and character format: eight data bits, with the parity and stop bits given.
-typedef struct {
-  // The speed, in bits a second.
-  uint32_t baud;
-  // [`PAMOJA_PARITY_NONE`], [`PAMOJA_PARITY_EVEN`], or [`PAMOJA_PARITY_ODD`].
-  uint8_t parity;
-  // 1 or 2.
-  uint8_t stop_bits;
-} PamojaSerialSettings;
 
 // The split between the time a node works and the time it sleeps.
 typedef struct {
@@ -17375,6 +17433,567 @@ uintptr_t pamoja_registers_len(const PamojaRegisters *registers);
 // `registers` must be a handle from [`pamoja_modbus_frame_registers`] that has
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_registers_free(PamojaRegisters *registers);
+
+// Makes a device at a unit address, with every table empty.
+//
+// # Arguments
+//
+// * `unit` - its address, 1 to 247.
+// * `out_server` - receives the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null `out_server` or a unit
+// outside 1 to 247, with the reason in the last error message.
+//
+// # Safety
+//
+// `out_server` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_server_new(uint8_t unit, PamojaModbusServer **out_server);
+
+// Sets coils from an address on, adding any the device did not have.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `start` - the first coil's address.
+// * `values` - one byte per coil, non-zero for on.
+// * `len` - how many coils.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `server` must be a live handle or null, and `values` must point to `len` readable bytes.
+PamojaStatus pamoja_modbus_server_set_coils(const PamojaModbusServer *server,
+                                            uint16_t start,
+                                            const uint8_t *values,
+                                            uintptr_t len);
+
+// Sets discrete inputs from an address on, adding any the device did not have.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `start` - the first input's address.
+// * `values` - one byte per input, non-zero for on.
+// * `len` - how many inputs.
+//
+// # Returns
+//
+// As [`pamoja_modbus_server_set_coils`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_server_set_coils`].
+PamojaStatus pamoja_modbus_server_set_discrete_inputs(const PamojaModbusServer *server,
+                                                      uint16_t start,
+                                                      const uint8_t *values,
+                                                      uintptr_t len);
+
+// Sets holding registers from an address on, adding any the device did not have.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `start` - the first register's address.
+// * `values` - the values, in address order.
+// * `len` - how many registers.
+//
+// # Returns
+//
+// As [`pamoja_modbus_server_set_coils`].
+//
+// # Safety
+//
+// `server` must be a live handle or null, and `values` must point to `len` readable values.
+PamojaStatus pamoja_modbus_server_set_holding_registers(const PamojaModbusServer *server,
+                                                        uint16_t start,
+                                                        const uint16_t *values,
+                                                        uintptr_t len);
+
+// Sets input registers from an address on, adding any the device did not have.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `start` - the first register's address.
+// * `values` - the values, in address order.
+// * `len` - how many registers.
+//
+// # Returns
+//
+// As [`pamoja_modbus_server_set_coils`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_server_set_holding_registers`].
+PamojaStatus pamoja_modbus_server_set_input_registers(const PamojaModbusServer *server,
+                                                      uint16_t start,
+                                                      const uint16_t *values,
+                                                      uintptr_t len);
+
+// Reads a coil.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `address` - the coil's address.
+// * `out_on` - receives its state.
+//
+// # Returns
+//
+// `true` with the state in `out_on` when the device has the coil; `false` when it does not,
+// or for a null argument.
+//
+// # Safety
+//
+// `server` must be a live handle or null, and `out_on` a writable pointer or null.
+bool pamoja_modbus_server_coil(const PamojaModbusServer *server, uint16_t address, bool *out_on);
+
+// Reads a discrete input.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `address` - the input's address.
+// * `out_on` - receives its state.
+//
+// # Returns
+//
+// As [`pamoja_modbus_server_coil`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_server_coil`].
+bool pamoja_modbus_server_discrete_input(const PamojaModbusServer *server,
+                                         uint16_t address,
+                                         bool *out_on);
+
+// Reads a holding register.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `address` - the register's address.
+// * `out_value` - receives its value.
+//
+// # Returns
+//
+// `true` with the value in `out_value` when the device has the register; `false` when it
+// does not, or for a null argument.
+//
+// # Safety
+//
+// `server` must be a live handle or null, and `out_value` a writable pointer or null.
+bool pamoja_modbus_server_holding_register(const PamojaModbusServer *server,
+                                           uint16_t address,
+                                           uint16_t *out_value);
+
+// Reads an input register.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `address` - the register's address.
+// * `out_value` - receives its value.
+//
+// # Returns
+//
+// As [`pamoja_modbus_server_holding_register`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_server_holding_register`].
+bool pamoja_modbus_server_input_register(const PamojaModbusServer *server,
+                                         uint16_t address,
+                                         uint16_t *out_value);
+
+// Returns a device's unit address, or 0 for a null handle.
+//
+// # Safety
+//
+// `server` must be a live handle or null.
+uint8_t pamoja_modbus_server_unit(const PamojaModbusServer *server);
+
+// Returns how many requests a device has carried out, broadcasts included and refusals not,
+// or 0 for a null handle.
+//
+// # Safety
+//
+// `server` must be a live handle or null.
+uintptr_t pamoja_modbus_server_served(const PamojaModbusServer *server);
+
+// Answers one RTU frame, as the device on the line does.
+//
+// # Arguments
+//
+// * `server` - the device.
+// * `frame` - the frame as it came off the line, CRC included.
+// * `len` - its length.
+// * `out_buffer` - receives the frame to send back, or null when the device stays silent: the
+//   frame failed its CRC, is for another unit, or is a broadcast, whose write the device still
+//   carries out.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `server` must be a live handle or null, `frame` must point to `len` readable bytes, and
+// `out_buffer` must be a writable pointer or null. A returned buffer is the caller's to
+// release with [`pamoja_buffer_free`](crate::pamoja_buffer_free).
+PamojaStatus pamoja_modbus_server_answer(const PamojaModbusServer *server,
+                                         const uint8_t *frame,
+                                         uintptr_t len,
+                                         PamojaBuffer **out_buffer);
+
+// Releases the caller's handle to a device. A line it is on keeps its own share. A null
+// pointer is ignored.
+//
+// # Safety
+//
+// `server` must be a handle that has not been freed, or null.
+void pamoja_modbus_server_free(PamojaModbusServer *server);
+
+// Makes a line with no devices on it.
+//
+// # Returns
+//
+// The line, which the caller releases with [`pamoja_modbus_line_free`].
+PamojaModbusLine *pamoja_modbus_line_new(void);
+
+// Puts a device on a line. The line shares the device, so the caller's handle still reads
+// and changes it.
+//
+// # Arguments
+//
+// * `line` - the line.
+// * `server` - the device.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `line` and `server` must be live handles or null.
+PamojaStatus pamoja_modbus_line_attach(const PamojaModbusLine *line,
+                                       const PamojaModbusServer *server);
+
+// Returns how many devices are on a line, or 0 for a null handle.
+//
+// # Safety
+//
+// `line` must be a live handle or null.
+uintptr_t pamoja_modbus_line_len(const PamojaModbusLine *line);
+
+// Makes a serial port with a line on its far end: every frame written reaches each device,
+// and whatever they answer waits to be read.
+//
+// # Arguments
+//
+// * `line` - the line; devices put on it later are on the port too.
+// * `settings` - the speed and character format the line runs at.
+// * `out_port` - receives the port, which the caller releases with
+//   [`pamoja_serial_port_free`](crate::port::pamoja_serial_port_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or settings
+// the port does not have.
+//
+// # Safety
+//
+// `line` must be a live handle or null, and `out_port` a writable pointer or null.
+PamojaStatus pamoja_modbus_line_port(const PamojaModbusLine *line,
+                                     PamojaSerialSettings settings,
+                                     PamojaSerialPort **out_port);
+
+// Releases the caller's handle to a line. A port made from it keeps its own share. A null
+// pointer is ignored.
+//
+// # Safety
+//
+// `line` must be a handle that has not been freed, or null.
+void pamoja_modbus_line_free(PamojaModbusLine *line);
+
+// Returns the silence that separates two frames at a line's speed and format: 3.5
+// characters, and a fixed 1750 microseconds above 19200 baud.
+//
+// # Arguments
+//
+// * `settings` - the line's speed and character format.
+// * `out_nanos` - receives the silence, in nanoseconds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null `out_nanos` or
+// settings the port does not have.
+//
+// # Safety
+//
+// `out_nanos` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_frame_gap_nanos(PamojaSerialSettings settings, uint64_t *out_nanos);
+
+// Makes a client on a port, with a one-second response timeout and a 100 ms turnaround.
+//
+// # Arguments
+//
+// * `port` - the line; the client holds its own share of it.
+// * `out_client` - receives the client.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `port` must be a live handle or null, and `out_client` a writable pointer or null.
+PamojaStatus pamoja_modbus_client_new(const PamojaSerialPort *port,
+                                      PamojaModbusClient **out_client);
+
+// Sets how long a client waits for a whole reply once a request has gone out.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `micros` - the response timeout.
+//
+// # Safety
+//
+// `client` must be a live handle or null.
+void pamoja_modbus_client_set_response_timeout(const PamojaModbusClient *client, uint64_t micros);
+
+// Sets how long a client leaves the line quiet after a broadcast.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `micros` - the turnaround delay.
+//
+// # Safety
+//
+// `client` must be a live handle or null.
+void pamoja_modbus_client_set_turnaround(const PamojaModbusClient *client, uint64_t micros);
+
+// Returns a client's response timeout, in microseconds, or 0 for a null handle.
+//
+// # Safety
+//
+// `client` must be a live handle or null.
+uint64_t pamoja_modbus_client_response_timeout_micros(const PamojaModbusClient *client);
+
+// Returns a client's turnaround delay, in microseconds, or 0 for a null handle.
+//
+// # Safety
+//
+// `client` must be a live handle or null.
+uint64_t pamoja_modbus_client_turnaround_micros(const PamojaModbusClient *client);
+
+// Reads coils, function `0x01`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247.
+// * `start` - the first coil's address.
+// * `quantity` - how many, 1 to 2000.
+// * `out_values` - receives one byte per coil, 1 for on, in address order.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a request that cannot be sent;
+// [`PamojaStatus::Io`] for a port failure or a timeout; [`PamojaStatus::Codec`] for a reply
+// that fails its checks; or [`PamojaStatus::Other`] for the device's exception. The reason
+// is in the last error message and, in detail, in `out_error`.
+//
+// # Safety
+//
+// `client` must be a live handle or null, `out_values` must point to `quantity` writable
+// bytes, and `out_error` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_client_read_coils(const PamojaModbusClient *client,
+                                             uint8_t unit,
+                                             uint16_t start,
+                                             uint16_t quantity,
+                                             uint8_t *out_values,
+                                             PamojaModbusClientError *out_error);
+
+// Reads discrete inputs, function `0x02`.
+//
+// # Arguments
+//
+// As [`pamoja_modbus_client_read_coils`], for inputs.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_client_read_coils`].
+PamojaStatus pamoja_modbus_client_read_discrete_inputs(const PamojaModbusClient *client,
+                                                       uint8_t unit,
+                                                       uint16_t start,
+                                                       uint16_t quantity,
+                                                       uint8_t *out_values,
+                                                       PamojaModbusClientError *out_error);
+
+// Reads holding registers, function `0x03`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247.
+// * `start` - the first register's address.
+// * `quantity` - how many, 1 to 125.
+// * `out_values` - receives the values, in address order.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// `client` must be a live handle or null, `out_values` must point to `quantity` writable
+// values, and `out_error` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_client_read_holding_registers(const PamojaModbusClient *client,
+                                                         uint8_t unit,
+                                                         uint16_t start,
+                                                         uint16_t quantity,
+                                                         uint16_t *out_values,
+                                                         PamojaModbusClientError *out_error);
+
+// Reads input registers, function `0x04`.
+//
+// # Arguments
+//
+// As [`pamoja_modbus_client_read_holding_registers`], for input registers.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_client_read_holding_registers`].
+PamojaStatus pamoja_modbus_client_read_input_registers(const PamojaModbusClient *client,
+                                                       uint8_t unit,
+                                                       uint16_t start,
+                                                       uint16_t quantity,
+                                                       uint16_t *out_values,
+                                                       PamojaModbusClientError *out_error);
+
+// Writes one coil, function `0x05`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247, or 0 to broadcast to every device.
+// * `address` - the coil's address.
+// * `on` - the state to write.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// `client` must be a live handle or null, and `out_error` a writable pointer or null.
+PamojaStatus pamoja_modbus_client_write_single_coil(const PamojaModbusClient *client,
+                                                    uint8_t unit,
+                                                    uint16_t address,
+                                                    bool on,
+                                                    PamojaModbusClientError *out_error);
+
+// Writes one holding register, function `0x06`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247, or 0 to broadcast to every device.
+// * `address` - the register's address.
+// * `value` - the value to write.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// As [`pamoja_modbus_client_write_single_coil`].
+PamojaStatus pamoja_modbus_client_write_single_register(const PamojaModbusClient *client,
+                                                        uint8_t unit,
+                                                        uint16_t address,
+                                                        uint16_t value,
+                                                        PamojaModbusClientError *out_error);
+
+// Writes a run of coils, function `0x0F`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247, or 0 to broadcast to every device.
+// * `start` - the first coil's address.
+// * `values` - one byte per coil, non-zero for on, 1 to 1968 of them.
+// * `len` - how many coils.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// `client` must be a live handle or null, `values` must point to `len` readable bytes, and
+// `out_error` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_client_write_multiple_coils(const PamojaModbusClient *client,
+                                                       uint8_t unit,
+                                                       uint16_t start,
+                                                       const uint8_t *values,
+                                                       uintptr_t len,
+                                                       PamojaModbusClientError *out_error);
+
+// Writes a run of holding registers, function `0x10`.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `unit` - the device, 1 to 247, or 0 to broadcast to every device.
+// * `start` - the first register's address.
+// * `values` - the values, 1 to 123 of them, in address order.
+// * `len` - how many registers.
+// * `out_error` - receives why the call failed, or null.
+//
+// # Returns
+//
+// As [`pamoja_modbus_client_read_coils`].
+//
+// # Safety
+//
+// `client` must be a live handle or null, `values` must point to `len` readable values, and
+// `out_error` must be a writable pointer or null.
+PamojaStatus pamoja_modbus_client_write_multiple_registers(const PamojaModbusClient *client,
+                                                           uint8_t unit,
+                                                           uint16_t start,
+                                                           const uint16_t *values,
+                                                           uintptr_t len,
+                                                           PamojaModbusClientError *out_error);
+
+// Releases a client. Its port stays open while another holder has it. A null pointer is
+// ignored.
+//
+// # Safety
+//
+// `client` must be a handle that has not been freed, or null.
+void pamoja_modbus_client_free(PamojaModbusClient *client);
 
 // Creates a disconnected MQTT client from the given settings.
 //

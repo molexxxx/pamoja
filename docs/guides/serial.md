@@ -13,8 +13,9 @@ The framing is pure byte work with no allocation, so the same code runs on a gat
 the microcontroller at the other end of the cable. The port, `SerialPort` in the buses package,
 is one line shared by a program and every driver on it, with one of five things on the other
 end: the kernel's serial device on a Linux board, a line looped back on itself as with TX wired
-to RX, one end of a null-modem pair, a simulated device that answers each write, or a script of
-the writes a driver is expected to make. Reads on anything but the kernel's device never wait,
+to RX, one end of a null-modem pair, a simulated device that answers each write, such as the
+Modbus devices of the [Modbus guide](modbus.md), or a script of the writes a driver is expected
+to make. Reads on anything but the kernel's device never wait,
 and count the time they would have waited instead, so a program that talks over a UART is
 written and tested with nothing plugged in.
 
@@ -824,7 +825,7 @@ The Raspberry Pi's serial console runs at 115200.
 | Device | `open(path, settings)`, Linux only | leaves through the UART, and returns once sent | what the line delivered, waiting up to the timeout |
 | Looped | `looped(settings)` | queues the bytes to come straight back | what was written, at once |
 | Paired | `pair(settings)` | queues the bytes for the other end | what the other end wrote, at once |
-| Simulated | `simulated(settings, device)`, Rust | hands the bytes to the device | the device's answer, at once |
+| Simulated | `simulated(settings, device)` in Rust, and a Modbus line's `port(settings)` in TypeScript, Python, and C# | hands the bytes to the device | the device's answer, at once |
 | Scripted | `scripted(settings, steps)` | has to match the next step, or fails | the replies the script has reached, at once |
 
 On every kind but the device, a read that finds nothing returns at once and adds its timeout to
@@ -945,7 +946,7 @@ The mistakes that cost an afternoon:
 ## Where next
 
 <!-- table: next serial -->
-- [Modbus RTU](modbus.md): Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices.
+- [Modbus RTU](modbus.md): Modbus RTU for RS485 field devices.
 - [MAVLink](mavlink.md): MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols.
 - [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus and one serial port a program and its drivers share, and delays that sleep or only count.
 - Beside it: [Buses and links](../buses.md).

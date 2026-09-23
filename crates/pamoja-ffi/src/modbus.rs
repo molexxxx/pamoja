@@ -689,7 +689,10 @@ unsafe fn request(
 /// # Safety
 ///
 /// `out` must be null or point to a writable `*mut T` that outlives the call.
-unsafe fn out_slot<'a, T>(out: *mut *mut T, name: &str) -> Result<&'a mut *mut T, PamojaStatus> {
+pub(crate) unsafe fn out_slot<'a, T>(
+    out: *mut *mut T,
+    name: &str,
+) -> Result<&'a mut *mut T, PamojaStatus> {
     if out.is_null() {
         set_last_error(format!("{name} must not be null"));
         return Err(PamojaStatus::InvalidArgument);
@@ -705,7 +708,7 @@ unsafe fn out_slot<'a, T>(out: *mut *mut T, name: &str) -> Result<&'a mut *mut T
 ///
 /// When `count` is non-zero, `ptr` must point to at least `count` readable `T`
 /// values.
-unsafe fn read_values<T: Copy>(
+pub(crate) unsafe fn read_values<T: Copy>(
     ptr: *const T,
     count: usize,
     name: &str,
@@ -723,10 +726,12 @@ unsafe fn read_values<T: Copy>(
 }
 
 /// Records a Modbus error and maps it onto its status.
-fn failed(error: ModbusError) -> PamojaStatus {
+pub(crate) fn failed(error: ModbusError) -> PamojaStatus {
     set_last_error(error.to_string());
     match error {
-        ModbusError::InvalidValueCount => PamojaStatus::InvalidArgument,
+        ModbusError::InvalidValueCount | ModbusError::UnitOutOfRange { .. } => {
+            PamojaStatus::InvalidArgument
+        }
         ModbusError::FrameTooShort
         | ModbusError::FrameTooLong
         | ModbusError::CrcMismatch { .. }
@@ -735,7 +740,7 @@ fn failed(error: ModbusError) -> PamojaStatus {
 }
 
 /// Records a caught panic and reports it as [`PamojaStatus::Panic`].
-fn panicked() -> PamojaStatus {
+pub(crate) fn panicked() -> PamojaStatus {
     set_last_error("panic at the FFI boundary".to_owned());
     PamojaStatus::Panic
 }

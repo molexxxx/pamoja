@@ -194,7 +194,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-modbus">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><code class="pkg-import">Pamoja.Modbus</code><p>Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/modbus.html">Modbus RTU</a><code class="pkg-import">Pamoja.Modbus</code><p>Modbus RTU for RS485 field devices: a client that polls them over a serial port with the line's timing, simulated devices that answer as real ones do, and the frames with their CRC-16/MODBUS</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Modbus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Modbus" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

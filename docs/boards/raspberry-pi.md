@@ -1131,6 +1131,8 @@ toolchain for C.
   and tilt head from a PCA9685 and a 28BYJ-48.
 - [Serial framing](../guides/serial.md#on-a-board), for the UART on GPIO14 and
   GPIO15, checked with one jumper wire, and which UART each model puts there.
+- [Modbus RTU](../guides/modbus.md#on-a-board), for an RS485 line through a USB
+  adapter, and a scan that lists every device on it.
 - [Your own device](../guides/device.md), for a part pamoja has never heard of.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,

@@ -2,7 +2,7 @@
 
 # pamoja-modbus
 
-Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard request PDUs, and response decoding, so a long-cable RS485 field sensor speaks Modbus, no_std and allocation-free. The framing half ahead of the serial driver.
+Modbus RTU for pamoja: a client that polls RS485 field devices over a serial port with the timing the serial line specification sets, servers that answer as devices do, and beneath both the frames, CRC-16/MODBUS, the RTU envelope, every standard request and its reply, and the exceptions, no_std and allocation-free.
 
 <a href="https://pamoja.molex.cloud/docs/guides/modbus.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_modbus/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -18,7 +18,7 @@ Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard
 | Python | [`pamoja-modbus`](https://pypi.org/project/pamoja-modbus/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-modbus) |
 | C# | [`Pamoja.Modbus`](https://www.nuget.org/packages/Pamoja.Modbus) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Modbus.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-modbus) |
 
-Modbus RTU framing for the pamoja SDK.
+Modbus RTU for the pamoja SDK: the frames, a server, and a client on a serial line.
 
 Modbus is the lingua franca of cheap industrial sensing. Soil NPK probes, energy
 meters, water-quality transmitters, and pump controllers overwhelmingly speak Modbus
@@ -27,24 +27,33 @@ is exactly what a dispersed farm or a rural water network needs. To talk to thos
 devices a node has to put the right bytes on the wire and trust the bytes it gets
 back, and Modbus RTU pins down precisely what those bytes are.
 
-This crate is that byte layer, with no serial port and no allocation:
+The byte layer needs no serial port and no allocation:
 
 - `crc16` - the CRC-16/MODBUS that every RTU frame ends with, the check that lets a
   receiver reject a frame mangled by electrical noise on a long cable.
 - `Pdu` - the protocol data unit: a function code and its data. Constructors build
-  the standard requests (read and write coils and registers) so callers never hand-pack
-  a frame, with a `raw` escape hatch for the function codes this crate does
-  not name.
+  the standard requests (read and write coils and registers), the replies a device sends
+  to each, and the exception it sends instead, so callers never hand-pack a frame, with a
+  `raw` escape hatch for the function codes this crate does not name.
 - `Adu` - the RTU application data unit: a unit address, a PDU, and the CRC. It both
   assembles a frame to send and parses one received,
   verifying the CRC so a corrupt frame never reaches the application.
 - `Response` - reads the values back out of a reply: the 16-bit registers of a
   read-registers response and the packed bits of a read-coils response, plus the
   `Exception` a device returns when it refuses a request.
+- `Request` - reads a request the way a device does, checked against the quantity and
+  value limits the specification sets.
 
-Everything is exact integer and byte work, so the same framing runs on the smallest
-microcontroller hanging off the bus. Driving the RS485 line itself arrives with the
-hardware-I/O layer; this is the protocol half ahead of it.
+With the `alloc` feature, `Server` is a device: a unit address and the four tables it
+serves, answering each frame with the reply or the exception the specification gives,
+and staying silent where the serial line specification says a device does.
+
+With the `port` feature, which needs an operating system, `Client` runs transactions
+over a `pamoja_hal::port::SerialPort`: it leaves the line silent for 3.5 characters
+before each request, reads the reply to the length the request implies against a
+response timeout, and checks the reply's CRC, unit, and function before a value is read
+out of it. A server answers on a simulated port, and a `Line` carries several, so a
+polling loop runs end to end with nothing plugged in.
 
 **Examples**
 

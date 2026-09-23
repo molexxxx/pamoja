@@ -119,6 +119,8 @@ pub mod mavlink_schema;
 pub mod mesh;
 #[cfg(feature = "modbus")]
 pub mod modbus;
+#[cfg(feature = "modbus")]
+pub mod modbus_client;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
 #[cfg(feature = "hal")]

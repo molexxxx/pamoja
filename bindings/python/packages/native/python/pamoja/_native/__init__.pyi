@@ -163,7 +163,10 @@ __all__ = [
     "MessageSchemaBuilder",
     "MissionReceiver",
     "MissionSender",
+    "ModbusClient",
     "ModbusFrame",
+    "ModbusLine",
+    "ModbusServer",
     "MqttClient",
     "MqttMessage",
     "Opt3001",
@@ -8118,6 +8121,77 @@ class MissionSender:
         """
 
 @typing.final
+class ModbusClient:
+    r"""
+    A Modbus RTU client on a serial line: the gateway that sends each request and waits for its
+    reply, holding each transaction to the Modbus over Serial Line specification.
+    
+    Each call releases the interpreter while the line is busy, and a failure raises
+    `ModbusClientError`.
+    """
+    @property
+    def response_timeout_micros(self) -> builtins.int:
+        r"""
+        How long the client waits for a whole reply, in microseconds.
+        """
+    @property
+    def turnaround_micros(self) -> builtins.int:
+        r"""
+        How long the client leaves the line quiet after a broadcast, in microseconds.
+        """
+    def __new__(cls, port: SerialPort) -> ModbusClient:
+        r"""
+        A client on a port, with a one-second response timeout and a 100 ms turnaround.
+        """
+    @staticmethod
+    def frame_gap_nanos(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> builtins.int:
+        r"""
+        The silence that separates two frames, in nanoseconds, for a speed, a parity name,
+        and a stop bit count: 3.5 characters, and a fixed 1750 microseconds above 19200 baud.
+        """
+    def set_response_timeout_micros(self, micros: builtins.int) -> None:
+        r"""
+        Sets how long the client waits for a whole reply, in microseconds.
+        """
+    def set_turnaround_micros(self, micros: builtins.int) -> None:
+        r"""
+        Sets how long the client leaves the line quiet after a broadcast, in microseconds.
+        """
+    def read_coils(self, unit: builtins.int, start: builtins.int, quantity: builtins.int) -> builtins.list[builtins.bool]:
+        r"""
+        Reads coils, function `0x01`.
+        """
+    def read_discrete_inputs(self, unit: builtins.int, start: builtins.int, quantity: builtins.int) -> builtins.list[builtins.bool]:
+        r"""
+        Reads discrete inputs, function `0x02`.
+        """
+    def read_holding_registers(self, unit: builtins.int, start: builtins.int, quantity: builtins.int) -> builtins.list[builtins.int]:
+        r"""
+        Reads holding registers, function `0x03`.
+        """
+    def read_input_registers(self, unit: builtins.int, start: builtins.int, quantity: builtins.int) -> builtins.list[builtins.int]:
+        r"""
+        Reads input registers, function `0x04`.
+        """
+    def write_single_coil(self, unit: builtins.int, address: builtins.int, on: builtins.bool) -> None:
+        r"""
+        Writes one coil, function `0x05`; unit 0 broadcasts it to every device.
+        """
+    def write_single_register(self, unit: builtins.int, address: builtins.int, value: builtins.int) -> None:
+        r"""
+        Writes one holding register, function `0x06`; unit 0 broadcasts it to every device.
+        """
+    def write_multiple_coils(self, unit: builtins.int, start: builtins.int, values: typing.Sequence[builtins.bool]) -> None:
+        r"""
+        Writes a run of coils, function `0x0F`; unit 0 broadcasts them to every device.
+        """
+    def write_multiple_registers(self, unit: builtins.int, start: builtins.int, values: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Writes a run of holding registers, function `0x10`; unit 0 broadcasts them to every
+        device.
+        """
+
+@typing.final
 class ModbusFrame:
     r"""
     A received Modbus RTU frame whose CRC has been verified.
@@ -8152,6 +8226,93 @@ class ModbusFrame:
     def coils(self, count: builtins.int) -> builtins.list[builtins.bool]:
         r"""
         Reads `count` coils or discrete inputs out of a read-bits reply.
+        """
+
+@typing.final
+class ModbusLine:
+    r"""
+    Several devices on one simulated line, as devices share an RS485 pair: every frame reaches
+    all of them, the one it is addressed to answers, and each carries out a broadcast write.
+    """
+    def __new__(cls) -> ModbusLine:
+        r"""
+        A line with no devices on it.
+        """
+    def attach(self, server: ModbusServer) -> None:
+        r"""
+        Puts a device on the line, which shares it.
+        """
+    def __len__(self) -> builtins.int:
+        r"""
+        How many devices are on the line.
+        """
+    def port(self, baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> SerialPort:
+        r"""
+        A serial port with the line on its far end, at a speed, a parity name, and a stop bit
+        count. Devices put on the line later are on the port too.
+        """
+
+@typing.final
+class ModbusServer:
+    r"""
+    A Modbus device: a unit address and the four tables it serves, coils, discrete inputs,
+    holding registers, and input registers, each holding only the addresses it was given.
+    
+    `answer` takes one RTU frame and returns the frame the device sends back, or `None` when
+    it stays silent: the frame failed its CRC, is for another unit, or is a broadcast, whose
+    write the device still carries out.
+    """
+    @property
+    def unit(self) -> builtins.int:
+        r"""
+        The device's unit address.
+        """
+    @property
+    def served(self) -> builtins.int:
+        r"""
+        How many requests the device has carried out, broadcasts included and refusals not.
+        """
+    def __new__(cls, unit: builtins.int) -> ModbusServer:
+        r"""
+        A device at a unit address, 1 to 247, with every table empty. Raises `PamojaError`
+        for 0, the broadcast address, and for 248 to 255, which the specification reserves.
+        """
+    def set_coils(self, start: builtins.int, values: typing.Sequence[builtins.bool]) -> None:
+        r"""
+        Sets coils from an address on, adding any the device did not have.
+        """
+    def set_discrete_inputs(self, start: builtins.int, values: typing.Sequence[builtins.bool]) -> None:
+        r"""
+        Sets discrete inputs from an address on, adding any the device did not have.
+        """
+    def set_holding_registers(self, start: builtins.int, values: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Sets holding registers from an address on, adding any the device did not have.
+        """
+    def set_input_registers(self, start: builtins.int, values: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Sets input registers from an address on, adding any the device did not have.
+        """
+    def coil(self, address: builtins.int) -> typing.Optional[builtins.bool]:
+        r"""
+        A coil's state, or `None` when the device has no coil there.
+        """
+    def discrete_input(self, address: builtins.int) -> typing.Optional[builtins.bool]:
+        r"""
+        A discrete input's state, or `None` when the device has no input there.
+        """
+    def holding_register(self, address: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        A holding register's value, or `None` when the device has no register there.
+        """
+    def input_register(self, address: builtins.int) -> typing.Optional[builtins.int]:
+        r"""
+        An input register's value, or `None` when the device has no register there.
+        """
+    def answer(self, frame: typing.Sequence[builtins.int]) -> typing.Optional[bytes]:
+        r"""
+        Answers one RTU frame, as the device on the line does, or returns `None` when it
+        stays silent.
         """
 
 @typing.final

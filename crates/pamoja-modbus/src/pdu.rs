@@ -2,6 +2,7 @@
 
 use crate::adu::Adu;
 use crate::error::ModbusError;
+use crate::function::Exception;
 
 /// A Modbus protocol data unit: a function code followed by its data.
 ///
@@ -39,6 +40,13 @@ impl Pdu {
 
     /// The most coils a single write-multiple-coils request may carry.
     pub const MAX_WRITE_COILS: usize = 1968;
+
+    /// The most holding or input registers a single read may ask for, which fills a reply's
+    /// 250 data bytes.
+    pub const MAX_READ_REGISTERS: usize = 125;
+
+    /// The most coils or discrete inputs a single read may ask for.
+    pub const MAX_READ_BITS: usize = 2000;
 
     // Builds a five-byte request: a function code and two 16-bit words. Read requests
     // carry a starting address and a quantity; single-write requests carry an address
@@ -187,7 +195,7 @@ impl Pdu {
     /// # Errors
     ///
     /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
-    /// [`MAX_WRITE_REGISTERS`](Pdu::MAX_WRITE_REGISTERS) values.
+    /// [`MAX_READ_REGISTERS`](Pdu::MAX_READ_REGISTERS) values.
     pub fn read_holding_registers_reply(values: &[u16]) -> Result<Pdu, ModbusError> {
         Self::registers_reply(0x03, values)
     }
@@ -207,14 +215,14 @@ impl Pdu {
     /// # Errors
     ///
     /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
-    /// [`MAX_WRITE_REGISTERS`](Pdu::MAX_WRITE_REGISTERS) values.
+    /// [`MAX_READ_REGISTERS`](Pdu::MAX_READ_REGISTERS) values.
     pub fn read_input_registers_reply(values: &[u16]) -> Result<Pdu, ModbusError> {
         Self::registers_reply(0x04, values)
     }
 
     fn registers_reply(function: u8, values: &[u16]) -> Result<Pdu, ModbusError> {
         let quantity = values.len();
-        if quantity == 0 || quantity > Self::MAX_WRITE_REGISTERS {
+        if quantity == 0 || quantity > Self::MAX_READ_REGISTERS {
             return Err(ModbusError::InvalidValueCount);
         }
         let byte_count = quantity * 2;
@@ -268,6 +276,110 @@ impl Pdu {
             bytes,
             len: 6 + byte_count,
         })
+    }
+
+    /// Builds the reply a device sends to a read-coils request: the function code, the byte
+    /// count, then the coils packed least-significant bit first.
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - the coil states the device reports, in address order.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
+    /// [`MAX_READ_BITS`](Pdu::MAX_READ_BITS) values.
+    pub fn read_coils_reply(values: &[bool]) -> Result<Pdu, ModbusError> {
+        Self::bits_reply(0x01, values)
+    }
+
+    /// Builds the reply a device sends to a read-discrete-inputs request.
+    ///
+    /// # Arguments
+    ///
+    /// * `values` - the input states the device reports, in address order.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModbusError::InvalidValueCount`] if `values` is empty or holds more than
+    /// [`MAX_READ_BITS`](Pdu::MAX_READ_BITS) values.
+    pub fn read_discrete_inputs_reply(values: &[bool]) -> Result<Pdu, ModbusError> {
+        Self::bits_reply(0x02, values)
+    }
+
+    fn bits_reply(function: u8, values: &[bool]) -> Result<Pdu, ModbusError> {
+        let quantity = values.len();
+        if quantity == 0 || quantity > Self::MAX_READ_BITS {
+            return Err(ModbusError::InvalidValueCount);
+        }
+        let byte_count = quantity.div_ceil(8);
+        let mut bytes = [0u8; Self::MAX_LEN];
+        bytes[0] = function;
+        bytes[1] = byte_count as u8;
+        for (i, &on) in values.iter().enumerate() {
+            if on {
+                bytes[2 + i / 8] |= 1u8 << (i % 8);
+            }
+        }
+        Ok(Pdu {
+            bytes,
+            len: 2 + byte_count,
+        })
+    }
+
+    /// Builds the reply a device sends to a write-multiple-coils request: the function code,
+    /// the starting address, and how many coils it wrote.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - the address of the first coil written.
+    /// * `quantity` - how many coils were written.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    pub fn write_multiple_coils_reply(start: u16, quantity: u16) -> Pdu {
+        Self::pair(0x0F, start, quantity)
+    }
+
+    /// Builds the reply a device sends to a write-multiple-registers request.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - the address of the first register written.
+    /// * `quantity` - how many registers were written.
+    ///
+    /// # Returns
+    ///
+    /// The reply PDU.
+    pub fn write_multiple_registers_reply(start: u16, quantity: u16) -> Pdu {
+        Self::pair(0x10, start, quantity)
+    }
+
+    /// Builds the exception a device answers with when it refuses a request: the request's
+    /// function code with its high bit set, then the exception code.
+    ///
+    /// # Arguments
+    ///
+    /// * `function` - the function code of the request refused.
+    /// * `exception` - why it was refused.
+    ///
+    /// # Returns
+    ///
+    /// The exception PDU.
+    pub fn exception(function: u8, exception: Exception) -> Pdu {
+        let mut bytes = [0u8; Self::MAX_LEN];
+        bytes[0] = function | 0x80;
+        bytes[1] = exception.code();
+        Pdu { bytes, len: 2 }
     }
 
     /// Builds a PDU from a raw function code and data, the escape hatch for function
@@ -456,10 +568,67 @@ mod tests {
             Pdu::read_holding_registers_reply(&[]),
             Err(ModbusError::InvalidValueCount)
         );
-        let too_many = [0u16; Pdu::MAX_WRITE_REGISTERS + 1];
+        let too_many = [0u16; Pdu::MAX_READ_REGISTERS + 1];
         assert_eq!(
             Pdu::read_holding_registers_reply(&too_many),
             Err(ModbusError::InvalidValueCount)
+        );
+    }
+
+    #[test]
+    fn a_read_of_125_registers_fills_the_reply() {
+        // 6.3: a read asks for 1 to 125 registers, and 125 is 250 data bytes, which with
+        // the function code and the byte count fills a reply.
+        let full = Pdu::read_holding_registers_reply(&[0xABCD; Pdu::MAX_READ_REGISTERS])
+            .expect("125 registers fit a reply");
+        assert_eq!(full.as_bytes().len(), 252);
+        assert_eq!(full.as_bytes()[1], 250);
+    }
+
+    #[test]
+    fn the_bit_replies_are_the_frames_the_specification_shows() {
+        // 6.1: coils 20 to 38 as the specification lists them, answered CD 6B 05.
+        let coils = [
+            true, false, true, true, false, false, true, true, true, true, false, true, false,
+            true, true, false, true, false, true,
+        ];
+        let reply = Pdu::read_coils_reply(&coils).expect("19 coils fit");
+        assert_eq!(reply.as_bytes(), &[0x01, 0x03, 0xCD, 0x6B, 0x05]);
+
+        // 6.2: discrete inputs 197 to 218, answered AC DB 35.
+        let inputs = [
+            false, false, true, true, false, true, false, true, true, true, false, true, true,
+            false, true, true, true, false, true, false, true, true,
+        ];
+        let reply = Pdu::read_discrete_inputs_reply(&inputs).expect("22 inputs fit");
+        assert_eq!(reply.as_bytes(), &[0x02, 0x03, 0xAC, 0xDB, 0x35]);
+
+        assert_eq!(
+            Pdu::read_coils_reply(&[]),
+            Err(ModbusError::InvalidValueCount)
+        );
+        let too_many = [false; Pdu::MAX_READ_BITS + 1];
+        assert_eq!(
+            Pdu::read_coils_reply(&too_many),
+            Err(ModbusError::InvalidValueCount)
+        );
+    }
+
+    #[test]
+    fn the_write_replies_and_the_exception_are_the_frames_the_specification_shows() {
+        // 6.11 and 6.12: a write of many answers with where it started and how many.
+        assert_eq!(
+            Pdu::write_multiple_coils_reply(0x0013, 0x000A).as_bytes(),
+            &[0x0F, 0x00, 0x13, 0x00, 0x0A]
+        );
+        assert_eq!(
+            Pdu::write_multiple_registers_reply(0x0001, 0x0002).as_bytes(),
+            &[0x10, 0x00, 0x01, 0x00, 0x02]
+        );
+        // Section 7: a read of an output that does not exist answers 81 02.
+        assert_eq!(
+            Pdu::exception(0x01, Exception::IllegalDataAddress).as_bytes(),
+            &[0x81, 0x02]
         );
     }
 }

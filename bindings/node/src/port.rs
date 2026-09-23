@@ -54,7 +54,7 @@ pub struct SerialSettings {
 }
 
 impl SerialSettings {
-    fn settings(&self) -> napi::Result<Settings> {
+    pub(crate) fn settings(&self) -> napi::Result<Settings> {
         if self.baud == 0 {
             return Err(napi::Error::from_reason("the speed must be above zero"));
         }

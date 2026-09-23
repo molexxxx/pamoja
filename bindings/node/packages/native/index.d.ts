@@ -1962,6 +1962,109 @@ export declare class MissionSender {
   onFrame(frame: MavlinkFrame, header: MavlinkHeader): SenderStep | null
 }
 
+/**
+ * A Modbus RTU client on a serial line: the gateway that sends each request and waits for its
+ * reply, holding each transaction to the Modbus over Serial Line specification.
+ */
+export declare class ModbusClient {
+  /** A client on a port, with a one-second response timeout and a 100 ms turnaround. */
+  constructor(port: SerialPort)
+  /**
+   * The silence that separates two frames, in nanoseconds: 3.5 characters at the line's
+   * speed and format, and a fixed 1750 microseconds above 19200 baud.
+   */
+  static frameGapNanos(settings: SerialSettings): number
+  /** How long the client waits for a whole reply, in milliseconds. */
+  get responseTimeoutMs(): number
+  /** Sets how long the client waits for a whole reply, in milliseconds. */
+  setResponseTimeout(ms: number): void
+  /** How long the client leaves the line quiet after a broadcast, in milliseconds. */
+  get turnaroundMs(): number
+  /** Sets how long the client leaves the line quiet after a broadcast, in milliseconds. */
+  setTurnaround(ms: number): void
+  /** Reads coils, function `0x01`. */
+  readCoils(unit: number, start: number, quantity: number): Promise<ModbusOutcome>
+  /** Reads discrete inputs, function `0x02`. */
+  readDiscreteInputs(unit: number, start: number, quantity: number): Promise<ModbusOutcome>
+  /** Reads holding registers, function `0x03`. */
+  readHoldingRegisters(unit: number, start: number, quantity: number): Promise<ModbusOutcome>
+  /** Reads input registers, function `0x04`. */
+  readInputRegisters(unit: number, start: number, quantity: number): Promise<ModbusOutcome>
+  /** Writes one coil, function `0x05`; unit 0 broadcasts it to every device. */
+  writeSingleCoil(unit: number, address: number, on: boolean): Promise<ModbusOutcome>
+  /** Writes one holding register, function `0x06`; unit 0 broadcasts it to every device. */
+  writeSingleRegister(unit: number, address: number, value: number): Promise<ModbusOutcome>
+  /** Writes a run of coils, function `0x0F`; unit 0 broadcasts them to every device. */
+  writeMultipleCoils(unit: number, start: number, values: Array<boolean>): Promise<ModbusOutcome>
+  /**
+   * Writes a run of holding registers, function `0x10`; unit 0 broadcasts them to every
+   * device.
+   */
+  writeMultipleRegisters(unit: number, start: number, values: Array<number>): Promise<ModbusOutcome>
+}
+
+/**
+ * Several devices on one simulated line, as devices share an RS485 pair: every frame reaches
+ * all of them, the one it is addressed to answers, and each carries out a broadcast write.
+ * The line shares each device, so the program's `ModbusServer` still reads and changes it.
+ */
+export declare class ModbusLine {
+  /** A line with no devices on it. */
+  constructor()
+  /** Puts a device on the line. */
+  attach(server: ModbusServer): void
+  /** How many devices are on the line. */
+  get count(): number
+  /**
+   * A serial port with the line on its far end: every frame written reaches each device,
+   * and whatever they answer waits to be read. Devices put on the line later are on the
+   * port too.
+   */
+  port(settings: SerialSettings): SerialPort
+}
+
+/**
+ * A Modbus device: a unit address and the four tables it serves, coils, discrete inputs,
+ * holding registers, and input registers, each holding only the addresses it was given.
+ *
+ * `answer` takes one RTU frame and returns the frame the device sends back, or `null` when it
+ * stays silent: the frame failed its CRC, is for another unit, or is a broadcast, whose write
+ * the device still carries out. A request it cannot serve is answered with the exception the
+ * specification gives.
+ */
+export declare class ModbusServer {
+  /**
+   * A device at a unit address, 1 to 247, with every table empty. Throws for 0, the
+   * broadcast address, and for 248 to 255, which the specification reserves.
+   */
+  constructor(unit: number)
+  /** The device's unit address. */
+  get unit(): number
+  /** How many requests the device has carried out, broadcasts included and refusals not. */
+  get served(): number
+  /** Sets coils from an address on, adding any the device did not have. */
+  setCoils(start: number, values: Array<boolean>): void
+  /** Sets discrete inputs from an address on, adding any the device did not have. */
+  setDiscreteInputs(start: number, values: Array<boolean>): void
+  /** Sets holding registers from an address on, adding any the device did not have. */
+  setHoldingRegisters(start: number, values: Array<number>): void
+  /** Sets input registers from an address on, adding any the device did not have. */
+  setInputRegisters(start: number, values: Array<number>): void
+  /** A coil's state, or `null` when the device has no coil there. */
+  coil(address: number): boolean | null
+  /** A discrete input's state, or `null` when the device has no input there. */
+  discreteInput(address: number): boolean | null
+  /** A holding register's value, or `null` when the device has no register there. */
+  holdingRegister(address: number): number | null
+  /** An input register's value, or `null` when the device has no register there. */
+  inputRegister(address: number): number | null
+  /**
+   * Answers one RTU frame, as the device on the line does, or returns `null` when it stays
+   * silent.
+   */
+  answer(frame: Buffer): Buffer | null
+}
+
 /** An MQTT client transport backed by the native pamoja core. */
 export declare class MqttClient {
   /** Creates a disconnected client from the given options. */
@@ -6910,6 +7013,27 @@ export declare function modbusCoils(pdu: Buffer, count: number): Array<boolean>
 /** Computes the CRC-16/MODBUS that every RTU frame ends with. */
 export declare function modbusCrc16(bytes: Buffer): number
 
+/** Why a transaction failed, for the facade to throw as a `ModbusClientError`. */
+export interface ModbusFailure {
+  /**
+   * `Request`, `BroadcastRead`, `Port`, `Timeout`, `Frame`, `WrongUnit`, `WrongFunction`,
+   * `Mismatch`, or `Exception`.
+   */
+  kind: string
+  /** The reason, in words. */
+  message: string
+  /** The unit the transaction asked. */
+  unit: number
+  /** For an exception or a reply to another function, the function asked. */
+  function?: number
+  /** What the reply named instead: the unit that answered, or the function it answered. */
+  found?: number
+  /** For an exception, the code the device answered with. */
+  exception?: number
+  /** For a timeout, how many bytes of a reply had arrived. */
+  received?: number
+}
+
 /** A received Modbus RTU frame whose CRC has been verified. */
 export interface ModbusFrame {
   /** The unit (slave) address the frame is addressed to or came from. */
@@ -6929,6 +7053,16 @@ export interface ModbusFrame {
    * address or the CRC.
    */
   pdu: Buffer
+}
+
+/** What one transaction came to: the values a read returned, or why it failed. */
+export interface ModbusOutcome {
+  /** The registers a register read returned. */
+  registers?: Array<number>
+  /** The states a coil or discrete input read returned. */
+  bits?: Array<boolean>
+  /** Why the transaction failed, or absent when it succeeded. */
+  failure?: ModbusFailure
 }
 
 /** Parses a received RTU frame, verifying its CRC. */

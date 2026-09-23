@@ -92,6 +92,31 @@ released together, so one entry covers all of them.
   and what they cost, line formats and their time on the wire, the kinds of port, the
   settings in each language, which UART each Raspberry Pi model puts on its header, and what
   each error means.
+- A Modbus client and the devices it polls, in every language. `pamoja_modbus::Client`
+  (the `port` feature) runs each transaction over a serial port to the Modbus over Serial
+  Line specification: it leaves the line silent for 3.5 characters, or 1.75 ms above
+  19200 baud, drops stale input, reads the reply to the length the request implies against
+  a response timeout, one second unless set, and checks the reply's CRC, unit, and function
+  before a value is read out of it. A broadcast write waits out a turnaround, 100 ms unless
+  set, instead of a reply, and a refusal comes back as `ClientError::Exception` with the
+  device's exception. `Server` (the `alloc` feature) is a device and the four tables it
+  serves, answering each of the eight functions, refusing in the order the specification's
+  state diagrams check, and staying silent on a frame that fails its CRC, one for another
+  unit, and a broadcast, which it still carries out. `Line` puts several on the far end of a
+  simulated port, and `Request` reads a request as a device does. TypeScript, Python, and
+  C# get `ModbusClient`, `ModbusServer`, and `ModbusLine`, and an error that names what
+  failed, with the device's exception code: `ModbusClientError` in TypeScript and Python,
+  `ModbusClientException` in C#.
+- `Pdu` builds the reply a device sends to each read and to each write of many values, and
+  the exception it sends instead, beside the requests; `Exception` prints the name the
+  application protocol specification gives it.
+- The Modbus guide rewritten around the gateway at a village water pump, polling an energy
+  meter and a relay module on one simulated line and printing the same nine lines in all
+  four languages, with a Raspberry Pi program in each that scans a real line through a USB
+  RS485 adapter. Its tables cover the four data tables and how a manual numbers them, the
+  eight functions and their limits, unit addresses, the timing at each speed, the client's
+  two waits, the exceptions in the order a device checks them, the client's settings in
+  each language, wiring a line, and what each error means.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -595,6 +620,12 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The install page's build table printed `--features modbus` and its siblings for builds it
+  measured with the `std` feature on; each command now names `std`. The page no longer says
+  the narrow builds carry no third-party code, since `embedded-hal` is in each.
+- A request for more values than one frame carries says so for a read as well as a write.
+- `ModbusError` gains `UnitOutOfRange`, for a server made at the broadcast address or a
+  reserved one, so a `match` over it needs the new arm.
 - A simulated bus hands a part back as whichever kind it is. In Rust `I2cBus::part` is
   generic over the kind, `bus.part::<I2cPart>(address)`; in TypeScript and Python it
   returns the part as it is; in C# `bus.Part(address)` returns a `SimulatedPart` and
@@ -723,6 +754,9 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- `Pdu::read_holding_registers_reply` and `read_input_registers_reply` refused more than 123
+  registers, the most a write carries, while a read asks for up to 125, which fill a reply's
+  250 data bytes.
 - A step and direction driver raised STEP straight after setting DIR, while the A4988
   reads the direction on STEP's rising edge and needs it settled 200 ns before, the
   DRV8825 650 ns. On a fast microcontroller the two writes land nanoseconds apart and a

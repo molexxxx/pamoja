@@ -360,15 +360,16 @@ dependency graph, for a `x86_64-unknown-linux-gnu` build:
 | Build | What you write | Crates compiled | From this workspace | External |
 | --- | --- | --- | --- | --- |
 | Every capability | `cargo add pamoja` | 111 | 34 | 77 |
-| Codecs and identity | `cargo add pamoja --no-default-features --features codec,security` | 36 | 4 | 32 |
-| Field I/O | `cargo add pamoja --no-default-features --features field-io` | 8 | 7 | 1 |
-| One capability | `cargo add pamoja --no-default-features --features modbus` | 3 | 3 | 0 |
+| Codecs and identity | `cargo add pamoja --no-default-features --features std,codec,security` | 36 | 4 | 32 |
+| Field I/O | `cargo add pamoja --no-default-features --features std,field-io` | 8 | 7 | 1 |
+| One capability | `cargo add pamoja --no-default-features --features std,modbus` | 5 | 4 | 1 |
 | Bare metal, no `std` | `cargo add pamoja --no-default-features --features modbus,sensors,lora` | 7 | 6 | 1 |
 <!-- end -->
 
-The narrow builds carry no third-party code at all: `pamoja`, `pamoja-core`, and
-the capability crates, and nothing else. Most capability crates are `no_std`, so
-the same code runs on a gateway and on a microcontroller. The
+The narrow builds carry one third-party crate, `embedded-hal`, the trait crate the
+bus layer is written against, and otherwise only `pamoja`, `pamoja-core`, and the
+capability crates. Most capability crates are `no_std`, so the same code runs on a
+gateway and on a microcontroller. The
 [Rust reference](reference/rust.md) lists every crate.
 
 ## TypeScript and Node

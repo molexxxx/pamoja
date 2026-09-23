@@ -566,6 +566,68 @@ def test_a_serial_port_carries_bytes_over_every_kind_of_line():
             SerialPort.open("/dev/serial0", SerialSettings(115_200))
 
 
+def test_a_modbus_client_polls_devices_on_a_simulated_line():
+    from pamoja.hal import Parity, SerialSettings
+    from pamoja.modbus import (
+        BROADCAST,
+        Exception_,
+        ModbusClient,
+        ModbusClientError,
+        ModbusLine,
+        ModbusServer,
+        read_holding_registers,
+    )
+
+    settings = SerialSettings(19_200, Parity.EVEN)
+    assert ModbusClient.frame_gap_nanos(SerialSettings(9_600, Parity.EVEN)) == 4_010_419
+    assert ModbusClient.frame_gap_nanos(settings) == 2_005_210
+    assert ModbusClient.frame_gap_nanos(SerialSettings(115_200)) == 1_750_000
+
+    meter = ModbusServer(17)
+    meter.set_holding_registers(107, [2301, 418, 0])
+    meter.set_coils(0, [False, False])
+    pump = ModbusServer(18)
+    pump.set_holding_registers(109, [0])
+    line = ModbusLine().attach(meter).attach(pump)
+    assert len(line) == 2
+    port = line.port(settings)
+    client = ModbusClient(port, response_timeout=0.25)
+    assert client.response_timeout == 0.25
+    assert client.turnaround == 0.1
+
+    assert client.read_holding_registers(17, 107, 3) == [2301, 418, 0]
+    client.write_single_coil(17, 1, True)
+    assert client.read_coils(17, 0, 2) == [False, True]
+    client.write_multiple_registers(17, 107, [2300, 420])
+    assert meter.holding_register(108) == 420
+    assert meter.holding_register(110) is None
+
+    client.write_single_register(BROADCAST, 109, 5)
+    assert meter.holding_register(109) == 5
+    assert pump.holding_register(109) == 5
+    with pytest.raises(ModbusClientError) as broadcast:
+        client.read_holding_registers(BROADCAST, 107, 1)
+    assert broadcast.value.kind == "broadcast_read"
+
+    with pytest.raises(ModbusClientError, match="refused function 0x03") as refused:
+        client.read_holding_registers(17, 108, 3)
+    assert refused.value.kind == "exception"
+    assert refused.value.exception == Exception_.ILLEGAL_DATA_ADDRESS
+    assert (refused.value.unit, refused.value.function_code) == (17, 0x03)
+    assert isinstance(refused.value, PamojaError)
+
+    before = port.waited_micros
+    with pytest.raises(ModbusClientError) as silent:
+        client.read_holding_registers(19, 0, 1)
+    assert (silent.value.kind, silent.value.received) == ("timeout", 0)
+    assert port.waited_micros - before == 2_005 + 250_000
+    assert meter.served == 5, "the refusal is not counted"
+
+    with pytest.raises(PamojaError, match="broadcast"):
+        ModbusServer(0)
+    assert meter.answer(read_holding_registers(18, 109, 1)) is None
+    assert len(meter.answer(read_holding_registers(17, 109, 1))) > 0
+
 def test_the_stepper_drivers_walk_the_coils_and_pulse_the_lines_as_rust_does():
     from pamoja.actuators import Direction, Drive, FourWire, StepDir, stepper
     from pamoja.gpio import Level, PinScript
