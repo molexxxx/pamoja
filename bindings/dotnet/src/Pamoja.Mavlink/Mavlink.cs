@@ -191,16 +191,19 @@ public sealed class MavlinkDialect : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_mavlink_dialect_new(),
             NativeMethods.pamoja_mavlink_dialect_free,
-            "dialect");
+            "dialect",
+            serialized: true);
 
-    /// <summary>The native pointer, for the calls that consult this dialect.</summary>
-    internal IntPtr Handle => _handle.DangerousGetHandle();
+    /// <summary>Holds the native table open, and its turn, for a call that consults it.</summary>
+    /// <returns>The lease.</returns>
+    internal NativeLease Lease() => _handle.Lease();
 
     /// <summary>Adds or replaces the seed for a message id.</summary>
     /// <param name="msgid">The message id.</param>
     /// <param name="crcExtra">The seed.</param>
     public void Add(uint msgid, byte crcExtra) =>
-        Status.ThrowIfError(NativeMethods.pamoja_mavlink_dialect_add(Handle, msgid, crcExtra));
+        Status.ThrowIfError(_handle.Use(dialect =>
+            NativeMethods.pamoja_mavlink_dialect_add(dialect, msgid, crcExtra)));
 
     /// <summary>Adds a message by its definition, deriving the seed.</summary>
     /// <param name="msgid">The message id.</param>
@@ -224,9 +227,14 @@ public sealed class MavlinkDialect : IDisposable
     /// This is the whole path for a dialect described field by field: build the shape once,
     /// register it, and every frame carrying that message checks from then on.
     /// </remarks>
-    public void AddSchema(MavlinkSchema schema) =>
+    public void AddSchema(MavlinkSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        using NativeLease dialect = _handle.Lease();
+        using NativeLease shape = schema.Lease();
         Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_dialect_add_schema(Handle, schema.Handle));
+            NativeMethods.pamoja_mavlink_dialect_add_schema(dialect.Pointer, shape.Pointer));
+    }
 
     /// <summary>Returns the seed this dialect resolves a message id to.</summary>
     /// <param name="msgid">The message id to look up.</param>
@@ -235,10 +243,11 @@ public sealed class MavlinkDialect : IDisposable
     /// knows the id.
     /// </returns>
     public byte? CrcExtra(uint msgid) =>
-        NativeMethods.pamoja_mavlink_dialect_crc_extra(Handle, msgid, out byte crcExtra)
-            == PamojaStatus.Ok
-            ? crcExtra
-            : null;
+        _handle.Use<byte?>(dialect =>
+            NativeMethods.pamoja_mavlink_dialect_crc_extra(dialect, msgid, out byte crcExtra)
+                == PamojaStatus.Ok
+                ? crcExtra
+                : null);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
@@ -338,11 +347,12 @@ public sealed class MavlinkFrame : IDisposable
     /// </remarks>
     public static MavlinkFrame ParseKnown(ReadOnlySpan<byte> bytes, MavlinkDialect? dialect = null)
     {
+        using NativeLease table = dialect is null ? default : dialect.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_frame_parse_known(
                 bytes,
                 (nuint)bytes.Length,
-                dialect?.Handle ?? IntPtr.Zero,
+                table.Pointer,
                 out IntPtr frame));
         return new MavlinkFrame(frame);
     }
@@ -375,48 +385,52 @@ public sealed class MavlinkFrame : IDisposable
         return new MavlinkFrame(frame);
     }
 
-    /// <summary>The native pointer, for the calls that read this frame.</summary>
-    internal IntPtr Handle => _handle.DangerousGetHandle();
+    /// <summary>Holds the native frame open, for a call that reads it.</summary>
+    /// <returns>The lease.</returns>
+    internal NativeLease Lease() => _handle.Lease();
 
     /// <summary>Which wire format this frame uses.</summary>
     public MavlinkVersion Version =>
-        (MavlinkVersion)NativeMethods.pamoja_mavlink_frame_version(Handle);
+        _handle.Use(frame => (MavlinkVersion)NativeMethods.pamoja_mavlink_frame_version(frame));
 
     /// <summary>The addressing fields the frame carries.</summary>
     public MavlinkHeader Header
     {
         get
         {
+            using NativeLease frame = _handle.Lease();
             Status.ThrowIfError(
                 NativeMethods.pamoja_mavlink_frame_header(
-                    Handle,
+                    frame.Pointer,
                     out PamojaMavlinkHeader header));
             return new MavlinkHeader(header.SystemId, header.ComponentId, header.Sequence);
         }
     }
 
     /// <summary>The id of the message the frame carries.</summary>
-    public uint MessageId => NativeMethods.pamoja_mavlink_frame_message_id(Handle);
+    public uint MessageId => _handle.Use(NativeMethods.pamoja_mavlink_frame_message_id);
 
     /// <summary>The incompatibility flags a v2 frame declares.</summary>
-    public byte IncompatFlags => NativeMethods.pamoja_mavlink_frame_incompat_flags(Handle);
+    public byte IncompatFlags => _handle.Use(NativeMethods.pamoja_mavlink_frame_incompat_flags);
 
     /// <summary>Whether the frame carries a signature.</summary>
     /// <remarks>
     /// This says only that the frame was signed, not that the signature is good;
     /// <see cref="MavlinkVerifier.Verify"/> decides that.
     /// </remarks>
-    public bool Signed => NativeMethods.pamoja_mavlink_frame_is_signed(Handle) != 0;
+    public bool Signed => _handle.Use(frame => NativeMethods.pamoja_mavlink_frame_is_signed(frame) != 0);
 
     /// <summary>The message payload.</summary>
     /// <remarks>
     /// A v2 frame drops trailing zero bytes, so a payload can arrive shorter
     /// than the message's full length; a decoder zero-extends it.
     /// </remarks>
-    public byte[] Payload => Copy(NativeMethods.pamoja_mavlink_frame_payload(Handle, out nuint len), len);
+    public byte[] Payload =>
+        _handle.Use(frame => Copy(NativeMethods.pamoja_mavlink_frame_payload(frame, out nuint len), len));
 
     /// <summary>The whole frame, ready to put on the wire.</summary>
-    public byte[] Bytes => Copy(NativeMethods.pamoja_mavlink_frame_bytes(Handle, out nuint len), len);
+    public byte[] Bytes =>
+        _handle.Use(frame => Copy(NativeMethods.pamoja_mavlink_frame_bytes(frame, out nuint len), len));
 
     /// <summary>The signature block, or <c>null</c> when the frame is not signed.</summary>
     public byte[]? Signature
@@ -424,7 +438,7 @@ public sealed class MavlinkFrame : IDisposable
         get
         {
             byte[] signature = new byte[Mavlink.SignatureLength];
-            return NativeMethods.pamoja_mavlink_frame_signature(Handle, signature)
+            return _handle.Use(frame => NativeMethods.pamoja_mavlink_frame_signature(frame, signature))
                 == PamojaStatus.Ok
                 ? signature
                 : null;
@@ -461,7 +475,8 @@ public sealed class MavlinkParser : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_mavlink_parser_new(),
             NativeMethods.pamoja_mavlink_parser_free,
-            "parser");
+            "parser",
+            serialized: true);
 
     /// <summary>Feeds bytes off a link and returns the frames that completed.</summary>
     /// <param name="bytes">The bytes just read off the link.</param>
@@ -476,19 +491,22 @@ public sealed class MavlinkParser : IDisposable
         ReadOnlySpan<byte> bytes,
         MavlinkDialect? dialect = null)
     {
-        IntPtr handle = _handle.DangerousGetHandle();
-        Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_parser_push(
-                handle,
-                bytes,
-                (nuint)bytes.Length,
-                dialect?.Handle ?? IntPtr.Zero));
+        using NativeLease parser = _handle.Lease();
+        using (NativeLease table = dialect is null ? default : dialect.Lease())
+        {
+            Status.ThrowIfError(
+                NativeMethods.pamoja_mavlink_parser_push(
+                    parser.Pointer,
+                    bytes,
+                    (nuint)bytes.Length,
+                    table.Pointer));
+        }
 
         List<MavlinkFrame> found = [];
         while (true)
         {
             Status.ThrowIfError(
-                NativeMethods.pamoja_mavlink_parser_next(handle, out IntPtr frame));
+                NativeMethods.pamoja_mavlink_parser_next(parser.Pointer, out IntPtr frame));
             if (frame == IntPtr.Zero)
             {
                 return found;
@@ -500,7 +518,7 @@ public sealed class MavlinkParser : IDisposable
 
     /// <summary>How many completed frames are waiting to be taken.</summary>
     public int Pending =>
-        (int)NativeMethods.pamoja_mavlink_parser_pending(_handle.DangerousGetHandle());
+        _handle.Use(parser => (int)NativeMethods.pamoja_mavlink_parser_pending(parser));
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
@@ -531,7 +549,8 @@ public sealed class MavlinkSigner : IDisposable
 
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_signer_new(key, linkId, timestamp, out IntPtr signer));
-        _handle = NativeHandle.Create(signer, NativeMethods.pamoja_mavlink_signer_free, "signer");
+        _handle = NativeHandle.Create(
+            signer, NativeMethods.pamoja_mavlink_signer_free, "signer", serialized: true);
     }
 
     /// <summary>Signs a message into a v2 frame.</summary>
@@ -551,9 +570,10 @@ public sealed class MavlinkSigner : IDisposable
         ReadOnlySpan<byte> payload,
         byte crcExtra)
     {
+        using NativeLease signer = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_signer_sign(
-                _handle.DangerousGetHandle(),
+                signer.Pointer,
                 header.ToNative(),
                 msgid,
                 payload,
@@ -564,8 +584,7 @@ public sealed class MavlinkSigner : IDisposable
     }
 
     /// <summary>Which link this signer signs on.</summary>
-    public byte LinkId =>
-        NativeMethods.pamoja_mavlink_signer_link_id(_handle.DangerousGetHandle());
+    public byte LinkId => _handle.Use(NativeMethods.pamoja_mavlink_signer_link_id);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
@@ -593,7 +612,8 @@ public sealed class MavlinkVerifier : IDisposable
         _handle = NativeHandle.Create(
             verifier,
             NativeMethods.pamoja_mavlink_verifier_free,
-            "verifier");
+            "verifier",
+            serialized: true);
     }
 
     /// <summary>Sets how far a timestamp may run ahead of the last one accepted.</summary>
@@ -603,10 +623,8 @@ public sealed class MavlinkVerifier : IDisposable
     /// of a replay landing inside it.
     /// </remarks>
     public void SetWindow(ulong window) =>
-        Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_verifier_set_window(
-                _handle.DangerousGetHandle(),
-                window));
+        Status.ThrowIfError(_handle.Use(verifier =>
+            NativeMethods.pamoja_mavlink_verifier_set_window(verifier, window)));
 
     /// <summary>Checks a frame's signature and its place in the timestamp sequence.</summary>
     /// <param name="frame">The frame to check.</param>
@@ -614,11 +632,14 @@ public sealed class MavlinkVerifier : IDisposable
     /// The frame is unsigned, the signature does not match the key, or the
     /// timestamp has been seen before.
     /// </exception>
-    public void Verify(MavlinkFrame frame) =>
+    public void Verify(MavlinkFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        using NativeLease verifier = _handle.Lease();
+        using NativeLease received = frame.Lease();
         Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_verifier_verify(
-                _handle.DangerousGetHandle(),
-                frame.Handle));
+            NativeMethods.pamoja_mavlink_verifier_verify(verifier.Pointer, received.Pointer));
+    }
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

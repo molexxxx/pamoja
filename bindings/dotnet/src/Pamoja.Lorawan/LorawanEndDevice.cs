@@ -361,10 +361,12 @@ public sealed class LorawanEndDevice : IDisposable
         uint? fcntDown = null)
     {
         PamojaLorawanDeviceSettings native = settings.Native;
+        using NativeLease held = plan.Lease();
+        IntPtr planPointer = held.Pointer;
         IntPtr device = credentials.UseHandle(handle =>
         {
             Status.ThrowIfError(NativeMethods.pamoja_lorawan_end_device_new(
-                plan.DangerousGetHandle(),
+                planPointer,
                 handle,
                 in native,
                 fcntUp,
@@ -373,7 +375,6 @@ public sealed class LorawanEndDevice : IDisposable
                 out IntPtr made));
             return made;
         });
-        GC.KeepAlive(plan);
         return new LorawanEndDevice(device);
     }
 
@@ -397,10 +398,12 @@ public sealed class LorawanEndDevice : IDisposable
         uint? fcntDown = null)
     {
         PamojaLorawanDeviceSettings native = settings.Native;
+        using NativeLease held = plan.Lease();
+        IntPtr planPointer = held.Pointer;
         IntPtr device = session.UseHandle(handle =>
         {
             Status.ThrowIfError(NativeMethods.pamoja_lorawan_end_device_personalized(
-                plan.DangerousGetHandle(),
+                planPointer,
                 handle,
                 in native,
                 fcntUp,
@@ -409,7 +412,6 @@ public sealed class LorawanEndDevice : IDisposable
                 out IntPtr made));
             return made;
         });
-        GC.KeepAlive(plan);
         return new LorawanEndDevice(device);
     }
 

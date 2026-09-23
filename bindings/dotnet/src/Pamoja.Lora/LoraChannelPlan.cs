@@ -493,14 +493,15 @@ public sealed class LoraChannelPlan : IDisposable
     internal LoraChannelPlan(IntPtr handle) =>
         _handle = NativeHandle.Create(handle, NativeMethods.pamoja_lora_plan_free, "channel plan");
 
-    /// <summary>Returns the native plan pointer, for a package that builds on a plan.</summary>
-    /// <returns>The pointer, valid until this plan is disposed.</returns>
+    /// <summary>Holds the native plan open, for a package that builds on a plan.</summary>
+    /// <returns>The lease, whose pointer stays valid until it is disposed.</returns>
     /// <remarks>
     /// A plan is one of the few things another pamoja package needs to hand back to the
-    /// native core, which is why this is here; nothing else should reach for it, and the
-    /// pointer must never outlive the plan it came from.
+    /// native core, which is why this is here; nothing else should reach for it. The
+    /// plan cannot be freed while a lease is held, even by a finalizer.
     /// </remarks>
-    public IntPtr DangerousGetHandle() => _handle.DangerousGetHandle();
+    /// <exception cref="ObjectDisposedException">The plan was already disposed.</exception>
+    public NativeLease Lease() => _handle.Lease();
 
     /// <summary>Returns the published plan for a region.</summary>
     /// <param name="region">The band to describe.</param>
@@ -541,17 +542,24 @@ public sealed class LoraChannelPlan : IDisposable
         NativeMethods.pamoja_lora_region_is_available((uint)region) != 0;
 
     /// <summary>The specification's name for the band, such as EU863-870.</summary>
-    public string Name =>
-        OwnedString.ReadOrNull(NativeMethods.pamoja_lora_plan_name(_handle.DangerousGetHandle()))
-        ?? throw new PamojaException("the plan reported no name");
+    public string Name
+    {
+        get
+        {
+            using NativeLease lease = _handle.Lease();
+            return OwnedString.ReadOrNull(NativeMethods.pamoja_lora_plan_name(lease.Pointer))
+                ?? throw new PamojaException("the plan reported no name");
+        }
+    }
 
     /// <summary>Returns the scalar facts of the plan.</summary>
     /// <returns>The plan's scalars.</returns>
     public LoraPlanInfo Info()
     {
+        using NativeLease lease = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_info(
-                _handle.DangerousGetHandle(),
+                lease.Pointer,
                 out PamojaLoraPlanInfo info));
         return new LoraPlanInfo(
             Name,
@@ -585,8 +593,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public LoraDataRate? DataRate(byte dataRate, LoraDirection direction = LoraDirection.Uplink)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_data_rate(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             (uint)direction,
             dataRate,
             out PamojaLoraDataRate rate);
@@ -601,8 +610,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public LoraLink? LinkSettings(byte dataRate)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_link_settings(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             dataRate,
             out PamojaLoraLink link);
         return status == PamojaStatus.Ok ? LoraLink.FromNative(link) : null;
@@ -616,8 +626,9 @@ public sealed class LoraChannelPlan : IDisposable
         byte dataRate,
         LoraPayloadTable table = LoraPayloadTable.UplinkDirect)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_max_payload(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             (uint)table,
             dataRate,
             out PamojaLoraMaxPayload payload);
@@ -639,8 +650,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </remarks>
     public uint? DutyCyclePermille(uint frequencyHz)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_duty_cycle_permille(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             frequencyHz,
             out uint permille);
         return status == PamojaStatus.Ok ? permille : null;
@@ -654,9 +666,10 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public sbyte MaxEirpDbm(uint frequencyHz)
     {
+        using NativeLease lease = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_max_eirp_dbm(
-                _handle.DangerousGetHandle(),
+                lease.Pointer,
                 frequencyHz,
                 out sbyte dbm));
         return dbm;
@@ -670,8 +683,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public sbyte? TxPowerDbm(byte index, sbyte maxEirpDbm)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_tx_power_dbm(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             index,
             maxEirpDbm,
             out sbyte dbm);
@@ -688,8 +702,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public byte? Rx1DataRate(byte uplinkDataRate, byte offset, bool dwellLimited = false)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_rx1_data_rate(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             uplinkDataRate,
             offset,
             (byte)(dwellLimited ? 1 : 0),
@@ -712,8 +727,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </remarks>
     public byte? NextBackoffDataRate(byte dataRate)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_next_backoff_data_rate(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             dataRate,
             out byte lower);
         return status == PamojaStatus.Ok ? lower : null;
@@ -727,8 +743,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public uint? ChannelFrequencyHz(ushort channel)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_channel_frequency_hz(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             channel,
             out uint frequency);
         return status == PamojaStatus.Ok ? frequency : null;
@@ -747,11 +764,12 @@ public sealed class LoraChannelPlan : IDisposable
             _ => Info().DefaultChannelBlockCount,
         };
         List<LoraChannelBlock> blocks = new(count);
+        using NativeLease lease = _handle.Lease();
         for (ushort index = 0; index < count; index++)
         {
             Status.ThrowIfError(
                 NativeMethods.pamoja_lora_plan_channel_block(
-                    _handle.DangerousGetHandle(),
+                    lease.Pointer,
                     (uint)which,
                     index,
                     out PamojaLoraChannelBlock block));
@@ -770,9 +788,10 @@ public sealed class LoraChannelPlan : IDisposable
     /// <returns>The plan's channel rules.</returns>
     public LoraPlanRules Rules()
     {
+        using NativeLease lease = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_rules(
-                _handle.DangerousGetHandle(),
+                lease.Pointer,
                 out PamojaLoraPlanRules rules));
         bool conducted = rules.PowerReference == NativeMethods.LoraPowerConducted;
         return new LoraPlanRules(
@@ -793,8 +812,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// <returns>The control, or <c>null</c> past 7.</returns>
     public LoraMaskControl? MaskControl(byte value)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_mask_control(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             value,
             out PamojaLoraMaskControl control);
         return status == PamojaStatus.Ok ? LoraMaskControl.From(control) : null;
@@ -810,8 +830,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public uint? Rx1FrequencyHz(ushort uplinkChannel, uint uplinkHz)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_rx1_frequency_hz(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             uplinkChannel,
             uplinkHz,
             out uint frequency);
@@ -823,8 +844,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// <returns>The frequency in hertz, or <c>null</c> past the last downlink channel.</returns>
     public uint? DownlinkChannelFrequencyHz(ushort channel)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_downlink_channel_frequency_hz(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             channel,
             out uint frequency);
         return status == PamojaStatus.Ok ? frequency : null;
@@ -838,11 +860,12 @@ public sealed class LoraChannelPlan : IDisposable
     {
         int count = Rules().JoinPlanCount;
         List<LoraJoinPlan> runs = new(count);
+        using NativeLease lease = _handle.Lease();
         for (ushort index = 0; index < count; index++)
         {
             Status.ThrowIfError(
                 NativeMethods.pamoja_lora_plan_join_plan(
-                    _handle.DangerousGetHandle(),
+                    lease.Pointer,
                     index,
                     out PamojaLoraJoinPlan run));
             runs.Add(new LoraJoinPlan(
@@ -870,8 +893,9 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public LoraJoinPlanPlace? JoinPlanForChannel(ushort joinChannel)
     {
+        using NativeLease lease = _handle.Lease();
         PamojaStatus status = NativeMethods.pamoja_lora_plan_join_plan_for_channel(
-            _handle.DangerousGetHandle(),
+            lease.Pointer,
             joinChannel,
             out ushort index,
             out ushort offset);
@@ -882,7 +906,7 @@ public sealed class LoraChannelPlan : IDisposable
 
         Status.ThrowIfError(
             NativeMethods.pamoja_lora_plan_join_plan(
-                _handle.DangerousGetHandle(),
+                lease.Pointer,
                 index,
                 out PamojaLoraJoinPlan run));
         return new LoraJoinPlanPlace(
@@ -899,7 +923,8 @@ public sealed class LoraChannelPlan : IDisposable
     /// </returns>
     public IReadOnlyList<LoraRelayChannel> RelayChannels()
     {
-        IntPtr plan = _handle.DangerousGetHandle();
+        using NativeLease lease = _handle.Lease();
+        IntPtr plan = lease.Pointer;
         Status.ThrowIfError(NativeMethods.pamoja_lora_plan_relay_channel_count(plan, out byte count));
         List<LoraRelayChannel> channels = new(count);
         for (byte index = 0; index < count; index++)
@@ -918,11 +943,12 @@ public sealed class LoraChannelPlan : IDisposable
     {
         int count = Info().SubBandCount;
         List<LoraSubBand> bands = new(count);
+        using NativeLease lease = _handle.Lease();
         for (ushort index = 0; index < count; index++)
         {
             Status.ThrowIfError(
                 NativeMethods.pamoja_lora_plan_sub_band(
-                    _handle.DangerousGetHandle(),
+                    lease.Pointer,
                     index,
                     out PamojaLoraSubBand band));
             bands.Add(new LoraSubBand(

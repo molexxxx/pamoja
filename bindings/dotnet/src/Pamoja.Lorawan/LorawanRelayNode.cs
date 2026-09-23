@@ -267,10 +267,12 @@ public sealed class LorawanRelayNode : IDisposable
         LorawanCadToRx cadToRx = LorawanCadToRx.Symbols8)
     {
         PamojaLorawanDeviceSettings native = settings.Native;
+        using NativeLease held = plan.Lease();
+        IntPtr planPointer = held.Pointer;
         IntPtr relay = session.UseHandle(handle =>
         {
             Status.ThrowIfError(NativeMethods.pamoja_lorawan_relay_personalized(
-                plan.DangerousGetHandle(),
+                planPointer,
                 handle,
                 in native,
                 (byte)xtalAccuracy,
@@ -278,7 +280,6 @@ public sealed class LorawanRelayNode : IDisposable
                 out IntPtr made));
             return made;
         });
-        GC.KeepAlive(plan);
         return new LorawanRelayNode(relay);
     }
 
@@ -298,10 +299,12 @@ public sealed class LorawanRelayNode : IDisposable
         LorawanCadToRx cadToRx = LorawanCadToRx.Symbols8)
     {
         PamojaLorawanDeviceSettings native = settings.Native;
+        using NativeLease held = plan.Lease();
+        IntPtr planPointer = held.Pointer;
         IntPtr relay = credentials.UseHandle(handle =>
         {
             Status.ThrowIfError(NativeMethods.pamoja_lorawan_relay_new(
-                plan.DangerousGetHandle(),
+                planPointer,
                 handle,
                 in native,
                 (byte)xtalAccuracy,
@@ -309,7 +312,6 @@ public sealed class LorawanRelayNode : IDisposable
                 out IntPtr made));
             return made;
         });
-        GC.KeepAlive(plan);
         return new LorawanRelayNode(relay);
     }
 
@@ -361,8 +363,12 @@ public sealed class LorawanRelayNode : IDisposable
     /// <summary>Trusts an end device, as an <c>UpdateUplinkListReq</c> with the same fields does.</summary>
     /// <param name="index">The entry, 0 to 15.</param>
     /// <param name="device">The device, its key, and what it may spend.</param>
-    /// <exception cref="PamojaException">The index is past 15, or the key is not sixteen bytes.</exception>
-    public void Trust(byte index, LorawanTrustedDevice device) =>
+    /// <exception cref="ArgumentException">The device's key is not sixteen bytes.</exception>
+    /// <exception cref="PamojaException">The index is past 15.</exception>
+    public void Trust(byte index, LorawanTrustedDevice device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        FixedWidth.Require(device.RootWorSKey, NativeMethods.LorawanKeyLen, nameof(device.RootWorSKey));
         _handle.Use(handle => ThrowIfFailed(handle, NativeMethods.pamoja_lorawan_relay_trust(
             handle,
             index,
@@ -371,6 +377,7 @@ public sealed class LorawanRelayNode : IDisposable
             device.NextWfcnt,
             device.ReloadRate,
             device.BucketSize)));
+    }
 
     /// <summary>Says when and where to scan next.</summary>
     /// <param name="nowMicros">The time, in microseconds.</param>

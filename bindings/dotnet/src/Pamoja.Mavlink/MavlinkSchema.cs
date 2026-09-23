@@ -77,8 +77,9 @@ public sealed class MavlinkSchema : IDisposable
     internal MavlinkSchema(IntPtr handle) =>
         _handle = NativeHandle.Create(handle, NativeMethods.pamoja_mavlink_schema_free, "schema");
 
-    /// <summary>The native pointer, for the calls that consult this schema.</summary>
-    internal IntPtr Handle => _handle.DangerousGetHandle();
+    /// <summary>Holds the native schema open, for a call that consults it.</summary>
+    /// <returns>The lease.</returns>
+    internal NativeLease Lease() => _handle.Lease();
 
     /// <summary>Returns the shape of a message the engine types, by id.</summary>
     /// <param name="msgid">The message id to look up.</param>
@@ -123,30 +124,32 @@ public sealed class MavlinkSchema : IDisposable
     }
 
     /// <summary>The id of the message this schema describes.</summary>
-    public uint MessageId => NativeMethods.pamoja_mavlink_schema_id(Handle);
+    public uint MessageId => _handle.Use(NativeMethods.pamoja_mavlink_schema_id);
 
     /// <summary>The name of the message this schema describes.</summary>
     public string Name =>
-        Marshal.PtrToStringUTF8(NativeMethods.pamoja_mavlink_schema_name(Handle)) ?? string.Empty;
+        _handle.Use(schema => Marshal.PtrToStringUTF8(NativeMethods.pamoja_mavlink_schema_name(schema)))
+        ?? string.Empty;
 
     /// <summary>The seed a frame carrying this message folds into its checksum.</summary>
-    public byte CrcExtra => NativeMethods.pamoja_mavlink_schema_crc_extra(Handle);
+    public byte CrcExtra => _handle.Use(NativeMethods.pamoja_mavlink_schema_crc_extra);
 
     /// <summary>The length of the message on the wire, in bytes, extensions included.</summary>
-    public int WireLength => (int)NativeMethods.pamoja_mavlink_schema_wire_len(Handle);
+    public int WireLength => _handle.Use(schema => (int)NativeMethods.pamoja_mavlink_schema_wire_len(schema));
 
     /// <summary>The fields in wire order: the base fields largest first, then extensions.</summary>
     public IReadOnlyList<MavlinkFieldInfo> Fields
     {
         get
         {
-            int count = (int)NativeMethods.pamoja_mavlink_schema_field_count(Handle);
+            using NativeLease schema = _handle.Lease();
+            int count = (int)NativeMethods.pamoja_mavlink_schema_field_count(schema.Pointer);
             List<MavlinkFieldInfo> fields = new(count);
             for (int index = 0; index < count; index += 1)
             {
                 Status.ThrowIfError(
                     NativeMethods.pamoja_mavlink_schema_field(
-                        Handle,
+                        schema.Pointer,
                         (nuint)index,
                         out PamojaMavlinkFieldInfo described));
                 fields.Add(new MavlinkFieldInfo(
@@ -167,8 +170,9 @@ public sealed class MavlinkSchema : IDisposable
     /// <exception cref="PamojaException">The shape does not fit a MAVLink payload.</exception>
     public MavlinkMessage CreateMessage()
     {
+        using NativeLease schema = _handle.Lease();
         Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_message_new(Handle, out IntPtr message));
+            NativeMethods.pamoja_mavlink_message_new(schema.Pointer, out IntPtr message));
         return new MavlinkMessage(message);
     }
 
@@ -184,9 +188,10 @@ public sealed class MavlinkSchema : IDisposable
     /// </remarks>
     public MavlinkMessage Decode(ReadOnlySpan<byte> payload)
     {
+        using NativeLease schema = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_decode(
-                Handle,
+                schema.Pointer,
                 payload,
                 (nuint)payload.Length,
                 out IntPtr message));
@@ -229,9 +234,10 @@ public sealed class MavlinkSchemaBuilder : IDisposable
     /// <exception cref="PamojaException">The shape has already been built.</exception>
     public MavlinkSchemaBuilder Field(string name, MavlinkFieldType fieldType, byte arrayLen = 0)
     {
+        using NativeLease builder = Live();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_builder_field(
-                Live(),
+                builder.Pointer,
                 name,
                 (uint)fieldType,
                 arrayLen));
@@ -253,9 +259,10 @@ public sealed class MavlinkSchemaBuilder : IDisposable
         MavlinkFieldType fieldType,
         byte arrayLen = 0)
     {
+        using NativeLease builder = Live();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_schema_builder_extension(
-                Live(),
+                builder.Pointer,
                 name,
                 (uint)fieldType,
                 arrayLen));
@@ -270,11 +277,11 @@ public sealed class MavlinkSchemaBuilder : IDisposable
     /// </exception>
     public MavlinkSchema Build()
     {
-        IntPtr builder = Live();
+        NativeHandle handle = _handle ?? throw new PamojaException("this builder has already been built");
 
         // The native call consumes the builder whether or not the shape is valid, so the
         // wrapper stops owning it before the status is checked.
-        _handle!.SetHandleAsInvalid();
+        IntPtr builder = handle.Take("this builder is in use");
         _handle = null;
 
         Status.ThrowIfError(
@@ -289,15 +296,11 @@ public sealed class MavlinkSchemaBuilder : IDisposable
         _handle = null;
     }
 
-    private IntPtr Live()
-    {
-        if (_handle is null)
-        {
-            throw new PamojaException("this builder has already been built");
-        }
-
-        return _handle.DangerousGetHandle();
-    }
+    /// <summary>Holds the native builder open for one call.</summary>
+    /// <returns>The lease.</returns>
+    /// <exception cref="PamojaException">The shape has already been built.</exception>
+    private NativeLease Live() =>
+        (_handle ?? throw new PamojaException("this builder has already been built")).Lease();
 }
 
 /// <summary>
@@ -310,16 +313,16 @@ public sealed class MavlinkMessage : IDisposable
     /// <summary>Wraps a message the native core produced.</summary>
     /// <param name="handle">The message pointer.</param>
     internal MavlinkMessage(IntPtr handle) =>
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_mavlink_message_free, "message");
-
-    private IntPtr Handle => _handle.DangerousGetHandle();
+        _handle = NativeHandle.Create(
+            handle, NativeMethods.pamoja_mavlink_message_free, "message", serialized: true);
 
     /// <summary>The message's bytes as they go on the wire.</summary>
     public byte[] Payload
     {
         get
         {
-            IntPtr bytes = NativeMethods.pamoja_mavlink_message_payload(Handle, out nuint length);
+            using NativeLease message = _handle.Lease();
+            IntPtr bytes = NativeMethods.pamoja_mavlink_message_payload(message.Pointer, out nuint length);
             if (bytes == IntPtr.Zero)
             {
                 return [];
@@ -337,9 +340,10 @@ public sealed class MavlinkMessage : IDisposable
     /// <exception cref="PamojaException">The message does not fit a frame.</exception>
     public MavlinkFrame ToFrame(MavlinkHeader header)
     {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_to_frame(
-                Handle,
+                message.Pointer,
                 header.ToNative(),
                 out IntPtr frame));
         return new MavlinkFrame(frame);
@@ -359,9 +363,10 @@ public sealed class MavlinkMessage : IDisposable
     /// </remarks>
     public double Get(string field, int index = 0)
     {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_number(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 out double value));
@@ -378,9 +383,10 @@ public sealed class MavlinkMessage : IDisposable
     /// </exception>
     public long GetInt64(string field, int index = 0)
     {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_int(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 out long value));
@@ -397,9 +403,10 @@ public sealed class MavlinkMessage : IDisposable
     /// </exception>
     public ulong GetUInt64(string field, int index = 0)
     {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_uint(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 out ulong value));
@@ -418,13 +425,16 @@ public sealed class MavlinkMessage : IDisposable
     /// A value bound for an integer field must be a whole number within that field's range,
     /// so a fractional or oversized value is refused rather than silently truncated.
     /// </remarks>
-    public void Set(string field, double value, int index = 0) =>
+    public void Set(string field, double value, int index = 0)
+    {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_number(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 value));
+    }
 
     /// <summary>Writes an integer into a field exactly, whatever its width or sign.</summary>
     /// <param name="field">The field name.</param>
@@ -434,13 +444,16 @@ public sealed class MavlinkMessage : IDisposable
     /// The message has no such field, the element is past the end of an array, the field is
     /// floating-point, or the value does not fit the field's type.
     /// </exception>
-    public void SetInt64(string field, long value, int index = 0) =>
+    public void SetInt64(string field, long value, int index = 0)
+    {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_int(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 value));
+    }
 
     /// <summary>Writes an unsigned integer into a field exactly.</summary>
     /// <param name="field">The field name.</param>
@@ -450,13 +463,16 @@ public sealed class MavlinkMessage : IDisposable
     /// The message has no such field, the element is past the end of an array, the field is
     /// floating-point, or the value does not fit the field's type.
     /// </exception>
-    public void SetUInt64(string field, ulong value, int index = 0) =>
+    public void SetUInt64(string field, ulong value, int index = 0)
+    {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_uint(
-                Handle,
+                message.Pointer,
                 field,
                 (nuint)index,
                 value));
+    }
 
     /// <summary>Copies the raw bytes of a byte-wide array field out.</summary>
     /// <param name="field">The field name.</param>
@@ -468,9 +484,10 @@ public sealed class MavlinkMessage : IDisposable
     public byte[] GetBytes(string field, int length)
     {
         byte[] bytes = new byte[length];
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_get_bytes(
-                Handle,
+                message.Pointer,
                 field,
                 bytes,
                 (nuint)bytes.Length));
@@ -484,13 +501,16 @@ public sealed class MavlinkMessage : IDisposable
     /// The message has no such field, it is not a byte-wide array, or the bytes are longer
     /// than the field.
     /// </exception>
-    public void SetBytes(string field, ReadOnlySpan<byte> bytes) =>
+    public void SetBytes(string field, ReadOnlySpan<byte> bytes)
+    {
+        using NativeLease message = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_message_set_bytes(
-                Handle,
+                message.Pointer,
                 field,
                 bytes,
                 (nuint)bytes.Length));
+    }
 
     /// <summary>Reads a <c>char</c> array as text, stopping at the padding.</summary>
     /// <param name="field">The field name.</param>

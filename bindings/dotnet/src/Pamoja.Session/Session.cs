@@ -96,6 +96,7 @@ public sealed class Session : IDisposable
     /// each session.
     /// </param>
     /// <param name="role">Whether this device opens the session or answers.</param>
+    /// <exception cref="ArgumentException"><paramref name="peerPublicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">The native session could not be created.</exception>
     public Session(
         AgreementKey local,
@@ -104,6 +105,7 @@ public sealed class Session : IDisposable
         SessionRole role)
     {
         ArgumentNullException.ThrowIfNull(local);
+        FixedWidth.Require(peerPublicKey, AgreementKey.KeyLength, nameof(peerPublicKey));
 
         byte[] peer = peerPublicKey.ToArray();
         byte[] saltBytes = salt.ToArray();

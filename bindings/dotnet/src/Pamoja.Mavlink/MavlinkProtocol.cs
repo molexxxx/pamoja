@@ -111,18 +111,18 @@ public sealed class MavlinkMissionReceiver : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_mavlink_mission_receiver_new(targetSystem, targetComponent, missionType),
             NativeMethods.pamoja_mavlink_mission_receiver_free,
-            "mission receiver");
-
-    private IntPtr Handle => _handle.DangerousGetHandle();
+            "mission receiver",
+            serialized: true);
 
     /// <summary>Builds the frame that starts a download.</summary>
     /// <param name="header">The addressing fields to stamp on the frame.</param>
     /// <returns>The <c>MISSION_REQUEST_LIST</c> frame.</returns>
     public MavlinkFrame RequestList(MavlinkHeader header)
     {
+        using NativeLease receiver = _handle.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_receiver_request_list(
-                Handle,
+                receiver.Pointer,
                 header.ToNative(),
                 out IntPtr frame));
         return new MavlinkFrame(frame);
@@ -140,10 +140,13 @@ public sealed class MavlinkMissionReceiver : IDisposable
     /// </remarks>
     public MavlinkReceiverStep? OnFrame(MavlinkFrame frame, MavlinkHeader header)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        using NativeLease receiver = _handle.Lease();
+        using NativeLease received = frame.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_receiver_on_frame(
-                Handle,
-                frame.Handle,
+                receiver.Pointer,
+                received.Pointer,
                 header.ToNative(),
                 out uint kind,
                 out IntPtr accepted,
@@ -160,10 +163,11 @@ public sealed class MavlinkMissionReceiver : IDisposable
     }
 
     /// <summary>Whether every item has been received and the acknowledgment produced.</summary>
-    public bool Complete => NativeMethods.pamoja_mavlink_mission_receiver_is_complete(Handle) != 0;
+    public bool Complete =>
+        _handle.Use(receiver => NativeMethods.pamoja_mavlink_mission_receiver_is_complete(receiver) != 0);
 
     /// <summary>The next sequence number the receiver expects.</summary>
-    public ushort Expected => NativeMethods.pamoja_mavlink_mission_receiver_expected(Handle);
+    public ushort Expected => _handle.Use(NativeMethods.pamoja_mavlink_mission_receiver_expected);
 
     /// <summary>Releases the receiver.</summary>
     public void Dispose() => _handle.Dispose();
@@ -182,9 +186,8 @@ public sealed class MavlinkMissionSender : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_mavlink_mission_sender_new(targetSystem, targetComponent, missionType),
             NativeMethods.pamoja_mavlink_mission_sender_free,
-            "mission sender");
-
-    private IntPtr Handle => _handle.DangerousGetHandle();
+            "mission sender",
+            serialized: true);
 
     /// <summary>Appends an item to the plan.</summary>
     /// <param name="item">A <c>MISSION_ITEM_INT</c> payload.</param>
@@ -194,24 +197,32 @@ public sealed class MavlinkMissionSender : IDisposable
     /// position, and parameters. Build one by field name with the <c>MISSION_ITEM_INT</c>
     /// schema and pass its <see cref="MavlinkMessage.Payload"/>.
     /// </remarks>
-    public void AddItem(ReadOnlySpan<byte> item) =>
+    public void AddItem(ReadOnlySpan<byte> item)
+    {
+        using NativeLease sender = _handle.Lease();
         Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_mission_sender_add_item(Handle, item, (nuint)item.Length));
+            NativeMethods.pamoja_mavlink_mission_sender_add_item(sender.Pointer, item, (nuint)item.Length));
+    }
 
     /// <summary>Appends an item to the plan.</summary>
     /// <param name="item">A <c>MISSION_ITEM_INT</c> message.</param>
-    public void AddItem(MavlinkMessage item) => AddItem(item.Payload);
+    public void AddItem(MavlinkMessage item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        AddItem(item.Payload);
+    }
 
     /// <summary>The number of items in the plan.</summary>
-    public int Count => NativeMethods.pamoja_mavlink_mission_sender_len(Handle);
+    public int Count => _handle.Use(NativeMethods.pamoja_mavlink_mission_sender_len);
 
     /// <summary>Builds the frame that opens an upload.</summary>
     /// <param name="header">The addressing fields to stamp on the frame.</param>
     /// <returns>The <c>MISSION_COUNT</c> frame.</returns>
     public MavlinkFrame CountFrame(MavlinkHeader header)
     {
+        using NativeLease sender = _handle.Lease();
         Status.ThrowIfError(
-            NativeMethods.pamoja_mavlink_mission_sender_count(Handle, header.ToNative(), out IntPtr frame));
+            NativeMethods.pamoja_mavlink_mission_sender_count(sender.Pointer, header.ToNative(), out IntPtr frame));
         return new MavlinkFrame(frame);
     }
 
@@ -230,10 +241,13 @@ public sealed class MavlinkMissionSender : IDisposable
     /// </remarks>
     public MavlinkSenderStep? OnFrame(MavlinkFrame frame, MavlinkHeader header)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        using NativeLease sender = _handle.Lease();
+        using NativeLease received = frame.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_mission_sender_on_frame(
-                Handle,
-                frame.Handle,
+                sender.Pointer,
+                received.Pointer,
                 header.ToNative(),
                 out uint kind,
                 out byte result,
@@ -267,28 +281,30 @@ public sealed class MavlinkCommand : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_mavlink_command_new(command, maxRetries),
             NativeMethods.pamoja_mavlink_command_free,
-            "command");
-
-    private IntPtr Handle => _handle.DangerousGetHandle();
+            "command",
+            serialized: true);
 
     /// <summary>The command id being tracked.</summary>
-    public ushort Command => NativeMethods.pamoja_mavlink_command_id(Handle);
+    public ushort Command => _handle.Use(NativeMethods.pamoja_mavlink_command_id);
 
     /// <summary>
     /// The <c>confirmation</c> count to stamp on the command being sent: zero for the first
     /// transmission, incremented on each retransmission.
     /// </summary>
-    public byte Confirmation => NativeMethods.pamoja_mavlink_command_confirmation(Handle);
+    public byte Confirmation => _handle.Use(NativeMethods.pamoja_mavlink_command_confirmation);
 
     /// <summary>Classifies an incoming frame against the command in flight.</summary>
     /// <param name="frame">The frame off the link.</param>
     /// <returns>The outcome, or <c>null</c> if the frame is not a <c>COMMAND_ACK</c>.</returns>
     public MavlinkAckOutcome? OnFrame(MavlinkFrame frame)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        using NativeLease tracker = _handle.Lease();
+        using NativeLease received = frame.Lease();
         Status.ThrowIfError(
             NativeMethods.pamoja_mavlink_command_on_frame(
-                Handle,
-                frame.Handle,
+                tracker.Pointer,
+                received.Pointer,
                 out uint kind,
                 out byte value));
         return kind switch
@@ -305,9 +321,10 @@ public sealed class MavlinkCommand : IDisposable
     /// budget is exhausted.
     /// </returns>
     public byte? OnTimeout() =>
-        NativeMethods.pamoja_mavlink_command_on_timeout(Handle, out byte confirmation) != 0
-            ? confirmation
-            : null;
+        _handle.Use<byte?>(tracker =>
+            NativeMethods.pamoja_mavlink_command_on_timeout(tracker, out byte confirmation) != 0
+                ? confirmation
+                : null);
 
     /// <summary>Releases the tracker.</summary>
     public void Dispose() => _handle.Dispose();

@@ -159,26 +159,32 @@ public sealed class GatewayNetwork : IDisposable
     {
         ArgumentNullException.ThrowIfNull(plan);
 
-        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_open(
-            plan.DangerousGetHandle(),
-            netId,
-            Native(windows ?? new GatewayNetworkWindows()),
-            firstDevAddr,
-            out IntPtr network));
-        _handle = NativeHandle.Create(
-            network, NativeMethods.pamoja_gateway_network_free, "gateway network");
+        using (NativeLease held = plan.Lease())
+        {
+            NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_open(
+                held.Pointer,
+                netId,
+                Native(windows ?? new GatewayNetworkWindows()),
+                firstDevAddr,
+                out IntPtr network));
+            _handle = NativeHandle.Create(
+                network, NativeMethods.pamoja_gateway_network_free, "gateway network", serialized: true);
+        }
     }
 
     /// <summary>Admits a device, so a join request signed with its key is accepted.</summary>
     /// <param name="devEui">The device identifier, eight bytes.</param>
     /// <param name="appEui">The application identifier, eight bytes.</param>
     /// <param name="appKey">The root key, sixteen bytes.</param>
-    /// <exception cref="PamojaException">An identifier or the key is the wrong length.</exception>
+    /// <exception cref="ArgumentException">An identifier or the key is the wrong length.</exception>
     public void Register(ReadOnlySpan<byte> devEui, ReadOnlySpan<byte> appEui, ReadOnlySpan<byte> appKey)
     {
-        IntPtr network = _handle.DangerousGetHandle();
+        FixedWidth.Require(devEui, NativeMethods.LorawanEuiLen, nameof(devEui));
+        FixedWidth.Require(appEui, NativeMethods.LorawanEuiLen, nameof(appEui));
+        FixedWidth.Require(appKey, NativeMethods.LorawanKeyLen, nameof(appKey));
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(
-            NativeMethods.pamoja_gateway_network_register(network, devEui, appEui, appKey));
+            NativeMethods.pamoja_gateway_network_register(network.Pointer, devEui, appEui, appKey));
     }
 
     /// <summary>Reads a packet the gateway forwarded.</summary>
@@ -191,8 +197,9 @@ public sealed class GatewayNetwork : IDisposable
 
         byte[] buffer = new byte[FrameCapacity];
         PamojaGatewayRxpk packet = Gateway.Native(heard);
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_uplink(
-            _handle.DangerousGetHandle(),
+            network.Pointer,
             packet,
             heard.Payload,
             (nuint)heard.Payload.Length,
@@ -215,8 +222,9 @@ public sealed class GatewayNetwork : IDisposable
         ArgumentNullException.ThrowIfNull(slot);
 
         byte[] buffer = new byte[FrameCapacity];
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_answer(
-            _handle.DangerousGetHandle(),
+            network.Pointer,
             devAddr,
             new PamojaGatewayNetworkSlot
             {
@@ -244,8 +252,9 @@ public sealed class GatewayNetwork : IDisposable
     /// </remarks>
     public IReadOnlyList<GatewayNotice> Notices()
     {
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_notices(
-            _handle.DangerousGetHandle(), Span<PamojaGatewayNetworkNotice>.Empty, 0, out nuint waiting));
+            network.Pointer, Span<PamojaGatewayNetworkNotice>.Empty, 0, out nuint waiting));
         if (waiting == 0)
         {
             return [];
@@ -253,7 +262,7 @@ public sealed class GatewayNetwork : IDisposable
 
         PamojaGatewayNetworkNotice[] read = new PamojaGatewayNetworkNotice[waiting];
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_notices(
-            _handle.DangerousGetHandle(), read, waiting, out _));
+            network.Pointer, read, waiting, out _));
         return Array.ConvertAll(
             read,
             notice => new GatewayNotice(notice.Relay, notice.DevAddr, notice.RssiDbm, notice.SnrDb));
@@ -283,8 +292,9 @@ public sealed class GatewayNetwork : IDisposable
         }
 
         byte[] buffer = new byte[FrameCapacity];
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_command(
-            _handle.DangerousGetHandle(),
+            network.Pointer,
             devAddr,
             new PamojaGatewayNetworkSlot
             {
@@ -314,8 +324,9 @@ public sealed class GatewayNetwork : IDisposable
     /// <exception cref="PamojaException">No session is held for the address.</exception>
     public LorawanMacCommand TrustCommand(uint devAddr, byte index, byte reloadRate = 63, byte bucketSize = 0)
     {
+        using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_network_trust_command(
-            _handle.DangerousGetHandle(),
+            network.Pointer,
             devAddr,
             index,
             reloadRate,
