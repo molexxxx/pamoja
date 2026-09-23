@@ -147,6 +147,45 @@ async fn a_publisher_sends_commands_while_the_server_waits_for_readings() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_gateway_keeps_serving_after_notifying_an_observer_that_is_gone() {
+    let (mut gateway, port) = gateway().await;
+    gateway.send_text("commands/lamp", "off").await.expect("state");
+    {
+        let socket = raw(port).await;
+        let mut observe = request(MessageType::Confirmable, RequestType::Get, "commands/lamp", 21);
+        observe.add_option(CoapOption::Observe, Vec::new());
+        socket.send(&observe.to_bytes().expect("encode")).await.expect("send");
+        answer(&socket).await.expect("the registration");
+    }
+    gateway.send_text("commands/lamp", "on").await.expect("a notification to a closed port");
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let mut reporter = node(port, Reliability::Confirmable).await;
+    reporter
+        .send_text("sensors/5/temperature", "20.0")
+        .await
+        .expect("the gateway still answers");
+    assert_eq!(next(&mut gateway).await.expect("a reading").topic, "sensors/5/temperature");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_keeps_listening_after_sending_to_a_port_with_nothing_on_it() {
+    let port = {
+        let spare = UdpSocket::bind("127.0.0.1:0").await.expect("bind");
+        spare.local_addr().expect("address").port()
+    };
+    let mut client = node(port, Reliability::NonConfirmable).await;
+    client.send_text("sensors/6/temperature", "17.5").await.expect("the datagram leaves");
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let mut gateway = CoapServer::new(format!("127.0.0.1:{port}"));
+    gateway.connect().await.expect("bind the same port");
+    gateway.send_text("commands/door", "shut").await.expect("state");
+    client.subscribe("commands/door").await.expect("observe");
+    assert_eq!(next(&mut client).await.expect("the state").payload, b"shut");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_retransmitted_request_is_answered_again_and_taken_once() {
     let (mut gateway, port) = gateway().await;
     let socket = raw(port).await;

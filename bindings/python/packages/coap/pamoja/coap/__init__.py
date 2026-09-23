@@ -2,17 +2,19 @@
 
 CoAP is the transport for links where MQTT is more than the budget allows: it
 runs over UDP, its headers are a handful of bytes, and a node can fire a reading
-and forget it rather than holding a session open.
+and forget it rather than holding a session open. A ``CoapClient`` is the node's
+end, and a ``CoapServer`` the gateway it reports to.
 """
 
 from __future__ import annotations
 
 import enum
 
-from pamoja._native import CoapClient, Message
+from pamoja._native import CoapClient, CoapServer, Message
 
 __all__ = [
     "CoapClient",
+    "CoapServer",
     "Message",
     "Reliability",
 ]

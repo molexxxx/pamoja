@@ -3,7 +3,8 @@
  *
  * CoAP is the transport for links where MQTT is more than the budget allows: it
  * runs over UDP, its headers are a handful of bytes, and a node can fire a
- * reading and forget it rather than holding a session open.
+ * reading and forget it rather than holding a session open. A `CoapClient` is the
+ * node's end, and a `CoapServer` the gateway it reports to.
  *
  * The reliability choice is re-exported as a runtime {@link Reliability}
  * object, because the generated enum is types-only.
@@ -13,7 +14,7 @@
 
 import type { Reliability as ReliabilityName } from '@pamoja/native'
 
-export { CoapClient } from '@pamoja/native'
+export { CoapClient, CoapServer } from '@pamoja/native'
 export type {
   CoapClientOptions,
   Reliability as ReliabilityName,

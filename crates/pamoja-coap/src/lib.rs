@@ -302,17 +302,19 @@ impl CoapTransport {
         for _ in 0..=self.config.max_retransmits {
             let (tx, rx) = oneshot::channel();
             self.pending.lock().expect("pending lock").insert(id, tx);
-            socket
-                .send(bytes)
-                .await
-                .map_err(|err| Error::Transport(err.to_string()))?;
+            if let Err(error) = socket.send(bytes).await {
+                if !refused(&error) {
+                    return Err(Error::Transport(error.to_string()));
+                }
+            }
             match tokio::time::timeout(timeout, rx).await {
                 Ok(Ok(Answer::Acknowledged(reply))) => return Ok(reply),
                 Ok(Ok(Answer::Reset)) => {
-                    return Err(Error::Transport(format!(
-                        "the server reset message {id}: it arrived, but the server could not \
+                    return Err(Error::Transport(
+                        "the server reset the request: it arrived, but the server could not \
                          process it"
-                    )))
+                            .into(),
+                    ))
                 }
                 Ok(Err(_)) => return Err(Error::Closed),
                 Err(_) => {
@@ -321,8 +323,10 @@ impl CoapTransport {
                 }
             }
         }
+        let sent = self.config.max_retransmits + 1;
+        let times = if sent == 1 { "transmission" } else { "transmissions" };
         Err(Error::Transport(format!(
-            "no acknowledgment for message {id}"
+            "no acknowledgment after {sent} {times}"
         )))
     }
 }
@@ -332,6 +336,20 @@ const TOKEN_LENGTH: usize = 4;
 
 /// The factor RFC 7252 section 4.8 spreads the first acknowledgment wait over.
 const ACK_RANDOM_FACTOR: f64 = 1.5;
+
+/// Whether a receive failed only because an earlier datagram found no one
+/// listening.
+///
+/// The operating system reports the ICMP error for a datagram sent to a closed
+/// port on the socket's next receive: Linux as a refused connection on a
+/// connected socket, and Windows as a reset on any socket. Neither says anything
+/// about the datagram being waited for, so the socket keeps listening.
+fn refused(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::ConnectionReset
+    )
+}
 
 /// A random value for message ids, tokens, and the spread of the first wait.
 ///
@@ -412,7 +430,12 @@ impl Transport for CoapTransport {
         let pump_socket = Arc::clone(&socket);
         let pump = tokio::spawn(async move {
             let mut buf = vec![0u8; 1500];
-            while let Ok(len) = pump_socket.recv(&mut buf).await {
+            loop {
+                let len = match pump_socket.recv(&mut buf).await {
+                    Ok(len) => len,
+                    Err(error) if refused(&error) => continue,
+                    Err(_) => break,
+                };
                 let Ok(packet) = Packet::from_bytes(&buf[..len]) else {
                     continue;
                 };
@@ -449,11 +472,10 @@ impl Transport for CoapTransport {
             .map_err(|err| Error::Codec(err.to_string()))?;
 
         match self.config.reliability {
-            Reliability::NonConfirmable => socket
-                .send(&bytes)
-                .await
-                .map(|_| ())
-                .map_err(|err| Error::Transport(err.to_string())),
+            Reliability::NonConfirmable => match socket.send(&bytes).await {
+                Err(error) if !refused(&error) => Err(Error::Transport(error.to_string())),
+                _ => Ok(()),
+            },
             Reliability::Confirmable => {
                 let reply = self.exchange(id, &bytes, &socket).await?;
                 answered(reply.code, &reply.payload)

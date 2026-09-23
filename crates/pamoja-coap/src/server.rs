@@ -211,11 +211,14 @@ impl CoapPublisher {
     ///
     /// # Returns
     ///
-    /// `Ok(())` once each observer's notification has left.
+    /// `Ok(())` once each observer's notification has left. An observer that has
+    /// gone does not stop the others' notifications.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Closed`] if the server is not connected.
+    /// Returns [`Error::Closed`] if the server is not connected, or
+    /// [`Error::Transport`] if the socket failed for a reason other than an observer
+    /// that has gone.
     pub async fn publish(&self, path: &str, payload: &[u8]) -> Result<()> {
         let socket = self.shared.socket().ok_or(Error::Closed)?;
         let out = {
@@ -224,13 +227,15 @@ impl CoapPublisher {
             state.resources.insert(path.clone(), payload.to_vec());
             state.notify(&path, payload)
         };
+        let mut failure = None;
         for (to, bytes) in out {
-            socket
-                .send_to(&bytes, to)
-                .await
-                .map_err(|err| Error::Transport(err.to_string()))?;
+            if let Err(error) = socket.send_to(&bytes, to).await {
+                if !crate::refused(&error) {
+                    failure.get_or_insert(Error::Transport(error.to_string()));
+                }
+            }
         }
-        Ok(())
+        failure.map_or(Ok(()), Err)
     }
 
     /// Counts the clients observing a resource.
@@ -308,7 +313,12 @@ impl Transport for CoapServer {
         let pump_socket = Arc::clone(&socket);
         let pump = tokio::spawn(async move {
             let mut buf = vec![0u8; DATAGRAM];
-            while let Ok((len, peer)) = pump_socket.recv_from(&mut buf).await {
+            loop {
+                let (len, peer) = match pump_socket.recv_from(&mut buf).await {
+                    Ok(received) => received,
+                    Err(error) if crate::refused(&error) => continue,
+                    Err(_) => break,
+                };
                 let Ok(packet) = Packet::from_bytes(&buf[..len]) else {
                     continue;
                 };

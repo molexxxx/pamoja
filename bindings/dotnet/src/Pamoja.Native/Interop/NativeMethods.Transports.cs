@@ -151,6 +151,59 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_coap_client_free(IntPtr client);
 
+    /// <summary>Creates a CoAP server that will listen on a local address.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_coap_server_new(IntPtr bind);
+
+    /// <summary>Binds a CoAP server's socket.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_connect(IntPtr server);
+
+    /// <summary>Takes the readings sent to the paths a filter matches.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_subscribe(IntPtr server, IntPtr filter);
+
+    /// <summary>Sets a resource's state and notifies its observers.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_send(
+        IntPtr server,
+        IntPtr path,
+        ReadOnlySpan<byte> payload,
+        nuint payloadLen);
+
+    /// <summary>Waits for the next reading a CoAP server takes.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_recv(IntPtr server, out IntPtr outMessage);
+
+    /// <summary>Waits a limited time for the next reading a CoAP server takes.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_recv_within(
+        IntPtr server,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
+
+    /// <summary>Counts the clients observing a resource.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_coap_server_observers(IntPtr server, IntPtr path);
+
+    /// <summary>The port a CoAP server listens on, or 0 while it is not connected.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_coap_server_local_port(IntPtr server);
+
+    /// <summary>Reports whether a CoAP server holds a bound socket.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_coap_server_is_connected(IntPtr server);
+
+    /// <summary>Closes a CoAP server's socket.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_server_disconnect(IntPtr server);
+
+    /// <summary>Releases a CoAP server handle.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_coap_server_free(IntPtr server);
+
     /// <summary>Creates an in-process broker.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_loopback_broker_new();
