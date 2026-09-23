@@ -22,10 +22,14 @@ all-features = true
 default = ["embedded-hal"]
 embedded-hal = ["dep:embedded-hal", "dep:pamoja-core"]
 std = ["embedded-hal", "pamoja-core/std"]
+# Opening a line on a Linux board through the GPIO character device backend of pamoja-hal.
+# Every other platform builds it and reports that no line opens there.
+linux = ["std", "dep:pamoja-hal", "pamoja-hal/linux"]
 
 [dependencies]
 embedded-hal = { version = "1.0", optional = true }
 pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", default-features = false, optional = true }
 
 [dev-dependencies]
 pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }

@@ -224,7 +224,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="python-gpio">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><code class="pkg-import">pamoja.gpio</code><p>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/gpio.html">I2C, SPI, and GPIO</a><code class="pkg-import">pamoja.gpio</code><p>I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board</p></div>
 <div class="pkg-get"><code class="cmd">pip install pamoja-gpio</code><button class="copy" type="button" data-copy="pip install pamoja-gpio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

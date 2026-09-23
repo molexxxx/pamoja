@@ -11,6 +11,7 @@
  */
 
 import {
+  GpioLine,
   I2C_RESERVED_BELOW,
   I2C_RESERVED_FROM,
   i2cAddressFrame,
@@ -31,6 +32,21 @@ import {
 } from '@pamoja/native'
 
 export { type SpiClock }
+
+/**
+ * A GPIO line opened on a Linux board, through the kernel's GPIO character device: the
+ * line a {@link Switch} or a {@link Contact} sits over on a Raspberry Pi or any Linux
+ * board.
+ *
+ * `GpioLine.openOutput(chip, line, initial)` drives `initial` from the moment the line is
+ * taken, so an active-low relay is opened `PinLevel.High` and stays off;
+ * `GpioLine.openInput(chip, line)` opens one to read. The chip is a device file such as
+ * `/dev/gpiochip0`, and the line is the GPIO or BCM number a Raspberry Pi pinout gives.
+ * A line is held by one process at a time and `close()` hands it back. On Raspberry Pi
+ * OS a user in the `gpio` group opens lines without root. Opening throws on any platform
+ * but Linux, and names the chip and the line when either cannot be opened.
+ */
+export { GpioLine }
 
 /** The physical voltage level on a pin. */
 export const PinLevel = {
@@ -210,4 +226,248 @@ export const pin = {
   isAsserted(polarity: PinPolarity, level: PinLevel): boolean {
     return pinPolarityIsAsserted(polarity, level)
   },
+}
+
+/**
+ * A line a pin library drives: `onoff` or `rpio` on a Raspberry Pi, a vendor SDK on a
+ * microcontroller, or a {@link PinScript} in a test. Anything with this one method
+ * can sit under a {@link Switch}.
+ */
+export interface OutputLine {
+  /**
+   * Drives the line to a level.
+   *
+   * @param level - The level to drive.
+   */
+  drive(level: PinLevel): void
+}
+
+/**
+ * A line a pin library reads, which a {@link Contact} sits over.
+ */
+export interface InputLine {
+  /**
+   * Reads the line's level now.
+   *
+   * @returns The level on the line.
+   */
+  read(): PinLevel
+}
+
+/**
+ * A two-state output over any line, with its polarity said once: a relay, an LED, a
+ * solenoid valve, a buzzer. `set(true)` asserts it, which drives the line low for an
+ * active-low part, so no call site inverts a level by hand.
+ *
+ * @example
+ * ```ts
+ * const pump = Switch.activeLow(new PinScript())
+ * pump.set(true)
+ * pump.isAsserted // true, and the line was driven low
+ * ```
+ */
+export class Switch<L extends OutputLine = OutputLine> {
+  #line: L
+  #polarity: PinPolarity
+  #asserted = false
+
+  /**
+   * Wraps a line, starting deasserted. Nothing is driven until {@link Switch.set}.
+   *
+   * @param line - The line the part is wired to.
+   * @param polarity - How the part is wired.
+   */
+  constructor(line: L, polarity: PinPolarity) {
+    this.#line = line
+    this.#polarity = polarity
+  }
+
+  /**
+   * A switch whose part is asserted by a high level.
+   *
+   * @param line - The line the part is wired to.
+   * @returns The switch.
+   */
+  static activeHigh<L extends OutputLine>(line: L): Switch<L> {
+    return new Switch(line, PinPolarity.ActiveHigh)
+  }
+
+  /**
+   * A switch whose part is asserted by a low level, the wiring of most relay boards.
+   *
+   * @param line - The line the part is wired to.
+   * @returns The switch.
+   */
+  static activeLow<L extends OutputLine>(line: L): Switch<L> {
+    return new Switch(line, PinPolarity.ActiveLow)
+  }
+
+  /** How the part is wired. */
+  get polarity(): PinPolarity {
+    return this.#polarity
+  }
+
+  /** Whether the part was last set on. */
+  get isAsserted(): boolean {
+    return this.#asserted
+  }
+
+  /**
+   * Turns the part on or off, driving whichever level that means for its wiring.
+   *
+   * @param asserted - `true` to turn it on.
+   * @throws Whatever the line throws when it cannot be driven.
+   */
+  set(asserted: boolean): void {
+    this.#line.drive(pin.levelFor(this.#polarity, asserted))
+    this.#asserted = asserted
+  }
+
+  /**
+   * Hands the line back, for a test to read what was driven or a program to reuse it.
+   *
+   * @returns The line.
+   */
+  release(): L {
+    return this.#line
+  }
+}
+
+/**
+ * A two-state input over any line, with its polarity said once: a button, a float
+ * switch, a reed switch, a limit switch. {@link Contact.isAsserted} answers whether it
+ * is closed, pressed, or tripped, whatever level that takes on the wire.
+ *
+ * @example
+ * ```ts
+ * const float = Contact.activeLow(new PinScript([PinLevel.Low]))
+ * float.isAsserted() // true: a switch to ground reads low when closed
+ * ```
+ */
+export class Contact<L extends InputLine = InputLine> {
+  #line: L
+  #polarity: PinPolarity
+
+  /**
+   * Wraps a line.
+   *
+   * @param line - The line the part is wired to.
+   * @param polarity - How the part is wired.
+   */
+  constructor(line: L, polarity: PinPolarity) {
+    this.#line = line
+    this.#polarity = polarity
+  }
+
+  /**
+   * A contact that reads high when asserted.
+   *
+   * @param line - The line the part is wired to.
+   * @returns The contact.
+   */
+  static activeHigh<L extends InputLine>(line: L): Contact<L> {
+    return new Contact(line, PinPolarity.ActiveHigh)
+  }
+
+  /**
+   * A contact that reads low when asserted, the wiring of a switch to ground with a
+   * pull-up.
+   *
+   * @param line - The line the part is wired to.
+   * @returns The contact.
+   */
+  static activeLow<L extends InputLine>(line: L): Contact<L> {
+    return new Contact(line, PinPolarity.ActiveLow)
+  }
+
+  /** How the part is wired. */
+  get polarity(): PinPolarity {
+    return this.#polarity
+  }
+
+  /**
+   * Reads the raw level on the line.
+   *
+   * @returns The level.
+   * @throws Whatever the line throws when it cannot be read.
+   */
+  level(): PinLevel {
+    return this.#line.read()
+  }
+
+  /**
+   * Reads the line and reports whether the part is asserted.
+   *
+   * @returns Whether it is closed, pressed, or tripped.
+   * @throws Whatever the line throws when it cannot be read.
+   */
+  isAsserted(): boolean {
+    return pin.isAsserted(this.#polarity, this.#line.read())
+  }
+
+  /**
+   * Hands the line back.
+   *
+   * @returns The line.
+   */
+  release(): L {
+    return this.#line
+  }
+}
+
+/**
+ * A line for running with nothing plugged in: it answers the reads it was given, in
+ * order, and records every level it is driven to. It is what the examples and tests
+ * put under a {@link Switch} or a {@link Contact}, and the one thing a real node
+ * replaces with its board's pin library. It behaves as `pamoja_hal::script::PinScript`
+ * does in Rust: it starts released, high, and once its reads run out a read answers
+ * the level it was last driven to.
+ */
+export class PinScript implements OutputLine, InputLine {
+  #inputs: PinLevel[]
+  #driven: PinLevel[] = []
+  #level: PinLevel = PinLevel.High
+
+  /**
+   * Creates a released line.
+   *
+   * @param inputs - The levels to answer reads with, in order.
+   */
+  constructor(inputs: readonly PinLevel[] = []) {
+    this.#inputs = [...inputs]
+  }
+
+  /** Every level the line was driven to, oldest first. */
+  get driven(): readonly PinLevel[] {
+    return this.#driven
+  }
+
+  /** The level the line was last driven to, high while it has never been driven. */
+  get level(): PinLevel {
+    return this.#level
+  }
+
+  /** How many scripted reads are left. */
+  get remaining(): number {
+    return this.#inputs.length
+  }
+
+  /**
+   * Records a driven level.
+   *
+   * @param level - The level driven.
+   */
+  drive(level: PinLevel): void {
+    this.#level = level
+    this.#driven.push(level)
+  }
+
+  /**
+   * Answers the next scripted level, or the driven level once the script runs out.
+   *
+   * @returns The level.
+   */
+  read(): PinLevel {
+    return this.#inputs.shift() ?? this.#level
+  }
 }

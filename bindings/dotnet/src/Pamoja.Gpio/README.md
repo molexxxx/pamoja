@@ -1,6 +1,6 @@
 # Pamoja.Gpio
 
-I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/gpio.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -28,18 +28,17 @@ From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/m
 // Most relay boards energize when their input is pulled low, and a float switch
 // wired to ground closes the same way. Saying "active low" once, here, is what
 // keeps the inversion out of every line below it.
-const PinPolarity Relay = PinPolarity.ActiveLow;
-const PinPolarity Float = PinPolarity.ActiveLow;
-var pump = new Line();
-var floatSwitch = new Line(PinLevel.High, PinLevel.Low);
-Console.WriteLine(
-    $"a pump on an active-low relay runs when its line is {Pin.LevelFor(Relay, true)}");
+var pump = Switch.ActiveLow(new PinScript());
+var floatSwitch = Contact.ActiveLow(new PinScript(PinLevel.High, PinLevel.Low));
+PinLevel runsOn = Pin.LevelFor(pump.Polarity, true);
+Console.WriteLine($"a pump on an active-low relay runs when its line is {runsOn}");
 
-// The pump runs while the tank fills. The stand-in line answers open and then
-// closed, so this is the real loop with nothing plugged in.
-pump.Drive(Pin.LevelFor(Relay, true));
-bool whileFilling = Pin.IsAsserted(Float, floatSwitch.Read());
-bool onceFilled = Pin.IsAsserted(Float, floatSwitch.Read());
+// The pump runs while the tank fills. The scripted line answers open and then
+// closed, so this is the real loop with nothing plugged in; on a board the same two
+// lines take a pin from the board's GPIO library instead.
+pump.Set(true);
+bool whileFilling = floatSwitch.IsAsserted();
+bool onceFilled = floatSwitch.IsAsserted();
 Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
 
 // The moment the float closes is that line going low, which is a falling edge. A
@@ -47,10 +46,11 @@ Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
 bool closing = Pin.Triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low);
 Console.WriteLine($"the float closing is a falling edge on that line: {closing}");
 
-// Full, so the pump stops, and the levels the line was driven to are the whole
-// conversation the board saw.
-pump.Drive(Pin.LevelFor(Relay, false));
-(PinLevel ran, PinLevel stopped) = (pump.Driven[0], pump.Driven[1]);
+// Full, so the pump stops. Releasing the switch hands the line back, and the levels
+// it was driven to are the whole conversation the board saw.
+pump.Set(false);
+IReadOnlyList<PinLevel> driven = pump.Release().Driven;
+(PinLevel ran, PinLevel stopped) = (driven[0], driven[1]);
 Console.WriteLine($"running drove the line {ran} and stopping drove it {stopped}");
 
 // A part on a shared bus answers to an address, and the byte on the wire is not

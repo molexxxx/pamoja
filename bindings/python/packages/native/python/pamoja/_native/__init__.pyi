@@ -58,6 +58,7 @@ __all__ = [
     "GatewayStationRouter",
     "GatewayTxpk",
     "Geofence",
+    "GpioLine",
     "Hdc1080Config",
     "Hdc1080Measurement",
     "ImageVerifier",
@@ -2920,6 +2921,54 @@ class Geofence:
     def contains(self, latitude: builtins.float, longitude: builtins.float) -> builtins.bool:
         r"""
         Reports whether a fix lies inside, without recording a crossing.
+        """
+
+@typing.final
+class GpioLine:
+    r"""
+    A GPIO line opened on a Linux board, through the kernel's GPIO character device.
+    
+    Levels cross as `"Low"` and `"High"`; the facade's `GpioLine` speaks the `Level` enum.
+    """
+    @property
+    def chip(self) -> builtins.str:
+        r"""
+        The GPIO chip's device file.
+        """
+    @property
+    def offset(self) -> builtins.int:
+        r"""
+        The line's number on its chip.
+        """
+    @staticmethod
+    def open_output(chip: builtins.str, line: builtins.int, initial: builtins.str) -> GpioLine:
+        r"""
+        Opens a line as an output, driving `initial` from the moment it is taken.
+        
+        Raises `PamojaError` when the platform is not Linux, or the chip or the line cannot
+        be opened, and `ValueError` for a level other than `"Low"` or `"High"`.
+        """
+    @staticmethod
+    def open_input(chip: builtins.str, line: builtins.int) -> GpioLine:
+        r"""
+        Opens a line as an input.
+        
+        Raises `PamojaError` when the platform is not Linux, or the chip or the line cannot
+        be opened.
+        """
+    def drive(self, level: builtins.str) -> None:
+        r"""
+        Drives the line to `"Low"` or `"High"`. Raises `PamojaError` when the kernel refuses
+        the write, which an input line does, or the line is closed.
+        """
+    def read(self) -> builtins.str:
+        r"""
+        Reads the level on the line now, as `"Low"` or `"High"`. Raises `PamojaError` when
+        the kernel refuses the read, or the line is closed.
+        """
+    def close(self) -> None:
+        r"""
+        Hands the line back to the kernel. Calls after this raise `PamojaError`.
         """
 
 @typing.final

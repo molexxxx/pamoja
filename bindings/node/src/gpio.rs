@@ -1,13 +1,16 @@
 //! Generated Node bindings for on-board bus addressing and pin logic.
 //!
 //! These mirror the `pamoja-gpio` Rust API: I2C addressing per NXP UM10204, the
-//! four SPI clock modes, and the pin model that maps a logical "asserted" onto a
-//! physical level. Everything here is pure arithmetic over small values, so
-//! nothing holds state and nothing needs releasing.
+//! four SPI clock modes, the pin model that maps a logical "asserted" onto a
+//! physical level, and a line opened on a Linux board. The first three are pure
+//! arithmetic over small values; a [`GpioLine`] holds the line until it is closed.
+
+use std::sync::{Mutex, PoisonError};
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_gpio::i2c::{self, Address, Direction};
+use pamoja_gpio::linux::{self, Line, OpenError};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_gpio::GpioError;
@@ -142,6 +145,98 @@ pub fn pin_polarity_level(polarity: PinPolarity, asserted: bool) -> PinLevel {
 #[napi]
 pub fn pin_polarity_is_asserted(polarity: PinPolarity, level: PinLevel) -> bool {
     Polarity::from(polarity).is_asserted(level.into())
+}
+
+/// A GPIO line opened on a Linux board, through the kernel's GPIO character device.
+///
+/// It drives and reads a line synchronously, so it goes straight under a `Switch` or a
+/// `Contact`. A line is held by one process at a time; `close` hands it back.
+#[napi(js_name = "GpioLine")]
+pub struct GpioLine {
+    inner: Mutex<Option<Line>>,
+    chip: String,
+    offset: u32,
+}
+
+#[napi]
+impl GpioLine {
+    /// Opens a line as an output, driving `initial` from the moment it is taken.
+    ///
+    /// Throws when the platform is not Linux, or the chip or the line cannot be opened.
+    #[napi(factory, js_name = "openOutput")]
+    pub fn open_output(chip: String, line: u32, initial: PinLevel) -> napi::Result<Self> {
+        let opened = linux::output(&chip, line, initial.into());
+        GpioLine::opened(opened, chip, line)
+    }
+
+    /// Opens a line as an input.
+    ///
+    /// Throws when the platform is not Linux, or the chip or the line cannot be opened.
+    #[napi(factory, js_name = "openInput")]
+    pub fn open_input(chip: String, line: u32) -> napi::Result<Self> {
+        let opened = linux::input(&chip, line);
+        GpioLine::opened(opened, chip, line)
+    }
+
+    /// The GPIO chip's device file.
+    #[napi(getter)]
+    pub fn chip(&self) -> String {
+        self.chip.clone()
+    }
+
+    /// The line's number on its chip.
+    #[napi(getter)]
+    pub fn offset(&self) -> u32 {
+        self.offset
+    }
+
+    /// Drives the line to a level. Throws when the kernel refuses the write, which an
+    /// input line does, or the line is closed.
+    #[napi]
+    pub fn drive(&self, level: PinLevel) -> napi::Result<()> {
+        self.with_line(|line| line.drive(level.into()))
+    }
+
+    /// Reads the level on the line now. Throws when the kernel refuses the read, or the
+    /// line is closed.
+    #[napi]
+    pub fn read(&self) -> napi::Result<PinLevel> {
+        self.with_line(Line::read).map(PinLevel::from)
+    }
+
+    /// Hands the line back to the kernel. Calls after this throw.
+    #[napi]
+    pub fn close(&self) {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+    }
+}
+
+impl GpioLine {
+    fn opened(result: Result<Line, OpenError>, chip: String, offset: u32) -> napi::Result<Self> {
+        let line = result.map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        Ok(GpioLine {
+            inner: Mutex::new(Some(line)),
+            chip,
+            offset,
+        })
+    }
+
+    fn with_line<T>(
+        &self,
+        call: impl FnOnce(&mut Line) -> Result<T, linux::LineError>,
+    ) -> napi::Result<T> {
+        let mut guard = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let line = guard.as_mut().ok_or_else(|| {
+            napi::Error::from_reason(format!(
+                "{} line {}: the line is closed",
+                self.chip, self.offset
+            ))
+        })?;
+        call(line).map_err(|error| napi::Error::from_reason(error.to_string()))
+    }
 }
 
 impl From<PinLevel> for Level {

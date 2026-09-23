@@ -1,6 +1,6 @@
 # @pamoja/gpio
 
-I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/gpio.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -21,20 +21,22 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/gpio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gpio.ts):
 
 ```typescript
+import { Contact, GpioLine, PinEdge, PinLevel, PinScript, Switch, i2c, pin, spi } from '@pamoja/gpio'
+
 // Most relay boards energize when their input is pulled low, and a float switch wired to
 // ground closes the same way. Saying "active low" once, here, is what keeps the inversion
 // out of every line below it.
-const RELAY = PinPolarity.ActiveLow
-const FLOAT = PinPolarity.ActiveLow
-const pump = new Line()
-const float = new Line([PinLevel.High, PinLevel.Low])
-console.log(`a pump on an active-low relay runs when its line is ${pin.levelFor(RELAY, true)}`)
+const pump = Switch.activeLow(new PinScript())
+const float = Contact.activeLow(new PinScript([PinLevel.High, PinLevel.Low]))
+const runsOn = pin.levelFor(pump.polarity, true)
+console.log(`a pump on an active-low relay runs when its line is ${runsOn}`)
 
-// The pump runs while the tank fills. The stand-in line answers open and then closed, so
-// this is the real loop with nothing plugged in.
-pump.drive(pin.levelFor(RELAY, true))
-const whileFilling = pin.isAsserted(FLOAT, float.read())
-const onceFilled = pin.isAsserted(FLOAT, float.read())
+// The pump runs while the tank fills. The scripted line answers open and then closed, so
+// this is the real loop with nothing plugged in; on a board the same two lines take a pin
+// from the board's GPIO library instead.
+pump.set(true)
+const whileFilling = float.isAsserted()
+const onceFilled = float.isAsserted()
 console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
 
 // The moment the float closes is that line going low, which is a falling edge. A watch
@@ -42,10 +44,10 @@ console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
 const closing = pin.triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low)
 console.log(`the float closing is a falling edge on that line: ${closing}`)
 
-// Full, so the pump stops, and the levels the line was driven to are the whole
-// conversation the board saw.
-pump.drive(pin.levelFor(RELAY, false))
-const [ran, stopped] = pump.driven
+// Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
+// driven to are the whole conversation the board saw.
+pump.set(false)
+const [ran, stopped] = pump.release().driven
 console.log(`running drove the line ${ran} and stopping drove it ${stopped}`)
 
 // A part on a shared bus answers to an address, and the byte on the wire is not the

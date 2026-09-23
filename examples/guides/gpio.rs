@@ -12,7 +12,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_core::{Actuator, Sensor};
     use pamoja_gpio::i2c::{Address, Direction, RESERVED_FROM};
-    use pamoja_gpio::pin::{Edge, Level, Polarity};
+    use pamoja_gpio::pin::{Edge, Level};
     use pamoja_gpio::spi::Mode;
     use pamoja_gpio::switch::{Contact, Switch};
     use pamoja_hal::digital::PinState;
@@ -21,19 +21,14 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Most relay boards energize when their input is pulled low, and a float switch wired
     // to ground closes the same way. Saying "active low" once, here, is what keeps the
     // inversion out of every line below it.
-    let mut pump = Switch::new(PinScript::new([]), Polarity::ActiveLow);
-    let mut float = Contact::new(
-        PinScript::new([PinState::High, PinState::Low]),
-        Polarity::ActiveLow,
-    );
-    println!(
-        "a pump on an active-low relay runs when its line is {:?}",
-        Polarity::ActiveLow.level(true)
-    );
+    let mut pump = Switch::active_low(PinScript::new([]));
+    let mut float = Contact::active_low(PinScript::new([PinState::High, PinState::Low]));
+    let runs_on = pump.polarity().level(true);
+    println!("a pump on an active-low relay runs when its line is {runs_on:?}");
 
     // The pump runs while the tank fills. The scripted line answers open and then closed,
     // so this is the real loop with nothing plugged in; on a board the same two lines take
-    // a pin from the host's GPIO library instead.
+    // a pin from the board's GPIO library instead.
     pump.apply(true).await.expect("the relay takes it");
     let while_filling = float.read().await.expect("the line reads");
     let once_filled = float.read().await.expect("the line reads");
@@ -70,7 +65,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     println!("SPI mode 3 idles high: {idles_high}, samples on the trailing edge: {trailing_edge}");
     // ANCHOR_END: example
 
-    assert_eq!(Polarity::ActiveLow.level(true), Level::Low);
+    assert_eq!(runs_on, Level::Low);
     assert!(!while_filling);
     assert!(once_filled);
     assert!(closing);
@@ -82,5 +77,45 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     assert!(idles_high && trailing_edge);
     assert_eq!(Mode::from_cpol_cpha(true, false).number(), 2);
 
+    if let Ok(chip) = std::env::var("PAMOJA_GPIO_CHIP") {
+        on_a_board(&chip)?;
+    }
     Ok(())
 }
+
+// ANCHOR: board
+/// The same pump and float on a Raspberry Pi: the relay board's input on GPIO17 and the
+/// float switch between GPIO27 and ground. Only the two lines change.
+fn on_a_board(chip: &str) -> std::result::Result<(), Box<dyn Error>> {
+    use std::time::{Duration, Instant};
+
+    use pamoja_gpio::linux;
+    use pamoja_gpio::pin::Level;
+    use pamoja_gpio::switch::{Contact, Switch};
+
+    // The relay energizes on a low input, so its line is taken high and the pump stays off
+    // until it is asked to run. The float closes to ground against a pull-up.
+    let mut pump = Switch::active_low(linux::output(chip, 17, Level::High)?);
+    let mut float = Contact::active_low(linux::input(chip, 27)?);
+
+    // Run the pump until the float closes, and stop it whatever happens: a pump left
+    // running on a failed float is the fault this whole program exists to prevent.
+    pump.set(true)?;
+    let deadline = Instant::now() + Duration::from_secs(600);
+    let filled = (|| -> std::result::Result<(), Box<dyn Error>> {
+        while !float.is_asserted()? {
+            if Instant::now() >= deadline {
+                return Err(
+                    "the tank did not fill in ten minutes; check the float and the supply".into(),
+                );
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    })();
+    pump.set(false)?;
+    filled?;
+    println!("the tank is full and the pump is off");
+    Ok(())
+}
+// ANCHOR_END: board

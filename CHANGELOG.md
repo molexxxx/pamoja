@@ -9,6 +9,16 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A GPIO line opened on a Linux board, in every language: `pamoja_gpio::linux::output`
+  and `input` in Rust (the `linux` feature), `pamoja_gpio_line_open_output` and its
+  companions in the C ABI, and `GpioLine` in TypeScript, Python, and C#. It opens through
+  the kernel's GPIO character device, drives its initial level from the moment it is
+  taken, and names the chip and the line in every error; anywhere but Linux it refuses
+  with a message saying so. TypeScript, Python, and C# also gain `Switch`, `Contact`, and
+  `PinScript`, the types Rust already had, so a relay or a float switch is written the
+  same way in all four and moves from a test to a real pin by changing the line it is
+  given. Before, the bindings had the polarity arithmetic but nothing to hold a line, and
+  no way to open one on a board.
 - `dialect::mav_sys_status_sensor`, the bits of `SYS_STATUS`'s present, enabled and
   health fields. A ground station waits on `PREARM_CHECK` in the health field before it
   arms; ArduPilot and PX4 both set it once every pre-arm check passes.

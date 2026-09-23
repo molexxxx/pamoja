@@ -416,6 +416,43 @@ export declare class Geofence {
   contains(point: Coord): boolean
 }
 
+/**
+ * A GPIO line opened on a Linux board, through the kernel's GPIO character device.
+ *
+ * It drives and reads a line synchronously, so it goes straight under a `Switch` or a
+ * `Contact`. A line is held by one process at a time; `close` hands it back.
+ */
+export declare class GpioLine {
+  /**
+   * Opens a line as an output, driving `initial` from the moment it is taken.
+   *
+   * Throws when the platform is not Linux, or the chip or the line cannot be opened.
+   */
+  static openOutput(chip: string, line: number, initial: PinLevel): GpioLine
+  /**
+   * Opens a line as an input.
+   *
+   * Throws when the platform is not Linux, or the chip or the line cannot be opened.
+   */
+  static openInput(chip: string, line: number): GpioLine
+  /** The GPIO chip's device file. */
+  get chip(): string
+  /** The line's number on its chip. */
+  get offset(): number
+  /**
+   * Drives the line to a level. Throws when the kernel refuses the write, which an
+   * input line does, or the line is closed.
+   */
+  drive(level: PinLevel): void
+  /**
+   * Reads the level on the line now. Throws when the kernel refuses the read, or the
+   * line is closed.
+   */
+  read(): PinLevel
+  /** Hands the line back to the kernel. Calls after this throw. */
+  close(): void
+}
+
 /** Hashes an image as it arrives and settles it against its manifest. */
 export declare class ImageVerifier {
   /** Creates a verifier for the image a manifest describes. */

@@ -2,18 +2,27 @@
 //!
 //! These functions wrap [`pamoja_gpio`] for callers that reach the SDK through
 //! the flat C boundary: I2C addressing per NXP UM10204, the four SPI clock modes,
-//! and the pin model that maps a logical "asserted" onto a physical level.
+//! the pin model that maps a logical "asserted" onto a physical level, and a line
+//! opened on a Linux board.
 //!
-//! Nothing here allocates or holds state, so nothing here is a handle. An I2C
+//! The addressing and the pin model allocate nothing and hold no state. An I2C
 //! address is two scalars and crosses by value as [`PamojaI2cAddress`]; the rest
-//! are enumerations and small pure functions over them.
+//! are enumerations and small pure functions over them. A [`PamojaGpioLine`] is the
+//! one handle: a line on a Linux board's GPIO chip, opened with
+//! [`pamoja_gpio_line_open_output`] or [`pamoja_gpio_line_open_input`] and let go with
+//! [`pamoja_gpio_line_free`]. On any other platform opening one returns
+//! [`PamojaStatus::Unsupported`] with a message saying why.
+
+use std::os::raw::c_char;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::linux::{self, Line, OpenError};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_gpio::GpioError;
 
-use crate::{set_last_error, PamojaStatus};
+use crate::{read_str, set_last_error, PamojaStatus};
 
 /// The largest I2C address frame, in bytes: the two a 10-bit address needs.
 pub const PAMOJA_I2C_FRAME_MAX: usize = 2;
@@ -298,6 +307,208 @@ pub extern "C" fn pamoja_pin_polarity_is_asserted(
     Polarity::from(polarity).is_asserted(level.into())
 }
 
+/// A GPIO line opened on a Linux board. Opaque; let it go with [`pamoja_gpio_line_free`],
+/// which hands the line back to the kernel.
+pub struct PamojaGpioLine {
+    line: Line,
+}
+
+/// Opens a line on a Linux board as an output, driving `initial` from the moment it is taken.
+///
+/// # Arguments
+///
+/// * `chip` - the GPIO chip's device file, such as `/dev/gpiochip0`.
+/// * `line` - the line's number on that chip, the GPIO or BCM number on a Raspberry Pi.
+/// * `initial` - the level to drive as soon as the line is taken; an active-low relay is
+///   opened high so it stays off.
+/// * `out_line` - receives the line, or null when opening fails.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the line in `out_line`; [`PamojaStatus::Unsupported`] on any
+/// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument;
+/// or [`PamojaStatus::Io`] when the chip or the line cannot be opened. The last error
+/// message names the chip and the line.
+///
+/// # Safety
+///
+/// `chip` must be a null-terminated string or null, and `out_line` a writable pointer or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gpio_line_open_output(
+    chip: *const c_char,
+    line: u32,
+    initial: PamojaPinLevel,
+    out_line: *mut *mut PamojaGpioLine,
+) -> PamojaStatus {
+    open_line(chip, out_line, |chip| {
+        linux::output(chip, line, initial.into())
+    })
+}
+
+/// Opens a line on a Linux board as an input.
+///
+/// # Arguments
+///
+/// * `chip` - the GPIO chip's device file, such as `/dev/gpiochip0`.
+/// * `line` - the line's number on that chip.
+/// * `out_line` - receives the line, or null when opening fails.
+///
+/// # Returns
+///
+/// As [`pamoja_gpio_line_open_output`].
+///
+/// # Safety
+///
+/// `chip` must be a null-terminated string or null, and `out_line` a writable pointer or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gpio_line_open_input(
+    chip: *const c_char,
+    line: u32,
+    out_line: *mut *mut PamojaGpioLine,
+) -> PamojaStatus {
+    open_line(chip, out_line, |chip| linux::input(chip, line))
+}
+
+/// Drives an output line to a level.
+///
+/// # Arguments
+///
+/// * `line` - the line.
+/// * `level` - the level to drive.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null line; or
+/// [`PamojaStatus::Io`] when the kernel refuses the write, which is what an input line
+/// answers.
+///
+/// # Safety
+///
+/// `line` must be a live handle from one of the open functions, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gpio_line_drive(
+    line: *mut PamojaGpioLine,
+    level: PamojaPinLevel,
+) -> PamojaStatus {
+    match on_line(line, |line| line.drive(level.into())) {
+        Ok(()) => PamojaStatus::Ok,
+        Err(status) => status,
+    }
+}
+
+/// Reads the level on a line now.
+///
+/// # Arguments
+///
+/// * `line` - the line.
+/// * `out_level` - receives the level.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the level in `out_level`; [`PamojaStatus::InvalidArgument`] for
+/// a null argument; or [`PamojaStatus::Io`] when the kernel refuses the read.
+///
+/// # Safety
+///
+/// `line` must be a live handle from one of the open functions, or null, and `out_level` a
+/// writable pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gpio_line_read(
+    line: *mut PamojaGpioLine,
+    out_level: *mut PamojaPinLevel,
+) -> PamojaStatus {
+    if out_level.is_null() {
+        set_last_error("out_level must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    match on_line(line, Line::read) {
+        Ok(level) => {
+            *out_level = level.into();
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
+
+/// Lets a line go, handing it back to the kernel. A null pointer is ignored.
+///
+/// # Safety
+///
+/// `line` must be a handle from one of the open functions that has not been freed, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gpio_line_free(line: *mut PamojaGpioLine) {
+    if !line.is_null() {
+        drop(Box::from_raw(line));
+    }
+}
+
+/// Opens a line into an out pointer, turning a refusal or a panic into a status.
+///
+/// # Safety
+///
+/// `chip` must be a null-terminated string or null, and `out_line` a writable pointer or
+/// null.
+unsafe fn open_line(
+    chip: *const c_char,
+    out_line: *mut *mut PamojaGpioLine,
+    opening: impl FnOnce(&str) -> Result<Line, OpenError>,
+) -> PamojaStatus {
+    if out_line.is_null() {
+        set_last_error("out_line must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_line = std::ptr::null_mut();
+    let Some(chip) = read_str(chip, "chip") else {
+        return PamojaStatus::InvalidArgument;
+    };
+    match catch_unwind(AssertUnwindSafe(|| opening(chip))) {
+        Ok(Ok(line)) => {
+            *out_line = Box::into_raw(Box::new(PamojaGpioLine { line }));
+            PamojaStatus::Ok
+        }
+        Ok(Err(error)) => {
+            set_last_error(error.to_string());
+            match error {
+                OpenError::Unsupported => PamojaStatus::Unsupported,
+                OpenError::Gpio { .. } => PamojaStatus::Io,
+            }
+        }
+        Err(_) => panicked(),
+    }
+}
+
+/// Records a caught panic and reports it as [`PamojaStatus::Panic`].
+fn panicked() -> PamojaStatus {
+    set_last_error("panic at the FFI boundary".to_owned());
+    PamojaStatus::Panic
+}
+
+/// Runs a call on a live line, turning a refusal or a panic into a status.
+///
+/// # Safety
+///
+/// `line` must be a live handle from one of the open functions, or null.
+unsafe fn on_line<T>(
+    line: *mut PamojaGpioLine,
+    call: impl FnOnce(&mut Line) -> Result<T, linux::LineError>,
+) -> Result<T, PamojaStatus> {
+    if line.is_null() {
+        set_last_error("line must not be null".to_owned());
+        return Err(PamojaStatus::InvalidArgument);
+    }
+    let line = &mut (*line).line;
+    match catch_unwind(AssertUnwindSafe(|| call(line))) {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(error)) => {
+            set_last_error(error.to_string());
+            Err(PamojaStatus::Io)
+        }
+        Err(_) => Err(panicked()),
+    }
+}
+
 impl From<PamojaI2cDirection> for Direction {
     fn from(value: PamojaI2cDirection) -> Self {
         match value {
@@ -510,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reserved_ranges_are_recognised() {
+    fn the_reserved_ranges_are_recognized() {
         assert!(pamoja_i2c_address_is_reserved(seven_bit(0x00)));
         assert!(pamoja_i2c_address_is_general_call(seven_bit(0x00)));
         assert!(pamoja_i2c_address_is_reserved(seven_bit(0x07)));
@@ -551,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn an_active_low_relay_is_energised_by_a_low_level() {
+    fn an_active_low_relay_is_energized_by_a_low_level() {
         assert_eq!(
             pamoja_pin_polarity_level(PamojaPinPolarity::ActiveLow, true),
             PamojaPinLevel::Low
@@ -595,6 +806,81 @@ mod tests {
         assert_eq!(
             pamoja_pin_level_inverted(pamoja_pin_level_from_bool(true)),
             PamojaPinLevel::Low
+        );
+    }
+
+    fn last_error() -> String {
+        // Safety: every test records a message on this thread before reading it back.
+        unsafe { std::ffi::CStr::from_ptr(crate::pamoja_last_error_message()) }
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[test]
+    fn a_line_call_refuses_a_null_argument_by_name() {
+        let chip = std::ffi::CString::new("/dev/gpiochip0").expect("no interior null");
+        let mut level = PamojaPinLevel::Low;
+        // Safety: every pointer is null or writable, and no handle is live.
+        unsafe {
+            assert_eq!(
+                pamoja_gpio_line_open_output(
+                    chip.as_ptr(),
+                    17,
+                    PamojaPinLevel::High,
+                    std::ptr::null_mut()
+                ),
+                PamojaStatus::InvalidArgument
+            );
+            assert!(last_error().contains("out_line"), "{}", last_error());
+            let mut line = std::ptr::null_mut();
+            assert_eq!(
+                pamoja_gpio_line_open_input(std::ptr::null(), 27, &mut line),
+                PamojaStatus::InvalidArgument
+            );
+            assert!(
+                line.is_null() && last_error().contains("chip"),
+                "{}",
+                last_error()
+            );
+            assert_eq!(
+                pamoja_gpio_line_drive(std::ptr::null_mut(), PamojaPinLevel::Low),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_gpio_line_read(std::ptr::null_mut(), &mut level),
+                PamojaStatus::InvalidArgument
+            );
+            pamoja_gpio_line_free(std::ptr::null_mut());
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn opening_a_line_off_linux_is_unsupported() {
+        let chip = std::ffi::CString::new("/dev/gpiochip0").expect("no interior null");
+        let mut line = std::ptr::null_mut();
+        // Safety: the chip is a valid string and the out pointer is writable.
+        let opened = unsafe {
+            pamoja_gpio_line_open_output(chip.as_ptr(), 17, PamojaPinLevel::High, &mut line)
+        };
+        assert_eq!(opened, PamojaStatus::Unsupported);
+        assert!(line.is_null());
+        assert!(last_error().contains("only Linux"), "{}", last_error());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn opening_a_missing_chip_is_an_io_error_that_names_it() {
+        let chip = std::ffi::CString::new("/dev/gpiochip-pamoja-absent").expect("no interior null");
+        let mut line = std::ptr::null_mut();
+        // Safety: the chip is a valid string and the out pointer is writable.
+        let opened = unsafe { pamoja_gpio_line_open_input(chip.as_ptr(), 27, &mut line) };
+        assert_eq!(opened, PamojaStatus::Io);
+        assert!(line.is_null());
+        assert!(
+            last_error().starts_with("/dev/gpiochip-pamoja-absent line 27: "),
+            "{}",
+            last_error()
         );
     }
 }

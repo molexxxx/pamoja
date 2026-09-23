@@ -2,6 +2,7 @@
 MQTT transport surfaces errors as exceptions (no broker required)."""
 
 import asyncio
+import sys
 
 import pytest
 
@@ -229,6 +230,25 @@ def test_on_board_bus_addressing_and_pin_logic():
     clock = gpio.spi.clock_for(3)
     assert clock.cpol and clock.cpha
     assert gpio.spi.mode_for(True, False) == 2
+
+    relay = gpio.Switch.active_low(gpio.PinScript())
+    assert not relay.is_asserted
+    relay.set(True)
+    relay.set(False)
+    assert relay.release().driven == [gpio.Level.LOW, gpio.Level.HIGH]
+    button = gpio.Contact.active_low(gpio.PinScript([gpio.Level.HIGH, gpio.Level.LOW]))
+    assert [button.is_asserted(), button.is_asserted()] == [False, True]
+    idle = gpio.PinScript()
+    assert idle.read() == gpio.Level.HIGH
+    idle.drive(gpio.Level.LOW)
+    assert idle.read() == gpio.Level.LOW
+
+    # A line opens on Linux alone, and a missing chip is refused naming the chip and line.
+    refusal = (
+        r"^/dev/gpiochip-pamoja-absent line 27: " if sys.platform == "linux" else "only Linux"
+    )
+    with pytest.raises(PamojaError, match=refusal):
+        gpio.GpioLine.open_input("/dev/gpiochip-pamoja-absent", 27)
 
     assert gpio.pin.level_for(gpio.Polarity.ACTIVE_LOW, True) is gpio.Level.LOW
     assert gpio.pin.is_asserted(gpio.Polarity.ACTIVE_LOW, gpio.Level.LOW)

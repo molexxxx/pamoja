@@ -167,7 +167,7 @@ public static class Spi
 /// <summary>The GPIO pin model: levels, interrupt edges, and active polarity.</summary>
 /// <remarks>
 /// Active-low wiring is everywhere in cheap hardware: a button to ground with a
-/// pull-up reads low when pressed, and many relay boards energise when driven low.
+/// pull-up reads low when pressed, and many relay boards energize when driven low.
 /// <see cref="PinPolarity"/> maps between "asserted" and the physical level so that
 /// mapping lives in one place instead of in scattered inversions.
 /// </remarks>
@@ -208,4 +208,286 @@ public static class Pin
     public static bool IsAsserted(PinPolarity polarity, PinLevel level) =>
         NativeMethods.pamoja_pin_polarity_is_asserted(
             (PamojaPinPolarity)polarity, (PamojaPinLevel)level);
+}
+
+/// <summary>
+/// A line a pin library drives: <c>System.Device.Gpio</c> on a Raspberry Pi, a vendor
+/// SDK on a microcontroller, or a <see cref="PinScript"/> in a test. Anything with this
+/// one method can sit under a <see cref="Switch{TLine}"/>.
+/// </summary>
+public interface IOutputLine
+{
+    /// <summary>Drives the line to a level.</summary>
+    /// <param name="level">The level to drive.</param>
+    void Drive(PinLevel level);
+}
+
+/// <summary>A line a pin library reads, which a <see cref="Contact{TLine}"/> sits over.</summary>
+public interface IInputLine
+{
+    /// <summary>Reads the line's level now.</summary>
+    /// <returns>The level on the line.</returns>
+    PinLevel Read();
+}
+
+/// <summary>
+/// A two-state output over any line, with its polarity said once: a relay, an LED, a
+/// solenoid valve, a buzzer. <c>Set(true)</c> asserts it, which drives the line low for
+/// an active-low part, so no call site inverts a level by hand.
+/// </summary>
+/// <typeparam name="TLine">The line the part is wired to.</typeparam>
+public sealed class Switch<TLine>
+    where TLine : IOutputLine
+{
+    private readonly TLine _line;
+
+    /// <summary>Wraps a line, starting deasserted. Nothing is driven until <see cref="Set"/>.</summary>
+    /// <param name="line">The line the part is wired to.</param>
+    /// <param name="polarity">How the part is wired.</param>
+    public Switch(TLine line, PinPolarity polarity)
+    {
+        _line = line;
+        Polarity = polarity;
+    }
+
+    /// <summary>How the part is wired.</summary>
+    public PinPolarity Polarity { get; }
+
+    /// <summary>Whether the part was last set on.</summary>
+    public bool IsAsserted { get; private set; }
+
+    /// <summary>Turns the part on or off, driving whichever level that means for its wiring.</summary>
+    /// <param name="asserted"><c>true</c> to turn it on.</param>
+    /// <exception cref="Exception">Whatever the line throws when it cannot be driven.</exception>
+    public void Set(bool asserted)
+    {
+        _line.Drive(Pin.LevelFor(Polarity, asserted));
+        IsAsserted = asserted;
+    }
+
+    /// <summary>Hands the line back, for a test to read what was driven or a program to reuse it.</summary>
+    /// <returns>The line.</returns>
+    public TLine Release() => _line;
+}
+
+/// <summary>Builds switches, inferring the line's type.</summary>
+public static class Switch
+{
+    /// <summary>A switch whose part is asserted by a high level.</summary>
+    /// <typeparam name="TLine">The line the part is wired to.</typeparam>
+    /// <param name="line">The line.</param>
+    /// <returns>The switch.</returns>
+    public static Switch<TLine> ActiveHigh<TLine>(TLine line)
+        where TLine : IOutputLine =>
+        new(line, PinPolarity.ActiveHigh);
+
+    /// <summary>
+    /// A switch whose part is asserted by a low level, the wiring of most relay boards.
+    /// </summary>
+    /// <typeparam name="TLine">The line the part is wired to.</typeparam>
+    /// <param name="line">The line.</param>
+    /// <returns>The switch.</returns>
+    public static Switch<TLine> ActiveLow<TLine>(TLine line)
+        where TLine : IOutputLine =>
+        new(line, PinPolarity.ActiveLow);
+}
+
+/// <summary>
+/// A two-state input over any line, with its polarity said once: a button, a float
+/// switch, a reed switch, a limit switch. <see cref="IsAsserted"/> answers whether it is
+/// closed, pressed, or tripped, whatever level that takes on the wire.
+/// </summary>
+/// <typeparam name="TLine">The line the part is wired to.</typeparam>
+public sealed class Contact<TLine>
+    where TLine : IInputLine
+{
+    private readonly TLine _line;
+
+    /// <summary>Wraps a line.</summary>
+    /// <param name="line">The line the part is wired to.</param>
+    /// <param name="polarity">How the part is wired.</param>
+    public Contact(TLine line, PinPolarity polarity)
+    {
+        _line = line;
+        Polarity = polarity;
+    }
+
+    /// <summary>How the part is wired.</summary>
+    public PinPolarity Polarity { get; }
+
+    /// <summary>Reads the raw level on the line.</summary>
+    /// <returns>The level.</returns>
+    /// <exception cref="Exception">Whatever the line throws when it cannot be read.</exception>
+    public PinLevel Level() => _line.Read();
+
+    /// <summary>Reads the line and reports whether the part is asserted.</summary>
+    /// <returns>Whether it is closed, pressed, or tripped.</returns>
+    /// <exception cref="Exception">Whatever the line throws when it cannot be read.</exception>
+    public bool IsAsserted() => Pin.IsAsserted(Polarity, _line.Read());
+
+    /// <summary>Hands the line back.</summary>
+    /// <returns>The line.</returns>
+    public TLine Release() => _line;
+}
+
+/// <summary>Builds contacts, inferring the line's type.</summary>
+public static class Contact
+{
+    /// <summary>A contact that reads high when asserted.</summary>
+    /// <typeparam name="TLine">The line the part is wired to.</typeparam>
+    /// <param name="line">The line.</param>
+    /// <returns>The contact.</returns>
+    public static Contact<TLine> ActiveHigh<TLine>(TLine line)
+        where TLine : IInputLine =>
+        new(line, PinPolarity.ActiveHigh);
+
+    /// <summary>
+    /// A contact that reads low when asserted, the wiring of a switch to ground with a
+    /// pull-up.
+    /// </summary>
+    /// <typeparam name="TLine">The line the part is wired to.</typeparam>
+    /// <param name="line">The line.</param>
+    /// <returns>The contact.</returns>
+    public static Contact<TLine> ActiveLow<TLine>(TLine line)
+        where TLine : IInputLine =>
+        new(line, PinPolarity.ActiveLow);
+}
+
+/// <summary>
+/// A GPIO line opened on a Linux board, through the kernel's GPIO character device: the
+/// line a <see cref="Switch{TLine}"/> or a <see cref="Contact{TLine}"/> sits over on a
+/// Raspberry Pi or any Linux board.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A line is held by one process at a time, and the kernel names the holder, which
+/// <c>gpioinfo</c> prints; a line another program or a kernel driver holds cannot be opened
+/// until it is let go. On Raspberry Pi OS a user in the <c>gpio</c> group opens lines
+/// without root. Dispose the line to hand it back.
+/// </para>
+/// <para>
+/// Only Linux has the GPIO character device; every other platform throws
+/// <see cref="PlatformNotSupportedException"/>.
+/// </para>
+/// </remarks>
+public sealed class GpioLine : IOutputLine, IInputLine, IDisposable
+{
+    private readonly NativeHandle _handle;
+
+    private GpioLine(IntPtr line, string chip, uint offset)
+    {
+        _handle = new NativeHandle(line, NativeMethods.pamoja_gpio_line_free);
+        Chip = chip;
+        Offset = offset;
+    }
+
+    /// <summary>The GPIO chip's device file.</summary>
+    public string Chip { get; }
+
+    /// <summary>The line's number on its chip.</summary>
+    public uint Offset { get; }
+
+    /// <summary>Opens a line as an output, driving <paramref name="initial"/> from the moment it is taken.</summary>
+    /// <param name="chip">The GPIO chip's device file, <c>/dev/gpiochip0</c> on most boards.</param>
+    /// <param name="line">The line's number on that chip, the GPIO or BCM number on a Raspberry Pi.</param>
+    /// <param name="initial">
+    /// The level to drive as soon as the line is taken; an active-low relay is opened high so
+    /// it stays off.
+    /// </param>
+    /// <returns>The line.</returns>
+    /// <exception cref="PlatformNotSupportedException">The platform is not Linux.</exception>
+    /// <exception cref="PamojaException">The chip or the line could not be opened.</exception>
+    public static GpioLine OpenOutput(string chip, uint line, PinLevel initial)
+    {
+        ArgumentNullException.ThrowIfNull(chip);
+        PamojaStatus status = NativeMethods.pamoja_gpio_line_open_output(
+            chip, line, (PamojaPinLevel)initial, out IntPtr opened);
+        return Opened(status, opened, chip, line);
+    }
+
+    /// <summary>Opens a line as an input.</summary>
+    /// <param name="chip">The GPIO chip's device file.</param>
+    /// <param name="line">The line's number on that chip.</param>
+    /// <returns>The line.</returns>
+    /// <exception cref="PlatformNotSupportedException">The platform is not Linux.</exception>
+    /// <exception cref="PamojaException">The chip or the line could not be opened.</exception>
+    public static GpioLine OpenInput(string chip, uint line)
+    {
+        ArgumentNullException.ThrowIfNull(chip);
+        PamojaStatus status = NativeMethods.pamoja_gpio_line_open_input(chip, line, out IntPtr opened);
+        return Opened(status, opened, chip, line);
+    }
+
+    /// <summary>Drives the line to a level. The line must have been opened as an output.</summary>
+    /// <param name="level">The level to drive.</param>
+    /// <exception cref="PamojaException">The kernel refused the write, which an input line does.</exception>
+    public void Drive(PinLevel level) =>
+        Status.ThrowIfError(
+            _handle.Use(line => NativeMethods.pamoja_gpio_line_drive(line, (PamojaPinLevel)level)));
+
+    /// <summary>Reads the level on the line now.</summary>
+    /// <returns>The level.</returns>
+    /// <exception cref="PamojaException">The kernel refused the read.</exception>
+    public PinLevel Read()
+    {
+        PamojaPinLevel level = PamojaPinLevel.Low;
+        Status.ThrowIfError(_handle.Use(line => NativeMethods.pamoja_gpio_line_read(line, out level)));
+        return (PinLevel)level;
+    }
+
+    /// <summary>Hands the line back to the kernel.</summary>
+    public void Dispose() => _handle.Dispose();
+
+    private static GpioLine Opened(PamojaStatus status, IntPtr line, string chip, uint offset)
+    {
+        if (status == PamojaStatus.Unsupported)
+        {
+            throw new PlatformNotSupportedException(
+                Status.LastError() ?? "a GPIO line is opened only on Linux");
+        }
+
+        Status.ThrowIfError(status);
+        return new GpioLine(line, chip, offset);
+    }
+}
+
+/// <summary>
+/// A line for running with nothing plugged in: it answers the reads it was given, in
+/// order, and records every level it is driven to. It is what the examples and tests put
+/// under a switch or a contact, and the one thing a real node replaces with its board's
+/// pin library.
+/// </summary>
+/// <remarks>
+/// It behaves as <c>pamoja_hal::script::PinScript</c> does in Rust: it starts released,
+/// high, and once its reads run out a read answers the level it was last driven to.
+/// </remarks>
+public sealed class PinScript : IOutputLine, IInputLine
+{
+    private readonly Queue<PinLevel> _inputs;
+    private readonly List<PinLevel> _driven = new();
+
+    /// <summary>Creates a released line.</summary>
+    /// <param name="inputs">The levels to answer reads with, in order.</param>
+    public PinScript(params PinLevel[] inputs) => _inputs = new Queue<PinLevel>(inputs);
+
+    /// <summary>Every level the line was driven to, oldest first.</summary>
+    public IReadOnlyList<PinLevel> Driven => _driven;
+
+    /// <summary>The level the line was last driven to, high while it has never been driven.</summary>
+    public PinLevel Level { get; private set; } = PinLevel.High;
+
+    /// <summary>How many scripted reads are left.</summary>
+    public int Remaining => _inputs.Count;
+
+    /// <summary>Records a driven level.</summary>
+    /// <param name="level">The level driven.</param>
+    public void Drive(PinLevel level)
+    {
+        Level = level;
+        _driven.Add(level);
+    }
+
+    /// <summary>Answers the next scripted level, or the driven level once the script runs out.</summary>
+    /// <returns>The level.</returns>
+    public PinLevel Read() => _inputs.Count > 0 ? _inputs.Dequeue() : Level;
 }

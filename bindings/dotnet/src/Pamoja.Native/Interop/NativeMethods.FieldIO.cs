@@ -490,4 +490,33 @@ public static partial class NativeMethods
     public static partial bool pamoja_pin_polarity_is_asserted(
         PamojaPinPolarity polarity,
         PamojaPinLevel level);
+
+    /// <summary>Opens a line on a Linux board as an output, driving an initial level.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_gpio_line_open_output(
+        string chip,
+        uint line,
+        PamojaPinLevel initial,
+        out IntPtr outLine);
+
+    /// <summary>Opens a line on a Linux board as an input.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_gpio_line_open_input(
+        string chip,
+        uint line,
+        out IntPtr outLine);
+
+    /// <summary>Drives an output line to a level.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gpio_line_drive(IntPtr line, PamojaPinLevel level);
+
+    /// <summary>Reads the level on a line now.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gpio_line_read(
+        IntPtr line,
+        out PamojaPinLevel outLevel);
+
+    /// <summary>Lets a line go, handing it back to the kernel.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_gpio_line_free(IntPtr line);
 }

@@ -259,7 +259,36 @@ function fieldIo() {
   assert.strictEqual(
     gpio.pin.levelFor(gpio.PinPolarity.ActiveLow, true),
     gpio.PinLevel.Low,
-    "an active-low relay is energised by a low level",
+    "an active-low relay is energized by a low level",
+  );
+
+  const relay = gpio.Switch.activeLow(new gpio.PinScript());
+  assert.strictEqual(relay.isAsserted, false, "a switch starts off and drives nothing");
+  relay.set(true);
+  relay.set(false);
+  assert.deepStrictEqual(
+    relay.release().driven,
+    [gpio.PinLevel.Low, gpio.PinLevel.High],
+    "an active-low switch drives low to turn on and high to turn off",
+  );
+  const button = gpio.Contact.activeLow(new gpio.PinScript([gpio.PinLevel.High, gpio.PinLevel.Low]));
+  assert.deepStrictEqual(
+    [button.isAsserted(), button.isAsserted()],
+    [false, true],
+    "an active-low contact reads closed on a low level",
+  );
+  const idle = new gpio.PinScript();
+  assert.strictEqual(idle.read(), gpio.PinLevel.High, "a script starts released and high");
+  idle.drive(gpio.PinLevel.Low);
+  assert.strictEqual(idle.read(), gpio.PinLevel.Low, "past its reads a script answers its driven level");
+
+  // A line opens on Linux alone, and a missing chip is refused naming the chip and line.
+  assert.throws(
+    () => gpio.GpioLine.openInput("/dev/gpiochip-pamoja-absent", 27),
+    process.platform === "linux"
+      ? /^Error: \/dev\/gpiochip-pamoja-absent line 27: /
+      : /only Linux/,
+    "opening a line off Linux, or on a missing chip, says why",
   );
 }
 

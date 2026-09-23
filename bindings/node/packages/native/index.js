@@ -800,6 +800,7 @@ module.exports.DutyCycle = nativeBinding.DutyCycle
 module.exports.EventBus = nativeBinding.EventBus
 module.exports.GatewayNetwork = nativeBinding.GatewayNetwork
 module.exports.Geofence = nativeBinding.Geofence
+module.exports.GpioLine = nativeBinding.GpioLine
 module.exports.ImageVerifier = nativeBinding.ImageVerifier
 module.exports.Kalman = nativeBinding.Kalman
 module.exports.Ladder = nativeBinding.Ladder
