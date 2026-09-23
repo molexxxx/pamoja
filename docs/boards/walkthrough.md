@@ -14,6 +14,11 @@ wrote rather than one written to agree with them.
 | Network server | ChirpStack, in Docker | MQTT, one JSON event per uplink |
 | Dashboard | The same Pi, running a program that reads those events | HTTP to a browser |
 
+The node is Rust because it runs on the microcontroller, and the gateway is the
+`pamoja-gateway` daemon, which any language drives through its configuration. The
+dashboard program here is Rust; the events it reads are ordinary MQTT messages,
+which the [MQTT guide](../guides/mqtt.md) subscribes to in all four languages.
+
 ## The parts
 
 | Part | For | In the catalog |

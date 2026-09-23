@@ -20,6 +20,12 @@ Two programs build this up, both in the package at
 built in CI on every change: the first brings the card up and prints what it
 hears, and the second reads and writes its registers directly.
 
+Both programs are Rust, because they drive the concentrator's registers from the
+crate. From any language the gateway runs as the `pamoja-gateway` daemon, set up
+by the JSON file [the configuration](#the-configuration) describes, and what it
+hears reaches a program in TypeScript, Python, C#, or Rust through the network
+server; the [gateway guide](../guides/gateway.md) builds that side in all four.
+
 ## What the host has to provide
 
 Four things, and the configuration file names all of them.

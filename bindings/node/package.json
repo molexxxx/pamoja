@@ -15,6 +15,7 @@
     "check:packaging": "node scripts/check-packaging.mjs",
     "test": "node test.js && node conformance.js && npm run test:guides",
     "guides": "tsc -p guides/tsconfig.json && node guides/run.js",
+    "boards": "tsc -p boards/tsconfig.json",
     "test:guides": "npm run guides"
   },
   "devDependencies": {
