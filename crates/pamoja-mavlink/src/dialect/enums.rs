@@ -45,6 +45,46 @@ pub mod mav_state {
     pub const FLIGHT_TERMINATION: u8 = 8;
 }
 
+/// `MAV_SYS_STATUS_SENSOR`: bits of the three sensor fields of a [`SysStatus`](super::SysStatus),
+/// which say what the vehicle has, what it has switched on, and what is healthy.
+///
+/// `PREARM_CHECK` is the bit a ground station waits on before arming: ArduPilot and PX4 both
+/// set it in the health field once every pre-arm check passes.
+pub mod mav_sys_status_sensor {
+    pub const GYRO_3D: u32 = 1;
+    pub const ACCEL_3D: u32 = 2;
+    pub const MAG_3D: u32 = 4;
+    pub const ABSOLUTE_PRESSURE: u32 = 8;
+    pub const DIFFERENTIAL_PRESSURE: u32 = 16;
+    pub const GPS: u32 = 32;
+    pub const OPTICAL_FLOW: u32 = 64;
+    pub const VISION_POSITION: u32 = 128;
+    pub const LASER_POSITION: u32 = 256;
+    pub const EXTERNAL_GROUND_TRUTH: u32 = 512;
+    pub const ANGULAR_RATE_CONTROL: u32 = 1024;
+    pub const ATTITUDE_STABILIZATION: u32 = 2048;
+    pub const YAW_POSITION: u32 = 4096;
+    pub const Z_ALTITUDE_CONTROL: u32 = 8192;
+    pub const XY_POSITION_CONTROL: u32 = 16384;
+    pub const MOTOR_OUTPUTS: u32 = 32768;
+    pub const RC_RECEIVER: u32 = 65536;
+    pub const GYRO2_3D: u32 = 131072;
+    pub const ACCEL2_3D: u32 = 262144;
+    pub const MAG2_3D: u32 = 524288;
+    pub const GEOFENCE: u32 = 1048576;
+    pub const AHRS: u32 = 2097152;
+    pub const TERRAIN: u32 = 4194304;
+    pub const REVERSE_MOTOR: u32 = 8388608;
+    pub const LOGGING: u32 = 16777216;
+    pub const BATTERY: u32 = 33554432;
+    pub const PROXIMITY: u32 = 67108864;
+    pub const SATCOM: u32 = 134217728;
+    pub const PREARM_CHECK: u32 = 268435456;
+    pub const OBSTACLE_AVOIDANCE: u32 = 536870912;
+    pub const PROPULSION: u32 = 1073741824;
+    pub const EXTENSION_USED: u32 = 2147483648;
+}
+
 /// `MAV_MODE_FLAG`: bits of the base mode field of a [`Heartbeat`](super::Heartbeat).
 pub mod mav_mode_flag {
     pub const CUSTOM_MODE_ENABLED: u8 = 1;

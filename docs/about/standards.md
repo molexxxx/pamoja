@@ -831,12 +831,10 @@ suite that silently stopped comparing fails instead of passing.
 Where a specification has a live implementation to talk to, CI talks to it.
 
 The MAVLink layer commands [ArduPilot](https://ardupilot.org/) and [PX4](https://px4.io/)
-in SITL: it reads a heartbeat, requests a message, walks the mission protocol's receiver
-state machine by downloading the vehicle's plan, uploads one of its own, and sends an arm
-command. Each is a real `COMMAND_ACK` from the running autopilot. Where the autopilot has
-mission storage the uploaded plan is read back and its item count asserted; the headless
-ArduPilot build advertises none and answers `NO_SPACE`, which the test records rather than
-asserts around.
+in SITL. It reads a heartbeat, requests a message, and waits for the autopilot to report its
+pre-arm checks passing. Then it downloads the vehicle's plan, uploads one of its own and
+reads it back item for item, and arms and disarms. The arm has to be accepted and then seen
+in the vehicle's own heartbeat. Nothing is flown.
 
 The ROS 2 bridge exchanges topics, services and actions with
 [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/) in the official image, under the RMW that

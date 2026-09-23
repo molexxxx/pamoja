@@ -9,6 +9,9 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- `dialect::mav_sys_status_sensor`, the bits of `SYS_STATUS`'s present, enabled and
+  health fields. A ground station waits on `PREARM_CHECK` in the health field before it
+  arms; ArduPilot and PX4 both set it once every pre-arm check passes.
 - A survey of the band from a gateway's SX1261. `pamoja-gateway` takes a
   `spectral_scan` section under `concentrator.sx1261`, beside `listen_before_talk`,
   naming where the survey starts, how many channels it covers 200 kHz apart, how many
@@ -466,6 +469,15 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The MAVLink SITL job now requires ArduPilot and PX4 to store a mission plan and to
+  arm. Before, it accepted a refused arm and, on ArduPilot, a refused upload, and blamed
+  the upload on mission storage the headless build lacked. The storage was there. ArduPilot
+  SITL does not start booting until a ground station connects, and the test was sending
+  within a second of connecting, before the mission library had sized its storage or the
+  estimator had started. The test now waits for the pre-arm checks to pass, then asserts
+  the plan reads back item for item and the arm is accepted and shows in the heartbeat.
+  The hardware catalog said the job flies both autopilots in simulation. It never flew
+  anything, and it now says what the job does.
 - The ros-bridge CI job now selects `rmw_zenoh` and runs the interop test that publishes
   a `Twist` from a ROS 2 node into a plain pamoja Zenoh peer, so the claim that the bridge
   is checked against `rmw_zenoh` is backed by a passing run. The test had carried a note
