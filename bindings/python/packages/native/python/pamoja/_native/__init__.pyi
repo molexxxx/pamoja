@@ -578,6 +578,7 @@ __all__ = [
     "station_router_parse",
     "stepper_step_count",
     "stepper_steps_for_degrees",
+    "stepper_timing",
     "sx126x_calibrate_image",
     "sx126x_clear_irq_status",
     "sx126x_constants",
@@ -8423,6 +8424,11 @@ class Pca9685:
         Loads one channel with the four register bytes the `pwm` builders make, initializing
         the part first if `init` has not run. Raises for a channel past 15.
         """
+    def channel(self, channel: builtins.int) -> bytes:
+        r"""
+        Reads one channel's four register bytes back from the part, one register a
+        transfer, so the read works whatever MODE1 holds and changes nothing on the part.
+        """
     def set_all(self, pwm: typing.Sequence[builtins.int]) -> None:
         r"""
         Loads every channel with the same four bytes in one transfer.
@@ -11818,6 +11824,9 @@ def pwm_counts(data: typing.Sequence[builtins.int]) -> tuple[builtins.int, built
 def pwm_duty(off: builtins.int) -> bytes:
     r"""
     Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
+    
+    The datasheet rules out the same count in on and off, so 0 is the full-off setting
+    and 4096 or more the full-on one.
     """
 
 def pwm_from_counts(on: builtins.int, off: builtins.int) -> bytes:
@@ -12276,6 +12285,14 @@ def stepper_step_count(drive: builtins.str) -> builtins.int:
 def stepper_steps_for_degrees(degrees: builtins.float, steps_per_revolution: builtins.int) -> builtins.int:
     r"""
     Returns how many steps a rotation of `degrees` takes on a given motor.
+    """
+
+def stepper_timing() -> tuple[builtins.int, builtins.int]:
+    r"""
+    Returns the timing a stepper driver starts with, in microseconds.
+    
+    The tuple is the pause after each step, then how long a step and direction
+    driver holds the direction before a step pulse, and the pulse itself.
     """
 
 def sx126x_calibrate_image(low_hz: builtins.int, high_hz: builtins.int) -> bytes:

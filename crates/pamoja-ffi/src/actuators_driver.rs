@@ -185,6 +185,39 @@ pub unsafe extern "C" fn pamoja_pca9685_set_channel(
     run(driver, |held| held.driver.set_channel(channel, pwm_of(pwm)))
 }
 
+/// Reads one channel's counts back from the part, one register a transfer, so the read works
+/// whatever MODE1 holds and changes nothing on the part.
+///
+/// # Arguments
+///
+/// * `driver` - the driver.
+/// * `channel` - the output, 0 to 15.
+/// * `out_pwm` - receives the four register bytes the channel holds.
+///
+/// # Returns
+///
+/// As [`pamoja_pca9685_set_channel`], and [`PamojaStatus::InvalidArgument`] for a null
+/// `out_pwm`.
+///
+/// # Safety
+///
+/// `driver` must be a live handle or null, and `out_pwm` a writable pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_pca9685_channel(
+    driver: *mut PamojaPca9685,
+    channel: u8,
+    out_pwm: *mut PamojaPwm,
+) -> PamojaStatus {
+    let Some(out) = out_pwm.as_mut() else {
+        set_last_error("out_pwm must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    run(driver, |held| {
+        *out = held.driver.channel(channel)?.into();
+        Ok(())
+    })
+}
+
 /// Loads every channel with the same counts in one transfer, through the ALL_LED registers.
 ///
 /// # Arguments
@@ -413,6 +446,21 @@ mod tests {
             };
             assert_eq!(loaded, servo);
             pamoja_i2c_part_free(held);
+
+            let mut read_back = actuators::pamoja_pwm_full_on();
+            assert_eq!(
+                pamoja_pca9685_channel(driver, 0, &mut read_back),
+                PamojaStatus::Ok
+            );
+            assert_eq!(read_back, servo, "the driver reads the channel back");
+            assert_eq!(
+                pamoja_pca9685_channel(driver, 16, &mut read_back),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_pca9685_channel(driver, 0, ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
 
             assert_eq!(
                 pamoja_pca9685_set_all(driver, actuators::pamoja_pwm_full_off()),

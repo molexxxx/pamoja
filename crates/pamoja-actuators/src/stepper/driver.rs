@@ -15,8 +15,10 @@ pub const DEFAULT_STEP_MICROS: u32 = 2_000;
 
 /// The width of a step pulse a step/direction driver starts with, in microseconds.
 ///
-/// Step/direction driver chips need a pulse of at least a microsecond or so in
-/// each state; ten leaves room for a slow pin. The chip's datasheet gives its minimum.
+/// A step/direction driver holds the direction line this long before it raises the
+/// step line, then holds the step line high this long. An A4988 needs 200 ns of
+/// setup and a microsecond high, a DRV8825 650 ns and 1.9 microseconds; ten leaves
+/// room for a slow pin. The chip's datasheet gives its minimums.
 pub const DEFAULT_PULSE_MICROS: u32 = 10;
 
 fn direction_of(steps: i32) -> Direction {
@@ -203,10 +205,12 @@ where
 
 /// A stepper behind a step/direction driver chip such as an A4988 or a DRV8825.
 ///
-/// Each step sets the direction line, pulses the step line, and waits the step
-/// interval. Microstepping, current limiting, and enable are the chip's own pins
-/// and settings, outside this driver. As an [`Actuator`] the command is a signed
-/// step count.
+/// Each step sets the direction line and holds it for the pulse width, since the
+/// chip reads the direction on the step line's rising edge and needs it settled
+/// first. Then it pulses the step line high for the pulse width, brings it low, and
+/// waits the step interval. Microstepping, current limiting, and enable are the
+/// chip's own pins and settings, outside this driver. As an [`Actuator`] the command
+/// is a signed step count.
 ///
 /// # Examples
 ///
@@ -259,11 +263,12 @@ impl<S, R, D> StepDir<S, R, D> {
         }
     }
 
-    /// Sets the width of each half of the step pulse.
+    /// Sets the width of the step pulse, and how long the direction is held before it.
     ///
     /// # Arguments
     ///
-    /// * `micros` - the time the step line is held high, and then low, per step.
+    /// * `micros` - the time the direction line is held before the step line rises,
+    ///   and the time the step line is then held high.
     ///
     /// # Returns
     ///
@@ -321,10 +326,10 @@ where
         self.direction
             .set_state((direction == Direction::Forward).into())
             .map_err(DriverError::Bus)?;
+        self.delay.delay_us(self.pulse_micros);
         self.step.set_high().map_err(DriverError::Bus)?;
         self.delay.delay_us(self.pulse_micros);
         self.step.set_low().map_err(DriverError::Bus)?;
-        self.delay.delay_us(self.pulse_micros);
         self.position.step(direction);
         self.delay.delay_us(self.step_micros);
         Ok(())
@@ -366,8 +371,48 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
+    use core::cell::RefCell;
+    use core::convert::Infallible;
+    use embedded_hal::digital::{ErrorType, PinState};
     use pamoja_hal::digital::PinState::{High, Low};
     use pamoja_hal::script::{block_on, DelayLog, PinScript};
+
+    #[derive(Debug, PartialEq)]
+    enum Event {
+        Direction(PinState),
+        Step(PinState),
+        Wait(u32),
+    }
+
+    struct Line<'a> {
+        log: &'a RefCell<Vec<Event>>,
+        event: fn(PinState) -> Event,
+    }
+
+    impl ErrorType for Line<'_> {
+        type Error = Infallible;
+    }
+
+    impl OutputPin for Line<'_> {
+        fn set_low(&mut self) -> Result<(), Infallible> {
+            self.log.borrow_mut().push((self.event)(PinState::Low));
+            Ok(())
+        }
+
+        fn set_high(&mut self) -> Result<(), Infallible> {
+            self.log.borrow_mut().push((self.event)(PinState::High));
+            Ok(())
+        }
+    }
+
+    struct Timeline<'a>(&'a RefCell<Vec<Event>>);
+
+    impl DelayNs for Timeline<'_> {
+        fn delay_ns(&mut self, ns: u32) {
+            self.0.borrow_mut().push(Event::Wait(ns));
+        }
+    }
 
     fn pins() -> (PinScript, PinScript, PinScript, PinScript) {
         (
@@ -428,6 +473,35 @@ mod tests {
         assert_eq!(direction.driven(), [High, High, Low]);
         assert_eq!(step.driven(), [High, Low, High, Low, High, Low]);
         assert_eq!(delay.waits_ns()[..3], [5_000, 5_000, 1_000_000]);
+    }
+
+    #[test]
+    fn step_dir_settles_the_direction_before_the_rising_edge_as_the_timing_diagram_asks() {
+        let log = RefCell::new(Vec::new());
+        let step = Line {
+            log: &log,
+            event: Event::Step,
+        };
+        let direction = Line {
+            log: &log,
+            event: Event::Direction,
+        };
+        let mut motor = StepDir::new(step, direction, Timeline(&log))
+            .with_pulse_width(2)
+            .with_step_interval(1_000);
+        motor.step(Direction::Backward).unwrap();
+        assert_eq!(
+            *log.borrow(),
+            [
+                Event::Direction(PinState::Low),
+                Event::Wait(2_000),
+                Event::Step(PinState::High),
+                Event::Wait(2_000),
+                Event::Step(PinState::Low),
+                Event::Wait(1_000_000),
+            ],
+            "the A4988 wants 200 ns of setup and 1 us high; the DRV8825 650 ns and 1.9 us"
+        );
     }
 
     #[test]

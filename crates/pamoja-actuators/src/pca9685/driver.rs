@@ -261,6 +261,38 @@ impl<I2C: I2c, D: DelayNs> Pca9685<I2C, D> {
             .map_err(DriverError::Bus)
     }
 
+    /// Reads one channel's on and off counts back from the part.
+    ///
+    /// The four registers are read one at a time, so the read works whether or not
+    /// MODE1's auto-increment bit is set, and it changes nothing on the part: a
+    /// program that restarts can ask a running part what it holds.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel` - the output, 0 to 15.
+    ///
+    /// # Returns
+    ///
+    /// The setting the channel holds, full-on and full-off flags included.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DriverError::Command`] for a channel the part does not have, and
+    /// [`DriverError::Bus`] if the bus fails.
+    pub fn channel(&mut self, channel: u8) -> Result<Pwm, DriverError<I2C::Error>> {
+        if channel >= CHANNELS {
+            return Err(DriverError::Command(
+                "the PCA9685 has sixteen channels, 0 to 15",
+            ));
+        }
+        let first = channel_register(channel);
+        let mut bytes = [0; 4];
+        for (register, byte) in (first..).zip(bytes.iter_mut()) {
+            *byte = self.read(register)?;
+        }
+        Ok(Pwm::from_bytes(&bytes))
+    }
+
     /// Loads every channel with the same on and off counts in one transfer.
     ///
     /// # Arguments
@@ -322,6 +354,14 @@ impl<I2C: I2c, D: DelayNs> Pca9685<I2C, D> {
         self.bus
             .write(self.address, &[register, value])
             .map_err(DriverError::Bus)
+    }
+
+    fn read(&mut self, register: u8) -> Result<u8, DriverError<I2C::Error>> {
+        let mut value = [0];
+        self.bus
+            .write_read(self.address, &[register], &mut value)
+            .map_err(DriverError::Bus)?;
+        Ok(value[0])
     }
 }
 
@@ -403,6 +443,28 @@ mod tests {
         board.set_all(Pwm::full_on()).unwrap();
         assert_eq!(
             board.set_channel(16, pulse),
+            Err(DriverError::Command(
+                "the PCA9685 has sixteen channels, 0 to 15"
+            ))
+        );
+        assert!(board.release().0.done());
+    }
+
+    #[test]
+    fn a_channel_reads_back_one_register_a_transfer_without_initializing() {
+        let pulse = Pwm::servo(1_500, 50);
+        let [on_l, on_h, off_l, off_h] = pulse.bytes();
+        let first = channel_register(2);
+        let steps = [
+            I2cStep::write_read(0x40, [first], [on_l]),
+            I2cStep::write_read(0x40, [first + 1], [on_h]),
+            I2cStep::write_read(0x40, [first + 2], [off_l]),
+            I2cStep::write_read(0x40, [first + 3], [off_h]),
+        ];
+        let mut board = Pca9685::new(I2cScript::new(steps), 0x40, DelayLog::new());
+        assert_eq!(board.channel(2).unwrap(), pulse);
+        assert_eq!(
+            board.channel(16),
             Err(DriverError::Command(
                 "the PCA9685 has sixteen channels, 0 to 15"
             ))

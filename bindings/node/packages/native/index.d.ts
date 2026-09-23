@@ -2026,6 +2026,12 @@ export declare class Pca9685 {
    * the part first if `init` has not run. Rejects a channel past 15.
    */
   setChannel(channel: number, pwm: Buffer): Promise<void>
+  /**
+   * Reads one channel's four register bytes back from the part, one register a transfer,
+   * so the read works whatever MODE1 holds and changes nothing on the part. Rejects a
+   * channel past 15.
+   */
+  channel(channel: number): Promise<Buffer>
   /** Loads every channel with the same four bytes in one transfer. */
   setAll(pwm: Buffer): Promise<void>
   /** Stops the oscillator; the channels keep their settings. */
@@ -7203,7 +7209,12 @@ export interface PwmCounts {
   off: number
 }
 
-/** Builds a channel's register bytes with no phase delay: on at 0, off at `off`. */
+/**
+ * Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
+ *
+ * The datasheet rules out the same count in on and off, so 0 is the full-off setting
+ * and 4096 or more the full-on one.
+ */
 export declare function pwmDuty(off: number): Buffer
 
 /** Builds a channel's four register bytes from explicit on and off counts. */
@@ -7759,6 +7770,15 @@ export declare const enum StepDrive {
   /** Alternating one and two coils: eight steps, double resolution. */
   HalfStep = 'HalfStep',
 }
+
+/**
+ * How long a step and direction driver holds the direction before a step pulse, and
+ * the pulse itself, unless given another, in microseconds.
+ */
+export declare const STEPPER_DEFAULT_PULSE_MICROS: number
+
+/** The pause a stepper driver takes after each step unless given another, in microseconds. */
+export declare const STEPPER_DEFAULT_STEP_MICROS: number
 
 /** Returns how many steps make up one electrical cycle of a drive pattern. */
 export declare function stepperStepCount(drive: StepDrive): number

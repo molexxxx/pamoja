@@ -224,7 +224,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-hal">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">Pamoja.Hal</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">Pamoja.Hal</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus a program and its drivers share, and delays that sleep or only count</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Hal</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Hal" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
@@ -249,7 +249,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-actuators">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">Pamoja.Actuators</code><p>A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">Pamoja.Actuators</code><p>A PCA9685 driver for servos, LEDs, and valves, and stepper drivers for four coil lines or a step and direction chip, in every language</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Actuators</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Actuators" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

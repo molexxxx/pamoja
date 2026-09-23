@@ -183,7 +183,9 @@ pub fn frequency_for_prescale(prescale: u8, osc_hz: u32) -> f32 {
 ///
 /// The PCA9685 counts from 0 to 4095 each period and lets a channel turn on at one
 /// count and off at another, so duty and phase are both programmable. The special
-/// full-on and full-off states are encoded in a dedicated bit rather than as counts.
+/// full-on and full-off states are encoded in a dedicated bit rather than as counts,
+/// and the datasheet rules out loading the same count into both, so 0 % and 100 % are
+/// only ever those flags.
 ///
 /// # Examples
 ///
@@ -194,8 +196,9 @@ pub fn frequency_for_prescale(prescale: u8, osc_hz: u32) -> f32 {
 /// let half = Pwm::duty(2048);
 /// assert_eq!(half.bytes(), [0x00, 0x00, 0x00, 0x08]);
 ///
-/// // Fully off is its own encoding, not a zero duty.
+/// // Fully off is its own encoding, and a zero duty is that encoding.
 /// assert_eq!(Pwm::full_off().bytes(), [0x00, 0x00, 0x00, 0x10]);
+/// assert_eq!(Pwm::duty(0), Pwm::full_off());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pwm {
@@ -223,6 +226,10 @@ impl Pwm {
 
     /// Builds a setting with no phase delay: on at count 0, off at `off`.
     ///
+    /// The datasheet says the on and off counts should never hold the same value, which
+    /// a count of 0 would load, so 0 is the full-off setting, and a count of 4096 or more
+    /// the full-on one.
+    ///
     /// # Arguments
     ///
     /// * `off` - the count at which the output goes low, which sets the duty cycle.
@@ -231,7 +238,11 @@ impl Pwm {
     ///
     /// The PWM setting.
     pub fn duty(off: u16) -> Pwm {
-        Pwm::from_counts(0, off)
+        match off {
+            0 => Pwm::full_off(),
+            off if off >= COUNTS => Pwm::full_on(),
+            off => Pwm::from_counts(0, off),
+        }
     }
 
     /// Builds the setting that drives a hobby servo to a given pulse width.
@@ -378,6 +389,19 @@ mod tests {
     fn full_on_and_full_off_set_the_flag_bit() {
         assert_eq!(Pwm::full_on().bytes(), [0x00, 0x10, 0x00, 0x00]);
         assert_eq!(Pwm::full_off().bytes(), [0x00, 0x00, 0x00, 0x10]);
+    }
+
+    #[test]
+    fn a_duty_never_loads_the_same_count_into_on_and_off() {
+        // Section 7.3.4: "The LEDn_ON and LEDn_OFF count registers should never be
+        // programmed with the same values." A duty starts on at count 0, so its ends are
+        // the flags.
+        assert_eq!(Pwm::duty(0), Pwm::full_off());
+        assert_eq!(Pwm::duty(COUNTS), Pwm::full_on());
+        assert_eq!(Pwm::duty(u16::MAX), Pwm::full_on());
+        assert_eq!(Pwm::duty(1).bytes(), [0x00, 0x00, 0x01, 0x00]);
+        assert_eq!(Pwm::duty(COUNTS - 1).bytes(), [0x00, 0x00, 0xFF, 0x0F]);
+        assert_eq!(Pwm::servo(0, 50), Pwm::full_off(), "no pulse at all");
     }
 
     #[test]

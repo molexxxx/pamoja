@@ -567,3 +567,83 @@ public sealed class I2cBus : IDisposable
     /// <summary>Releases this share of the bus. The bus closes when no driver holds it either.</summary>
     public void Dispose() => _handle.Dispose();
 }
+
+/// <summary>
+/// What paces a driver that has to wait between pin changes, such as a stepper between
+/// steps. <see cref="SleepDelay"/> really waits; <see cref="DelayLog"/> counts every wait and
+/// waits for none, for a program run with nothing plugged in.
+/// </summary>
+public interface IDelay
+{
+    /// <summary>Waits, or counts the wait.</summary>
+    /// <param name="micros">How long, in microseconds.</param>
+    void DelayMicros(uint micros);
+}
+
+/// <summary>
+/// A delay that records every wait it is asked for and sleeps through none of them, as
+/// <c>pamoja_hal::script::DelayLog</c> does in Rust.
+/// </summary>
+/// <example>
+/// <code>
+/// var delay = new DelayLog();
+/// delay.DelayMicros(480);
+/// delay.DelayMicros(10_000);
+/// // delay.TotalMicros is 10480 and delay.TotalMillis is 10
+/// </code>
+/// </example>
+public sealed class DelayLog : IDelay
+{
+    private readonly List<uint> _waits = new();
+
+    /// <summary>Every wait asked for, in microseconds, oldest first.</summary>
+    public IReadOnlyList<uint> WaitsMicros => _waits;
+
+    /// <summary>The waits added up, in microseconds.</summary>
+    public ulong TotalMicros { get; private set; }
+
+    /// <summary>The waits added up, in whole milliseconds, rounded down.</summary>
+    public ulong TotalMillis => TotalMicros / 1_000;
+
+    /// <summary>Records a wait.</summary>
+    /// <param name="micros">How long, in microseconds.</param>
+    public void DelayMicros(uint micros)
+    {
+        _waits.Add(micros);
+        TotalMicros += micros;
+    }
+
+    /// <summary>Forgets every recorded wait.</summary>
+    public void Clear()
+    {
+        _waits.Clear();
+        TotalMicros = 0;
+    }
+}
+
+/// <summary>
+/// A delay that really waits: <see cref="Thread.Sleep(int)"/>, rounded up to whole
+/// milliseconds, for a millisecond or more, and a spin on
+/// <see cref="System.Diagnostics.Stopwatch"/> for a shorter wait, which the scheduler cannot
+/// keep. A sleep can run over by the scheduler's own latency.
+/// </summary>
+public sealed class SleepDelay : IDelay
+{
+    /// <summary>Waits.</summary>
+    /// <param name="micros">How long, in microseconds.</param>
+    public void DelayMicros(uint micros)
+    {
+        if (micros >= 1_000)
+        {
+            Thread.Sleep(checked((int)((micros + 999) / 1_000)));
+            return;
+        }
+
+        long until = System.Diagnostics.Stopwatch.GetTimestamp()
+            + (long)micros * System.Diagnostics.Stopwatch.Frequency / 1_000_000;
+        while (System.Diagnostics.Stopwatch.GetTimestamp() < until)
+        {
+            Thread.SpinWait(1);
+        }
+    }
+}

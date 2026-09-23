@@ -225,20 +225,20 @@ const EMBEDDED: &[Asset] = &[
 // embedded in `EMBEDDED`.
 #[cfg(not(feature = "tier-c"))]
 fn locale_asset(path: &str) -> Option<(&'static str, &'static [u8])> {
-    let bytes: &'static [u8] = match path {
+    let bytes: Option<&'static [u8]> = match path {
         #[cfg(feature = "locale-sw")]
-        "/app/i18n/sw.json" => include_bytes!("../web/app/i18n/sw.json"),
+        "/app/i18n/sw.json" => Some(include_bytes!("../web/app/i18n/sw.json")),
         #[cfg(feature = "locale-ar")]
-        "/app/i18n/ar.json" => include_bytes!("../web/app/i18n/ar.json"),
+        "/app/i18n/ar.json" => Some(include_bytes!("../web/app/i18n/ar.json")),
         #[cfg(feature = "locale-fr")]
-        "/app/i18n/fr.json" => include_bytes!("../web/app/i18n/fr.json"),
+        "/app/i18n/fr.json" => Some(include_bytes!("../web/app/i18n/fr.json")),
         #[cfg(feature = "locale-pt")]
-        "/app/i18n/pt.json" => include_bytes!("../web/app/i18n/pt.json"),
+        "/app/i18n/pt.json" => Some(include_bytes!("../web/app/i18n/pt.json")),
         #[cfg(feature = "locale-hi")]
-        "/app/i18n/hi.json" => include_bytes!("../web/app/i18n/hi.json"),
-        _ => return None,
+        "/app/i18n/hi.json" => Some(include_bytes!("../web/app/i18n/hi.json")),
+        _ => None,
     };
-    Some((JSON, bytes))
+    bytes.map(|bytes| (JSON, bytes))
 }
 
 /// The locale tags this build actually embeds, in menu order (English first).
@@ -251,18 +251,17 @@ fn locale_asset(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// The embedded locale tags; empty on a floor (`tier-c`) build, which ships no locale bundles.
 #[cfg(not(feature = "tier-c"))]
 pub(crate) fn embedded_locales() -> Vec<&'static str> {
-    let mut tags = vec!["en"];
-    #[cfg(feature = "locale-sw")]
-    tags.push("sw");
-    #[cfg(feature = "locale-ar")]
-    tags.push("ar");
-    #[cfg(feature = "locale-fr")]
-    tags.push("fr");
-    #[cfg(feature = "locale-pt")]
-    tags.push("pt");
-    #[cfg(feature = "locale-hi")]
-    tags.push("hi");
-    tags
+    [
+        ("en", true),
+        ("sw", cfg!(feature = "locale-sw")),
+        ("ar", cfg!(feature = "locale-ar")),
+        ("fr", cfg!(feature = "locale-fr")),
+        ("pt", cfg!(feature = "locale-pt")),
+        ("hi", cfg!(feature = "locale-hi")),
+    ]
+    .into_iter()
+    .filter_map(|(tag, embedded)| embedded.then_some(tag))
+    .collect()
 }
 
 /// The locale tags this build embeds; empty on a floor (`tier-c`) build.

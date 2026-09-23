@@ -593,6 +593,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<actuators_driver::Pca9685>()?;
         m.add_function(wrap_pyfunction!(actuators_driver::pca9685_sim_part, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pca9685_limits, m)?)?;
+        m.add_function(wrap_pyfunction!(actuators::stepper_timing, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pca9685_channel_register, m)?)?;
         m.add_function(wrap_pyfunction!(
             actuators::pca9685_prescale_for_frequency,

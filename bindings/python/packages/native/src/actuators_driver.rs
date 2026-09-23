@@ -9,6 +9,7 @@
 use std::sync::{Mutex, PoisonError};
 
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_actuators::pca9685::{self, Outputs, Pwm};
@@ -82,6 +83,13 @@ impl Pca9685 {
         })
     }
 
+    /// Reads one channel's four register bytes back from the part, one register a
+    /// transfer, so the read works whatever MODE1 holds and changes nothing on the part.
+    fn channel<'py>(&self, py: Python<'py>, channel: u8) -> PyResult<Bound<'py, PyBytes>> {
+        let pwm = drive(&self.inner, py, move |driver| driver.channel(channel))?;
+        Ok(PyBytes::new(py, &pwm.bytes()))
+    }
+
     /// Loads every channel with the same four bytes in one transfer.
     fn set_all(&self, py: Python<'_>, pwm: Vec<u8>) -> PyResult<()> {
         let pwm = pwm_of(&pwm)?;
@@ -143,11 +151,11 @@ fn pwm_of(bytes: &[u8]) -> PyResult<Pwm> {
 }
 
 /// Runs a driver call with the interpreter released.
-fn drive(
+fn drive<T: Send>(
     inner: &Mutex<Pca9685Driver>,
     py: Python<'_>,
-    call: impl FnOnce(&mut Pca9685Driver) -> Result<(), DriverError<BusError>> + Send,
-) -> PyResult<()> {
+    call: impl FnOnce(&mut Pca9685Driver) -> Result<T, DriverError<BusError>> + Send,
+) -> PyResult<T> {
     py.detach(|| {
         let mut driver = inner.lock().unwrap_or_else(PoisonError::into_inner);
         call(&mut driver)

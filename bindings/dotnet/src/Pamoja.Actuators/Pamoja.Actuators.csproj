@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Actuators</PackageId>
     <AssemblyName>Pamoja.Actuators</AssemblyName>
     <RootNamespace>Pamoja.Actuators</RootNamespace>
-    <Description>A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing.</Description>
+    <Description>A PCA9685 driver for servos, LEDs, and valves, and stepper drivers for four coil lines or a step and direction chip, in every language.</Description>
     <PackageTags>pamoja;iot;robotics;actuators</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/actuators.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Pamoja.Gpio/Pamoja.Gpio.csproj" />
     <ProjectReference Include="../Pamoja.Hal/Pamoja.Hal.csproj" />
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
   </ItemGroup>

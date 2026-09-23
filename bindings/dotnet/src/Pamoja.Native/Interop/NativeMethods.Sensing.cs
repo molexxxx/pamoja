@@ -62,6 +62,15 @@ public static partial class NativeMethods
     /// <summary>The length of a OPT3001 register.</summary>
     public const int Opt3001RegisterLen = 2;
 
+    /// <summary>The pause a stepper driver takes after each step unless given another, in microseconds.</summary>
+    public const uint StepperDefaultStepMicros = 2_000;
+
+    /// <summary>
+    /// How long a step and direction driver holds the direction before a step pulse, and the
+    /// pulse itself, unless given another, in microseconds.
+    /// </summary>
+    public const uint StepperDefaultPulseMicros = 10;
+
     /// <summary>Builds a BME280 calibration from its register bytes.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_bme280_calibration_new(

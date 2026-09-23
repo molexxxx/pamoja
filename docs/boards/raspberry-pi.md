@@ -1125,8 +1125,10 @@ toolchain for C.
 - [Buses and links](../buses.md), for what each bus on the header is for,
   and the [bus layer guide](../guides/hal.md) for the traits, the scripted bus,
   and the Linux backend in detail.
-- [Sensor drivers](../guides/sensors.md) and
-  [actuator drivers](../guides/actuators.md), for every shipped part.
+- [Sensor drivers](../guides/sensors.md#on-a-board) and
+  [actuator drivers](../guides/actuators.md#on-a-board), for every shipped part,
+  each with a program for this board: an air sensor with soil probes, and a pan
+  and tilt head from a PCA9685 and a 28BYJ-48.
 - [Your own device](../guides/device.md), for a part pamoja has never heard of.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,

@@ -1019,7 +1019,7 @@ fn actuator_vectors_match() {
     assert_eq!(
         hex(&pca9685::Pwm::full_off().bytes()),
         pwm["fullOff"].as_str().expect("the bytes"),
-        "fully off is its own encoding, not a zero duty"
+        "fully off is its own flag in LEDn_OFF_H"
     );
 
     let motor = &case["stepper"];

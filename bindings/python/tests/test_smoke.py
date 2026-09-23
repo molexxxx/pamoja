@@ -474,6 +474,7 @@ def test_an_actuator_command_encodes_to_its_registers():
     from pamoja import actuators
 
     assert actuators.pwm.full_off()[3] == 0x10
+    assert actuators.pwm.duty(0) == actuators.pwm.full_off(), "never the same count twice"
     assert actuators.pca9685.channel_register(0) == 0x06
     with pytest.raises(ValueError):
         actuators.pca9685.channel_register(16)
@@ -504,6 +505,9 @@ def test_a_pca9685_driver_programs_a_part_that_keeps_its_datasheet_rules():
     assert part.register(pca9685.REGISTER_MODE1) == pca9685.MODE1_AUTO_INCREMENT
     first = pca9685.channel_register(0)
     assert bytes(part.register(first + offset) for offset in range(4)) == pwm.servo(1500)
+    assert board.channel(0) == pwm.servo(1500), "the driver reads it back too"
+    with pytest.raises(ValueError, match="sixteen channels"):
+        board.channel(16)
 
     board.set_all(pwm.full_off())
     assert bus.part(address).register(pca9685.channel_register(15) + 3) == 0x10
@@ -516,6 +520,63 @@ def test_a_pca9685_driver_programs_a_part_that_keeps_its_datasheet_rules():
     assert fresh.register(pca9685.REGISTER_MODE1) == pca9685.MODE1_RESET
     assert fresh.register(pca9685.REGISTER_MODE2) == pca9685.MODE2_RESET
     assert fresh.register(pca9685.REGISTER_PRE_SCALE) == pca9685.PRE_SCALE_RESET
+
+
+def test_the_stepper_drivers_walk_the_coils_and_pulse_the_lines_as_rust_does():
+    from pamoja.actuators import Direction, Drive, FourWire, StepDir, stepper
+    from pamoja.gpio import Level, PinScript
+    from pamoja.hal import DelayLog
+
+    high, low = Level.HIGH, Level.LOW
+
+    def lines():
+        return (PinScript(), PinScript(), PinScript(), PinScript())
+
+    delay = DelayLog()
+    motor = FourWire(lines(), Drive.FULL_STEP, step_micros=1_500, delay=delay)
+    motor.steps(4)
+    assert motor.position == 4
+    assert motor.drive is Drive.FULL_STEP
+    a, b, c, d = motor.release()
+    assert a.driven == [low, low, high, high]
+    assert b.driven == [high, low, low, high]
+    assert c.driven == [high, high, low, low]
+    assert d.driven == [low, high, high, low]
+    assert delay.waits_micros == [1_500] * 4
+    assert delay.total_millis == 6
+
+    wave = FourWire(lines(), Drive.WAVE, delay=DelayLog())
+    wave.steps(-2)
+    assert wave.position == -2
+    wave.idle()
+    wave_a, _, _, wave_d = wave.release()
+    assert wave_a.driven == [low, low, low]
+    assert wave_d.driven == [high, low, low], "wave drive backward starts at coil D"
+
+    pulses = DelayLog()
+    carriage = StepDir(PinScript(), PinScript(), pulse_micros=5, step_micros=1_000, delay=pulses)
+    carriage.steps(2)
+    carriage.steps(-1)
+    assert carriage.position == 1
+    step, direction = carriage.release()
+    assert direction.driven == [high, high, low]
+    assert step.driven == [high, low, high, low, high, low]
+    assert pulses.waits_micros[:3] == [5, 5, 1_000]
+
+    defaults = StepDir(PinScript(), PinScript(), delay=DelayLog())
+    assert defaults.pulse_micros == stepper.DEFAULT_PULSE_MICROS == 10
+    assert defaults.step_micros == stepper.DEFAULT_STEP_MICROS == 2_000
+
+    class Unplugged:
+        def drive(self, level):
+            raise OSError("line unplugged")
+
+    stuck = FourWire((Unplugged(),) * 4, Drive.WAVE, delay=DelayLog())
+    with pytest.raises(OSError, match="line unplugged"):
+        stuck.step(Direction.FORWARD)
+    assert stuck.position == 0, "a step that could not be driven is not counted"
+    with pytest.raises(ValueError, match="four coil lines"):
+        FourWire(lines()[:3], Drive.WAVE)
 
 
 def test_the_windowed_helpers_summarize_recent_readings():

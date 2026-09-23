@@ -81,6 +81,10 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_pca9685_set_channel(IntPtr driver, byte channel, PamojaPwm pwm);
 
+    /// <summary>Reads one channel's four register bytes back from the part.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_pca9685_channel(IntPtr driver, byte channel, out PamojaPwm pwm);
+
     /// <summary>Loads every channel with the same four bytes.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_pca9685_set_all(IntPtr driver, PamojaPwm pwm);

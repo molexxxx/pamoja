@@ -58,6 +58,14 @@ pub const PAMOJA_PCA9685_PRE_SCALE_RESET: u8 = 0x1E;
 /// The smallest value the part loads into PRE_SCALE, about 1526 Hz.
 pub const PAMOJA_PCA9685_PRE_SCALE_MIN: u8 = 3;
 
+/// The pause a stepper driver takes after each step unless given another, in microseconds:
+/// two milliseconds, a rate common geared hobby motors follow without stalling.
+pub const PAMOJA_STEPPER_DEFAULT_STEP_MICROS: u32 = 2_000;
+
+/// How long a step and direction driver holds the direction before a step pulse, and the
+/// pulse itself, unless given another, in microseconds.
+pub const PAMOJA_STEPPER_DEFAULT_PULSE_MICROS: u32 = 10;
+
 // The header generator does not read the crates this one depends on, so these
 // carry their value rather than the name of the constant that defines it.
 const _: () = assert!(PAMOJA_PCA9685_INTERNAL_OSC_HZ == pca9685::INTERNAL_OSC_HZ);
@@ -79,6 +87,8 @@ const _: () = assert!(PAMOJA_PCA9685_MODE1_RESET == pca9685::MODE1_RESET);
 const _: () = assert!(PAMOJA_PCA9685_MODE2_RESET == pca9685::MODE2_RESET);
 const _: () = assert!(PAMOJA_PCA9685_PRE_SCALE_RESET == pca9685::PRE_SCALE_RESET);
 const _: () = assert!(PAMOJA_PCA9685_PRE_SCALE_MIN == pca9685::PRE_SCALE_MIN);
+const _: () = assert!(PAMOJA_STEPPER_DEFAULT_STEP_MICROS == stepper::DEFAULT_STEP_MICROS);
+const _: () = assert!(PAMOJA_STEPPER_DEFAULT_PULSE_MICROS == stepper::DEFAULT_PULSE_MICROS);
 
 /// A PCA9685 channel's four register bytes.
 ///
@@ -185,6 +195,9 @@ pub extern "C" fn pamoja_pwm_from_counts(on: u16, off: u16) -> PamojaPwm {
 }
 
 /// Builds a PWM setting with no phase delay: on at count 0, off at `off`.
+///
+/// The datasheet rules out the same count in on and off, so 0 is the full-off setting and
+/// 4096 or more the full-on one.
 ///
 /// # Returns
 ///
@@ -416,7 +429,12 @@ mod tests {
                 off_low: 0x00,
                 off_high: 0x10,
             },
-            "a zero duty still glitches high for one count; the flag does not"
+            "the datasheet's full-off flag"
+        );
+        assert_eq!(
+            pamoja_pwm_duty(0),
+            pamoja_pwm_full_off(),
+            "a zero duty would load the same count into on and off, which the datasheet rules out"
         );
         assert_eq!(pamoja_pwm_full_on().on_high, 0x10);
     }

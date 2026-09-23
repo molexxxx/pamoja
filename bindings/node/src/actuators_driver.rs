@@ -146,6 +146,15 @@ impl Pca9685 {
         drive(&self.inner, move |driver| driver.set_channel(channel, pwm)).await
     }
 
+    /// Reads one channel's four register bytes back from the part, one register a transfer,
+    /// so the read works whatever MODE1 holds and changes nothing on the part. Rejects a
+    /// channel past 15.
+    #[napi]
+    pub async fn channel(&self, channel: u8) -> napi::Result<Buffer> {
+        let pwm = drive(&self.inner, move |driver| driver.channel(channel)).await?;
+        Ok(pwm.bytes().to_vec().into())
+    }
+
     /// Loads every channel with the same four bytes in one transfer.
     #[napi]
     pub async fn set_all(&self, pwm: Buffer) -> napi::Result<()> {
@@ -213,10 +222,10 @@ fn pwm_of(bytes: &Buffer) -> napi::Result<Pwm> {
 }
 
 /// Runs a driver call on a blocking worker thread.
-async fn drive(
+async fn drive<T: Send + 'static>(
     inner: &Arc<Mutex<Pca9685Driver>>,
-    call: impl FnOnce(&mut Pca9685Driver) -> Result<(), DriverError<BusError>> + Send + 'static,
-) -> napi::Result<()> {
+    call: impl FnOnce(&mut Pca9685Driver) -> Result<T, DriverError<BusError>> + Send + 'static,
+) -> napi::Result<T> {
     let inner = Arc::clone(inner);
     let outcome = spawn_blocking(move || {
         let mut driver = inner.lock().unwrap_or_else(PoisonError::into_inner);

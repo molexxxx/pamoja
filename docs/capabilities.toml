@@ -152,13 +152,13 @@ pages = ["buses.md", "boards/raspberry-pi.md", "boards/esp32.md", "boards/rp2040
 key = "hal"
 chapter = "field-io"
 title = "Buses"
-summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share"
+summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus a program and its drivers share, and delays that sleep or only count"
 crates = ["pamoja-hal"]
 node = "hal"
 python = "hal"
 dotnet = [
     "I2cBus", "SimulatedPart", "I2cPart", "WordPart", "CommandPart", "I2cStep", "I2cBusKind",
-    "I2cFault",
+    "I2cFault", "IDelay", "DelayLog", "SleepDelay",
 ]
 guide = "guides/hal.md"
 next = ["sensors", "actuators", "device"]
@@ -187,11 +187,11 @@ pages = ["hardware.md", "boards/walkthrough.md"]
 key = "actuators"
 chapter = "sensing"
 title = "Actuator drivers"
-summary = "A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing"
+summary = "A PCA9685 driver for servos, LEDs, and valves, and stepper drivers for four coil lines or a step and direction chip, in every language"
 crates = ["pamoja-actuators"]
 node = "actuators"
 python = "actuators"
-dotnet = ["Pca9685", "Pca9685Outputs", "Pwm", "Stepper", "StepDrive", "StepDirection"]
+dotnet = ["Pca9685", "Pca9685Outputs", "Pwm", "Stepper", "StepDrive", "StepDirection", "FourWire", "StepDir"]
 guide = "guides/actuators.md"
 next = ["gpio", "rules", "hal"]
 pages = ["hardware.md"]
