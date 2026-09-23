@@ -214,7 +214,7 @@ Console.WriteLine($"recovered {string.Join(", ", recovered.Select(v => v.ToStrin
 
 <!-- table: next codec -->
 - [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
-- [Store and forward](sync.md): Offline-first queues.
+- [Store and forward](sync.md): Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns.
 - [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
 <!-- end -->
 

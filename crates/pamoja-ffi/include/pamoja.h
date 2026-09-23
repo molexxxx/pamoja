@@ -25593,6 +25593,8 @@ PamojaStore *pamoja_store_memory(uintptr_t capacity);
 //
 // * `dir` - the directory to hold records in, as null-terminated UTF-8. It is
 //   created if it does not exist.
+// * `capacity` - the most records to hold, or 0 for no bound. A full store
+//   refuses the next append, which keeps a long outage from filling the disk.
 //
 // # Returns
 //
@@ -25603,7 +25605,7 @@ PamojaStore *pamoja_store_memory(uintptr_t capacity);
 //
 // `dir` must be a valid null-terminated UTF-8 string for the duration of the
 // call.
-PamojaStore *pamoja_store_file(const char *dir);
+PamojaStore *pamoja_store_file(const char *dir, uintptr_t capacity);
 
 // Adds a record to the end of a buffer.
 //

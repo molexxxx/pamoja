@@ -271,7 +271,7 @@ catch (PamojaException error)
 
 <!-- table: next mesh -->
 - [Routing](routing.md): Reverse-path routing that learns the cheapest route from overheard traffic.
-- [Store and forward](sync.md): Offline-first queues.
+- [Store and forward](sync.md): Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns.
 - [LoRa radios](radios.md): The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators.
 - Also in Radio and reach: [LoRa airtime and range](lora.md), [LoRaWAN](lorawan.md), [LoRaWAN gateways](gateway.md).
 <!-- end -->

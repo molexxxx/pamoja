@@ -2946,9 +2946,25 @@ export declare class Store {
   /**
    * Opens a buffer backed by a directory, so it survives a restart.
    *
+   * A record a power cut interrupted mid-write is never seen, and one written
+   * before the cut is found again when the directory is reopened.
+   *
    * @param dir - the directory to hold records in; it is created if missing.
+   * @param capacity - the most records to hold, or omitted for no bound. A full
+   *   store refuses the next append, which keeps a long outage from filling the
+   *   disk.
    */
-  static file(dir: string): Store
+  static file(dir: string, capacity?: number | undefined | null): Store
+  /**
+   * Drains the buffer onto a transport, publishing each record to `topic`,
+   * oldest first, and resolves with how many went out.
+   *
+   * Each record leaves the buffer only once the transport has taken it, so a
+   * send that fails rejects with the transport's error and leaves that record
+   * and every one after it buffered, in order, for the next drain. The
+   * transport is driven, not consumed.
+   */
+  drainTo(transport: Transport, topic: string): Promise<number>
   /**
    * Adds a record to the end of the buffer: bytes, or text such as a reading
    * written out.

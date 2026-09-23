@@ -543,8 +543,16 @@ impl PyTransport {
     }
 }
 
+impl PyTransport {
+    /// The slot the transport sits in, for a caller that drives it from elsewhere
+    /// in the binding, such as a store draining onto it.
+    pub(crate) fn shared(&self) -> Arc<tokio::sync::Mutex<Option<Kind>>> {
+        Arc::clone(&self.inner)
+    }
+}
+
 /// The error for a transport that was handed to a ladder or a wrapper.
-fn spent() -> PyErr {
+pub(crate) fn spent() -> PyErr {
     PamojaError::new_err("this transport was already added to a ladder or a wrapper")
 }
 

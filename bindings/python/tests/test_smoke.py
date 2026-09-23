@@ -986,6 +986,33 @@ def test_a_buffer_holds_records_until_a_link_returns():
     asyncio.run(run())
 
 
+def test_a_file_store_is_bounded_survives_reopening_and_drains_in_order(tmp_path):
+    from pamoja import core, loopback, sync
+
+    async def run():
+        on_disk = sync.Store.file(str(tmp_path), 2)
+        await on_disk.append("a")
+        await on_disk.append("b")
+        with pytest.raises(PamojaError, match="store is at capacity"):
+            await on_disk.append("c")
+
+        reopened = sync.Store.file(str(tmp_path), 2)
+        assert await reopened.len() == 2, "the records survive reopening"
+        broker = loopback.LoopbackBroker()
+        dropping = core.Transport.degraded(broker.rung(), up=1, down=5)
+        await dropping.connect()
+        with pytest.raises(PamojaError, match="link unreachable"):
+            await reopened.drain_to(dropping, "outbox")
+        assert await reopened.peek_text() == "b", "the record the link refused stays"
+
+        steady = broker.rung()
+        await steady.connect()
+        assert await reopened.drain_to(steady, "outbox") == 1
+        assert await reopened.len() == 0
+
+    asyncio.run(run())
+
+
 def test_a_ladder_falls_through_a_failing_rung_and_buffers_when_none_work():
     from pamoja import core, ladder, loopback, sync
 

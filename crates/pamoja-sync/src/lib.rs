@@ -7,8 +7,8 @@
 //!
 //! - [`MemoryStore`] - a fast in-memory queue, optionally capacity-bounded so a
 //!   full queue becomes an explicit backpressure signal.
-//! - [`FileStore`] - a crash-safe on-disk queue that survives power loss, for the
-//!   power-loss-safe field logging the mission depends on.
+//! - [`FileStore`] - a crash-safe on-disk queue that survives a restart or a
+//!   power cut, optionally bounded so a long outage cannot fill the disk.
 //!
 //! Both buffer raw bytes, so an application pairs a [`Store`](pamoja_core::Store)
 //! with a [`Codec`](https://docs.rs/pamoja-codec) to persist encoded payloads and

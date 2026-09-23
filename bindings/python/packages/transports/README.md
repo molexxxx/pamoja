@@ -18,12 +18,12 @@ from pamoja.transports import mqtt
 | [MQTT](https://pamoja.molex.cloud/docs/guides/mqtt.html) | `pamoja.mqtt` | An MQTT client with the topic and wildcard rules, as the core transport |
 | [CoAP](https://pamoja.molex.cloud/docs/guides/coap.html) | `pamoja.coap` | A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe |
 | [Loopback](https://pamoja.molex.cloud/docs/guides/loopback.html) | `pamoja.loopback` | An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker |
-| [Store and forward](https://pamoja.molex.cloud/docs/guides/sync.html) | `pamoja.sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
+| [Store and forward](https://pamoja.molex.cloud/docs/guides/sync.html) | `pamoja.sync` | Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns |
 | [Transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | `pamoja.ladder` | Cheapest reachable link first, buffering to a store when every link is down |
 | [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `pamoja.bus` | An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss |
 | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | `pamoja.core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | [Your own link](https://pamoja.molex.cloud/docs/guides/link.html) | `pamoja.core` | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
-| [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `pamoja.sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
+| [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `pamoja.sim` | Noisy and replay sensors, a recording actuator, a simulated robot that dead-reckons its pose, and a link that loses sends on a pattern |
 
 The guides, with a worked Python example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).
 

@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
-use crate::transport::Payload;
+use crate::transport::{spent, Payload, PyTransport};
 use crate::PamojaError;
 
 /// One buffer, whichever kind it was created as.
@@ -140,15 +140,50 @@ impl Store {
     }
 
     /// Opens a buffer backed by a directory, so it survives a restart.
+    ///
+    /// A record a power cut interrupted mid-write is never seen, and one written
+    /// before the cut is found again when the directory is reopened. `capacity` is
+    /// the most records to hold, or 0 for no bound; a full store refuses the next
+    /// append, which keeps a long outage from filling the disk.
     #[staticmethod]
-    fn file(dir: String) -> PyResult<Self> {
-        FileStore::open(dir)
+    #[pyo3(signature = (dir, capacity = 0))]
+    fn file(dir: String, capacity: usize) -> PyResult<Self> {
+        let opened = if capacity == 0 {
+            FileStore::open(dir)
+        } else {
+            FileStore::open_with_capacity(dir, capacity)
+        };
+        opened
             .map(|store| Self {
                 inner: SyncMutex::new(Some(SharedStore(Arc::new(Mutex::new(StoreKind::File(
                     store,
                 )))))),
             })
             .map_err(to_pyerr)
+    }
+
+    /// Drains the buffer onto a transport, publishing each record to `topic`,
+    /// oldest first, and returns how many went out.
+    ///
+    /// Each record leaves the buffer only once the transport has taken it, so a
+    /// send that fails raises the transport's error and leaves that record and
+    /// every one after it buffered, in order, for the next drain. The transport is
+    /// driven, not consumed.
+    fn drain_to<'py>(
+        &self,
+        py: Python<'py>,
+        transport: &PyTransport,
+        topic: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let mut store = self.borrow()?;
+        let link = transport.shared();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut held = link.lock().await;
+            let kind = held.as_mut().ok_or_else(spent)?;
+            pamoja_sync::drain_to(&mut store, kind, &topic)
+                .await
+                .map_err(to_pyerr)
+        })
     }
 
     /// Adds a record to the end of the buffer.

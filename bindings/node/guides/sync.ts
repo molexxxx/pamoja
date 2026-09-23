@@ -3,53 +3,84 @@
 import assert from 'node:assert/strict'
 
 // ANCHOR: example
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { Transport } from '@pamoja/core'
+import { LoopbackBroker } from '@pamoja/loopback'
 import { Store } from '@pamoja/sync'
 
+const TOPIC = 'apiary/hive-3/weight'
+
 async function main() {
-  // A node with nowhere to send buffers its readings. This queue is held in memory, so it
-  // lasts as long as the process; Store.file(dir) is the same queue on disk, which is what
-  // a node uses to survive a reboot with its backlog intact.
-  const outbox = Store.memory()
-  for (const reading of ['20.1', '20.4', '20.2']) {
-    await outbox.append(reading)
+  // The scale logs its weight to a queue on its SD card, bounded so a long outage cannot
+  // fill the card. The directory is the queue, so the scale can lose power at any moment
+  // and lose nothing it logged.
+  const dir = mkdtempSync(join(tmpdir(), 'pamoja-hive-'))
+  let outbox = Store.file(dir, 3)
+  for (const weight of ['41.2', '41.5', '40.9']) {
+    await outbox.append(weight)
   }
-  console.log(`queued    ${await outbox.len()} readings with no link`)
+  const logged = await outbox.len()
+  console.log(`hive      logged ${logged} weights with no link, the most its store holds`)
 
-  // Peek reads the oldest record without taking it, so a send that fails part-way leaves
-  // the queue exactly as it was.
-  const oldest = (await outbox.peekText())!
-  console.log(`oldest    ${oldest} and still ${await outbox.len()} held`)
-
-  // The link returns and the queue drains oldest first, in the order the readings were
-  // taken rather than the order they happen to come back off a buffer.
-  const drained: string[] = []
-  for (let record = await outbox.popText(); record !== null; record = await outbox.popText()) {
-    drained.push(record)
-  }
-  console.log(`drained   ${drained.join(', ')}`)
-
-  // A bounded queue refuses the append that would overflow it. A full store is
-  // backpressure the caller is told about, not a reading dropped behind its back.
-  const bounded = Store.memory(2)
-  await bounded.append('20.1')
-  await bounded.append('20.4')
+  // A full store refuses the next weight rather than dropping one it already holds.
   try {
-    await bounded.append('20.2')
-    console.log('a full queue took a third reading, which should never happen')
+    await outbox.append('41.1')
   } catch (error) {
-    console.log(`full      refused the third reading: ${(error as Error).message}`)
+    console.log(`hive      was refused a 4th: ${(error as Error).message}`)
   }
 
-  return { oldest, drained, left: await outbox.len(), held: await bounded.len() }
+  // The scale reboots. Its queue is the directory, so it comes back whole and in order.
+  outbox = Store.file(dir, 3)
+  const held = await outbox.len()
+  const oldest = (await outbox.peekText())!
+  console.log(`hive      restarted and still holds ${held}, oldest first: ${oldest}`)
+
+  // The cellular uplink carries one weight, then drops. A weight leaves the queue only
+  // once a link has taken it, so what the uplink never took stays, in order.
+  const cellular = new LoopbackBroker()
+  const uplink = Transport.degraded(cellular.rung(), { up: 1, down: 10 })
+  await uplink.connect()
+  let forwarded = 0
+  try {
+    await outbox.drainTo(uplink, TOPIC)
+  } catch (error) {
+    forwarded = held - (await outbox.len())
+    console.log(`uplink    forwarded ${forwarded}, then failed: ${(error as Error).message}`)
+  }
+  const left = await outbox.len()
+  const next = (await outbox.peekText())!
+  console.log(`hive      still holds ${left}, oldest first: ${next}`)
+
+  // The beekeeper's gateway comes within reach, and the scale drains the rest onto it.
+  const visit = new LoopbackBroker()
+  const gateway = visit.link()
+  await gateway.connect()
+  await gateway.subscribe(TOPIC)
+  const toGateway = visit.rung()
+  await toGateway.connect()
+  await outbox.drainTo(toGateway, TOPIC)
+  const took: string[] = []
+  for (let weight = 0; weight < left; weight += 1) {
+    took.push((await gateway.recv())!.text!)
+  }
+  console.log(`gateway   took ${took.join(', ')} when the beekeeper came by`)
+  const empty = await outbox.len()
+  console.log(`hive      holds ${empty} once the backlog is through`)
+
+  rmSync(dir, { recursive: true })
+  return { counts: [logged, held, forwarded, left, empty], oldest, next, took }
 }
 
 main()
 // ANCHOR_END: example
   .then(check)
 
-function check(seen: { oldest: string; drained: string[]; left: number; held: number }): void {
-  assert.equal(seen.oldest, '20.1')
-  assert.deepEqual(seen.drained, ['20.1', '20.4', '20.2'])
-  assert.equal(seen.left, 0)
-  assert.equal(seen.held, 2)
+function check(seen: { counts: number[]; oldest: string; next: string; took: string[] }): void {
+  assert.deepEqual(seen.counts, [3, 3, 1, 2, 0])
+  assert.equal(seen.oldest, '41.2')
+  assert.equal(seen.next, '41.5')
+  assert.deepEqual(seen.took, ['41.5', '40.9'])
 }

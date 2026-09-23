@@ -92,6 +92,8 @@ pub extern "C" fn pamoja_store_memory(capacity: usize) -> *mut PamojaStore {
 ///
 /// * `dir` - the directory to hold records in, as null-terminated UTF-8. It is
 ///   created if it does not exist.
+/// * `capacity` - the most records to hold, or 0 for no bound. A full store
+///   refuses the next append, which keeps a long outage from filling the disk.
 ///
 /// # Returns
 ///
@@ -103,11 +105,19 @@ pub extern "C" fn pamoja_store_memory(capacity: usize) -> *mut PamojaStore {
 /// `dir` must be a valid null-terminated UTF-8 string for the duration of the
 /// call.
 #[no_mangle]
-pub unsafe extern "C" fn pamoja_store_file(dir: *const c_char) -> *mut PamojaStore {
+pub unsafe extern "C" fn pamoja_store_file(
+    dir: *const c_char,
+    capacity: usize,
+) -> *mut PamojaStore {
     let Some(dir) = read_str(dir, "dir") else {
         return ptr::null_mut();
     };
-    match FileStore::open(dir) {
+    let opened = if capacity == 0 {
+        FileStore::open(dir)
+    } else {
+        FileStore::open_with_capacity(dir, capacity)
+    };
+    match opened {
         Ok(store) => Box::into_raw(Box::new(PamojaStore {
             kind: StoreKind::File(store),
         })),

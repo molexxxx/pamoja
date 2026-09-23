@@ -314,6 +314,39 @@ static async Task AsyncTransports()
     {
     }
 
+    // A file store is bounded too and survives reopening.
+    DirectoryInfo onDiskDir = Directory.CreateTempSubdirectory("pamoja-store-");
+    using (var onDisk = Store.File(onDiskDir.FullName, 2))
+    {
+        await onDisk.AppendAsync("a");
+        await onDisk.AppendAsync("b");
+        try
+        {
+            await onDisk.AppendAsync("c");
+            Fail("a full file store must refuse the append");
+        }
+        catch (PamojaException error)
+        {
+            Assert(error.Message.Contains("store is at capacity"), error.Message);
+        }
+    }
+
+    using (var reopened = Store.File(onDiskDir.FullName, 2))
+    {
+        Assert(await reopened.CountAsync() == 2, "the records survive reopening");
+        Assert(await reopened.PopTextAsync() == "a", "oldest first");
+    }
+
+    onDiskDir.Delete(recursive: true);
+    try
+    {
+        Store.File(onDiskDir.FullName, -1);
+        Fail("a negative capacity must be refused");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+    }
+
     // With no rung, a ladder buffers rather than losing the reading.
     using var offline = new Ladder(Store.Memory());
     Assert(

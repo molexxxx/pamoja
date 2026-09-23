@@ -42,25 +42,42 @@ public sealed class Store : IDisposable
     /// </remarks>
     /// <param name="capacity">The most records to hold, or 0 for no bound.</param>
     /// <returns>The buffer.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The capacity is negative.</exception>
     public static Store Memory(int capacity = 0) =>
-        new(NativeMethods.pamoja_store_memory((nuint)capacity));
+        new(NativeMethods.pamoja_store_memory(Capacity(capacity)));
 
     /// <summary>Opens a buffer backed by a directory, so it survives a restart.</summary>
+    /// <remarks>
+    /// A record a power cut interrupted mid-write is never seen, and one written
+    /// before the cut is found again when the directory is reopened.
+    /// </remarks>
     /// <param name="dir">The directory to hold records in; created if missing.</param>
+    /// <param name="capacity">
+    /// The most records to hold, or 0 for no bound. A full store refuses the next
+    /// append, which keeps a long outage from filling the disk.
+    /// </param>
     /// <returns>The buffer.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The capacity is negative.</exception>
     /// <exception cref="PamojaException">The directory could not be opened.</exception>
-    public static Store File(string dir)
+    public static Store File(string dir, int capacity = 0)
     {
+        nuint bound = Capacity(capacity);
         IntPtr dirPtr = Marshal.StringToCoTaskMemUTF8(dir);
         try
         {
-            return new Store(NativeMethods.pamoja_store_file(dirPtr));
+            return new Store(NativeMethods.pamoja_store_file(dirPtr, bound));
         }
         finally
         {
             Marshal.FreeCoTaskMem(dirPtr);
         }
     }
+
+    /// <summary>Checks a capacity and converts it to the native width.</summary>
+    private static nuint Capacity(int capacity) => capacity < 0
+        ? throw new ArgumentOutOfRangeException(
+            nameof(capacity), capacity, "a capacity cannot be negative")
+        : (nuint)capacity;
 
     /// <summary>Adds text to the end of the buffer: a reading or a line written out.</summary>
     /// <param name="text">The text to hold, as UTF-8.</param>

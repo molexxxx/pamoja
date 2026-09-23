@@ -1,6 +1,6 @@
 # pamoja-sync
 
-Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/sync.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -26,47 +26,72 @@ From [`bindings/python/guides/sync.py`](https://github.com/molexxxx/pamoja/blob/
 
 ```python
 import asyncio
+import tempfile
 
-from pamoja.core import PamojaError
+from pamoja.core import PamojaError, Transport
+from pamoja.loopback import LoopbackBroker
 from pamoja.sync import Store
 
+TOPIC = "apiary/hive-3/weight"
 
-async def main() -> None:
-    # A node with nowhere to send buffers its readings. This queue is held in memory, so it
-    # lasts as long as the process; Store.file(dir) is the same queue on disk, which is what
-    # a node uses to survive a reboot with its backlog intact.
-    outbox = Store.memory()
-    for reading in ("20.1", "20.4", "20.2"):
-        await outbox.append(reading)
-    print(f"queued    {await outbox.len()} readings with no link")
 
-    # Peek reads the oldest record without taking it, so a send that fails part-way leaves
-    # the queue exactly as it was.
-    oldest = await outbox.peek_text()
-    print(f"oldest    {oldest} and still {await outbox.len()} held")
+async def main(folder: str) -> None:
+    # The scale logs its weight to a queue on its SD card, bounded so a long outage
+    # cannot fill the card. The directory is the queue, so the scale can lose power at
+    # any moment and lose nothing it logged.
+    outbox = Store.file(folder, 3)
+    for weight in ("41.2", "41.5", "40.9"):
+        await outbox.append(weight)
+    logged = await outbox.len()
+    print(f"hive      logged {logged} weights with no link, the most its store holds")
 
-    # The link returns and the queue drains oldest first, in the order the readings were
-    # taken rather than the order they happen to come back off a buffer.
-    drained = []
-    while (record := await outbox.pop_text()) is not None:
-        drained.append(record)
-    print(f"drained   {', '.join(drained)}")
-
-    # A bounded queue refuses the append that would overflow it. A full store is
-    # backpressure the caller is told about, not a reading dropped behind its back.
-    bounded = Store.memory(capacity=2)
-    await bounded.append("20.1")
-    await bounded.append("20.4")
+    # A full store refuses the next weight rather than dropping one it already holds.
     try:
-        await bounded.append("20.2")
-        print("a full queue took a third reading, which should never happen")
+        await outbox.append("41.1")
     except PamojaError as error:
-        print(f"full      refused the third reading: {error}")
+        print(f"hive      was refused a 4th: {error}")
 
-    return oldest, drained, await outbox.len(), await bounded.len()
+    # The scale reboots. Its queue is the directory, so it comes back whole and in
+    # order.
+    outbox = Store.file(folder, 3)
+    held = await outbox.len()
+    oldest = await outbox.peek_text()
+    print(f"hive      restarted and still holds {held}, oldest first: {oldest}")
+
+    # The cellular uplink carries one weight, then drops. A weight leaves the queue only
+    # once a link has taken it, so what the uplink never took stays, in order.
+    cellular = LoopbackBroker()
+    uplink = Transport.degraded(cellular.rung(), up=1, down=10)
+    await uplink.connect()
+    forwarded = 0
+    try:
+        await outbox.drain_to(uplink, TOPIC)
+    except PamojaError as error:
+        forwarded = held - await outbox.len()
+        print(f"uplink    forwarded {forwarded}, then failed: {error}")
+    left = await outbox.len()
+    next_weight = await outbox.peek_text()
+    print(f"hive      still holds {left}, oldest first: {next_weight}")
+
+    # The beekeeper's gateway comes within reach, and the scale drains the rest onto
+    # it.
+    visit = LoopbackBroker()
+    gateway = visit.link()
+    await gateway.connect()
+    await gateway.subscribe(TOPIC)
+    to_gateway = visit.rung()
+    await to_gateway.connect()
+    await outbox.drain_to(to_gateway, TOPIC)
+    took = [(await gateway.recv()).text for _ in range(left)]
+    print(f"gateway   took {', '.join(took)} when the beekeeper came by")
+    empty = await outbox.len()
+    print(f"hive      holds {empty} once the backlog is through")
+
+    return (logged, held, forwarded, left, empty), oldest, next_weight, took
 
 
-oldest, drained, left, held = asyncio.run(main())
+with tempfile.TemporaryDirectory(prefix="pamoja-hive-") as folder:
+    counts, oldest, next_weight, took = asyncio.run(main(folder))
 ```
 
 ## The same capability in every language
