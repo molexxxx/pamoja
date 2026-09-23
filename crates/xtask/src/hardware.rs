@@ -629,14 +629,13 @@ fn index(entries: &[&Entry], title: &str) -> String {
 }
 
 /// Where a reader can search for a part by name, when no store on this page lists it.
-const SEARCHES: [(&str, &str); 4] = [
+const SEARCHES: [(&str, &str); 3] = [
     ("Adafruit", "https://www.adafruit.com/search?q="),
     ("SparkFun", "https://www.sparkfun.com/search/results?term="),
     (
         "Digi-Key",
         "https://www.digikey.com/en/products/result?keywords=",
     ),
-    ("Mouser", "https://www.mouser.com/c/?q="),
 ];
 
 // The parts on the page whose interface names this bus, sensors and actuators and radios,

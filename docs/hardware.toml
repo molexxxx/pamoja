@@ -457,14 +457,6 @@ source_label = "TI INA226 datasheet"
 source = "https://www.ti.com/lit/ds/symlink/ina226.pdf"
 
 [[entry.buy]]
-vendor = "Mouser"
-name = "Texas Instruments INA226AIDGSR"
-url = "https://www.mouser.com/ProductDetail/Texas-Instruments/INA226AIDGSR"
-price = "US$2.66"
-checked = "2026-09-06"
-verified = false
-
-[[entry.buy]]
 vendor = "M5Stack"
 name = "INA226-1A Current Voltage Power Monitor Unit"
 url = "https://shop.m5stack.com/products/ina226-1a-current-voltage-power-monitor-unit"

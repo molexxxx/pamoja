@@ -469,6 +469,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The hardware page's weekly price refresh lands again, and tells a listing that is gone
+  from a store that refused to answer. It had read every store since 2026-09-07 and then
+  failed to push, because the checkout's own read-only token took the place of the one
+  meant for the push. A store page that answers 404 or 410 now takes its offer off the
+  page. Digi-Key, which refuses scripted readers, is read through its Product Information
+  API: a part Digi-Key no longer sells leaves the page, and one at the end of its life is
+  named in the refresh's report. Mouser is no longer listed or searched.
 - The MAVLink SITL job now requires ArduPilot and PX4 to store a mission plan and to
   arm. Before, it accepted a refused arm and, on ArduPilot, a refused upload, and blamed
   the upload on mission storage the headless build lacked. The storage was there. ArduPilot
