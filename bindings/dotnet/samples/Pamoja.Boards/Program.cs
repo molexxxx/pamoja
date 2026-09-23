@@ -4,6 +4,7 @@ using Boards.RaspberryPi;
 
 var programs = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
 {
+    ["raspberry-pi/sensor"] = () => { Sensor.Run(); return Task.CompletedTask; },
     ["raspberry-pi/relay"] = () => { Relay.Run(); return Task.CompletedTask; },
     ["raspberry-pi/radio"] = () => { Radio.Run(); return Task.CompletedTask; },
 };

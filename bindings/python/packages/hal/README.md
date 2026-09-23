@@ -25,109 +25,99 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/hal.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/hal.py):
 
 ```python
-import time
-
-from pamoja.sensors import bme280
+from pamoja.core import PamojaError
+from pamoja.hal import I2cBus, I2cStep
+from pamoja.sensors import Bme280, Bme280Config, Bme280CtrlMeas, Bme280Measurement, bme280
 
 BME280 = bme280.ADDRESS_PRIMARY
 
 
-class ScriptedBus:
-    """A bus with the two calls this conversation needs, in the shape of smbus2.
-
-    On a gateway ``SMBus(1)`` gives the real one and nothing below changes. This one
-    answers from a script of what a BME280 sends, in the order the datasheet lists,
-    and refuses any transfer that is not the next one.
-    """
-
-    def __init__(self, script):
-        self.script = script
-        self.transfers = 0
-
-    def write_byte_data(self, address, register, value):
-        step = self._next(address, register)
-        if step.get("write") != value:
-            raise ValueError(f"unexpected write of {value:#04x}")
-
-    def read_i2c_block_data(self, address, register, length):
-        step = self._next(address, register)
-        reply = step.get("reply")
-        if reply is None or len(reply) != length:
-            raise ValueError(f"unexpected read of {length} bytes")
-        return bytes(reply)
-
-    @property
-    def done(self):
-        return self.transfers == len(self.script)
-
-    def _next(self, address, register):
-        step = self.script[self.transfers] if self.transfers < len(self.script) else None
-        if address != BME280 or step is None or step["register"] != register:
-            raise ValueError(f"unexpected transfer at register {register:#04x}")
-        self.transfers += 1
-        return step
+def shown(reading: Bme280Measurement) -> str:
+    """A reading the way every line below prints it."""
+    return (
+        f"{reading.celsius:.2f} C, {reading.hectopascals:.2f} hPa, "
+        f"{reading.relative_humidity_percent:.2f} %"
+    )
 
 
-CALIBRATION_A = bytes([
-    0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E, 0x1E,
-    0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
+def x(code: int) -> str:
+    """An oversampling setting the way a datasheet writes it."""
+    return f"x{bme280.oversampling_factor(code)}"
+
+
+# A bus with one part on it: a BME280 that is not there. It holds a real part's calibration
+# and one measurement that part took, and it answers from its registers, so the driver runs
+# its whole datasheet sequence against it. On a Raspberry Pi the bus is
+# I2cBus.open("/dev/i2c-1") and nothing after this line changes.
+bus = I2cBus.simulated([bme280.sim.part(BME280)])
+sensor = Bme280(bus, BME280)
+
+# Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+# ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what the
+# driver wrote, so the configuration reads back off the bus.
+sensor.init()
+part = bus.part(BME280)
+humidity = bme280.ctrl_hum_from_bits(part.register(bme280.REGISTER_CTRL_HUM))
+ctrl = bme280.ctrl_meas_from_bits(part.register(bme280.REGISTER_CTRL_MEAS))
+asleep = ctrl.mode == bme280.Mode.SLEEP
+print(
+    f"configured   humidity {x(humidity)}, temperature {x(ctrl.temperature)}, "
+    f"pressure {x(ctrl.pressure)}, asleep: {str(asleep).lower()}"
+)
+
+# One forced measurement. The driver waits the datasheet's longest measurement time for
+# these settings before it reads, and a simulated bus counts that wait rather than sleeping
+# through it.
+reading = sensor.measure()
+print(f"measured     {shown(reading)}")
+print(f"waited       {bus.waited_micros / 1000:.2f} ms across {bus.transfers} transfers")
+waited = bus.waited_micros
+
+# A part reports whatever it is asked to. Putting one in the first one's place is how a
+# program meets a reading it would otherwise wait on the weather for, here a cold store at
+# four degrees, and the driver carries on without noticing.
+bus.attach(bme280.sim.reporting(BME280, 4.0, 1013.25, 80.0))
+cold = sensor.measure()
+print(f"cold store   {shown(cold)}")
+
+# Nothing answers at the part's other address, and the driver says so rather than
+# returning a reading.
+try:
+    Bme280(bus, bme280.ADDRESS_SECONDARY).init()
+    print("absent       a part answered")
+except PamojaError as error:
+    print(f"absent       {error}")
+
+# The other half of the bus layer. A script plays one conversation and refuses anything
+# else, which proves a driver follows the datasheet rather than merely working: the reset,
+# the status once the calibration has loaded, the chip id, the two calibration blocks, the
+# three configuration writes in the order the part requires, then one forced measurement.
+x1 = bme280.Oversampling.X1
+settings = Bme280CtrlMeas(temperature=x1, pressure=x1, mode=bme280.Mode.SLEEP)
+forced = Bme280CtrlMeas(temperature=x1, pressure=x1, mode=bme280.Mode.FORCED)
+idle = bytes([bme280.sim.STATUS_IDLE])
+script = I2cBus.scripted([
+    I2cStep.write(BME280, bytes([bme280.REGISTER_RESET, bme280.RESET_WORD])),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_STATUS]), idle),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_CHIP_ID]), bytes([bme280.CHIP_ID])),
+    I2cStep.write_read(
+        BME280, bytes([bme280.REGISTER_CALIB_TEMP_PRESS]), bme280.sim.calibration()
+    ),
+    I2cStep.write_read(
+        BME280, bytes([bme280.REGISTER_CALIB_HUMIDITY]), bme280.sim.calibration_humidity()
+    ),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CONFIG, bme280.config_bits(Bme280Config())])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_HUM, bme280.ctrl_hum_bits(x1)])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_MEAS, bme280.ctrl_meas_bits(settings)])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_MEAS, bme280.ctrl_meas_bits(forced)])),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_STATUS]), idle),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_DATA]), bme280.sim.burst()),
 ])
-CALIBRATION_B = bytes([0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E])
-BURST = bytes([0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30])
-
-
-def main():
-    bus = ScriptedBus([
-        {"register": 0xE0, "write": 0xB6},
-        {"register": 0xF3, "reply": [0x00]},
-        {"register": 0xD0, "reply": [bme280.CHIP_ID]},
-        {"register": 0x88, "reply": CALIBRATION_A},
-        {"register": 0xE1, "reply": CALIBRATION_B},
-        {"register": 0xF5, "write": 0x00},
-        {"register": 0xF2, "write": 0x01},
-        {"register": 0xF4, "write": 0x24},
-        {"register": 0xF4, "write": 0x25},
-        {"register": 0xF3, "reply": [0x00]},
-        {"register": 0xF7, "reply": BURST},
-    ])
-
-    # The datasheet's start-up: the soft reset word, its 2 ms start-up time, and the
-    # status register, whose low bit clears once the calibration image has loaded.
-    bus.write_byte_data(BME280, 0xE0, 0xB6)
-    time.sleep(0.002)
-    bus.read_i2c_block_data(BME280, 0xF3, 1)
-
-    # The chip id says it is a BME280, and the two calibration blocks are read once.
-    chip_id = bus.read_i2c_block_data(BME280, 0xD0, 1)[0]
-    temp_press = bus.read_i2c_block_data(BME280, 0x88, 26)
-    humidity = bus.read_i2c_block_data(BME280, 0xE1, 7)
-    calibration = bme280.calibration(temp_press, humidity)
-    print(f"calibration  read once: {str(chip_id == bme280.CHIP_ID).lower()}")
-
-    # config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes
-    # effect after the ctrl_meas write: every measurement at oversampling x1, asleep.
-    bus.write_byte_data(BME280, 0xF5, 0x00)
-    bus.write_byte_data(BME280, 0xF2, 0x01)
-    bus.write_byte_data(BME280, 0xF4, 0x24)
-
-    # One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for these
-    # settings, the status read that confirms the part is idle, and the burst read.
-    bus.write_byte_data(BME280, 0xF4, 0x25)
-    time.sleep(0.010)
-    bus.read_i2c_block_data(BME280, 0xF3, 1)
-    burst = bus.read_i2c_block_data(BME280, 0xF7, 8)
-    measurement = calibration.compensate(burst)
-    celsius = measurement.celsius
-    hectopascals = measurement.hectopascals
-    humidity_percent = measurement.relative_humidity_percent
-    print(f"measured     {celsius:.2f} C, {hectopascals:.2f} hPa, {humidity_percent:.2f} %")
-
-    # The script is spent: every transfer the datasheet lists was made, and no other.
-    print(f"bus          {bus.transfers} transfers, unexpected: {str(not bus.done).lower()}")
-    return measurement, bus.transfers, bus.done
-
-
-measurement, transfers, done = main()
+checked = Bme280(script, BME280).measure()
+print(
+    f"datasheet    {checked.celsius:.2f} C after {script.transfers} transfers, "
+    f"{script.remaining} steps left"
+)
 ```
 
 ## The same capability in every language

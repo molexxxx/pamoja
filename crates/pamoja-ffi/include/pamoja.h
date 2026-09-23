@@ -20651,6 +20651,22 @@ PamojaI2cPart *pamoja_bme280_sim_reporting(uint8_t address,
 // `out_temp_press` must point to 26 writable bytes and `out_humidity` to 7.
 PamojaStatus pamoja_bme280_sim_calibration(uint8_t *out_temp_press, uint8_t *out_humidity);
 
+// Copies the one measurement a simulated BME280 holds: the eight data registers a real part
+// read, which compensate to 20.44 C, 848.05 hPa, and 44.65 % against its calibration.
+//
+// # Arguments
+//
+// * `out_burst` - receives the eight bytes a burst read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_burst` must point to 8 writable bytes.
+PamojaStatus pamoja_bme280_sim_burst(uint8_t *out_burst);
+
 // Builds the eight data registers a simulated BME280 holds when it reports a reading.
 //
 // # Arguments
@@ -20667,10 +20683,10 @@ PamojaStatus pamoja_bme280_sim_calibration(uint8_t *out_temp_press, uint8_t *out
 // # Safety
 //
 // `out_burst` must point to 8 writable bytes.
-PamojaStatus pamoja_bme280_sim_burst(float celsius,
-                                     float hectopascals,
-                                     float relative_humidity,
-                                     uint8_t *out_burst);
+PamojaStatus pamoja_bme280_sim_burst_for(float celsius,
+                                         float hectopascals,
+                                         float relative_humidity,
+                                         uint8_t *out_burst);
 
 // Frames a payload as a SLIP packet (RFC 1055).
 //

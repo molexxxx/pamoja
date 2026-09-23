@@ -710,6 +710,55 @@ fn sensors() -> Value {
     let calibration = bme280::Calibration::from_registers(&temp_press, &humidity);
     let reading = calibration.compensate(&bme280::RawMeasurement::from_registers(&measurement));
 
+    // The register values a BME280 driver writes, over settings that reach every field.
+    use bme280::{Filter, Mode, Oversampling, Standby};
+    let ctrl_meas: Vec<Value> = [
+        (Oversampling::X1, Oversampling::X1, Mode::Sleep),
+        (Oversampling::X1, Oversampling::X1, Mode::Forced),
+        (Oversampling::X2, Oversampling::X16, Mode::Normal),
+        (Oversampling::Skipped, Oversampling::X4, Mode::Forced),
+    ]
+    .into_iter()
+    .map(|(temperature, pressure, mode)| {
+        json!({
+            "temperature": temperature.code(),
+            "pressure": pressure.code(),
+            "mode": mode.code(),
+            "bits": bme280::CtrlMeas { temperature, pressure, mode }.bits(),
+            "maxMeasurementMicros": bme280::max_measurement_micros(
+                temperature,
+                pressure,
+                Oversampling::X1,
+            ),
+        })
+    })
+    .collect();
+    let ctrl_hum: Vec<Value> = [Oversampling::Skipped, Oversampling::X1, Oversampling::X16]
+        .into_iter()
+        .map(|humidity| {
+            json!({
+                "humidity": humidity.code(),
+                "bits": bme280::CtrlHum { humidity }.bits(),
+            })
+        })
+        .collect();
+    let configs: Vec<Value> = [
+        (Standby::Ms0_5, Filter::Off, false),
+        (Standby::Ms1000, Filter::X16, true),
+        (Standby::Ms20, Filter::X4, false),
+    ]
+    .into_iter()
+    .map(|(standby, filter, spi_3wire)| {
+        json!({
+            "standby": standby.code(),
+            "filter": filter.code(),
+            "spi3Wire": spi_3wire,
+            "bits": bme280::Config { standby, filter, spi_3wire }.bits(),
+        })
+    })
+    .collect();
+    let burst_for = bme280::sim::burst_for(4.0, 1013.25, 80.0);
+
     // A DS18B20 reporting 25.0625 C at 12-bit resolution, CRC included.
     let mut scratchpad = [0x91u8, 0x01, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x00];
     scratchpad[8] = ds18b20::crc8(&scratchpad[..8]);
@@ -850,6 +899,15 @@ fn sensors() -> Value {
             "pascals": reading.pascals(),
             "hectopascals": reading.hectopascals(),
             "relativeHumidityPercent": reading.relative_humidity_percent(),
+            "ctrlMeas": ctrl_meas,
+            "ctrlHum": ctrl_hum,
+            "config": configs,
+            "simulated": {
+                "celsius": 4.0,
+                "hectopascals": 1013.25,
+                "relativeHumidity": 80.0,
+                "burst": hex(&burst_for),
+            },
         },
         "ds18b20": {
             "scratchpad": hex(&scratchpad),

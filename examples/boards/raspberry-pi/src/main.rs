@@ -9,16 +9,16 @@ use std::thread;
 use std::time::Duration;
 
 // ANCHOR: example
-use pamoja_hal::linux;
+use pamoja_hal::bus::I2cBus;
 use pamoja_sensors::bme280::{Bme280, I2C_ADDRESS_PRIMARY};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
-    let bus = linux::i2c("/dev/i2c-1")?;
+    let bus = I2cBus::open("/dev/i2c-1")?;
 
     // The driver runs the datasheet's sequence over that bus: reset, identify, read the
     // calibration, configure, and then a forced measurement per read.
-    let mut sensor = Bme280::i2c(bus, I2C_ADDRESS_PRIMARY, linux::delay());
+    let mut sensor = Bme280::i2c(bus.clone(), I2C_ADDRESS_PRIMARY, bus.delay());
     sensor.init()?;
 
     loop {

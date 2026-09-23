@@ -28,6 +28,7 @@ const {
   can,
   coap,
   gpio,
+  hal,
   lora,
   lorawan,
   mavlink,
@@ -96,6 +97,7 @@ async function main() {
   fieldIo();
   sensingAndActuation();
   laterSensors();
+  await buses();
   radioAndReach();
   relayedReach();
   broadcastUpdates();
@@ -292,6 +294,71 @@ function fieldIo() {
   );
 }
 
+// One I2C bus shared by the program and a driver: a simulated part read through the
+// BME280 driver, a script that refuses what it did not expect, and an adapter that opens
+// on Linux alone.
+async function buses() {
+  const { I2cBus, I2cPart, I2cStep, I2cBusKind, I2cFault } = hal;
+  const { Bme280, bme280 } = sensors;
+  const address = bme280.addressPrimary;
+
+  const bus = I2cBus.simulated([bme280.sim.part(address)]);
+  assert.strictEqual(bus.kind, I2cBusKind.Simulated, "a bus of parts is simulated");
+  const reading = await new Bme280(bus, address).measure();
+  assert.strictEqual(reading.celsius.toFixed(2), "20.44", "the shipped part reads 20.44 C");
+  assert.strictEqual(bus.transfers, 11, "initializing and one measurement is eleven transfers");
+  assert.strictEqual(bus.waitedMicros, 2_000 + 9_300, "the start-up and one measurement's wait");
+  const held = bus.part(address);
+  assert.strictEqual(
+    bme280.ctrlMeasFromBits(held.register(bme280.register.ctrlMeas)).mode,
+    bme280.mode.forced,
+    "the part keeps what the driver last wrote",
+  );
+  assert.strictEqual(bus.part(0x10), null, "no part at an empty address");
+  assert.strictEqual(bus.remaining, null, "only a script has steps left");
+
+  await assert.rejects(
+    new Bme280(I2cBus.simulated(), address).init(),
+    /^Error: nothing answered at 0x76$/,
+    "an empty bus names the address nothing answered at",
+  );
+  const bmp280 = new I2cPart(address);
+  bmp280.load(bme280.register.chipId, Buffer.from([0x58]));
+  await assert.rejects(
+    new Bme280(I2cBus.simulated([bmp280]), address).init(),
+    /identification mismatch/,
+    "a part that is not a BME280 is refused",
+  );
+
+  const script = I2cBus.scripted([
+    I2cStep.writeRead(address, Buffer.from([bme280.register.chipId]), Buffer.from([bme280.chipId])),
+    I2cStep.fault(address, I2cFault.Bus),
+  ]);
+  assert.strictEqual(script.remaining, 2, "a script starts with every step");
+  assert.throws(
+    () => script.write(address, Buffer.from([0x00])),
+    /i2c script step 0/,
+    "a transfer the script does not expect is refused",
+  );
+  assert.strictEqual(
+    script.writeRead(address, Buffer.from([bme280.register.chipId]), 1)[0],
+    bme280.chipId,
+    "a matching transfer gets the scripted reply",
+  );
+  assert.throws(() => script.read(address, 1), /i2c script fault/, "a fault step fails the transfer");
+  assert.strictEqual(script.remaining, 0, "and the script is spent");
+  assert.throws(
+    () => script.attach(new I2cPart(address)),
+    /only a simulated bus takes parts/,
+    "a script takes no parts",
+  );
+
+  assert.throws(
+    () => I2cBus.open("/dev/i2c-pamoja-absent"),
+    process.platform === "linux" ? /^Error: \/dev\/i2c-pamoja-absent: / : /only Linux/,
+    "opening an adapter off Linux, or a missing one, says why",
+  );
+}
 // The seven parts added after the first four: a datasheet figure each, and the
 // input each one is meant to refuse.
 function laterSensors() {

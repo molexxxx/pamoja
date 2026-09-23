@@ -21,107 +21,90 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/hal.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/hal.ts):
 
 ```typescript
-import { setTimeout as sleep } from 'node:timers/promises'
-import { bme280 } from '@pamoja/sensors'
+import { I2cBus, I2cStep } from '@pamoja/hal'
+import { Bme280, type Bme280Measurement, bme280 } from '@pamoja/sensors'
 
 const BME280 = bme280.addressPrimary
-const hex = (byte: number) => `0x${byte.toString(16).toUpperCase()}`
-
-// A bus with the two calls this conversation needs, in the shape of the i2c-bus
-// package: on a gateway `i2c.openSync(1)` gives the real one and nothing below
-// changes. This one answers from a script of what a BME280 sends, in the order the
-// datasheet lists, and refuses any transfer that is not the next one.
-type Step = { register: number; write?: number; reply?: number[] }
-class ScriptedBus {
-  transfers = 0
-  constructor(private readonly script: Step[]) {}
-
-  writeByteSync(address: number, register: number, value: number): void {
-    const step = this.next(address, register)
-    if (step.write !== value) throw new Error(`unexpected write of ${hex(value)}`)
-  }
-
-  readI2cBlockSync(address: number, register: number, length: number, buffer: Buffer): void {
-    const step = this.next(address, register)
-    if (step.reply?.length !== length) throw new Error(`unexpected read of ${length} bytes`)
-    Buffer.from(step.reply).copy(buffer)
-  }
-
-  get done(): boolean {
-    return this.transfers === this.script.length
-  }
-
-  private next(address: number, register: number): Step {
-    const step = this.script[this.transfers]
-    if (address !== BME280 || step?.register !== register) {
-      throw new Error(`unexpected transfer at register ${hex(register)}`)
-    }
-    this.transfers += 1
-    return step
-  }
-}
-
-const CALIBRATION_A = [
-  0x45, 0x6f, 0x6f, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6a, 0xd6, 0xd0, 0x0b, 0x4e, 0x1e, 0x88,
-  0xff, 0xf9, 0xff, 0xac, 0x26, 0x0a, 0xd8, 0xbd, 0x10, 0x00, 0x4b,
-]
-const CALIBRATION_B = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1e]
-const BURST = [0x65, 0x5a, 0xc0, 0x7e, 0xed, 0x00, 0x75, 0x30]
+const x = (code: number): string => `x${bme280.oversamplingFactor(code)}`
+const shown = (reading: Bme280Measurement): string =>
+  `${reading.celsius.toFixed(2)} C, ${reading.hectopascals.toFixed(2)} hPa, ` +
+  `${reading.relativeHumidityPercent.toFixed(2)} %`
 
 async function main() {
-  const bus = new ScriptedBus([
-    { register: 0xe0, write: 0xb6 },
-    { register: 0xf3, reply: [0x00] },
-    { register: 0xd0, reply: [bme280.chipId] },
-    { register: 0x88, reply: CALIBRATION_A },
-    { register: 0xe1, reply: CALIBRATION_B },
-    { register: 0xf5, write: 0x00 },
-    { register: 0xf2, write: 0x01 },
-    { register: 0xf4, write: 0x24 },
-    { register: 0xf4, write: 0x25 },
-    { register: 0xf3, reply: [0x00] },
-    { register: 0xf7, reply: BURST },
+  // A bus with one part on it: a BME280 that is not there. It holds a real part's
+  // calibration and one measurement that part took, and it answers from its registers, so
+  // the driver runs its whole datasheet sequence against it. On a Raspberry Pi the bus is
+  // I2cBus.open('/dev/i2c-1') and nothing after this line changes.
+  const bus = I2cBus.simulated([bme280.sim.part(BME280)])
+  const sensor = new Bme280(bus, BME280)
+
+  // Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+  // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
+  // the driver wrote, so the configuration reads back off the bus.
+  await sensor.init()
+  const part = bus.part(BME280)!
+  const humidity = bme280.ctrlHumFromBits(part.register(bme280.register.ctrlHum))
+  const ctrl = bme280.ctrlMeasFromBits(part.register(bme280.register.ctrlMeas))
+  const asleep = ctrl.mode === bme280.mode.sleep
+  console.log(
+    `configured   humidity ${x(humidity)}, temperature ${x(ctrl.temperature)}, ` +
+      `pressure ${x(ctrl.pressure)}, asleep: ${asleep}`,
+  )
+
+  // One forced measurement. The driver waits the datasheet's longest measurement time for
+  // these settings before it reads, and a simulated bus counts that wait rather than
+  // sleeping through it.
+  const reading = await sensor.measure()
+  console.log(`measured     ${shown(reading)}`)
+  const waitedMs = (bus.waitedMicros / 1000).toFixed(2)
+  console.log(`waited       ${waitedMs} ms across ${bus.transfers} transfers`)
+
+  // A part reports whatever it is asked to. Putting one in the first one's place is how a
+  // program meets a reading it would otherwise wait on the weather for, here a cold store
+  // at four degrees, and the driver carries on without noticing.
+  bus.attach(bme280.sim.reporting(BME280, 4.0, 1013.25, 80.0))
+  const cold = await sensor.measure()
+  console.log(`cold store   ${shown(cold)}`)
+
+  // Nothing answers at the part's other address, and the driver says so rather than
+  // returning a reading.
+  try {
+    await new Bme280(bus, bme280.addressSecondary).init()
+    console.log('absent       a part answered')
+  } catch (error) {
+    console.log(`absent       ${(error as Error).message}`)
+  }
+
+  // The other half of the bus layer. A script plays one conversation and refuses anything
+  // else, which proves a driver follows the datasheet rather than merely working: the
+  // reset, the status once the calibration has loaded, the chip id, the two calibration
+  // blocks, the three configuration writes in the order the part requires, then one forced
+  // measurement.
+  const { register, oversampling, mode, sim } = bme280
+  const settings = { temperature: oversampling.x1, pressure: oversampling.x1, mode: mode.sleep }
+  const forced = { ...settings, mode: mode.forced }
+  const resetState = { standby: bme280.standby.ms0_5, filter: bme280.filter.off, spi3Wire: false }
+  const script = I2cBus.scripted([
+    I2cStep.write(BME280, Buffer.from([register.reset, bme280.resetWord])),
+    I2cStep.writeRead(BME280, Buffer.from([register.status]), Buffer.from([sim.statusIdle])),
+    I2cStep.writeRead(BME280, Buffer.from([register.chipId]), Buffer.from([bme280.chipId])),
+    I2cStep.writeRead(BME280, Buffer.from([register.calibTempPress]), sim.calibration()),
+    I2cStep.writeRead(BME280, Buffer.from([register.calibHumidity]), sim.calibrationHumidity()),
+    I2cStep.write(BME280, Buffer.from([register.config, bme280.configBits(resetState)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlHum, bme280.ctrlHumBits(oversampling.x1)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlMeas, bme280.ctrlMeasBits(settings)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlMeas, bme280.ctrlMeasBits(forced)])),
+    I2cStep.writeRead(BME280, Buffer.from([register.status]), Buffer.from([sim.statusIdle])),
+    I2cStep.writeRead(BME280, Buffer.from([register.data]), sim.burst()),
   ])
+  const checked = await new Bme280(script, BME280).measure()
+  const left = script.remaining ?? 0
+  console.log(
+    `datasheet    ${checked.celsius.toFixed(2)} C after ${script.transfers} transfers, ` +
+      `${left} steps left`,
+  )
 
-  // The datasheet's start-up: the soft reset word, its 2 ms start-up time, and the
-  // status register, whose low bit clears once the calibration image has loaded.
-  bus.writeByteSync(BME280, 0xe0, 0xb6)
-  await sleep(2)
-  const status = Buffer.alloc(1)
-  bus.readI2cBlockSync(BME280, 0xf3, 1, status)
-
-  // The chip id says it is a BME280, and the two calibration blocks are read once.
-  const id = Buffer.alloc(1)
-  bus.readI2cBlockSync(BME280, 0xd0, 1, id)
-  const tempPress = Buffer.alloc(26)
-  const humidity = Buffer.alloc(7)
-  bus.readI2cBlockSync(BME280, 0x88, 26, tempPress)
-  bus.readI2cBlockSync(BME280, 0xe1, 7, humidity)
-  const calibration = bme280.calibration(tempPress, humidity)
-  console.log(`calibration  read once: ${id[0] === bme280.chipId}`)
-
-  // config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes effect
-  // after the ctrl_meas write: every measurement at oversampling x1, the part asleep.
-  bus.writeByteSync(BME280, 0xf5, 0x00)
-  bus.writeByteSync(BME280, 0xf2, 0x01)
-  bus.writeByteSync(BME280, 0xf4, 0x24)
-
-  // One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for these
-  // settings, the status read that confirms the part is idle, and the burst read.
-  bus.writeByteSync(BME280, 0xf4, 0x25)
-  await sleep(10)
-  bus.readI2cBlockSync(BME280, 0xf3, 1, status)
-  const burst = Buffer.alloc(8)
-  bus.readI2cBlockSync(BME280, 0xf7, 8, burst)
-  const measurement = calibration.compensate(burst)
-  const celsius = measurement.celsius.toFixed(2)
-  const hectopascals = measurement.hectopascals.toFixed(2)
-  const humidityPercent = measurement.relativeHumidityPercent.toFixed(2)
-  console.log(`measured     ${celsius} C, ${hectopascals} hPa, ${humidityPercent} %`)
-
-  // The script is spent: every transfer the datasheet lists was made, and no other.
-  console.log(`bus          ${bus.transfers} transfers, unexpected: ${!bus.done}`)
-  return { measurement, transfers: bus.transfers, done: bus.done }
+  return { humidity, asleep, reading, cold, waited: bus.waitedMicros, checked, script }
 }
 
 main()

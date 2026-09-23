@@ -12,6 +12,7 @@ using Pamoja.Serial;
 using Pamoja.Modbus;
 using Pamoja.Can;
 using Pamoja.Gpio;
+using Pamoja.Hal;
 using Pamoja.Sensors;
 using Pamoja.Actuators;
 using Pamoja.Lora;
@@ -74,6 +75,7 @@ Helpers();
 FieldIo();
 SensingAndActuation();
 LaterSensors();
+Buses();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1231,6 +1233,84 @@ static void ConformZenoh(JsonElement vector)
     }
 }
 
+// One I2C bus shared by the program and a driver: a simulated part read through the BME280
+// driver, a script that refuses what it did not expect, and an adapter that opens on Linux
+// alone.
+static void Buses()
+{
+    const byte Address = Bme280.AddressPrimary;
+
+    using I2cPart simulated = Bme280.Sim.Part(Address);
+    using I2cBus bus = I2cBus.Simulated(simulated);
+    Assert(bus.Kind == I2cBusKind.Simulated, "a bus of parts is simulated");
+    using (var sensor = new Bme280(bus, Address))
+    {
+        Bme280Measurement reading = sensor.Measure();
+        Assert(Math.Abs(reading.Celsius - 20.44f) < 0.005f, "the shipped part reads 20.44 C");
+    }
+
+    Assert(bus.Transfers == 11, "initializing and one measurement is eleven transfers");
+    Assert(bus.WaitedMicros == 2_000 + 9_300, "the start-up and one measurement's wait");
+    using (I2cPart held = bus.Part(Address)!)
+    {
+        Assert(
+            Bme280.CtrlMeasFromBits(held.Register(Bme280.Register.CtrlMeas)).Mode == Bme280.Mode.Forced,
+            "the part keeps what the driver last wrote");
+    }
+
+    Assert(bus.Part(0x10) is null, "no part at an empty address");
+    Assert(bus.Remaining is null, "only a script has steps left");
+
+    using (I2cBus empty = I2cBus.Simulated())
+    using (var absent = new Bme280(empty, Address))
+    {
+        try
+        {
+            absent.Init();
+            Fail("an empty bus has nothing to initialize");
+        }
+        catch (PamojaException refused)
+        {
+            Assert(refused.Message == "nothing answered at 0x76", "the refusal names the address");
+        }
+    }
+
+    using (I2cPart bmp280 = new I2cPart(Address).Holding(Bme280.Register.ChipId, [0x58]))
+    using (I2cBus other = I2cBus.Simulated(bmp280))
+    using (var wrong = new Bme280(other, Address))
+    {
+        Refuses(wrong.Init, "a part that is not a BME280 is refused");
+    }
+
+    using I2cBus script = I2cBus.Scripted(
+        I2cStep.WriteRead(Address, [Bme280.Register.ChipId], [Bme280.ChipId]),
+        I2cStep.Fault(Address, I2cFault.Bus));
+    Assert(script.Remaining == 2, "a script starts with every step");
+    Refuses(() => script.Write(Address, [0x00]), "a transfer the script does not expect is refused");
+    Assert(script.WriteRead(Address, [Bme280.Register.ChipId], 1)[0] == Bme280.ChipId, "a matching transfer gets the reply");
+    Refuses(() => script.Read(Address, 1), "a fault step fails the transfer");
+    Assert(script.Remaining == 0, "and the script is spent");
+    using (var extra = new I2cPart(Address))
+    {
+        Refuses(() => script.Attach(extra), "a script takes no parts");
+    }
+
+    try
+    {
+        using I2cBus missing = I2cBus.Open("/dev/i2c-pamoja-absent");
+        Fail("a missing adapter does not open");
+    }
+    catch (PlatformNotSupportedException refused)
+    {
+        Assert(!OperatingSystem.IsLinux(), "only a platform that is not Linux refuses outright");
+        Assert(refused.Message.Contains("only Linux"), "the refusal says where adapters open");
+    }
+    catch (PamojaException refused)
+    {
+        Assert(OperatingSystem.IsLinux(), "only Linux gets as far as the file");
+        Assert(refused.Message.StartsWith("/dev/i2c-pamoja-absent: ", StringComparison.Ordinal), "the refusal names the file");
+    }
+}
 static void Assert(bool condition, string message)
 {
     if (!condition)
@@ -2025,6 +2105,48 @@ static void ConformSensors(JsonElement vector)
         Math.Abs(reading.RelativeHumidityPercent
             - bme.GetProperty("relativeHumidityPercent").GetSingle()) < 1e-3f,
         "BME280 humidity matches");
+    foreach (JsonElement ctrl in bme.GetProperty("ctrlMeas").EnumerateArray())
+    {
+        var fields = new Bme280CtrlMeas(
+            (Bme280.Oversampling)ctrl.GetProperty("temperature").GetByte(),
+            (Bme280.Oversampling)ctrl.GetProperty("pressure").GetByte(),
+            (Bme280.Mode)ctrl.GetProperty("mode").GetByte());
+        byte bits = ctrl.GetProperty("bits").GetByte();
+        Assert(Bme280.CtrlMeasBits(fields) == bits, "BME280 ctrl_meas bits match");
+        Assert(Bme280.CtrlMeasFromBits(bits) == fields, "BME280 ctrl_meas fields match");
+        Assert(
+            Bme280.MaxMeasurementMicros(fields.Temperature, fields.Pressure, Bme280.Oversampling.X1)
+                == ctrl.GetProperty("maxMeasurementMicros").GetUInt32(),
+            "BME280 measurement time matches");
+    }
+
+    foreach (JsonElement hum in bme.GetProperty("ctrlHum").EnumerateArray())
+    {
+        var humidity = (Bme280.Oversampling)hum.GetProperty("humidity").GetByte();
+        byte bits = hum.GetProperty("bits").GetByte();
+        Assert(Bme280.CtrlHumBits(humidity) == bits, "BME280 ctrl_hum bits match");
+        Assert(Bme280.CtrlHumFromBits(bits) == humidity, "BME280 humidity code matches");
+    }
+
+    foreach (JsonElement config in bme.GetProperty("config").EnumerateArray())
+    {
+        var fields = new Bme280Config(
+            (Bme280.Standby)config.GetProperty("standby").GetByte(),
+            (Bme280.Filter)config.GetProperty("filter").GetByte(),
+            config.GetProperty("spi3Wire").GetBoolean());
+        byte bits = config.GetProperty("bits").GetByte();
+        Assert(Bme280.ConfigBits(fields) == bits, "BME280 config bits match");
+        Assert(Bme280.ConfigFromBits(bits) == fields, "BME280 config fields match");
+    }
+
+    JsonElement simulated = bme.GetProperty("simulated");
+    byte[] burst = Bme280.Sim.BurstFor(
+        simulated.GetProperty("celsius").GetSingle(),
+        simulated.GetProperty("hectopascals").GetSingle(),
+        simulated.GetProperty("relativeHumidity").GetSingle());
+    Assert(
+        Convert.ToHexString(burst).ToLowerInvariant() == simulated.GetProperty("burst").GetString(),
+        "BME280 simulated burst matches");
 
     JsonElement ds = vector.GetProperty("ds18b20");
     Ds18b20Reading decoded = Ds18b20.ParseScratchpad(

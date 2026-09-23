@@ -330,6 +330,24 @@ def test_sensor_vectors_match():
     assert reading.relative_humidity_percent == pytest.approx(
         bme["relativeHumidityPercent"], abs=1e-3
     )
+    for ctrl in bme["ctrlMeas"]:
+        fields = sensors.Bme280CtrlMeas(ctrl["temperature"], ctrl["pressure"], ctrl["mode"])
+        assert sensors.bme280.ctrl_meas_bits(fields) == ctrl["bits"]
+        assert sensors.bme280.ctrl_meas_from_bits(ctrl["bits"]) == fields
+        assert (
+            sensors.bme280.max_measurement_micros(ctrl["temperature"], ctrl["pressure"], 1)
+            == ctrl["maxMeasurementMicros"]
+        )
+    for hum in bme["ctrlHum"]:
+        assert sensors.bme280.ctrl_hum_bits(hum["humidity"]) == hum["bits"]
+        assert sensors.bme280.ctrl_hum_from_bits(hum["bits"]) == hum["humidity"]
+    for config in bme["config"]:
+        fields = sensors.Bme280Config(config["standby"], config["filter"], config["spi3Wire"])
+        assert sensors.bme280.config_bits(fields) == config["bits"]
+        assert sensors.bme280.config_from_bits(config["bits"]) == fields
+    sim = bme["simulated"]
+    burst = sensors.bme280.sim.burst_for(sim["celsius"], sim["hectopascals"], sim["relativeHumidity"])
+    assert burst.hex() == sim["burst"]
 
     ds = vector["ds18b20"]
     decoded = sensors.ds18b20.parse_scratchpad(unhex(ds["scratchpad"]))

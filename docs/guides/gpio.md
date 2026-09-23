@@ -486,6 +486,8 @@ public static void OnABoard(string chip)
 ```
 <!-- end -->
 
+<!-- languages end -->
+
 A line is held by one program at a time, and the kernel records which, so `gpioinfo`
 shows every line with its holder; one opened here shows `pamoja`. On Raspberry Pi OS a
 user in the `gpio` group opens lines without root.

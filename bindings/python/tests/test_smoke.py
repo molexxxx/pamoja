@@ -256,6 +256,50 @@ def test_on_board_bus_addressing_and_pin_logic():
     assert not gpio.pin.triggers(gpio.Edge.RISING, gpio.Level.HIGH, gpio.Level.LOW)
 
 
+def test_one_bus_carries_a_driver_over_parts_a_script_or_an_adapter():
+    from pamoja.hal import I2cBus, I2cBusKind, I2cFault, I2cPart, I2cStep
+    from pamoja.sensors import Bme280, bme280
+
+    address = bme280.ADDRESS_PRIMARY
+    bus = I2cBus.simulated([bme280.sim.part(address)])
+    assert bus.kind is I2cBusKind.SIMULATED
+    reading = Bme280(bus, address).measure()
+    assert f"{reading.celsius:.2f}" == "20.44"
+    assert bus.transfers == 11
+    assert bus.waited_micros == 2_000 + 9_300
+    held = bus.part(address)
+    mode = bme280.ctrl_meas_from_bits(held.register(bme280.REGISTER_CTRL_MEAS)).mode
+    assert mode == bme280.Mode.FORCED
+    assert bus.part(0x10) is None
+    assert bus.remaining is None
+
+    with pytest.raises(PamojaError, match="^nothing answered at 0x76$"):
+        Bme280(I2cBus.simulated(), address).init()
+    bmp280 = I2cPart(address).holding(bme280.REGISTER_CHIP_ID, bytes([0x58]))
+    with pytest.raises(PamojaError, match="identification mismatch"):
+        Bme280(I2cBus.simulated([bmp280]), address).init()
+
+    script = I2cBus.scripted([
+        I2cStep.write_read(address, bytes([bme280.REGISTER_CHIP_ID]), bytes([bme280.CHIP_ID])),
+        I2cStep.fault(address, I2cFault.BUS),
+    ])
+    assert script.remaining == 2
+    with pytest.raises(PamojaError, match="i2c script step 0"):
+        script.write(address, bytes([0x00]))
+    assert script.write_read(address, bytes([bme280.REGISTER_CHIP_ID]), 1)[0] == bme280.CHIP_ID
+    with pytest.raises(PamojaError, match="i2c script fault"):
+        script.read(address, 1)
+    assert script.remaining == 0
+    with pytest.raises(PamojaError, match="only a simulated bus takes parts"):
+        script.attach(I2cPart(address))
+
+    refusal = (
+        "^/dev/i2c-pamoja-absent: " if sys.platform.startswith("linux") else "only Linux"
+    )
+    with pytest.raises(PamojaError, match=refusal):
+        I2cBus.open("/dev/i2c-pamoja-absent")
+
+
 def test_a_sensor_reading_decodes_and_checks_itself():
     from pamoja import sensors
 

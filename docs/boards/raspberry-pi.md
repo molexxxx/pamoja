@@ -11,10 +11,11 @@ Four programs build this up: a sensor read, a relay and a switch, a LoRa radio,
 and then a whole node that ties them to a profile and a broker. All four are in the
 Rust package at
 [`examples/boards/raspberry-pi`](https://github.com/molexxxx/pamoja/tree/main/examples/boards/raspberry-pi),
-built in CI on every change. The relay and the radio are also in TypeScript, Python,
-and C#, compiled in CI against the packages each language installs. The sensor read and
-the whole node are Rust alone for now, because those bindings cannot yet open an I2C bus
-on a board.
+built in CI on every change. The sensor read, the relay, and the radio are also in
+TypeScript, Python, and C#, compiled in CI against the packages each language installs.
+The whole node is Rust alone for now: it runs a profile's node loop, which is generic
+over the sensor, the output, the link, and the codec, and stays in Rust. The other
+languages have the profile's controller, which makes the same decisions.
 
 ## The header
 
@@ -151,22 +152,28 @@ that does not appear there is a wiring problem, not a software one.
 ## Reading the sensor
 
 The first program opens the header's I2C bus, hands it to the BME280 driver,
-and prints a compensated reading every two seconds.
+and prints a compensated reading every two seconds. The bus is one handle that
+the program and every driver on it share, so a second part on the same two wires
+is a second driver on the same bus. The [buses guide](../guides/hal.md) runs the
+same driver against a simulated part and a script of the datasheet's sequence,
+with nothing plugged in, and lists what each error on this bus means.
+
+### Rust
 
 <!-- snippet: examples/boards/raspberry-pi/src/main.rs#example -->
 From [`examples/boards/raspberry-pi/src/main.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/main.rs):
 
 ```rust
-use pamoja_hal::linux;
+use pamoja_hal::bus::I2cBus;
 use pamoja_sensors::bme280::{Bme280, I2C_ADDRESS_PRIMARY};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
-    let bus = linux::i2c("/dev/i2c-1")?;
+    let bus = I2cBus::open("/dev/i2c-1")?;
 
     // The driver runs the datasheet's sequence over that bus: reset, identify, read the
     // calibration, configure, and then a forced measurement per read.
-    let mut sensor = Bme280::i2c(bus, I2C_ADDRESS_PRIMARY, linux::delay());
+    let mut sensor = Bme280::i2c(bus.clone(), I2C_ADDRESS_PRIMARY, bus.delay());
     sensor.init()?;
 
     loop {
@@ -191,10 +198,136 @@ cd examples/boards/raspberry-pi
 cargo run --release
 ```
 
-The `linux` feature of `pamoja-hal` opens the kernel's I2C, SPI, and GPIO
-character devices as the `embedded-hal` traits every driver takes, so the same
-driver that ran here runs unchanged on a microcontroller or over a scripted bus
-in a test.
+### TypeScript
+
+<!-- snippet: bindings/node/boards/raspberry-pi/sensor.ts#example -->
+From [`bindings/node/boards/raspberry-pi/sensor.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/boards/raspberry-pi/sensor.ts):
+
+```typescript
+import { setTimeout as sleep } from 'node:timers/promises'
+import { I2cBus } from '@pamoja/hal'
+import { Bme280, bme280 } from '@pamoja/sensors'
+
+async function main(): Promise<void> {
+  // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+  const bus = I2cBus.open('/dev/i2c-1')
+
+  // The driver runs the datasheet's sequence over that bus: reset, identify, read the
+  // calibration, configure, and then a forced measurement per read.
+  const sensor = new Bme280(bus, bme280.addressPrimary)
+  await sensor.init()
+
+  for (;;) {
+    const reading = await sensor.measure()
+    console.log(
+      `${reading.celsius.toFixed(2)} C, ${reading.hectopascals.toFixed(2)} hPa, ` +
+        `${reading.relativeHumidityPercent.toFixed(2)} % humidity`,
+    )
+    await sleep(2000)
+  }
+}
+
+main().catch((error: Error) => {
+  console.error(error.message)
+  process.exitCode = 1
+})
+```
+<!-- end -->
+
+```sh
+npm --prefix bindings/node run boards
+node bindings/node/build/boards/raspberry-pi/sensor.js
+```
+
+### Python
+
+<!-- snippet: bindings/python/boards/raspberry_pi/sensor.py#example -->
+From [`bindings/python/boards/raspberry_pi/sensor.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/boards/raspberry_pi/sensor.py):
+
+```python
+import time
+
+from pamoja.hal import I2cBus
+from pamoja.sensors import Bme280, bme280
+
+
+def main() -> None:
+    # The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+    bus = I2cBus.open("/dev/i2c-1")
+
+    # The driver runs the datasheet's sequence over that bus: reset, identify, read the
+    # calibration, configure, and then a forced measurement per read.
+    sensor = Bme280(bus, bme280.ADDRESS_PRIMARY)
+    sensor.init()
+
+    while True:
+        reading = sensor.measure()
+        print(
+            f"{reading.celsius:.2f} C, {reading.hectopascals:.2f} hPa, "
+            f"{reading.relative_humidity_percent:.2f} % humidity"
+        )
+        time.sleep(2)
+```
+<!-- end -->
+
+```sh
+python bindings/python/boards/raspberry_pi/sensor.py
+```
+
+### C#
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs#example -->
+From [`bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs):
+
+```csharp
+using System.Globalization;
+
+using Pamoja.Hal;
+using Pamoja.Sensors;
+
+namespace Boards.RaspberryPi;
+
+/// <summary>
+/// The first program on a Raspberry Pi: a BME280 on the 40-pin header's I2C bus, read through
+/// the driver pamoja ships, printed every two seconds. Wire the BME280's SDA to GPIO2, its SCL
+/// to GPIO3, VIN to 3V3, and GND to ground, and turn the I2C interface on.
+/// </summary>
+public static class Sensor
+{
+    /// <summary>Runs until the process is stopped.</summary>
+    public static void Run()
+    {
+        // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+        using I2cBus bus = I2cBus.Open("/dev/i2c-1");
+
+        // The driver runs the datasheet's sequence over that bus: reset, identify, read the
+        // calibration, configure, and then a forced measurement per read.
+        using var sensor = new Bme280(bus, Bme280.AddressPrimary);
+        sensor.Init();
+
+        while (true)
+        {
+            Bme280Measurement reading = sensor.Measure();
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{reading.Celsius:F2} C, {reading.Hectopascals:F2} hPa, {reading.RelativeHumidityPercent:F2} % humidity"));
+            Thread.Sleep(TimeSpan.FromSeconds(2));
+        }
+    }
+}
+```
+<!-- end -->
+
+```sh
+dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/sensor
+```
+
+<!-- languages end -->
+
+The driver runs the datasheet's whole sequence over the bus, so the same driver
+that ran here runs unchanged on a microcontroller's I2C peripheral or over a
+simulated part in a test. In Rust, `pamoja_hal::linux::i2c` opens the same
+adapter as a plain `embedded-hal` bus for a single driver that owns it outright.
 
 ## Driving a relay and reading a switch
 
@@ -439,6 +572,8 @@ public static class Relay
 dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/relay
 ```
 
+<!-- languages end -->
+
 Three things in it are the whole lesson. The polarity is stated once, at the
 top, so no line below it inverts anything by hand; a relay board that energizes
 on a high input is a one-word change. The initial level is passed when the line
@@ -450,11 +585,11 @@ one clean change.
 
 `Switch` and `Contact` implement the same `Actuator` and `Sensor` traits as
 every other output and input in pamoja, so the relay on GPIO17 can be handed
-straight to a profile's control loop. Which is the next program.
+straight to a profile's control loop, which the last program on this page does.
 
 ## A LoRa radio on the SPI bus
 
-The fourth program puts the Pi on the air. An
+The third program puts the Pi on the air. An
 [RFM95W breakout](../hardware.md#sx1276), which carries an SX1276, wires to SPI0:
 VIN to a 3V3 pin, GND to ground, SCK to GPIO11, MISO to GPIO9, MOSI to GPIO10,
 CS to GPIO8, and RST to GPIO25. The breakout regulates its own supply and level
@@ -832,6 +967,8 @@ public static class Radio
 dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/radio
 ```
 
+<!-- languages end -->
+
 Four things in it are the whole lesson. The regional plan decides the channel's
 power ceiling and its duty cycle, so the program names neither. The link budget
 takes the antenna's gain off that ceiling and adds the pigtail's loss back, which
@@ -847,7 +984,7 @@ RSSI and SNR it heard them at. That pair is the field test the
 
 ## The whole node
 
-The third program is what a deployed node looks like. It loads a profile from a
+The fourth program is what a deployed node looks like. It loads a profile from a
 file, reads the BME280 through the driver, lets the profile's policy decide,
 switches the relay, and publishes each reading to an MQTT broker, waiting
 whatever the profile's power schedule says between samples.

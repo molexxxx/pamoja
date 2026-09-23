@@ -138,9 +138,14 @@ pub fn language_tabs(html: &str) -> Option<String> {
     folded
 }
 
+/// The line a page writes after its last language section when the text that follows is for
+/// every language, not the last one alone.
+pub const LANGUAGES_END: &str = "<!-- languages end -->";
+
 // The fold at one heading level: the next four language headings in order, each becoming
 // a panel. A run of h2 sections ends at the next h2, so a panel may carry subheadings of
-// its own; a run of h3 sections ends at the next h2 or h3.
+// its own; a run of h3 sections ends at the next h2 or h3. Either ends early at
+// `LANGUAGES_END`.
 fn fold(html: &str, level: &str) -> Option<String> {
     let mut starts = Vec::with_capacity(LANGUAGES.len());
     let mut anchors = Vec::with_capacity(LANGUAGES.len());
@@ -152,9 +157,9 @@ fn fold(html: &str, level: &str) -> Option<String> {
         anchors.push(anchor);
     }
     let stops: &[&str] = if level == "h2" {
-        &["<h2 id=\"", "<h1"]
+        &["<h2 id=\"", "<h1", LANGUAGES_END]
     } else {
-        &["<h2 id=\"", "<h3 id=\""]
+        &["<h2 id=\"", "<h3 id=\"", LANGUAGES_END]
     };
     let end = stops
         .iter()
@@ -265,6 +270,20 @@ mod tests {
         )
         .unwrap();
         assert!(tail.ends_with("<p>last</p></section>\n</div>\n"), "{tail}");
+    }
+
+    #[test]
+    fn the_marker_ends_a_tab_block_so_what_follows_is_for_every_language() {
+        let guide = "# Pi\n\n## A program\n\n### Rust\n\nr\n\n### TypeScript\n\nt\n\n### Python\n\np\n\n### C#\n\nc\n\n<!-- languages end -->\n\nFor all four.\n\n## Next\n";
+        let page = page("docs/boards/pi.md", "docs/boards/pi.html", guide);
+        let block = page.body.find("</section>\n</div>\n").unwrap();
+        let shared = page.body.find("<p>For all four.</p>").unwrap();
+        assert!(
+            block < shared,
+            "the text after the marker is outside the tabs: {}",
+            page.body
+        );
+        assert!(page.body.contains(LANGUAGES_END));
     }
 
     #[test]
