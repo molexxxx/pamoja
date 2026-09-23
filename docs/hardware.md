@@ -11,7 +11,7 @@ A part that is not here can still be driven. Anything on a bus pamoja reaches wo
 trait of your own, as [Anything else with a driver](#anything-else-with-a-driver) shows.
 
 <!-- table: hardware -->
-The prices below were read from each store's own page between <time datetime="2026-09-06">2026-09-06</time> and <time datetime="2026-09-23">2026-09-23</time>. A workflow reads them again every week, and each card names the day its prices were read.
+The prices below were read from each store's own page between <time datetime="2026-09-06">2026-09-06</time> and <time datetime="2026-09-23">2026-09-23</time>. A workflow reads them again every day, and each card names the day its prices were read.
 
 ## Sensors
 
@@ -725,8 +725,9 @@ not a 1000-unit chip price, and it is not tracked against any vendor.
 **Where to buy.** Each part lists a few product pages from the makers' own stores and the
 larger distributors, the cheapest reputable option first, with the price each page listed on
 the day it was read. Those are places to buy, not sources: nothing on a card is taken from
-them. A workflow reads every page again each week, orders the offers cheapest first, and opens
-a pull request with what moved. A store that no longer lists a part loses its offer, and
+them. A workflow reads every page again each day, orders the offers cheapest first, and opens
+a pull request with what moved, which merges itself once every check passes and puts the
+day it read each page on the cards. A store that no longer lists a part loses its offer, and
 Digi-Key is read through its own product API. A page that refuses scripted readers keeps the
 last price read from it, and its card names the day that was. An entry that is not a thing you
 buy, firmware, a standard, a protocol, or an instruction set, carries no price of its own; its

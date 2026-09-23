@@ -325,7 +325,7 @@ impl Hardware {
         };
         Some(format!(
             "The prices below were read from each store's own page {when}. A workflow reads \
-             them again every week, and each card names the day its prices were read."
+             them again every day, and each card names the day its prices were read."
         ))
     }
 
@@ -1095,7 +1095,7 @@ verified = false
         assert!(rendered.contains("| £4.00 |"), "{rendered}");
         assert_eq!(
             hardware.freshness().unwrap(),
-            "The prices below were read from each store's own page between <time datetime=\"2026-09-06\">2026-09-06</time> and <time datetime=\"2026-09-11\">2026-09-11</time>. A workflow reads them again every week, and each card names the day its prices were read."
+            "The prices below were read from each store's own page between <time datetime=\"2026-09-06\">2026-09-06</time> and <time datetime=\"2026-09-11\">2026-09-11</time>. A workflow reads them again every day, and each card names the day its prices were read."
         );
         assert_eq!(Hardware::parse(MINIMAL).unwrap().freshness(), None);
         let piped = MINIMAL.replace("Weather on one chip", "Weather | indoors");

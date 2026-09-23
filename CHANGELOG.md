@@ -484,8 +484,11 @@ released together, so one entry covers all of them.
   gateway build page and the crates that drive them, and the SX1250 card names its driver.
   The LoRa radios capability now says it covers the SX1302 and SX1303 concentrators, which it
   has since they shipped.
-- The hardware page's weekly price refresh lands again, and tells a listing that is gone
-  from a store that refused to answer. It had read every store since 2026-09-07 and then
+- The hardware page's price refresh runs every day and lands on its own: it closes any
+  earlier refresh that never merged, waits for every check on its pull request, and merges
+  it, so the day on each card moves with the refresh; one whose checks fail stays open for
+  a person. It also lands again, and tells a listing that is gone from a store that
+  refused to answer. It had read every store since 2026-09-07 and then
   failed to push, because the checkout's own read-only token took the place of the one
   meant for the push. A store page that answers 404 or 410 now takes its offer off the
   page. Digi-Key, which refuses scripted readers, is read through its Product Information
