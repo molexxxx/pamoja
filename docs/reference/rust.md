@@ -408,7 +408,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-coap">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><code class="pkg-import">pamoja-coap</code><p>A CoAP client over UDP with confirmable delivery and observe</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/coap.html">CoAP</a><code class="pkg-import">pamoja-coap</code><p>A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-coap</code><button class="copy" type="button" data-copy="cargo add pamoja-coap" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

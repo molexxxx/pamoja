@@ -132,7 +132,10 @@ async fn a_reset_or_an_error_response_fails_the_send() {
 
     match transport.send("refuse/valve", b"open").await {
         Err(pamoja_core::Error::Transport(reason)) => {
-            assert!(reason.starts_with("the server reset the request"), "{reason}")
+            assert!(
+                reason.starts_with("the server reset the request"),
+                "{reason}"
+            )
         }
         other => panic!("a Reset cancels the send (RFC 7252 section 4.2), got {other:?}"),
     }

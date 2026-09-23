@@ -125,8 +125,8 @@ impl CoapConfig {
     /// # Returns
     ///
     /// A configuration that binds an ephemeral local port, uses confirmable
-    /// delivery, waits two seconds for the first acknowledgment, and retransmits
-    /// up to four times.
+    /// delivery, waits two to three seconds for the first acknowledgment, and
+    /// retransmits up to four times: RFC 7252's defaults.
     pub fn new(host: impl Into<String>, port: u16) -> Self {
         Self {
             host: host.into(),
@@ -169,7 +169,10 @@ impl CoapConfig {
 
     /// Sets how long to wait for the first acknowledgment of a confirmable request.
     ///
-    /// The wait doubles for each retransmission, following the CoAP backoff.
+    /// The first wait is drawn between this and one and a half times it, and each
+    /// wait after it doubles, as RFC 7252 section 4.2 describes. Section 4.8.1
+    /// forbids setting it below the default two seconds on a network without
+    /// congestion control; lower the retransmissions instead to give up sooner.
     ///
     /// # Arguments
     ///
@@ -324,7 +327,11 @@ impl CoapTransport {
             }
         }
         let sent = self.config.max_retransmits + 1;
-        let times = if sent == 1 { "transmission" } else { "transmissions" };
+        let times = if sent == 1 {
+            "transmission"
+        } else {
+            "transmissions"
+        };
         Err(Error::Transport(format!(
             "no acknowledgment after {sent} {times}"
         )))
@@ -488,6 +495,9 @@ impl Transport for CoapTransport {
     /// A notification carries no path of its own, only the token of the request
     /// that registered it (RFC 7641 section 3.2), so the client remembers which
     /// path each token observes and delivers every notification under that path.
+    /// Registering a path again reuses its token, which a server takes as renewing
+    /// the observation rather than adding a second one (RFC 7641 section 4.1), so a
+    /// node can register again now and then in case the server has restarted.
     ///
     /// # Returns
     ///
@@ -502,7 +512,15 @@ impl Transport for CoapTransport {
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
         let socket = self.socket.clone().ok_or(Error::Closed)?;
         let id = self.next_message_id();
-        let token = self.next_request_token();
+        let path = topic.trim_matches('/');
+        let observed = self
+            .observations
+            .lock()
+            .expect("observations lock")
+            .iter()
+            .find(|(_, observation)| observation.path == path)
+            .map(|(token, _)| token.clone());
+        let token = observed.unwrap_or_else(|| self.next_request_token());
 
         let mut packet = Packet::new();
         packet.header.set_version(1);
@@ -783,9 +801,15 @@ mod tests {
     fn a_notification_is_fresher_by_the_rule_of_rfc_7641_section_3_4() {
         let then = Instant::now();
         let soon = then + Duration::from_secs(1);
-        assert!(fresher(None, 0, then), "the first notification is always fresh");
+        assert!(
+            fresher(None, 0, then),
+            "the first notification is always fresh"
+        );
         assert!(fresher(Some((1, then)), 2, soon));
-        assert!(!fresher(Some((2, then)), 1, soon), "an older number is stale");
+        assert!(
+            !fresher(Some((2, then)), 1, soon),
+            "an older number is stale"
+        );
         assert!(!fresher(Some((2, then)), 2, soon), "a repeat is stale");
         assert!(
             fresher(Some((0x00FF_FFFF, then)), 0, soon),
@@ -808,7 +832,11 @@ mod tests {
         assert_eq!(observe_value(&packet), Some(0x0001_0203));
         let mut empty = Packet::new();
         empty.add_option(CoapOption::Observe, Vec::new());
-        assert_eq!(observe_value(&empty), Some(0), "a zero-length value is zero");
+        assert_eq!(
+            observe_value(&empty),
+            Some(0),
+            "a zero-length value is zero"
+        );
         assert_eq!(observe_value(&Packet::new()), None);
     }
 

@@ -12,7 +12,8 @@ use napi::bindgen_prelude::Buffer;
 use napi::Either;
 use napi_derive::napi;
 use pamoja_coap::{
-    CoapConfig, CoapPublisher, CoapServer as CoreServer, CoapTransport, Reliability as CoreReliability,
+    CoapConfig, CoapPublisher, CoapServer as CoreServer, CoapTransport,
+    Reliability as CoreReliability,
 };
 use pamoja_core::{Receive, Transport as CoreTransport};
 use tokio::sync::Mutex;
@@ -39,7 +40,9 @@ pub struct CoapClientOptions {
     pub bind: Option<String>,
     /// Whether requests are acknowledged and retried. Defaults to confirmable.
     pub reliability: Option<Reliability>,
-    /// How long to wait for an acknowledgment, in milliseconds.
+    /// How long to wait for the first acknowledgment, in milliseconds, two seconds when
+    /// omitted. Each wait after it doubles, and RFC 7252 forbids a first wait shorter
+    /// than two seconds on a network without congestion control.
     pub ack_timeout_ms: Option<u32>,
     /// How many times to retransmit an unacknowledged request.
     pub max_retransmits: Option<u32>,

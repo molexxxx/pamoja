@@ -291,6 +291,58 @@ export declare class CoapClient {
   disconnect(): Promise<void>
 }
 
+/**
+ * A CoAP server: the end that nodes send their readings to and observe their
+ * commands on.
+ *
+ * A PUT or POST to a path matching one of its `subscribe` filters is answered
+ * 2.04 Changed and delivered to `recv`, and one to any other path 4.04 Not Found.
+ * `send` sets a resource's state, which a GET reads and every observer is
+ * notified of. `send` does not wait for a `recv` that is waiting, so a gateway
+ * sends commands while it listens for readings.
+ */
+export declare class CoapServer {
+  /**
+   * Creates a server that will listen on a local address, such as `0.0.0.0:5683`,
+   * or port 0 for a free one.
+   */
+  constructor(bind: string)
+  /**
+   * Binds the socket and starts answering requests. Rejects when the address
+   * cannot be bound.
+   */
+  connect(): Promise<void>
+  /**
+   * Takes the readings sent to the paths a filter matches, with `+` for one
+   * level and `#` for the rest.
+   */
+  subscribe(filter: string): Promise<void>
+  /**
+   * Sets a resource's state and notifies every observer of it: bytes, or text
+   * such as a command. Rejects when the server is not connected.
+   */
+  send(path: string, payload: Buffer | string): Promise<void>
+  /**
+   * Waits for the next reading sent to a path the server takes. Rejects when the
+   * server is not connected.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a reading that arrives
+   * later waits for the next receive.
+   */
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
+  /** Counts the clients observing a resource. */
+  observers(path: string): number
+  /**
+   * The port the server listens on, which names the one the system chose for
+   * port 0, or `null` while it is not connected.
+   */
+  get localPort(): number | null
+  /** Whether the server holds a bound socket. */
+  get isConnected(): boolean
+  /** Closes the socket, keeping the resources and filters. */
+  disconnect(): Promise<void>
+}
+
 /** Reassembles whole COBS frames from the chunks a serial port delivers. */
 export declare class CobsDecoder {
   /** Creates an empty decoder, ready for the first chunk. */
@@ -3690,7 +3742,11 @@ export interface CoapClientOptions {
   bind?: string
   /** Whether requests are acknowledged and retried. Defaults to confirmable. */
   reliability?: Reliability
-  /** How long to wait for an acknowledgment, in milliseconds. */
+  /**
+   * How long to wait for the first acknowledgment, in milliseconds, two seconds when
+   * omitted. Each wait after it doubles, and RFC 7252 forbids a first wait shorter
+   * than two seconds on a network without congestion control.
+   */
   ackTimeoutMs?: number
   /** How many times to retransmit an unacknowledged request. */
   maxRetransmits?: number

@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Coap</PackageId>
     <AssemblyName>Pamoja.Coap</AssemblyName>
     <RootNamespace>Pamoja.Coap</RootNamespace>
-    <Description>A CoAP client over UDP with confirmable delivery and observe.</Description>
+    <Description>A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe.</Description>
     <PackageTags>pamoja;iot;robotics;coap</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/coap.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -443,9 +443,10 @@ fn collapse(text: &str) -> String {
 }
 
 /// Inline code for a table cell, escaped, with a break opportunity after each separator a
-/// reader would break at: after `::`, `.`, `(`, `,`, and a `/` that is not the first
+/// reader would break at: after `::`, `(`, `,`, and a `.` or `/` that is not the first
 /// character. A narrow column then wraps `I2cBus::open(path)` as `I2cBus::` and
-/// `open(path)`, never inside a name.
+/// `open(path)`, never inside a name, and a chained setter such as `.bind(address)` keeps
+/// its dot.
 fn breakable(code: &str) -> String {
     let mut html = String::with_capacity(code.len() + 16);
     let mut chars = code.chars().peekable();
@@ -461,8 +462,8 @@ fn breakable(code: &str) -> String {
         }
         let separator = match c {
             ':' => chars.peek() != Some(&':'),
-            '/' => !leading,
-            '.' | '(' | ',' => true,
+            '/' | '.' => !leading,
+            '(' | ',' => true,
             _ => false,
         };
         if separator && chars.peek().is_some() {
@@ -571,6 +572,11 @@ mod tests {
             page.html
         );
         assert_eq!(breakable("/dev/i2c-1"), "/dev/<wbr>i2c-1");
+        assert_eq!(
+            breakable(".max_retransmits(n)"),
+            ".max_retransmits(<wbr>n)",
+            "a chained setter keeps its leading dot"
+        );
         assert_eq!(
             breakable("a.b."),
             "a.<wbr>b.",

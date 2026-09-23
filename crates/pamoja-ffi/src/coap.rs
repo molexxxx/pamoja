@@ -669,84 +669,6 @@ unsafe fn server_handle<'a>(server: *mut PamojaCoapServer) -> Option<&'a PamojaC
     Some(&*server)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::ffi::CString;
-
-    use super::*;
-    use crate::transport::{pamoja_message_free, pamoja_message_payload, pamoja_message_payload_len};
-
-    /// Reads a message handle's payload and releases it.
-    unsafe fn take(message: *mut PamojaMessage) -> Vec<u8> {
-        assert!(!message.is_null());
-        let bytes = std::slice::from_raw_parts(
-            pamoja_message_payload(message),
-            pamoja_message_payload_len(message),
-        )
-        .to_vec();
-        pamoja_message_free(message);
-        bytes
-    }
-
-    #[test]
-    fn a_server_takes_a_reading_and_notifies_an_observer() {
-        unsafe {
-            let bind = CString::new("127.0.0.1:0").expect("static");
-            let server = pamoja_coap_server_new(bind.as_ptr());
-            assert_eq!(pamoja_coap_server_connect(server), PamojaStatus::Ok);
-            let port = pamoja_coap_server_local_port(server);
-            assert_ne!(port, 0);
-            let filter = CString::new("sensors/#").expect("static");
-            assert_eq!(pamoja_coap_server_subscribe(server, filter.as_ptr()), PamojaStatus::Ok);
-            let command = CString::new("commands/valve").expect("static");
-            assert_eq!(
-                pamoja_coap_server_send(server, command.as_ptr(), b"closed".as_ptr(), 6),
-                PamojaStatus::Ok
-            );
-
-            let host = CString::new("127.0.0.1").expect("static");
-            let config = PamojaCoapConfig {
-                host: host.as_ptr(),
-                port,
-                bind: ptr::null(),
-                reliability: PamojaCoapReliability::Confirmable,
-                ack_timeout_ms: 200,
-                max_retransmits: 1,
-            };
-            let client = pamoja_coap_client_new(&config);
-            assert_eq!(pamoja_coap_client_connect(client), PamojaStatus::Ok);
-            assert_eq!(pamoja_coap_client_subscribe(client, command.as_ptr()), PamojaStatus::Ok);
-            assert_eq!(pamoja_coap_server_observers(server, command.as_ptr()), 1);
-
-            let mut message = ptr::null_mut();
-            let mut timed_out = false;
-            pamoja_coap_client_recv_within(client, 2000, &mut message, &mut timed_out);
-            assert!(!timed_out);
-            assert_eq!(take(message), b"closed");
-
-            let reading = CString::new("sensors/1/temperature").expect("static");
-            assert_eq!(
-                pamoja_coap_client_send(client, reading.as_ptr(), b"21.5".as_ptr(), 4),
-                PamojaStatus::Ok
-            );
-            pamoja_coap_server_recv_within(server, 2000, &mut message, &mut timed_out);
-            assert!(!timed_out);
-            assert_eq!(take(message), b"21.5");
-
-            let stray = CString::new("pumps/1").expect("static");
-            assert_eq!(
-                pamoja_coap_client_send(client, stray.as_ptr(), b"on".as_ptr(), 2),
-                PamojaStatus::Transport
-            );
-
-            pamoja_coap_client_free(client);
-            assert_eq!(pamoja_coap_server_disconnect(server), PamojaStatus::Ok);
-            assert!(!pamoja_coap_server_is_connected(server));
-            pamoja_coap_server_free(server);
-        }
-    }
-}
-
 /// Creates a CoAP transport for composing into a ladder or a wrapper.
 ///
 /// # Arguments
@@ -815,4 +737,90 @@ unsafe fn client_handle<'a>(client: *mut PamojaCoapClient) -> Option<&'a PamojaC
         return None;
     }
     Some(&*client)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::CString;
+
+    use super::*;
+    use crate::transport::{
+        pamoja_message_free, pamoja_message_payload, pamoja_message_payload_len,
+    };
+
+    /// Reads a message handle's payload and releases it.
+    unsafe fn take(message: *mut PamojaMessage) -> Vec<u8> {
+        assert!(!message.is_null());
+        let bytes = std::slice::from_raw_parts(
+            pamoja_message_payload(message),
+            pamoja_message_payload_len(message),
+        )
+        .to_vec();
+        pamoja_message_free(message);
+        bytes
+    }
+
+    #[test]
+    fn a_server_takes_a_reading_and_notifies_an_observer() {
+        unsafe {
+            let bind = CString::new("127.0.0.1:0").expect("static");
+            let server = pamoja_coap_server_new(bind.as_ptr());
+            assert_eq!(pamoja_coap_server_connect(server), PamojaStatus::Ok);
+            let port = pamoja_coap_server_local_port(server);
+            assert_ne!(port, 0);
+            let filter = CString::new("sensors/#").expect("static");
+            assert_eq!(
+                pamoja_coap_server_subscribe(server, filter.as_ptr()),
+                PamojaStatus::Ok
+            );
+            let command = CString::new("commands/valve").expect("static");
+            assert_eq!(
+                pamoja_coap_server_send(server, command.as_ptr(), b"closed".as_ptr(), 6),
+                PamojaStatus::Ok
+            );
+
+            let host = CString::new("127.0.0.1").expect("static");
+            let config = PamojaCoapConfig {
+                host: host.as_ptr(),
+                port,
+                bind: ptr::null(),
+                reliability: PamojaCoapReliability::Confirmable,
+                ack_timeout_ms: 200,
+                max_retransmits: 1,
+            };
+            let client = pamoja_coap_client_new(&config);
+            assert_eq!(pamoja_coap_client_connect(client), PamojaStatus::Ok);
+            assert_eq!(
+                pamoja_coap_client_subscribe(client, command.as_ptr()),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_coap_server_observers(server, command.as_ptr()), 1);
+
+            let mut message = ptr::null_mut();
+            let mut timed_out = false;
+            pamoja_coap_client_recv_within(client, 2000, &mut message, &mut timed_out);
+            assert!(!timed_out);
+            assert_eq!(take(message), b"closed");
+
+            let reading = CString::new("sensors/1/temperature").expect("static");
+            assert_eq!(
+                pamoja_coap_client_send(client, reading.as_ptr(), b"21.5".as_ptr(), 4),
+                PamojaStatus::Ok
+            );
+            pamoja_coap_server_recv_within(server, 2000, &mut message, &mut timed_out);
+            assert!(!timed_out);
+            assert_eq!(take(message), b"21.5");
+
+            let stray = CString::new("pumps/1").expect("static");
+            assert_eq!(
+                pamoja_coap_client_send(client, stray.as_ptr(), b"on".as_ptr(), 2),
+                PamojaStatus::Transport
+            );
+
+            pamoja_coap_client_free(client);
+            assert_eq!(pamoja_coap_server_disconnect(server), PamojaStatus::Ok);
+            assert!(!pamoja_coap_server_is_connected(server));
+            pamoja_coap_server_free(server);
+        }
+    }
 }

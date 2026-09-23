@@ -35,7 +35,13 @@ a resource so the server's notifications are forwarded to an internal queue that
 Delivery follows the configured `Reliability`: `Reliability::Confirmable`
 messages are acknowledged with retransmission (at-least-once), while
 `Reliability::NonConfirmable` messages are fire-and-forget (at-most-once),
-which suits the cheapest, most power-constrained devices.
+which suits the cheapest, most power-constrained devices. A confirmable request
+the server resets, or answers with a 4.xx or 5.xx code, fails rather than
+counting as delivered, and a notification is delivered under the path its
+observation named, since a notification carries only the registration's token.
+
+`CoapServer` is the other end: a gateway that takes the readings nodes send it
+and holds the resources they observe, through the same traits.
 
 **Examples**
 
@@ -81,8 +87,8 @@ Creates a configuration pointing at the given CoAP server.
 **Returns**
 
 A configuration that binds an ephemeral local port, uses confirmable
-delivery, waits two seconds for the first acknowledgment, and retransmits
-up to four times.
+delivery, waits two to three seconds for the first acknowledgment, and
+retransmits up to four times: RFC 7252's defaults.
 
 ```rust
 fn new(host: impl Into <String>, port: u16) -> Self
@@ -125,7 +131,10 @@ fn reliability(mut self, reliability: Reliability) -> Self
 
 Sets how long to wait for the first acknowledgment of a confirmable request.
 
-The wait doubles for each retransmission, following the CoAP backoff.
+The first wait is drawn between this and one and a half times it, and each
+wait after it doubles, as RFC 7252 section 4.2 describes. Section 4.8.1
+forbids setting it below the default two seconds on a network without
+congestion control; lower the retransmissions instead to give up sooner.
 
 **Arguments**
 

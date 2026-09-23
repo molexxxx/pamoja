@@ -446,7 +446,10 @@ fn handle(
         (MessageType::Confirmable, MessageClass::Empty) => {
             vec![(peer, empty(MessageType::Reset, id))]
         }
-        (kind @ (MessageType::Confirmable | MessageType::NonConfirmable), MessageClass::Request(method)) => {
+        (
+            kind @ (MessageType::Confirmable | MessageType::NonConfirmable),
+            MessageClass::Request(method),
+        ) => {
             let confirmable = kind == MessageType::Confirmable;
             if confirmable {
                 let now = Instant::now();
@@ -468,7 +471,9 @@ fn handle(
             }
             if let Ok(bytes) = answer.to_bytes() {
                 if confirmable {
-                    state.answered.insert((peer, id), (Instant::now(), bytes.clone()));
+                    state
+                        .answered
+                        .insert((peer, id), (Instant::now(), bytes.clone()));
                 }
                 out.insert(0, (peer, bytes));
             }
@@ -498,7 +503,8 @@ fn request(
             match observe_value(packet) {
                 Some(0) => {
                     let observers = state.observers.entry(path).or_default();
-                    observers.retain(|observer| !(observer.peer == peer && observer.token == token));
+                    observers
+                        .retain(|observer| !(observer.peer == peer && observer.token == token));
                     observers.push(Observer {
                         peer,
                         token,
@@ -517,7 +523,11 @@ fn request(
             (answer, Vec::new())
         }
         RequestType::Put | RequestType::Post => {
-            if !state.filters.iter().any(|filter| topic_matches(filter, &path)) {
+            if !state
+                .filters
+                .iter()
+                .any(|filter| topic_matches(filter, &path))
+            {
                 return (response(ResponseType::NotFound, &[]), Vec::new());
             }
             let _ = tx.send(Message::new(path.clone(), packet.payload.clone()));
@@ -552,7 +562,10 @@ fn empty(kind: MessageType, message_id: u16) -> Vec<u8> {
 /// zero as no bytes at all (RFC 7252 section 3.2).
 fn observe_bytes(value: u32) -> Vec<u8> {
     let bytes = value.to_be_bytes();
-    let first = bytes.iter().position(|byte| *byte != 0).unwrap_or(bytes.len());
+    let first = bytes
+        .iter()
+        .position(|byte| *byte != 0)
+        .unwrap_or(bytes.len());
     bytes[first..].to_vec()
 }
 

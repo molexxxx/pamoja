@@ -413,11 +413,11 @@ next = ["codec", "sync", "ladder"]
 key = "coap"
 chapter = "transports"
 title = "CoAP"
-summary = "A CoAP client over UDP with confirmable delivery and observe"
+summary = "A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe"
 crates = ["pamoja-coap"]
 node = "coap"
 python = "coap"
-dotnet = ["CoapClient", "CoapClientOptions", "Reliability"]
+dotnet = ["CoapClient", "CoapClientOptions", "CoapServer", "Reliability"]
 guide = "guides/coap.md"
 next = ["codec", "ladder", "sync"]
 

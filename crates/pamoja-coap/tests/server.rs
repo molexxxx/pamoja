@@ -87,7 +87,10 @@ async fn a_reading_reaches_the_gateway_and_a_stray_path_is_refused() {
         .send_text("sensors/2/temperature", "19.0")
         .await
         .expect("the datagram leaves");
-    assert_eq!(next(&mut gateway).await.expect("a reading").topic, "sensors/2/temperature");
+    assert_eq!(
+        next(&mut gateway).await.expect("a reading").topic,
+        "sensors/2/temperature"
+    );
 
     match confirmable.send_text("pumps/1/state", "on").await {
         Err(Error::Transport(reason)) => assert_eq!(reason, "the server answered 4.04 Not Found"),
@@ -98,7 +101,10 @@ async fn a_reading_reaches_the_gateway_and_a_stray_path_is_refused() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_observer_gets_the_current_state_then_each_change() {
     let (mut gateway, port) = gateway().await;
-    gateway.send_text("commands/valve", "closed").await.expect("state");
+    gateway
+        .send_text("commands/valve", "closed")
+        .await
+        .expect("state");
     let mut first = node(port, Reliability::Confirmable).await;
     let mut second = node(port, Reliability::Confirmable).await;
     first.subscribe("commands/valve").await.expect("observe");
@@ -110,9 +116,19 @@ async fn an_observer_gets_the_current_state_then_each_change() {
         assert_eq!(current.topic, "commands/valve");
         assert_eq!(current.text().expect("text"), "closed");
     }
-    gateway.send_text("commands/valve", "open").await.expect("change");
+    gateway
+        .send_text("commands/valve", "open")
+        .await
+        .expect("change");
     for observer in [&mut first, &mut second] {
-        assert_eq!(next(observer).await.expect("the change").text().expect("text"), "open");
+        assert_eq!(
+            next(observer)
+                .await
+                .expect("the change")
+                .text()
+                .expect("text"),
+            "open"
+        );
     }
 
     match first.subscribe("commands/pump").await {
@@ -122,20 +138,77 @@ async fn an_observer_gets_the_current_state_then_each_change() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn registering_again_renews_the_observation_rather_than_adding_one() {
+    let (mut gateway, port) = gateway().await;
+    gateway
+        .send_text("commands/sprinkler", "idle")
+        .await
+        .expect("state");
+    let mut observer = node(port, Reliability::Confirmable).await;
+    observer
+        .subscribe("commands/sprinkler")
+        .await
+        .expect("observe");
+    observer
+        .subscribe("/commands/sprinkler/")
+        .await
+        .expect("observe again");
+    assert_eq!(gateway.observers("commands/sprinkler"), 1);
+    assert_eq!(
+        next(&mut observer).await.expect("the state").payload,
+        b"idle"
+    );
+    assert_eq!(
+        next(&mut observer).await.expect("the state again").payload,
+        b"idle"
+    );
+
+    gateway
+        .send_text("commands/sprinkler", "run")
+        .await
+        .expect("change");
+    assert_eq!(
+        next(&mut observer).await.expect("the change").payload,
+        b"run"
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(200), observer.recv())
+            .await
+            .is_err(),
+        "the change arrived once"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_publisher_sends_commands_while_the_server_waits_for_readings() {
     let (mut gateway, port) = gateway().await;
     let commands = gateway.publisher();
-    commands.publish("commands/heater", b"off").await.expect("state");
+    commands
+        .publish("commands/heater", b"off")
+        .await
+        .expect("state");
     let mut observer = node(port, Reliability::Confirmable).await;
-    observer.subscribe("commands/heater").await.expect("observe");
-    assert_eq!(next(&mut observer).await.expect("the state").payload, b"off");
+    observer
+        .subscribe("commands/heater")
+        .await
+        .expect("observe");
+    assert_eq!(
+        next(&mut observer).await.expect("the state").payload,
+        b"off"
+    );
 
     let waiting = tokio::spawn(async move {
         let reading = next(&mut gateway).await;
         (gateway, reading)
     });
-    commands.publish("commands/heater", b"on").await.expect("change");
-    assert_eq!(next(&mut observer).await.expect("the change").payload, b"on");
+    commands
+        .publish("commands/heater", b"on")
+        .await
+        .expect("change");
+    assert_eq!(
+        next(&mut observer).await.expect("the change").payload,
+        b"on"
+    );
     assert_eq!(commands.observers("commands/heater"), 1);
 
     observer
@@ -149,15 +222,29 @@ async fn a_publisher_sends_commands_while_the_server_waits_for_readings() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_gateway_keeps_serving_after_notifying_an_observer_that_is_gone() {
     let (mut gateway, port) = gateway().await;
-    gateway.send_text("commands/lamp", "off").await.expect("state");
+    gateway
+        .send_text("commands/lamp", "off")
+        .await
+        .expect("state");
     {
         let socket = raw(port).await;
-        let mut observe = request(MessageType::Confirmable, RequestType::Get, "commands/lamp", 21);
+        let mut observe = request(
+            MessageType::Confirmable,
+            RequestType::Get,
+            "commands/lamp",
+            21,
+        );
         observe.add_option(CoapOption::Observe, Vec::new());
-        socket.send(&observe.to_bytes().expect("encode")).await.expect("send");
+        socket
+            .send(&observe.to_bytes().expect("encode"))
+            .await
+            .expect("send");
         answer(&socket).await.expect("the registration");
     }
-    gateway.send_text("commands/lamp", "on").await.expect("a notification to a closed port");
+    gateway
+        .send_text("commands/lamp", "on")
+        .await
+        .expect("a notification to a closed port");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mut reporter = node(port, Reliability::Confirmable).await;
@@ -165,7 +252,10 @@ async fn a_gateway_keeps_serving_after_notifying_an_observer_that_is_gone() {
         .send_text("sensors/5/temperature", "20.0")
         .await
         .expect("the gateway still answers");
-    assert_eq!(next(&mut gateway).await.expect("a reading").topic, "sensors/5/temperature");
+    assert_eq!(
+        next(&mut gateway).await.expect("a reading").topic,
+        "sensors/5/temperature"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -175,12 +265,18 @@ async fn a_client_keeps_listening_after_sending_to_a_port_with_nothing_on_it() {
         spare.local_addr().expect("address").port()
     };
     let mut client = node(port, Reliability::NonConfirmable).await;
-    client.send_text("sensors/6/temperature", "17.5").await.expect("the datagram leaves");
+    client
+        .send_text("sensors/6/temperature", "17.5")
+        .await
+        .expect("the datagram leaves");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mut gateway = CoapServer::new(format!("127.0.0.1:{port}"));
     gateway.connect().await.expect("bind the same port");
-    gateway.send_text("commands/door", "shut").await.expect("state");
+    gateway
+        .send_text("commands/door", "shut")
+        .await
+        .expect("state");
     client.subscribe("commands/door").await.expect("observe");
     assert_eq!(next(&mut client).await.expect("the state").payload, b"shut");
 }
@@ -189,7 +285,12 @@ async fn a_client_keeps_listening_after_sending_to_a_port_with_nothing_on_it() {
 async fn a_retransmitted_request_is_answered_again_and_taken_once() {
     let (mut gateway, port) = gateway().await;
     let socket = raw(port).await;
-    let mut put = request(MessageType::Confirmable, RequestType::Put, "sensors/3/level", 7);
+    let mut put = request(
+        MessageType::Confirmable,
+        RequestType::Put,
+        "sensors/3/level",
+        7,
+    );
     put.payload = b"40".to_vec();
     let bytes = put.to_bytes().expect("encode");
 
@@ -198,11 +299,17 @@ async fn a_retransmitted_request_is_answered_again_and_taken_once() {
     socket.send(&bytes).await.expect("send again");
     let second = answer(&socket).await.expect("the same acknowledgment");
     assert_eq!(first.header.get_type(), MessageType::Acknowledgement);
-    assert_eq!(first.header.code, MessageClass::Response(ResponseType::Changed));
+    assert_eq!(
+        first.header.code,
+        MessageClass::Response(ResponseType::Changed)
+    );
     assert_eq!(first.header.message_id, 7);
     assert_eq!(first.to_bytes().ok(), second.to_bytes().ok());
 
-    assert_eq!(next(&mut gateway).await.expect("the reading").payload, b"40");
+    assert_eq!(
+        next(&mut gateway).await.expect("the reading").payload,
+        b"40"
+    );
     assert!(
         tokio::time::timeout(Duration::from_millis(200), gateway.recv())
             .await
@@ -220,7 +327,10 @@ async fn a_ping_is_answered_with_a_reset() {
     ping.header.set_type(MessageType::Confirmable);
     ping.header.code = MessageClass::Empty;
     ping.header.message_id = 99;
-    socket.send(&ping.to_bytes().expect("encode")).await.expect("send");
+    socket
+        .send(&ping.to_bytes().expect("encode"))
+        .await
+        .expect("send");
 
     let pong = answer(&socket).await.expect("a reset");
     assert_eq!(pong.header.get_type(), MessageType::Reset);
@@ -230,16 +340,30 @@ async fn a_ping_is_answered_with_a_reset() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_observer_that_resets_a_notification_is_dropped() {
     let (mut gateway, port) = gateway().await;
-    gateway.send_text("commands/fan", "off").await.expect("state");
+    gateway
+        .send_text("commands/fan", "off")
+        .await
+        .expect("state");
     let socket = raw(port).await;
-    let mut observe = request(MessageType::Confirmable, RequestType::Get, "commands/fan", 11);
+    let mut observe = request(
+        MessageType::Confirmable,
+        RequestType::Get,
+        "commands/fan",
+        11,
+    );
     observe.add_option(CoapOption::Observe, Vec::new());
-    socket.send(&observe.to_bytes().expect("encode")).await.expect("send");
+    socket
+        .send(&observe.to_bytes().expect("encode"))
+        .await
+        .expect("send");
     let registered = answer(&socket).await.expect("the registration");
     assert!(registered.get_option(CoapOption::Observe).is_some());
     assert_eq!(gateway.observers("commands/fan"), 1);
 
-    gateway.send_text("commands/fan", "on").await.expect("change");
+    gateway
+        .send_text("commands/fan", "on")
+        .await
+        .expect("change");
     let notification = answer(&socket).await.expect("a notification");
     assert_eq!(notification.header.get_type(), MessageType::NonConfirmable);
     assert_eq!(notification.get_token(), observe.get_token());
@@ -247,7 +371,10 @@ async fn an_observer_that_resets_a_notification_is_dropped() {
     reset.header.set_version(1);
     reset.header.set_type(MessageType::Reset);
     reset.header.message_id = notification.header.message_id;
-    socket.send(&reset.to_bytes().expect("encode")).await.expect("send");
+    socket
+        .send(&reset.to_bytes().expect("encode"))
+        .await
+        .expect("send");
 
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(gateway.observers("commands/fan"), 0);

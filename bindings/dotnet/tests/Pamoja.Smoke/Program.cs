@@ -466,6 +466,47 @@ static async Task AsyncTransports()
         }
     }
 
+    // A CoAP server takes readings on its filters and refuses other paths, and sends a
+    // command while another call waits for a reading.
+    using var coapGateway = new CoapServer("127.0.0.1:0");
+    await coapGateway.ConnectAsync();
+    await coapGateway.SubscribeAsync("sensors/#");
+    await coapGateway.SendAsync("commands/valve", "closed");
+    using var coapNode = new CoapClient(new CoapClientOptions
+    {
+        Host = "127.0.0.1",
+        Port = coapGateway.LocalPort!.Value,
+        AckTimeoutMs = 200,
+    });
+    await coapNode.ConnectAsync();
+    await coapNode.SubscribeAsync("commands/valve");
+    Assert(
+        (await coapNode.ReceiveAsync(TimeSpan.FromSeconds(2)))!.Text == "closed",
+        "the state on registering");
+    Assert(coapGateway.Observers("commands/valve") == 1, "one observer");
+    Task<TransportMessage?> awaitedReading = coapGateway.ReceiveAsync(TimeSpan.FromSeconds(5));
+    await Task.Delay(50);
+    await coapGateway.SendAsync("commands/valve", "open");
+    Assert(
+        (await coapNode.ReceiveAsync(TimeSpan.FromSeconds(2)))!.Text == "open",
+        "a command beside a waiting receive");
+    await coapNode.SendAsync("sensors/1/temperature", "21.5");
+    Assert(
+        (await awaitedReading)!.Topic == "sensors/1/temperature",
+        "the reading reached the waiting receive");
+    try
+    {
+        await coapNode.SendAsync("pumps/1", "on");
+        Fail("a path the gateway does not take must be refused");
+    }
+    catch (PamojaException error)
+    {
+        Assert(error.Message.Contains("4.04 Not Found"), $"the refusal names its code: {error.Message}");
+    }
+
+    await coapGateway.DisconnectAsync();
+    Assert(!coapGateway.IsConnected, "a disconnected server says so");
+
     // One publisher, many subscribers, in one process.
     using var hub = new EventBus(8);
     using EventBus firstSeat = hub.Subscribe();

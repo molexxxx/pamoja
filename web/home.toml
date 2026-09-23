@@ -163,7 +163,7 @@ title = "Messaging and radio"
 lead = "A cost-aware ladder that tries the cheapest link first and buffers when there is none."
 tags = [
   { text = "MQTT", state = "ships", crate = "pamoja-mqtt" },
-  { text = "CoAP", state = "ships", crate = "pamoja-coap" },
+  { text = "CoAP client and server", state = "ships", crate = "pamoja-coap" },
   { text = "LoRa", state = "ships", crate = "pamoja-lora" },
   { text = "LoRaWAN", state = "ships", crate = "pamoja-lorawan" },
   { text = "LoRaWAN regional parameters", state = "ships", crate = "pamoja-lora" },
