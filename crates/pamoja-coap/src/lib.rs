@@ -611,6 +611,11 @@ fn path_from_packet(packet: &Packet) -> String {
 }
 
 /// Routes one decoded packet, returning `false` when the inbound queue is gone.
+///
+/// An acknowledgment that registers an observation queues the resource's current
+/// state before it wakes the request, so the state is already waiting when
+/// `subscribe` returns, and a registration made straight after it starts from that
+/// state rather than racing it.
 async fn dispatch(
     packet: Packet,
     pending: &PendingAcks,
@@ -621,23 +626,22 @@ async fn dispatch(
     let observe = observe_value(&packet);
     match packet.header.get_type() {
         MessageType::Acknowledgement => {
-            if let Some(waiter) = pending
-                .lock()
-                .expect("pending lock")
-                .remove(&packet.header.message_id)
-            {
-                let _ = waiter.send(Answer::Acknowledged(Reply {
-                    code: packet.header.code,
-                    payload: packet.payload.clone(),
-                    observe,
-                }));
-            }
-            match observe {
-                Some(sequence) if is_success(packet.header.code) => {
-                    notify(packet, sequence, observations, tx) != Delivered::Gone
+            let message_id = packet.header.message_id;
+            let reply = Reply {
+                code: packet.header.code,
+                payload: packet.payload.clone(),
+                observe,
+            };
+            let delivered = match observe {
+                Some(sequence) if is_success(reply.code) => {
+                    notify(packet, sequence, observations, tx)
                 }
-                _ => true,
+                _ => Delivered::Taken,
+            };
+            if let Some(waiter) = pending.lock().expect("pending lock").remove(&message_id) {
+                let _ = waiter.send(Answer::Acknowledged(reply));
             }
+            delivered != Delivered::Gone
         }
         MessageType::Reset => {
             if let Some(waiter) = pending
@@ -873,6 +877,58 @@ mod tests {
     async fn recv_before_connect_reports_closed() {
         let mut transport = CoapTransport::new(CoapConfig::new("localhost", 5683));
         assert!(matches!(transport.recv().await, Err(Error::Closed)));
+    }
+
+    #[test]
+    fn a_registration_queues_its_state_before_the_request_wakes() {
+        let pending: PendingAcks = Arc::default();
+        let observations: Observations = Arc::default();
+        let (waiter, mut answer) = oneshot::channel();
+        pending.lock().expect("pending lock").insert(9, waiter);
+        observations.lock().expect("observations lock").insert(
+            vec![1, 2],
+            Observation {
+                path: "commands/valve".to_owned(),
+                freshest: None,
+            },
+        );
+        let mut ack = Packet::new();
+        ack.header.set_version(1);
+        ack.header.set_type(MessageType::Acknowledgement);
+        ack.header.code = MessageClass::Response(coap_lite::ResponseType::Content);
+        ack.header.message_id = 9;
+        ack.set_token(vec![1, 2]);
+        ack.add_option(CoapOption::Observe, vec![5]);
+        ack.payload = b"closed".to_vec();
+        let (tx, mut queue) = mpsc::unbounded_channel();
+
+        let held = observations.lock().expect("observations lock");
+        let pump = std::thread::spawn({
+            let pending = Arc::clone(&pending);
+            let observations = Arc::clone(&observations);
+            move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("a runtime")
+                    .block_on(async {
+                        let socket = UdpSocket::bind("127.0.0.1:0").await.expect("bind");
+                        dispatch(ack, &pending, &observations, &tx, &socket).await
+                    })
+            }
+        });
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(
+            matches!(answer.try_recv(), Err(oneshot::error::TryRecvError::Empty)),
+            "the request woke before the state it registered was queued"
+        );
+        drop(held);
+
+        assert!(pump.join().expect("the pump"), "the queue is still open");
+        assert!(matches!(answer.try_recv(), Ok(Answer::Acknowledged(_))));
+        let state = queue.try_recv().expect("the current state");
+        assert_eq!(state.topic, "commands/valve");
+        assert_eq!(state.payload, b"closed");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
