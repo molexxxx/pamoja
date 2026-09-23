@@ -556,6 +556,17 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next fuota -->
+- [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
+- [LoRaWAN gateways](gateway.md): What a LoRaWAN gateway speaks.
+- [Secured session](session.md): X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack.
+- [Signed updates](update.md): Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.
+- Beside it: [Radios and antennas](../radio.md).
+- Also in Radio and reach: [LoRa airtime and range](lora.md), [LoRa radios](radios.md), [Mesh frames](mesh.md), [Routing](routing.md).
+<!-- end -->
+
 ## Reference
 
 The packages are part of the LoRaWAN capability, and the manifest and the slots

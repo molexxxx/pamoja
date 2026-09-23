@@ -268,6 +268,9 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                     "run" => Ok(examples::run_block(&text)),
                     "architecture" => crate::diagram::blocks(&catalog, &root)
                         .map(|blocks| crate::site::block::diagram(&blocks)),
+                    next if next.starts_with("next ") => {
+                        catalog.next_links(next.trim_start_matches("next ").trim(), &root)
+                    }
                     reference if reference.starts_with("reference ") => {
                         let key = reference.trim_start_matches("reference ").trim();
                         catalog

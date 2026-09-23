@@ -243,6 +243,15 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next audit -->
+- [Device identity](security.md): ed25519 device identity.
+- [Signed updates](update.md): Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.
+- [Store and forward](sync.md): Offline-first queues.
+- Also in Trust and operation: [Secured session](session.md), [Power](power.md), [Telemetry](telemetry.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference audit -->

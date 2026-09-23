@@ -258,6 +258,16 @@ Console.WriteLine($"a quarter turn is {Stepper.StepsForDegrees(90.0f, 200)} step
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next actuators -->
+- [I2C, SPI, and GPIO](gpio.md): I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins.
+- [Rules](rules.md): Rules between nodes as a file.
+- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device.
+- Beside it: [Hardware](../hardware.md).
+- Also in Sensing and actuation: [Sensor drivers](sensors.md), [Your own device](device.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference actuators -->

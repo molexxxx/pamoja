@@ -247,6 +247,15 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next session -->
+- [Device identity](security.md): ed25519 device identity.
+- [Mesh frames](mesh.md): Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once.
+- [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
+- Also in Trust and operation: [Audit log](audit.md), [Signed updates](update.md), [Power](power.md), [Telemetry](telemetry.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference session -->

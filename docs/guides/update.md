@@ -357,6 +357,16 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next update -->
+- [Device identity](security.md): ed25519 device identity.
+- [Audit log](audit.md): A tamper-evident, hash-chained log.
+- [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
+- Beside it: [Firmware over the air](fuota.md).
+- Also in Trust and operation: [Secured session](session.md), [Power](power.md), [Telemetry](telemetry.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference update -->

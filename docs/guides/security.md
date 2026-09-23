@@ -217,6 +217,14 @@ Console.WriteLine(DeviceIdentity.Verify(impostor.PublicKey, reading, signature)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next security -->
+- [Secured session](session.md): X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack.
+- [Signed updates](update.md): Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.
+- [Audit log](audit.md): A tamper-evident, hash-chained log.
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference security -->

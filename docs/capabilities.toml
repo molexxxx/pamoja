@@ -66,6 +66,7 @@ node = "security"
 python = "security"
 dotnet = ["DeviceIdentity"]
 guide = "guides/security.md"
+next = ["session", "update", "audit"]
 
 [[capability]]
 key = "codec"
@@ -77,6 +78,7 @@ node = "codec"
 python = "codec"
 dotnet = ["Codec", "Quantizer"]
 guide = "guides/codec.md"
+next = ["mqtt", "sync", "lorawan"]
 
 [[capability]]
 key = "kit"
@@ -92,6 +94,7 @@ dotnet = [
     "Trend", "Surge", "Depletion", "Anomaly",
 ]
 guide = "guides/kit.md"
+next = ["sensors", "rules", "telemetry"]
 
 [[capability]]
 key = "serial"
@@ -103,6 +106,8 @@ node = "serial"
 python = "serial"
 dotnet = ["Serial", "SlipDecoder", "CobsDecoder"]
 guide = "guides/serial.md"
+next = ["modbus", "mavlink", "hal"]
+pages = ["buses.md"]
 
 [[capability]]
 key = "modbus"
@@ -114,6 +119,8 @@ node = "modbus"
 python = "modbus"
 dotnet = ["Modbus", "ModbusFrame"]
 guide = "guides/modbus.md"
+next = ["serial", "profile", "hal"]
+pages = ["buses.md"]
 
 [[capability]]
 key = "can"
@@ -125,6 +132,8 @@ node = "can"
 python = "can"
 dotnet = ["Can", "CanFrame", "J1939Message"]
 guide = "guides/can.md"
+next = ["hal", "profile", "telemetry"]
+pages = ["buses.md"]
 
 [[capability]]
 key = "gpio"
@@ -136,6 +145,8 @@ node = "gpio"
 python = "gpio"
 dotnet = ["I2c", "Spi", "SpiClock", "Pin", "PinLevel", "PinEdge", "PinPolarity"]
 guide = "guides/gpio.md"
+next = ["device", "sensors", "actuators"]
+pages = ["buses.md", "boards/raspberry-pi.md", "boards/esp32.md", "boards/rp2040.md"]
 
 [[capability]]
 key = "hal"
@@ -147,6 +158,8 @@ node = "core"
 python = "core"
 dotnet = []
 guide = "guides/hal.md"
+next = ["sensors", "actuators", "device"]
+pages = ["buses.md", "boards/raspberry-pi.md", "boards/rp2040.md"]
 
 [[capability]]
 key = "sensors"
@@ -162,6 +175,8 @@ dotnet = [
     "Hdc1080", "Ina226", "Opt3001", "Scd4x", "Sht3x", "Tmp117",
 ]
 guide = "guides/sensors.md"
+next = ["hal", "kit", "profile"]
+pages = ["hardware.md", "boards/walkthrough.md"]
 
 [[capability]]
 key = "actuators"
@@ -173,6 +188,8 @@ node = "actuators"
 python = "actuators"
 dotnet = ["Pca9685", "Pwm", "Stepper", "StepDrive", "StepDirection"]
 guide = "guides/actuators.md"
+next = ["gpio", "rules", "hal"]
+pages = ["hardware.md"]
 
 [[capability]]
 key = "device"
@@ -184,6 +201,7 @@ node = "core"
 python = "core"
 dotnet = []
 guide = "guides/device.md"
+next = ["profile", "sim", "sensors"]
 
 [[capability]]
 key = "lora"
@@ -200,6 +218,8 @@ dotnet = [
     "LoraLinkBudget",
 ]
 guide = "guides/lora.md"
+next = ["radios", "lorawan", "power"]
+pages = ["radio.md"]
 
 [[capability]]
 key = "lorawan"
@@ -217,6 +237,8 @@ dotnet = [
     "LorawanTrustedDevice",
 ]
 guide = "guides/lorawan.md"
+next = ["gateway", "session", "update"]
+pages = ["radio.md", "guides/fuota.md"]
 
 [[capability.guides]]
 page = "guides/fuota.md"
@@ -240,6 +262,8 @@ dotnet = [
     "LoraReceptionOutcome", "Sx126xBoard", "Sx127xBoard",
 ]
 guide = "guides/radios.md"
+next = ["lora", "gateway", "hal"]
+pages = ["radio.md", "hardware.md"]
 
 [[capability]]
 key = "gateway"
@@ -257,6 +281,8 @@ dotnet = [
     "GatewayStationRouter", "GatewayNotice", "GatewayRelayed",
 ]
 guide = "guides/gateway.md"
+next = ["lorawan", "mqtt", "telemetry"]
+pages = ["boards/gateway.md", "radio.md"]
 
 [[capability]]
 key = "mesh"
@@ -268,6 +294,7 @@ node = "mesh"
 python = "mesh"
 dotnet = ["Mesh", "MeshFrame", "SeenPackets"]
 guide = "guides/mesh.md"
+next = ["routing", "sync", "radios"]
 
 [[capability]]
 key = "routing"
@@ -279,6 +306,7 @@ node = "routing"
 python = "routing"
 dotnet = ["Router", "Route", "ForwardDecision", "ForwardAction"]
 guide = "guides/routing.md"
+next = ["mesh", "ladder", "sync"]
 
 [[capability]]
 key = "mavlink"
@@ -297,6 +325,7 @@ dotnet = [
     "MavlinkAckOutcome", "MavlinkAckKind", "MavlinkOffboard", "MavlinkTypeMask",
 ]
 guide = "guides/mavlink.md"
+next = ["ros2", "serial", "telemetry"]
 
 [[capability]]
 key = "audit"
@@ -308,6 +337,7 @@ node = "audit"
 python = "audit"
 dotnet = ["Audit", "AuditLog", "AuditEntry", "AuditVerifier"]
 guide = "guides/audit.md"
+next = ["security", "update", "sync"]
 
 [[capability]]
 key = "session"
@@ -319,6 +349,7 @@ node = "session"
 python = "session"
 dotnet = ["Session", "SessionRole", "AgreementKey", "SealedMessage"]
 guide = "guides/session.md"
+next = ["security", "mesh", "lorawan"]
 
 [[capability]]
 key = "update"
@@ -333,6 +364,8 @@ dotnet = [
     "SlotState", "BootDecision", "BootAction",
 ]
 guide = "guides/update.md"
+next = ["security", "audit", "lorawan"]
+pages = ["guides/fuota.md"]
 
 [[capability]]
 key = "power"
@@ -344,6 +377,7 @@ node = "power"
 python = "power"
 dotnet = ["DutyCycle", "PowerPlan", "PowerMode"]
 guide = "guides/power.md"
+next = ["lora", "telemetry", "sync"]
 
 [[capability]]
 key = "telemetry"
@@ -355,6 +389,7 @@ node = "telemetry"
 python = "telemetry"
 dotnet = ["Reporter", "TelemetryEvent", "TelemetryLevel", "TelemetrySnapshot", "LinkCost"]
 guide = "guides/telemetry.md"
+next = ["power", "mqtt", "rules"]
 
 [[capability]]
 key = "mqtt"
@@ -366,6 +401,7 @@ node = "mqtt"
 python = "mqtt"
 dotnet = ["MqttClient", "MqttClientOptions", "MqttMessage", "Qos"]
 guide = "guides/mqtt.md"
+next = ["codec", "sync", "ladder"]
 
 [[capability]]
 key = "coap"
@@ -377,6 +413,7 @@ node = "coap"
 python = "coap"
 dotnet = ["CoapClient", "CoapClientOptions", "Reliability"]
 guide = "guides/coap.md"
+next = ["codec", "ladder", "sync"]
 
 [[capability]]
 key = "loopback"
@@ -388,6 +425,7 @@ node = "loopback"
 python = "loopback"
 dotnet = ["LoopbackBroker", "LoopbackTransport"]
 guide = "guides/loopback.md"
+next = ["sim", "mqtt", "device"]
 
 [[capability]]
 key = "sync"
@@ -399,6 +437,7 @@ node = "sync"
 python = "sync"
 dotnet = ["Store"]
 guide = "guides/sync.md"
+next = ["ladder", "codec", "power"]
 
 [[capability]]
 key = "ladder"
@@ -410,6 +449,7 @@ node = "ladder"
 python = "ladder"
 dotnet = ["Ladder", "Delivery"]
 guide = "guides/ladder.md"
+next = ["mqtt", "lora", "sync"]
 
 [[capability]]
 key = "bus"
@@ -421,6 +461,7 @@ node = "bus"
 python = "bus"
 dotnet = ["EventBus"]
 guide = "guides/bus.md"
+next = ["rules", "device", "loopback"]
 
 [[capability]]
 key = "transport"
@@ -432,6 +473,7 @@ node = "core"
 python = "core"
 dotnet = ["Transport", "TransportMessage"]
 guide = "guides/transport.md"
+next = ["link", "loopback", "ladder"]
 
 [[capability]]
 key = "link"
@@ -443,6 +485,7 @@ node = "core"
 python = "core"
 dotnet = ["Transport", "ITransportHandlers", "IReceivingTransportHandlers"]
 guide = "guides/link.md"
+next = ["transport", "ladder", "session"]
 
 [[capability]]
 key = "sim"
@@ -454,6 +497,7 @@ node = "sim"
 python = "sim"
 dotnet = ["SimulatedSensor", "Replay", "RecordingActuator", "SimulatedRobot", "Pose", "Twist"]
 guide = "guides/sim.md"
+next = ["loopback", "device", "profile"]
 
 [[capability]]
 key = "profile"
@@ -465,6 +509,8 @@ node = "profile"
 python = "profile"
 dotnet = ["Profile", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule", "Presentation", "ElementSpec", "Theme", "Viz", "LocalizedText"]
 guide = "guides/profile.md"
+next = ["rules", "device", "sensors"]
+pages = ["profiles.md"]
 
 [[capability]]
 key = "rules"
@@ -476,6 +522,7 @@ node = "kit"
 python = "kit"
 dotnet = []
 guide = "guides/rules.md"
+next = ["profile", "bus", "kit"]
 
 [[capability]]
 key = "ros2"
@@ -487,6 +534,7 @@ node = "ros2"
 python = "ros2"
 dotnet = ["Ros2", "Ros2Twist", "Vector3", "CdrReader", "CdrWriter", "EntityKind"]
 guide = "guides/ros2.md"
+next = ["zenoh", "mavlink", "rules"]
 
 [[capability]]
 key = "zenoh"
@@ -498,6 +546,7 @@ node = "zenoh"
 python = "zenoh"
 dotnet = ["KeyExpression"]
 guide = "guides/zenoh.md"
+next = ["ros2", "mqtt", "transport"]
 
 # The crates that are not a capability of their own: the trait core every capability
 # implements, the C ABI the .NET binding rides on, and the fleet dashboard. `abi` and

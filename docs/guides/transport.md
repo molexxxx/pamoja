@@ -256,6 +256,15 @@ Console.WriteLine(
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next transport -->
+- [Your own link](link.md): A link pamoja does not ship, written in your language against the transport contract and composed like any other.
+- [Loopback](loopback.md): An in-process transport with topic matching and a fault injector, for testing with no broker.
+- [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
+- Also in Transports and testing: [MQTT](mqtt.md), [CoAP](coap.md), [Store and forward](sync.md), [Event bus](bus.md), [Simulators](sim.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference transport -->

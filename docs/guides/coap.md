@@ -263,6 +263,15 @@ Console.WriteLine($"reporter  disconnected: {!await reporter.IsConnectedAsync()}
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next coap -->
+- [Codecs](codec.md): CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links.
+- [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
+- [Store and forward](sync.md): Offline-first queues.
+- Also in Transports and testing: [MQTT](mqtt.md), [Loopback](loopback.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference coap -->

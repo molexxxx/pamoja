@@ -225,6 +225,15 @@ Console.WriteLine($"a quarter-duty second is {quarter.ActiveUs / 1000}ms awake")
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next power -->
+- [LoRa airtime and range](lora.md): Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range.
+- [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
+- [Store and forward](sync.md): Offline-first queues.
+- Also in Trust and operation: [Audit log](audit.md), [Secured session](session.md), [Signed updates](update.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference power -->
