@@ -78,7 +78,8 @@ pub struct Replay {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Replay {
-    /// Creates a replay over a recorded series.
+    /// Creates a replay over a recorded series, which starts again at the beginning once
+    /// exhausted when `repeating` is set.
     #[new]
     #[pyo3(signature = (readings, *, repeating=false))]
     fn new(readings: Vec<f32>, repeating: bool) -> Self {
@@ -92,6 +93,9 @@ impl Replay {
     }
 
     /// Takes the next reading.
+    ///
+    /// Raises `PamojaError` (`resource is closed`) once a replay that does not repeat has
+    /// run out.
     fn read<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {

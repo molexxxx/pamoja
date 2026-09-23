@@ -128,7 +128,7 @@ pub unsafe extern "C" fn pamoja_sim_sensor_free(sensor: *mut PamojaSimSensor) {
 /// * `readings` - the series to read back.
 /// * `count` - how many readings `readings` holds.
 /// * `repeating` - `true` to start again at the beginning once exhausted,
-///   `false` to keep returning the last one.
+///   `false` to report the replay closed once it has run out.
 ///
 /// # Returns
 ///
@@ -170,7 +170,8 @@ pub unsafe extern "C" fn pamoja_replay_new(
 ///
 /// # Returns
 ///
-/// [`PamojaStatus::Ok`] on success.
+/// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::Closed`] once a replay that
+/// does not repeat has run out.
 ///
 /// # Safety
 ///

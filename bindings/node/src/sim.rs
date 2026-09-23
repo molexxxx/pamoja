@@ -83,7 +83,7 @@ impl Replay {
     ///
     /// @param readings - the series to read back.
     /// @param repeating - start again at the beginning once exhausted, rather
-    ///   than holding the last reading.
+    ///   than reporting the replay closed.
     #[napi(constructor)]
     pub fn new(readings: Vec<f64>, repeating: Option<bool>) -> Self {
         let values: Vec<f32> = readings.into_iter().map(|value| value as f32).collect();
@@ -97,6 +97,8 @@ impl Replay {
     }
 
     /// Takes the next reading.
+    ///
+    /// @throws `resource is closed` once a replay that does not repeat has run out.
     #[napi]
     pub async fn read(&self) -> napi::Result<f64> {
         self.inner

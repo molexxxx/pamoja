@@ -21,14 +21,15 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBool, PyDict};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use pamoja_profile::{
     Alert, ControlSpec, Controller as CoreController, ElementSpec as CoreElementSpec,
-    LocalizedText, Param, PowerSchedule, Presentation as CorePresentation, Profile as CoreProfile,
-    Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz,
+    LocalizedText, Param, Params, PowerSchedule, Presentation as CorePresentation,
+    Profile as CoreProfile, Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz,
 };
 
 /// The graphics a dashboard draws with, by the name a manifest carries.
@@ -415,6 +416,52 @@ pub struct ControlPolicy {
 #[gen_stub_pymethods]
 #[pymethods]
 impl ControlPolicy {
+    /// Creates a policy of `kind`, one of `Setpoint`, `Level`, `Surge`, `Monitor`, or
+    /// `Custom`, from the fields that kind reads. A `Profile` built from it refuses one
+    /// that lacks a field its kind needs; `cooling` and `rising` are `False` unless given.
+    ///
+    /// Raises `ValueError` for any other kind, and for a parameter that is not a number,
+    /// `True` or `False`, or text.
+    #[new]
+    #[pyo3(signature = (kind, *, setpoint = None, hysteresis = None, cooling = None, safe_band = None, empty = None, warn_within = None, rising = None, limit = None, custom_kind = None, params = None))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        kind: &str,
+        setpoint: Option<f32>,
+        hysteresis: Option<f32>,
+        cooling: Option<bool>,
+        safe_band: Option<f32>,
+        empty: Option<f32>,
+        warn_within: Option<u32>,
+        rising: Option<bool>,
+        limit: Option<f32>,
+        custom_kind: Option<String>,
+        params: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        if !matches!(kind, "Setpoint" | "Level" | "Surge" | "Monitor" | "Custom") {
+            return Err(PyValueError::new_err(format!(
+                "kind must be \"Setpoint\", \"Level\", \"Surge\", \"Monitor\", or \"Custom\", not {kind:?}"
+            )));
+        }
+        let params = match params {
+            Some(params) => Some(params_of(params)?),
+            None => None,
+        };
+        Ok(Self {
+            kind: kind.to_owned(),
+            setpoint,
+            hysteresis,
+            cooling,
+            safe_band,
+            empty,
+            warn_within,
+            rising,
+            limit,
+            custom_kind,
+            params,
+        })
+    }
+
     /// Every field the manifest carried beside a custom kind, as numbers, flags, and
     /// text by name, or `None` for a built-in kind.
     #[getter]
@@ -453,6 +500,31 @@ pub struct PowerScheduleSpec {
     /// Enter the critical cadence below this state of charge.
     #[pyo3(get)]
     critical_below: f32,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl PowerScheduleSpec {
+    /// Creates a schedule from its three intervals in whole seconds; the node enters
+    /// the saver cadence below `saver_below` charge and the critical one below
+    /// `critical_below`.
+    #[new]
+    #[pyo3(signature = (active_secs, saver_secs, critical_secs, *, saver_below = 0.5, critical_below = 0.2))]
+    fn new(
+        active_secs: u64,
+        saver_secs: u64,
+        critical_secs: u64,
+        saver_below: f32,
+        critical_below: f32,
+    ) -> Self {
+        Self {
+            active_secs,
+            saver_secs,
+            critical_secs,
+            saver_below,
+            critical_below,
+        }
+    }
 }
 
 /// An alert a reading raised.
@@ -551,6 +623,62 @@ fn policy_of(spec: &ControlSpec) -> ControlPolicy {
     policy
 }
 
+/// Reads the parameters of a custom policy, each a number, `True` or `False`, or text.
+fn params_of(params: &Bound<'_, PyDict>) -> PyResult<BTreeMap<String, Param>> {
+    let mut out = BTreeMap::new();
+    for (name, value) in params.iter() {
+        let name: String = name.extract()?;
+        let value = if value.is_instance_of::<PyBool>() {
+            Param::Flag(value.extract()?)
+        } else if let Ok(number) = value.extract::<f64>() {
+            Param::Number(number)
+        } else if let Ok(text) = value.extract::<String>() {
+            Param::Text(text)
+        } else {
+            return Err(PyValueError::new_err(format!(
+                "parameter {name} must be a number, True or False, or text, not {}",
+                value.get_type().name()?
+            )));
+        };
+        out.insert(name, value);
+    }
+    Ok(out)
+}
+
+/// Rebuilds the control policy a program passed in, refusing one that lacks a field its
+/// kind needs.
+fn spec_of(policy: &ControlPolicy) -> PyResult<ControlSpec> {
+    fn needs<T: Copy>(value: Option<T>, kind: &str, field: &str) -> PyResult<T> {
+        value.ok_or_else(|| PyValueError::new_err(format!("a {kind} control needs {field}")))
+    }
+    match policy.kind.as_str() {
+        "Setpoint" => Ok(ControlSpec::Setpoint {
+            setpoint: needs(policy.setpoint, "Setpoint", "setpoint")?,
+            hysteresis: needs(policy.hysteresis, "Setpoint", "hysteresis")?,
+            cooling: policy.cooling.unwrap_or(false),
+            safe_band: needs(policy.safe_band, "Setpoint", "safe_band")?,
+        }),
+        "Level" => Ok(ControlSpec::Level {
+            empty: needs(policy.empty, "Level", "empty")?,
+            warn_within: needs(policy.warn_within, "Level", "warn_within")?,
+        }),
+        "Surge" => Ok(ControlSpec::Surge {
+            rising: policy.rising.unwrap_or(false),
+            limit: needs(policy.limit, "Surge", "limit")?,
+        }),
+        "Custom" => {
+            let kind = policy
+                .custom_kind
+                .clone()
+                .ok_or_else(|| PyValueError::new_err("a Custom control needs custom_kind"))?;
+            let params = policy.params.clone().unwrap_or_default();
+            ControlSpec::custom(kind, Params::from(params))
+                .map_err(|error| PyValueError::new_err(error.to_string()))
+        }
+        _ => Ok(ControlSpec::Monitor),
+    }
+}
+
 /// Flattens a schedule into the object Python sees.
 fn schedule_of(schedule: PowerSchedule) -> PowerScheduleSpec {
     PowerScheduleSpec {
@@ -604,6 +732,30 @@ pub struct Profile {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Profile {
+    /// Creates a profile of the program's own from its parts, with no description and
+    /// no presentation.
+    ///
+    /// Raises `ValueError` if the control lacks a field its kind needs, or a custom kind
+    /// is empty, built in, or has a parameter named `kind`.
+    #[new]
+    fn new(
+        name: String,
+        topic: String,
+        control: PyRef<'_, ControlPolicy>,
+        power: PyRef<'_, PowerScheduleSpec>,
+    ) -> PyResult<Self> {
+        let schedule = PowerSchedule {
+            active_secs: power.active_secs,
+            saver_secs: power.saver_secs,
+            critical_secs: power.critical_secs,
+            saver_below: power.saver_below,
+            critical_below: power.critical_below,
+        };
+        Ok(Self {
+            inner: CoreProfile::new(name, topic, spec_of(&control)?, schedule),
+        })
+    }
+
     /// A cold-chain fridge monitor, which holds 5 C and flags an excursion.
     #[staticmethod]
     fn vaccine_fridge_monitor() -> Self {

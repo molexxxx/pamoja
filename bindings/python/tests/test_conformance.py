@@ -2746,6 +2746,28 @@ def test_profile_vectors_match():
     _assert_control(orchard.control, custom["control"])
     _assert_reactions(orchard.controller(), custom["reactions"])
 
+    for built in vector["built"]:
+        want = built["control"]
+        control = profile.ControlPolicy(
+            want["kind"],
+            setpoint=want.get("setpoint"),
+            hysteresis=want.get("hysteresis"),
+            cooling=want.get("cooling"),
+            safe_band=want.get("safeBand"),
+            custom_kind=want.get("customKind"),
+            params=want.get("params"),
+        )
+        power = built["power"]
+        schedule = profile.PowerScheduleSpec(
+            power["activeSecs"],
+            power["saverSecs"],
+            power["criticalSecs"],
+            saver_below=power["saverBelow"],
+            critical_below=power["criticalBelow"],
+        )
+        made = profile.Profile(built["name"], built["topic"], control, schedule)
+        assert made.to_json() == built["manifest"], f"the manifest {built['name']} writes"
+
 
 def test_ros2_vectors_match():
     vector = VECTORS["ros2"]

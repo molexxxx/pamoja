@@ -13,27 +13,20 @@ neither of which pamoja ships. What reads the converter is the maker's business,
 replay stands in for it; on a running node the converter's own driver hands back the
 same counts, and nothing downstream changes.
 
-In TypeScript, Python, and C# there is no trait to implement. A class with a `read` or
-an `apply` is the whole contract, and the loop that calls them is the program's own,
-with the helpers, the controller, and the ladder taking plain numbers, booleans, and
-bytes. In Rust the same two structs also drop into a profile `Node`, which runs the loop
-for them; the `Send` on the probe's converter is what lets that node run from a spawned
-task, since every core trait's futures are `Send`. A rule of the maker's own, over the
-whole reading a driver produces, is a `Policy` the node runs the same way, as the
-device profiles guide shows.
-
 ## What the example does
 
 It defines the probe and the valve, waters a raised bed from six readings of a bed that
 dries out and is watered, and reports every reading to a gateway over a link that is
-down for the first two.
+down for the first two. Then it hands the same two parts to a profile of the maker's own,
+built from its parts, which decides from two more readings.
 
 The probe is calibrated from two measurements kept from the day it was built: 3200
 counts bone dry and 1400 in a soaked pot. The rule is a hysteresis band, water below
 30% and stop above 45%, which the kit's `Thermostat` provides once told that a valve
 adds moisture the way a heater adds heat. The ladder buffers the two readings the link
 refuses and replays them in order once a send goes through, so the gateway sees all six
-in the order they were read.
+in the order they were read. The profile holds the same band as data, with an alert once
+the bed is more than 15 points from its 37.5% target.
 
 It proves:
 
@@ -41,13 +34,16 @@ It proves:
   actuator the moment it can be told, with no registration and no base class.
 - The probe reports percent because it does its own calibration; the converter
   underneath is any source of counts, a replay here and a driver on the node.
+- 2900 counts is 16.7% and 2300 is 50.0%: a capacitive probe reads higher the drier the
+  soil, so bone dry is the high end of the calibration and soaked the low end.
 - The valve opens on the first reading, closes at 50%, and opens again at 25%: three
   changes, with the readings inside the band leaving it as it was.
 - The first two readings are buffered rather than lost, both go out when the link
   returns, and the gateway receives all six in order.
-- In Rust, the same two parts run under a hand-written profile through `Node`, which
-  reads, decides, drives the valve, and publishes on every tick, and raises an alert
-  once the bed is far from target.
+- Under the profile, 16.7% opens the valve and raises an out-of-range alert, 20.8 points
+  from target, and 50.0% closes it with no alert, 12.5 points from it. In Rust a `Node`
+  runs that loop and publishes each reading; in the other languages the profile's
+  controller decides and the program acts.
 
 ## Run it
 
@@ -64,6 +60,16 @@ repository:
 <!-- end -->
 
 ## Rust
+
+In Rust, a part is a type that implements `Sensor` or `Actuator` from `pamoja-core`. Each
+names its own reading or command type and has one async method, `read` or `apply`,
+returning a `pamoja_core::Result`. A read that cannot happen returns `Error::Io`, and
+one on a part that has gone away `Error::Closed`, which is what a `Replay` returns once it
+runs out. The futures are `Send`, so a part generic over a bus or a converter needs a
+`Send` bound on it, as `SoilProbe` has; that is what lets a profile's `Node` own the parts
+and run from a spawned task. A driver whose reading or command has another shape plugs in
+without a wrapper type: `map` selects or converts each reading, and `map_command`
+converts each command.
 
 The parts:
 
@@ -195,22 +201,18 @@ use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use pamoja_profile::{ControlSpec, Node, PowerSchedule, Profile};
 use pamoja_sim::Replay;
 
-// The same band as a manifest rather than a line of code, with an alert once the bed
+// The same band as a profile rather than a line of code, with an alert once the bed
 // is more than 15 points from target. No preset is involved: this is the maker's own
-// profile, and it saves to JSON the same as a shipped one.
-let profile = Profile {
-    name: "raised-bed-drip".to_owned(),
-    description: None,
-    topic: "garden/bed-1/moisture".to_owned(),
-    control: ControlSpec::Setpoint {
-        setpoint: 37.5,
-        hysteresis: 7.5,
-        cooling: false,
-        safe_band: 15.0,
-    },
-    power: PowerSchedule::new(300, 1800, 3600),
-    presentation: None,
+// profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly
+// when it is nearly flat, and it saves to JSON the same as a shipped one.
+let band = ControlSpec::Setpoint {
+    setpoint: 37.5,
+    hysteresis: 7.5,
+    cooling: false,
+    safe_band: 15.0,
 };
+let schedule = PowerSchedule::new(300, 1800, 3600);
+let profile = Profile::new("raised-bed-drip", "garden/bed-1/moisture", band, schedule);
 let probe = SoilProbe {
     adc: Replay::new(vec![2900.0, 2300.0]),
     calibration: Calibration::two_point(3200.0, 0.0, 1400.0, 100.0),
@@ -237,6 +239,16 @@ for _ in 0..2 {
 <!-- end -->
 
 ## TypeScript
+
+In TypeScript there is no trait to implement. Any object with `read(): Promise<number>`
+is a sensor to the program, and any object with `apply(command): Promise<void>` an
+actuator, because the loop that calls them is the program's own; the helpers, the
+controller, and the ladder take plain numbers, booleans, and strings. A read that fails
+throws, and a `Replay` that has run out throws `resource is closed`. A profile of the
+program's own is `new Profile(name, topic, control, power)`, where the control is a plain
+object such as `{ kind: ControlKind.Setpoint, setpoint, hysteresis, safeBand }` and the
+power `{ activeSecs, saverSecs, criticalSecs }`. Its `controller()` decides, and in place
+of Rust's `Node` the program reads, drives, and publishes around it.
 
 The parts:
 
@@ -339,7 +351,52 @@ main()
 ```
 <!-- end -->
 
+The same parts under a profile of the maker's own:
+
+<!-- snippet: bindings/node/guides/device.ts#profile -->
+From [`bindings/node/guides/device.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/device.ts):
+
+```typescript
+import { ControlKind, Profile, type Reaction } from '@pamoja/profile'
+
+async function underAProfile(): Promise<Reaction[]> {
+  // The same band as a profile rather than a line of code, with an alert once the bed is
+  // more than 15 points from target. No preset is involved: this is the maker's own
+  // profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly when it
+  // is nearly flat, and it saves to JSON the same as a shipped one.
+  const band = { kind: ControlKind.Setpoint, setpoint: 37.5, hysteresis: 7.5, safeBand: 15 }
+  const schedule = { activeSecs: 300, saverSecs: 1800, criticalSecs: 3600 }
+  const profile = new Profile('raised-bed-drip', TOPIC, band, schedule)
+  const probe = new SoilProbe(new Replay([2900, 2300]), Calibration.twoPoint(3200, 0, 1400, 100))
+  const valve = new Valve()
+
+  // In Rust a Node runs this loop. Here the profile's controller decides, and the program
+  // reads the probe and drives the valve itself.
+  const controller = profile.controller()
+  const reactions: Reaction[] = []
+  for (let tick = 0; tick < 2; tick += 1) {
+    const reaction = controller.evaluate(await probe.read())
+    if (reaction.actuator != null) await valve.apply(reaction.actuator)
+    const state = reaction.actuator == null ? 'untouched' : reaction.actuator ? 'open' : 'closed'
+    console.log(`under the profile: valve ${state}, alert ${reaction.alert?.kind ?? 'none'}`)
+    reactions.push(reaction)
+  }
+  return reactions
+}
+```
+<!-- end -->
+
 ## Python
+
+In Python, a part is any class with an `async def read(self)` or an
+`async def apply(self, command)`; nothing checks for a base class, and the loop is the
+program's own. A read that fails raises, and a `Replay` that has run out raises
+`PamojaError` with `resource is closed`. A profile of the program's own is
+`Profile(name, topic, control, power)`, with the control a
+`ControlPolicy(ControlKind.SETPOINT, setpoint=..., hysteresis=..., safe_band=...)` and
+the power a `PowerScheduleSpec(active_secs, saver_secs, critical_secs)`, whose thresholds
+are 50% and 20% charge unless given. Its `controller()` decides, and the program acts on
+what it says.
 
 The parts:
 
@@ -446,7 +503,55 @@ got, valve, left = asyncio.run(main())
 ```
 <!-- end -->
 
+The same parts under a profile of the maker's own:
+
+<!-- snippet: bindings/python/guides/device.py#profile -->
+From [`bindings/python/guides/device.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/device.py):
+
+```python
+async def under_a_profile():
+    from pamoja.profile import ControlKind, ControlPolicy, PowerScheduleSpec, Profile
+
+    # The same band as a profile rather than a line of code, with an alert once the bed is
+    # more than 15 points from target. No preset is involved: this is the maker's own
+    # profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly when
+    # it is nearly flat, and it saves to JSON the same as a shipped one.
+    band = ControlPolicy(ControlKind.SETPOINT, setpoint=37.5, hysteresis=7.5, safe_band=15.0)
+    schedule = PowerScheduleSpec(300, 1800, 3600)
+    profile = Profile("raised-bed-drip", TOPIC, band, schedule)
+    probe = SoilProbe(Replay([2900.0, 2300.0]), Calibration.two_point(3200.0, 0.0, 1400.0, 100.0))
+    valve = Valve()
+
+    # In Rust a Node runs this loop. Here the profile's controller decides, and the program
+    # reads the probe and drives the valve itself.
+    controller = profile.controller()
+    reactions = []
+    for _ in range(2):
+        reaction = controller.evaluate(await probe.read())
+        if reaction.actuator is not None:
+            await valve.apply(reaction.actuator)
+        state = {None: "untouched", True: "open", False: "closed"}[reaction.actuator]
+        alert = reaction.alert.kind if reaction.alert else "none"
+        print(f"under the profile: valve {state}, alert {alert}")
+        reactions.append(reaction)
+    return reactions
+
+
+reactions = asyncio.run(under_a_profile())
+```
+<!-- end -->
+
 ## C#
+
+In C#, a part is whatever the program makes it: here the probe wraps a
+`Func<Task<float>>` that reads counts and the valve has an `ApplyAsync(bool)`, and the
+loop is the program's own. A failed read throws, and a `Replay` that has run out throws
+`PamojaException` with `resource is closed`. A profile of the program's own is
+`new Profile(name, topic, control, power)`, with the control a `ControlPolicy` record
+built with named values, `new ControlPolicy(ControlKind.Setpoint, Setpoint: 37.5f,
+Hysteresis: 7.5f, SafeBand: 15f)`, and the power a `PowerSchedule(ActiveSecs, SaverSecs,
+CriticalSecs)` whose thresholds are 0.5 and 0.2 unless given. The profile and its
+`Controller` hold native handles and belong in a `using`.
 
 The parts:
 
@@ -550,6 +655,169 @@ for (int n = 0; n < 6; n++)
 Console.WriteLine($"gateway got {string.Join(", ", got)}");
 ```
 <!-- end -->
+
+The same parts under a profile of the maker's own:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/DeviceGuide.cs#profile -->
+From [`bindings/dotnet/samples/Pamoja.Guides/DeviceGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/DeviceGuide.cs):
+
+```csharp
+// The same band as a profile rather than a line of code, with an alert once the
+// bed is more than 15 points from target. No preset is involved: this is the
+// maker's own profile, sampling every 5 minutes, every 30 as the battery runs low,
+// and hourly when it is nearly flat, and it saves to JSON the same as a shipped one.
+var band = new ControlPolicy(ControlKind.Setpoint, Setpoint: 37.5f, Hysteresis: 7.5f, SafeBand: 15f);
+var schedule = new PowerSchedule(300, 1800, 3600);
+using var profile = new Profile("raised-bed-drip", Topic, band, schedule);
+using var counts = new Replay([2900f, 2300f]);
+var probe = new SoilProbe(counts.ReadAsync, Calibration.TwoPoint(3200f, 0f, 1400f, 100f));
+var valve = new Valve();
+
+// In Rust a Node runs this loop. Here the profile's controller decides, and the
+// program reads the probe and drives the valve itself.
+using Controller controller = profile.Controller();
+List<Reaction> reactions = [];
+for (int tick = 0; tick < 2; tick++)
+{
+    Reaction reaction = controller.Evaluate(await probe.ReadAsync());
+    if (reaction.Actuator is bool open)
+    {
+        await valve.ApplyAsync(open);
+    }
+
+    string state = reaction.Actuator switch { true => "open", false => "closed", null => "untouched" };
+    string alert = reaction.Alert?.Kind.ToString() ?? "none";
+    Console.WriteLine($"under the profile: valve {state}, alert {alert}");
+    reactions.Add(reaction);
+}
+```
+<!-- end -->
+
+## Values at a glance
+
+**What makes a part.** Each language's contract, and what a part that cannot do its job
+should do:
+
+| Language | A sensor | An actuator | When it cannot |
+| --- | --- | --- | --- |
+| Rust | `impl Sensor` with a `Reading` type and `async fn read(&mut self) -> Result<Reading>` | `impl Actuator` with a `Command` type and `async fn apply(&mut self, command) -> Result<()>` | return `Error::Io`, or `Error::Closed` once the part has gone away |
+| TypeScript | any object with `read(): Promise<number>` | any object with `apply(command): Promise<void>` | throw |
+| Python | any object with `async def read(self)` | any object with `async def apply(self, command)` | raise |
+| C# | any method that returns a `Task<float>` | any method that takes the command | throw |
+
+**The pieces the loop uses,** each covered in a guide of its own:
+
+| Piece | What it does | Its guide |
+| --- | --- | --- |
+| replay | hands back recorded readings one per read, then reports closed, or loops when repeating | [Simulators](sim.md) |
+| calibration | maps a raw count onto real units from two known points | [Helpers](kit.md) |
+| thermostat | on/off control with a band either side of a setpoint | [Helpers](kit.md) |
+| loopback broker and faulty link | a link with nothing plugged in, and one that refuses its first sends | [Loopback](loopback.md) |
+| ladder | buffers what no link could carry and replays it in order | [Transport ladder](ladder.md) |
+| profile and controller | a rule as data, and the decisions it makes about each reading | [Device profiles](profile.md) |
+
+**A profile built from its parts.** A name, a topic, a control policy, and a power
+schedule; the description and dashboard presentation are added afterward, as the
+profiles guide shows. In the bindings, `cooling` and `rising` are false unless given:
+
+| Part | Means | In a manifest |
+| --- | --- | --- |
+| name | a stable, human-readable name, such as `raised-bed-drip` | `name` |
+| topic | where each reading is published | `topic` |
+| setpoint control | `setpoint`, `hysteresis` either side of it, `cooling` for an output that cools rather than heats, and `safe band`, how far a reading may stray before an alert | `kind: setpoint` and its four fields |
+| level control | `empty`, the level treated as empty, and `warn within`, how many samples ahead to warn | `kind: level` |
+| surge control | `limit`, the largest safe change per sample, and `rising` to watch a rise rather than a fall | `kind: surge` |
+| monitor control | reports readings and decides nothing | `kind: monitor` |
+| custom control | a kind of the program's own, named, with its parameters as numbers, flags, and text | the kind and every parameter beside it |
+| power schedule | seconds between samples at a healthy charge, while conserving, and when critically low; the saver cadence starts below 50% charge and the critical one below 20% unless given | `power` |
+
+**The calls in each language:**
+
+### Rust
+
+| To | Write |
+| --- | --- |
+| build a profile | `Profile::new(name, topic, control, PowerSchedule::new(active, saver, critical))` |
+| a setpoint control | `ControlSpec::Setpoint { setpoint, hysteresis, cooling, safe_band }` |
+| a custom control | `ControlSpec::custom(kind, Params::new().with(name, value))` |
+| other thresholds | `PowerSchedule::new(..).with_thresholds(saver_below, critical_below)` |
+| run the parts under it | `Node::new(profile, sensor, actuator, link, codec)`, then `tick()` gives a `Reaction` |
+| decide by hand | `profile.controller()`, then `evaluate(reading)` gives a `Reaction` |
+
+### TypeScript
+
+| To | Write |
+| --- | --- |
+| build a profile | `new Profile(name, topic, control, { activeSecs, saverSecs, criticalSecs })` |
+| a setpoint control | `{ kind: ControlKind.Setpoint, setpoint, hysteresis, cooling?, safeBand }` |
+| a custom control | `{ kind: ControlKind.Custom, customKind, params: { name: value } }` |
+| other thresholds | `{ ..., saverBelow, criticalBelow }` in the power schedule |
+| decide | `profile.controller()`, then `evaluate(reading)` gives `{ actuator, alert }` |
+
+### Python
+
+| To | Write |
+| --- | --- |
+| build a profile | `Profile(name, topic, control, PowerScheduleSpec(active, saver, critical))` |
+| a setpoint control | `ControlPolicy(ControlKind.SETPOINT, setpoint=..., hysteresis=..., cooling=False, safe_band=...)` |
+| a custom control | `ControlPolicy(ControlKind.CUSTOM, custom_kind=..., params={...})` |
+| other thresholds | `PowerScheduleSpec(active, saver, critical, saver_below=..., critical_below=...)` |
+| decide | `profile.controller()`, then `evaluate(reading)` gives a `Reaction` with `actuator` and `alert` |
+
+### C#
+
+| To | Write |
+| --- | --- |
+| build a profile | `new Profile(name, topic, control, new PowerSchedule(active, saver, critical))` |
+| a setpoint control | `new ControlPolicy(ControlKind.Setpoint, Setpoint: .., Hysteresis: .., SafeBand: ..)` |
+| a custom control | `new ControlPolicy(ControlKind.Custom, CustomKind: .., Params: new Dictionary<string, object> { .. })` |
+| other thresholds | `new PowerSchedule(active, saver, critical, SaverBelow: .., CriticalBelow: ..)` |
+| decide | `profile.Controller()`, then `Evaluate(reading)` gives a `Reaction` with `Actuator` and `Alert` |
+
+<!-- languages end -->
+
+**What a reaction says.** The controller's answer to one reading, the same in every
+language:
+
+| Field | Means |
+| --- | --- |
+| actuator | the setting the output should take, or none when the profile observes rather than controls |
+| alert | none, or the threshold the reading crossed: out of range with the reading, running out with the samples left, changing fast with the rate, or a custom code with its value |
+
+## When it goes wrong
+
+What is refused, building a profile from its parts or reading past a replay's end:
+
+| What happened | The message | Where |
+| --- | --- | --- |
+| a control without a field its kind needs | `a Setpoint control needs hysteresis` | every binding: an `ArgumentException` in C#, which names `Hysteresis`, and a `ValueError` in Python |
+| a custom control named like a built-in one | `codec error: level is a built-in control kind, so it takes its own fields rather than parameters` | every language, from Rust's `ControlSpec::custom` down |
+| a custom parameter named `kind` | `codec error: a custom control cannot have a parameter named kind, which its manifest keeps for the kind itself` | every language |
+| a custom parameter that is not a number, a flag, or text | `parameter zones must be a number, True or False, or text, not list` | Python; C# says the same with `true or false` |
+| seconds with a fraction | `activeSecs must be a whole number of seconds, not 2.5` | TypeScript; Python raises `TypeError`, and Rust and C# take whole numbers |
+| a kind that is not one of the five | `kind must be "Setpoint", "Level", "Surge", "Monitor", or "Custom", not "Sideways"` | Python; TypeScript's types refuse it before the call |
+| a replay read past its end | `resource is closed` | every language: `Error::Closed` in Rust |
+
+The mistakes that cost an afternoon:
+
+- **The valve never opens, or never closes.** A thermostat's `cooling` and `heating` name
+  a direction, not a use. A valve that adds water acts on a falling reading the way a
+  heater does, so it is `heating`; `cooling` opens it on a rising one.
+- **The moisture reads backward.** A capacitive probe reads higher the drier the soil, so
+  the dry count is the top of the calibration and the wet count the bottom. Measure both
+  once, in dry air and in water, and keep the numbers.
+- **One bad read stops the node.** A read that fails throws, raises, or returns an error,
+  and a loop that does not catch it ends there. Skip that reading and carry on, or let the
+  profile's controller hold what it decided last.
+- **The backlog is gone after a restart.** A memory store holds what the link refused for
+  as long as the process runs. Give the ladder a file store to keep it across a restart or
+  a power cut.
+- **A profile decides strangely.** A controller keeps state between readings, because a
+  level estimate and a rate of change both need the previous one. Evaluate readings
+  through one controller, in the order they were taken.
+- **A Rust node will not spawn.** Every core trait's future is `Send`, so a part that holds
+  something that is not, such as a bus without a `Send` bound, cannot move into a spawned
+  task. Bound it, as `SoilProbe` bounds its converter.
 
 ## Where next
 

@@ -92,10 +92,48 @@ async function main() {
 main()
 // ANCHOR_END: example
   .then(check)
+  .then(underAProfile)
+  .then(checkProfile)
 
 function check(seen: { got: string[]; switched: number; open: boolean; left: number }): void {
   assert.deepEqual(seen.got, ['16.7', '27.8', '50.0', '41.7', '25.0', '38.9'])
   assert.equal(seen.switched, 3)
   assert.ok(seen.open)
   assert.equal(seen.left, 0)
+}
+
+// ANCHOR: profile
+import { ControlKind, Profile, type Reaction } from '@pamoja/profile'
+
+async function underAProfile(): Promise<Reaction[]> {
+  // The same band as a profile rather than a line of code, with an alert once the bed is
+  // more than 15 points from target. No preset is involved: this is the maker's own
+  // profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly when it
+  // is nearly flat, and it saves to JSON the same as a shipped one.
+  const band = { kind: ControlKind.Setpoint, setpoint: 37.5, hysteresis: 7.5, safeBand: 15 }
+  const schedule = { activeSecs: 300, saverSecs: 1800, criticalSecs: 3600 }
+  const profile = new Profile('raised-bed-drip', TOPIC, band, schedule)
+  const probe = new SoilProbe(new Replay([2900, 2300]), Calibration.twoPoint(3200, 0, 1400, 100))
+  const valve = new Valve()
+
+  // In Rust a Node runs this loop. Here the profile's controller decides, and the program
+  // reads the probe and drives the valve itself.
+  const controller = profile.controller()
+  const reactions: Reaction[] = []
+  for (let tick = 0; tick < 2; tick += 1) {
+    const reaction = controller.evaluate(await probe.read())
+    if (reaction.actuator != null) await valve.apply(reaction.actuator)
+    const state = reaction.actuator == null ? 'untouched' : reaction.actuator ? 'open' : 'closed'
+    console.log(`under the profile: valve ${state}, alert ${reaction.alert?.kind ?? 'none'}`)
+    reactions.push(reaction)
+  }
+  return reactions
+}
+// ANCHOR_END: profile
+
+function checkProfile(reactions: Reaction[]): void {
+  assert.equal(reactions[0].actuator, true)
+  assert.equal(reactions[0].alert?.kind, 'OutOfRange')
+  assert.equal(reactions[1].actuator, false)
+  assert.equal(reactions[1].alert ?? null, null)
 }

@@ -52,7 +52,7 @@ use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
-use pamoja_profile::{Alert, ControlSpec, Controller, Profile};
+use pamoja_profile::{Alert, ControlSpec, Controller, Params, PowerSchedule, Profile};
 use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
@@ -3525,6 +3525,47 @@ fn profile_vectors_match() {
         "a monitoring profile drives no output"
     );
     assert_eq!(alert_name(reaction.alert.as_ref()), "None");
+
+    for case in vector["built"].as_array().expect("the built profiles") {
+        let power = &case["power"];
+        let schedule = PowerSchedule::new(
+            power["activeSecs"].as_u64().expect("the active cadence"),
+            power["saverSecs"].as_u64().expect("the saver cadence"),
+            power["criticalSecs"]
+                .as_u64()
+                .expect("the critical cadence"),
+        )
+        .with_thresholds(float(&power["saverBelow"]), float(&power["criticalBelow"]));
+        let profile = Profile::new(
+            case["name"].as_str().expect("the name"),
+            case["topic"].as_str().expect("the topic"),
+            spec_from(&case["control"]),
+            schedule,
+        );
+        assert_eq!(
+            profile.to_json().expect("a profile serializes"),
+            case["manifest"].as_str().expect("the manifest"),
+            "a profile built from its parts writes the same manifest"
+        );
+    }
+}
+
+/// Rebuilds a control policy from the flattened form every binding builds one from.
+fn spec_from(control: &Value) -> ControlSpec {
+    match control["kind"].as_str().expect("the kind") {
+        "Setpoint" => ControlSpec::Setpoint {
+            setpoint: float(&control["setpoint"]),
+            hysteresis: float(&control["hysteresis"]),
+            cooling: control["cooling"].as_bool().expect("cooling"),
+            safe_band: float(&control["safeBand"]),
+        },
+        "Custom" => ControlSpec::custom(
+            control["customKind"].as_str().expect("the custom kind"),
+            Params::from_json(&control["params"].to_string()).expect("the parameters"),
+        )
+        .expect("a custom kind"),
+        other => panic!("no built profile uses a {other} control"),
+    }
 }
 
 /// Walks a controller through a recorded run and checks every decision.

@@ -138,22 +138,18 @@ async fn the_same_parts_run_under_a_profile() -> std::result::Result<(), Box<dyn
     use pamoja_profile::{ControlSpec, Node, PowerSchedule, Profile};
     use pamoja_sim::Replay;
 
-    // The same band as a manifest rather than a line of code, with an alert once the bed
+    // The same band as a profile rather than a line of code, with an alert once the bed
     // is more than 15 points from target. No preset is involved: this is the maker's own
-    // profile, and it saves to JSON the same as a shipped one.
-    let profile = Profile {
-        name: "raised-bed-drip".to_owned(),
-        description: None,
-        topic: "garden/bed-1/moisture".to_owned(),
-        control: ControlSpec::Setpoint {
-            setpoint: 37.5,
-            hysteresis: 7.5,
-            cooling: false,
-            safe_band: 15.0,
-        },
-        power: PowerSchedule::new(300, 1800, 3600),
-        presentation: None,
+    // profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly
+    // when it is nearly flat, and it saves to JSON the same as a shipped one.
+    let band = ControlSpec::Setpoint {
+        setpoint: 37.5,
+        hysteresis: 7.5,
+        cooling: false,
+        safe_band: 15.0,
     };
+    let schedule = PowerSchedule::new(300, 1800, 3600);
+    let profile = Profile::new("raised-bed-drip", "garden/bed-1/moisture", band, schedule);
     let probe = SoilProbe {
         adc: Replay::new(vec![2900.0, 2300.0]),
         calibration: Calibration::two_point(3200.0, 0.0, 1400.0, 100.0),

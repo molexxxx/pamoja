@@ -29,6 +29,7 @@ export type {
   AlertReport,
   ControlPolicy,
   ElementSpec,
+  PowerScheduleSettings,
   PowerScheduleSpec,
   Presentation,
   Reaction,

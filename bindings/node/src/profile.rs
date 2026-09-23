@@ -91,6 +91,22 @@ pub struct PowerScheduleSpec {
     pub critical_below: f64,
 }
 
+/// The sampling schedule a new profile keeps, in whole seconds. The thresholds default
+/// to entering the saver cadence below 50% charge and the critical cadence below 20%.
+#[napi(object)]
+pub struct PowerScheduleSettings {
+    /// Seconds between samples at a healthy charge.
+    pub active_secs: f64,
+    /// Seconds between samples while conserving.
+    pub saver_secs: f64,
+    /// Seconds between samples when critically low.
+    pub critical_secs: f64,
+    /// Enter the saver cadence below this state of charge; 0.5 unless given.
+    pub saver_below: Option<f64>,
+    /// Enter the critical cadence below this state of charge; 0.2 unless given.
+    pub critical_below: Option<f64>,
+}
+
 /// The graphic a dashboard draws an element with, named by the instrument rather than
 /// the quantity. The values are the ones a manifest carries.
 #[napi(string_enum = "snake_case")]
@@ -290,6 +306,74 @@ fn policy_of(spec: &ControlSpec) -> ControlPolicy {
         }
     }
     policy
+}
+
+/// Rebuilds the control policy a program passed in, refusing one that lacks a field its
+/// kind needs.
+fn spec_of(policy: ControlPolicy) -> napi::Result<ControlSpec> {
+    fn needs<T>(value: Option<T>, kind: &str, field: &str) -> napi::Result<T> {
+        value.ok_or_else(|| napi::Error::from_reason(format!("a {kind} control needs {field}")))
+    }
+    match policy.kind {
+        ControlKind::Setpoint => Ok(ControlSpec::Setpoint {
+            setpoint: needs(policy.setpoint, "Setpoint", "setpoint")? as f32,
+            hysteresis: needs(policy.hysteresis, "Setpoint", "hysteresis")? as f32,
+            cooling: policy.cooling.unwrap_or(false),
+            safe_band: needs(policy.safe_band, "Setpoint", "safeBand")? as f32,
+        }),
+        ControlKind::Level => Ok(ControlSpec::Level {
+            empty: needs(policy.empty, "Level", "empty")? as f32,
+            warn_within: needs(policy.warn_within, "Level", "warnWithin")?,
+        }),
+        ControlKind::Surge => Ok(ControlSpec::Surge {
+            rising: policy.rising.unwrap_or(false),
+            limit: needs(policy.limit, "Surge", "limit")? as f32,
+        }),
+        ControlKind::Monitor => Ok(ControlSpec::Monitor),
+        ControlKind::Custom => {
+            let kind = needs(policy.custom_kind, "Custom", "customKind")?;
+            let params: BTreeMap<String, Param> = policy
+                .params
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(name, value)| {
+                    let value = match value {
+                        Either3::A(number) => Param::Number(number),
+                        Either3::B(flag) => Param::Flag(flag),
+                        Either3::C(text) => Param::Text(text),
+                    };
+                    (name, value)
+                })
+                .collect();
+            ControlSpec::custom(kind, params.into()).map_err(to_napi)
+        }
+    }
+}
+
+/// Rebuilds a schedule from the settings a program passed in, refusing seconds that
+/// are not a whole number.
+fn schedule_from(power: PowerScheduleSettings) -> napi::Result<CoreSchedule> {
+    fn secs(value: f64, name: &str) -> napi::Result<u64> {
+        const SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+        if value.fract() != 0.0 || !(0.0..=SAFE_INTEGER).contains(&value) {
+            return Err(napi::Error::from_reason(format!(
+                "{name} must be a whole number of seconds, not {value}"
+            )));
+        }
+        Ok(value as u64)
+    }
+    let mut schedule = CoreSchedule::new(
+        secs(power.active_secs, "activeSecs")?,
+        secs(power.saver_secs, "saverSecs")?,
+        secs(power.critical_secs, "criticalSecs")?,
+    );
+    if let Some(saver_below) = power.saver_below {
+        schedule.saver_below = saver_below as f32;
+    }
+    if let Some(critical_below) = power.critical_below {
+        schedule.critical_below = critical_below as f32;
+    }
+    Ok(schedule)
 }
 
 /// Flattens a schedule into the object JavaScript sees.
@@ -497,6 +581,29 @@ pub struct Profile {
 
 #[napi]
 impl Profile {
+    /// Creates a profile of the program's own from its parts, with no description and
+    /// no presentation.
+    ///
+    /// @param name - a stable, human-readable name, such as `raised-bed-drip`.
+    /// @param topic - the topic each reading is published to.
+    /// @param control - the control policy; only the fields belonging to its kind are
+    ///   read, and `cooling` and `rising` are false unless given.
+    /// @param power - how often the node samples as the battery drains.
+    /// @throws when the control lacks a field its kind needs, a custom kind is empty,
+    ///   built in, or has a parameter named `kind`, or a schedule's seconds are not a
+    ///   whole number.
+    #[napi(constructor)]
+    pub fn new(
+        name: String,
+        topic: String,
+        control: ControlPolicy,
+        power: PowerScheduleSettings,
+    ) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreProfile::new(name, topic, spec_of(control)?, schedule_from(power)?),
+        })
+    }
+
     /// A cold-chain fridge monitor, which holds 5 C and flags an excursion.
     #[napi(factory)]
     pub fn vaccine_fridge_monitor() -> Self {

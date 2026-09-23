@@ -5,6 +5,7 @@ using Pamoja.Core;
 using Pamoja.Kit;
 using Pamoja.Ladder;
 using Pamoja.Loopback;
+using Pamoja.Profile;
 using Pamoja.Sim;
 using Pamoja.Sync;
 
@@ -121,5 +122,49 @@ public static class DeviceGuide
         Expect(valve.Switched == 3, "the valve opened, closed, and opened again");
         Expect(valve.Open, "and is open at the end");
         Expect(await ladder.BufferedAsync() == 0, "nothing is left in the queue");
+
+        List<Reaction> reactions = await UnderAProfileAsync();
+        Expect(
+            reactions[0].Actuator == true && reactions[0].Alert?.Kind == AlertKind.OutOfRange,
+            "a dry bed opens the valve and is out of range");
+        Expect(reactions[1].Actuator == false && reactions[1].Alert is null, "a wet one closes it");
+    }
+
+    /// <summary>Runs the same two parts under a profile of the maker's own.</summary>
+    /// <returns>What the profile decided about each reading.</returns>
+    private static async Task<List<Reaction>> UnderAProfileAsync()
+    {
+        // ANCHOR: profile
+        // The same band as a profile rather than a line of code, with an alert once the
+        // bed is more than 15 points from target. No preset is involved: this is the
+        // maker's own profile, sampling every 5 minutes, every 30 as the battery runs low,
+        // and hourly when it is nearly flat, and it saves to JSON the same as a shipped one.
+        var band = new ControlPolicy(ControlKind.Setpoint, Setpoint: 37.5f, Hysteresis: 7.5f, SafeBand: 15f);
+        var schedule = new PowerSchedule(300, 1800, 3600);
+        using var profile = new Profile("raised-bed-drip", Topic, band, schedule);
+        using var counts = new Replay([2900f, 2300f]);
+        var probe = new SoilProbe(counts.ReadAsync, Calibration.TwoPoint(3200f, 0f, 1400f, 100f));
+        var valve = new Valve();
+
+        // In Rust a Node runs this loop. Here the profile's controller decides, and the
+        // program reads the probe and drives the valve itself.
+        using Controller controller = profile.Controller();
+        List<Reaction> reactions = [];
+        for (int tick = 0; tick < 2; tick++)
+        {
+            Reaction reaction = controller.Evaluate(await probe.ReadAsync());
+            if (reaction.Actuator is bool open)
+            {
+                await valve.ApplyAsync(open);
+            }
+
+            string state = reaction.Actuator switch { true => "open", false => "closed", null => "untouched" };
+            string alert = reaction.Alert?.Kind.ToString() ?? "none";
+            Console.WriteLine($"under the profile: valve {state}, alert {alert}");
+            reactions.Add(reaction);
+        }
+        // ANCHOR_END: profile
+
+        return reactions;
     }
 }

@@ -100,3 +100,39 @@ assert got == ["16.7", "27.8", "50.0", "41.7", "25.0", "38.9"]
 assert valve.switched == 3
 assert valve.open
 assert left == 0
+
+
+# ANCHOR: profile
+async def under_a_profile():
+    from pamoja.profile import ControlKind, ControlPolicy, PowerScheduleSpec, Profile
+
+    # The same band as a profile rather than a line of code, with an alert once the bed is
+    # more than 15 points from target. No preset is involved: this is the maker's own
+    # profile, sampling every 5 minutes, every 30 as the battery runs low, and hourly when
+    # it is nearly flat, and it saves to JSON the same as a shipped one.
+    band = ControlPolicy(ControlKind.SETPOINT, setpoint=37.5, hysteresis=7.5, safe_band=15.0)
+    schedule = PowerScheduleSpec(300, 1800, 3600)
+    profile = Profile("raised-bed-drip", TOPIC, band, schedule)
+    probe = SoilProbe(Replay([2900.0, 2300.0]), Calibration.two_point(3200.0, 0.0, 1400.0, 100.0))
+    valve = Valve()
+
+    # In Rust a Node runs this loop. Here the profile's controller decides, and the program
+    # reads the probe and drives the valve itself.
+    controller = profile.controller()
+    reactions = []
+    for _ in range(2):
+        reaction = controller.evaluate(await probe.read())
+        if reaction.actuator is not None:
+            await valve.apply(reaction.actuator)
+        state = {None: "untouched", True: "open", False: "closed"}[reaction.actuator]
+        alert = reaction.alert.kind if reaction.alert else "none"
+        print(f"under the profile: valve {state}, alert {alert}")
+        reactions.append(reaction)
+    return reactions
+
+
+reactions = asyncio.run(under_a_profile())
+# ANCHOR_END: profile
+
+assert reactions[0].actuator is True and reactions[0].alert.kind == "OutOfRange"
+assert reactions[1].actuator is False and reactions[1].alert is None

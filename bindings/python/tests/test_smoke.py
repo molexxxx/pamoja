@@ -1694,6 +1694,36 @@ def test_a_profile_manifest_round_trips():
         profile.Profile.from_json("{")
 
 
+def test_a_profile_is_built_from_its_parts():
+    from pamoja import profile
+
+    band = profile.ControlPolicy(
+        profile.ControlKind.SETPOINT, setpoint=37.5, hysteresis=7.5, safe_band=15.0
+    )
+    hourly = profile.PowerScheduleSpec(300, 1800, 3600)
+    drip = profile.Profile("raised-bed-drip", "garden/bed-1/moisture", band, hourly)
+    assert drip.control.cooling is False, "cooling is false unless given"
+    assert drip.power.critical_below == pytest.approx(0.2), "the thresholds default"
+    assert drip.controller().evaluate(16.7).actuator is True, "a dry bed opens the valve"
+
+    guard = profile.ControlPolicy(
+        profile.ControlKind.CUSTOM, custom_kind="frost_guard", params={"warn_below": 2.0}
+    )
+    orchard = profile.Profile("orchard-frost", "orchard/air", guard, hourly)
+    assert orchard.control.params == {"warn_below": 2.0}
+
+    with pytest.raises(ValueError, match="a Setpoint control needs hysteresis"):
+        missing = profile.ControlPolicy(profile.ControlKind.SETPOINT, setpoint=1.0)
+        profile.Profile("x", "t", missing, hourly)
+    with pytest.raises(ValueError, match="level is a built-in control kind"):
+        built_in = profile.ControlPolicy(profile.ControlKind.CUSTOM, custom_kind="level")
+        profile.Profile("x", "t", built_in, hourly)
+    with pytest.raises(ValueError, match='kind must be "Setpoint"'):
+        profile.ControlPolicy("Sideways")
+    with pytest.raises(ValueError, match="parameter zones must be a number"):
+        profile.ControlPolicy(profile.ControlKind.CUSTOM, custom_kind="x", params={"zones": [1]})
+
+
 def test_a_presentation_is_typed_both_ways():
     from pamoja import profile
 
