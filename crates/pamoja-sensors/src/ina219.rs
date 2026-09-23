@@ -11,6 +11,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Ina219, STATUS_POLLS};

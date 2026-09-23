@@ -232,7 +232,7 @@ const fn raw_of(temperature: i32, pressure: i32, humidity: i32) -> RawMeasuremen
 }
 
 // Rounds away from zero, since a part cannot call `f32::round` without an operating system.
-fn rounded(value: f32) -> i32 {
+pub(crate) fn rounded(value: f32) -> i32 {
     if value >= 0.0 {
         (value + 0.5) as i32
     } else {
@@ -243,7 +243,7 @@ fn rounded(value: f32) -> i32 {
 // The converter value a reading came from. The compensation only runs one way and is
 // monotonic, so this walks in from both ends; which way it leans is read off the ends
 // rather than assumed, because pressure falls as its converter value rises.
-fn solve(wanted: i64, low: i32, high: i32, measured: impl Fn(i32) -> i64) -> i32 {
+pub(crate) fn solve(wanted: i64, low: i32, high: i32, measured: impl Fn(i32) -> i64) -> i32 {
     let rising = measured(high) >= measured(low);
     let (mut low, mut high) = (low, high);
     while low < high {

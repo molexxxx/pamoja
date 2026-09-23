@@ -25,6 +25,8 @@ pub const CONFIGURATION_RESET: u16 = 0x1000;
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::Hdc1080;

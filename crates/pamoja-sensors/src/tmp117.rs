@@ -13,6 +13,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Tmp117, STATUS_POLLS};

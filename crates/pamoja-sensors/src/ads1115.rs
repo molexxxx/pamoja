@@ -9,6 +9,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Ads1115, CONVERSION_POLLS};
