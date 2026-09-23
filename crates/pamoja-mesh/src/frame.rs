@@ -32,14 +32,15 @@ pub const BROADCAST: u32 = 0xFFFF_FFFF;
 /// ```
 /// use pamoja_mesh::Frame;
 ///
-/// let frame = Frame::new(0x0A, 0x0B, 7, b"hello").unwrap();
-/// assert_eq!(frame.src(), 0x0A);
-/// assert_eq!(frame.dst(), 0x0B);
-/// assert_eq!(frame.id(), 7);
-/// assert_eq!(frame.payload(), b"hello");
+/// // A water tank's level sensor, node 10, sends its seventh reading to the pump
+/// // controller, node 11.
+/// let (tank, pump) = (10, 11);
+/// let frame = Frame::new(tank, pump, 7, b"level=62").unwrap();
+/// assert_eq!((frame.src(), frame.dst(), frame.id()), (tank, pump, 7));
 ///
+/// // The pump reads the same frame back off the air.
 /// let received = Frame::parse(frame.as_bytes()).unwrap();
-/// assert_eq!(received.payload(), b"hello");
+/// assert_eq!(received.payload(), b"level=62");
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Frame {

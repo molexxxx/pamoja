@@ -19,32 +19,34 @@
 //!
 //! # Examples
 //!
-//! The event ChirpStack's documentation shows for an uplink:
+//! A soil probe's reading as ChirpStack publishes it, in the layout its integration events
+//! documentation shows. The payload arrives decrypted and in base64, `MjEuNQ==` being the
+//! text `21.5`:
 //!
 //! ```
 //! use pamoja_gateway::chirpstack::UplinkEvent;
 //!
 //! let json = r#"{
 //!     "deduplicationId": "3ac7e3c4-4401-4b8d-9386-a5c902f9202d",
-//!     "time": "2022-07-18T09:34:15.775023242+00:00",
+//!     "time": "2026-07-18T09:34:15.775023242+00:00",
 //!     "deviceInfo": {
 //!         "applicationId": "17c82e96-be03-4f38-aef3-f83d48582d97",
-//!         "deviceName": "Test device",
-//!         "devEui": "0101010101010101"
+//!         "deviceName": "soil probe, north bed",
+//!         "devEui": "70b3d57ed0001234"
 //!     },
-//!     "devAddr": "00189440",
-//!     "dr": 1,
-//!     "fPort": 1,
-//!     "data": "qg==",
-//!     "rxInfo": [{ "gatewayId": "0016c001f153a14c", "rssi": -36, "snr": 10.5 }],
-//!     "txInfo": { "frequency": 867100000 }
+//!     "devAddr": "26011bda",
+//!     "dr": 5,
+//!     "fPort": 2,
+//!     "data": "MjEuNQ==",
+//!     "rxInfo": [{ "gatewayId": "b827ebfffe010203", "rssi": -36, "snr": 10.5 }],
+//!     "txInfo": { "frequency": 868100000 }
 //! }"#;
 //!
 //! let event = UplinkEvent::from_json(json)?;
-//! assert_eq!(event.dev_eui.to_hex(), "0101010101010101");
-//! assert_eq!(event.fport, Some(1));
-//! assert_eq!(event.data, [0xAA]);
-//! assert_eq!(event.fcnt, 0, "left out because it is zero");
+//! assert_eq!(event.dev_eui.to_hex(), "70b3d57ed0001234");
+//! assert_eq!(event.fport, Some(2));
+//! assert_eq!(event.data, b"21.5");
+//! assert_eq!(event.fcnt, 0, "left out of the JSON because it is zero");
 //! assert_eq!(event.best_reception().map(|heard| heard.rssi_dbm), Some(-36));
 //! # Ok::<(), pamoja_gateway::chirpstack::EventError>(())
 //! ```

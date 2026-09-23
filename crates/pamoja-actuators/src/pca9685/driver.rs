@@ -79,31 +79,34 @@ impl Outputs {
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: initialization at the 50 Hz a
-/// hobby servo wants, then one channel loaded with a centered 1.5 ms pulse.
+/// A pan-tilt camera mount's servo, driven through a PCA9685 that is not plugged in yet: the
+/// board is set up for the 50 Hz a hobby servo wants, and channel 0 is sent to the center of
+/// its travel, a 1.5 ms pulse. The simulated part keeps what it was told, so the program can
+/// read it back.
 ///
 /// ```
-/// use pamoja_actuators::pca9685::{Output, Pca9685, Pwm, DEFAULT_I2C_ADDRESS};
+/// use pamoja_actuators::pca9685::{
+///     channel_register, frequency_for_prescale, register, sim, Output, Pca9685, Pwm,
+///     DEFAULT_I2C_ADDRESS, INTERNAL_OSC_HZ,
+/// };
 /// use pamoja_core::Actuator;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
+/// use pamoja_hal::i2c::I2c;
+/// use pamoja_hal::script::{block_on, DelayLog};
 ///
 /// const PART: u8 = DEFAULT_I2C_ADDRESS;
+/// let mut board = Pca9685::new(sim::part(PART), PART, DelayLog::new()).with_frequency(50);
 /// let center = Pwm::servo(1_500, 50);
-/// let [on_l, on_h, off_l, off_h] = center.bytes();
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0x00, 0x30]),
-///     I2cStep::write(PART, [0xFE, 0x79]),
-///     I2cStep::write(PART, [0x01, 0x04]),
-///     I2cStep::write(PART, [0x00, 0x20]),
-///     I2cStep::write(PART, [0x00, 0xA0]),
-///     I2cStep::write(PART, [0x06, on_l, on_h, off_l, off_h]),
-/// ]);
-///
-/// let mut board = Pca9685::new(bus, PART, DelayLog::new()).with_frequency(50);
 /// block_on(board.apply(Output { channel: 0, pwm: center }))?;
-/// let (bus, delay) = board.release();
-/// assert!(bus.done());
-/// assert_eq!(delay.total_micros(), 500);
+///
+/// // The part runs at 50 Hz, to the nearest step its prescale allows, and channel 0 holds
+/// // the pulse.
+/// let (mut part, delay) = board.release();
+/// let prescale = part.register(register::PRE_SCALE);
+/// assert!((frequency_for_prescale(prescale, INTERNAL_OSC_HZ) - 50.0).abs() < 0.5);
+/// let mut held = [0u8; 4];
+/// part.write_read(PART, &[channel_register(0)], &mut held).expect("the part answers");
+/// assert_eq!(Pwm::from_bytes(&held), center);
+/// assert_eq!(delay.total_micros(), 500, "the oscillator's start-up time");
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -522,5 +525,30 @@ mod tests {
         block_on(valve.apply(true)).unwrap();
         block_on(valve.apply(false)).unwrap();
         assert!(valve.into_inner().release().0.done());
+    }
+
+    #[test]
+    fn init_at_fifty_hertz_and_one_servo_make_the_transfers_the_datasheet_gives() {
+        const PART: u8 = DEFAULT_I2C_ADDRESS;
+        let center = Pwm::servo(1_500, 50);
+        let [on_l, on_h, off_l, off_h] = center.bytes();
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0x00, 0x30]),
+            I2cStep::write(PART, [0xFE, 0x79]),
+            I2cStep::write(PART, [0x01, 0x04]),
+            I2cStep::write(PART, [0x00, 0x20]),
+            I2cStep::write(PART, [0x00, 0xA0]),
+            I2cStep::write(PART, [0x06, on_l, on_h, off_l, off_h]),
+        ]);
+
+        let mut board = Pca9685::new(bus, PART, DelayLog::new()).with_frequency(50);
+        block_on(board.apply(Output {
+            channel: 0,
+            pwm: center,
+        }))
+        .expect("the scripted part answers");
+        let (bus, delay) = board.release();
+        assert!(bus.done());
+        assert_eq!(delay.total_micros(), 500);
     }
 }

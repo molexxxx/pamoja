@@ -393,13 +393,13 @@ fn hex(bytes: &[u8]) -> String {
 ///
 /// // TX wired to RX: what goes out comes straight back.
 /// let port = SerialPort::looped(Settings::new(115_200));
-/// port.write(&[0x02, 0x10, 0x03])?;
+/// port.write(b"PING\r\n")?;
 ///
-/// let mut echo = [0u8; 3];
-/// assert_eq!(port.read(&mut echo, Duration::from_millis(10))?, 3);
-/// assert_eq!(echo, [0x02, 0x10, 0x03]);
+/// let mut echo = [0u8; 6];
+/// assert_eq!(port.read(&mut echo, Duration::from_millis(10))?, 6);
+/// assert_eq!(&echo, b"PING\r\n");
 /// assert_eq!(port.kind(), PortKind::Looped);
-/// assert_eq!((port.written(), port.received()), (3, 3));
+/// assert_eq!((port.written(), port.received()), (6, 6));
 /// # Ok::<(), pamoja_hal::port::PortError>(())
 /// ```
 #[derive(Clone)]

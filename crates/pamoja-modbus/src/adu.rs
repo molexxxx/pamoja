@@ -16,15 +16,17 @@ use crate::response::Response;
 /// # Examples
 ///
 /// ```
-/// use pamoja_modbus::Adu;
+/// use pamoja_modbus::{Adu, Function, Pdu};
 ///
-/// let frame = Adu::from_pdu(0x11, &[0x03, 0x00, 0x6B, 0x00, 0x03]).unwrap();
-/// assert_eq!(frame.address(), 0x11);
-/// assert_eq!(frame.function_code(), 0x03);
+/// // A read of three holding registers, addressed to unit 17.
+/// let pdu = Pdu::read_holding_registers(107, 3);
+/// let frame = Adu::from_pdu(17, pdu.as_bytes()).unwrap();
+/// assert_eq!(frame.address(), 17);
+/// assert_eq!(frame.function_code(), Function::ReadHoldingRegisters.code());
 ///
-/// // A receiver validates the same bytes against the CRC they carry.
+/// // A receiver checks the same bytes against the CRC they carry, and finds the PDU.
 /// let received = Adu::parse(frame.as_bytes()).unwrap();
-/// assert_eq!(received.pdu(), &[0x03, 0x00, 0x6B, 0x00, 0x03]);
+/// assert_eq!(received.pdu(), pdu.as_bytes());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Adu {

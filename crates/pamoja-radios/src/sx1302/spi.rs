@@ -93,13 +93,16 @@ pub const fn write(target: u8, address: u16, value: u8) -> [u8; WRITE_LEN] {
 /// # Examples
 ///
 /// ```
+/// use pamoja_radios::sx1302::register::COMMON_VERSION;
 /// use pamoja_radios::sx1302::spi::{read, read_value, TARGET_CONCENTRATOR};
 ///
-/// let out = read(TARGET_CONCENTRATOR, 0x5606);
-/// assert_eq!(out, [0x00, 0x56, 0x06, 0x00, 0x00]);
+/// // The target, the address most significant byte first, a dummy, and the answer's slot.
+/// let [high, low] = COMMON_VERSION.address.to_be_bytes();
+/// let out = read(TARGET_CONCENTRATOR, COMMON_VERSION.address);
+/// assert_eq!(out, [TARGET_CONCENTRATOR, high, low, 0, 0]);
 ///
-/// // What the bus returned while those bytes went out.
-/// assert_eq!(read_value(&[0x00, 0x00, 0x00, 0x00, 0x10]), Some(0x10));
+/// // What the bus returned while those bytes went out: a version of 0x10, in the last one.
+/// assert_eq!(read_value(&[0, 0, 0, 0, 0x10]), Some(0x10));
 /// ```
 #[must_use]
 pub const fn read(target: u8, address: u16) -> [u8; READ_LEN] {

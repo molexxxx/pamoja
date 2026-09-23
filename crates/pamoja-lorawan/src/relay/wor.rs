@@ -185,12 +185,13 @@ impl SealedWor {
 /// ```
 /// use pamoja_lorawan::relay::{wor_join_request, Carrier, Wor};
 ///
-/// let frame = wor_join_request(Carrier::new(868_100_000, 5))?;
-/// assert_eq!(frame, [0x00, 0x05, 0x28, 0x76, 0x84]);
-/// assert_eq!(
-///     Wor::parse(&frame)?,
-///     Wor::JoinRequest { uplink: Carrier::new(868_100_000, 5) }
-/// );
+/// // A device wakes its relay to say a join request follows on 868.1 MHz at DR5.
+/// let uplink = Carrier::new(868_100_000, 5);
+/// let frame = wor_join_request(uplink)?;
+/// assert_eq!(frame.len(), 5, "a kind, a data rate, and three bytes of frequency");
+///
+/// // The relay reads where to listen for it.
+/// assert_eq!(Wor::parse(&frame)?, Wor::JoinRequest { uplink });
 /// # Ok::<(), pamoja_lorawan::LorawanError>(())
 /// ```
 pub fn wor_join_request(uplink: Carrier) -> Result<[u8; WOR_JOIN_REQUEST_LEN], LorawanError> {

@@ -29,21 +29,25 @@
 //! use pamoja_hal::i2c::I2c;
 //! use pamoja_hal::sim::I2cPart;
 //!
-//! // Two parts on one bus: one whose chip id register reads 0x60, and one whose 16-bit
-//! // device id register reads 0x0117.
+//! // Two parts on one bus, each holding the id its datasheet gives: a BME280, whose chip
+//! // id register reads 0x60, and a TMP117, whose 16-bit device id register reads 0x0117.
+//! const BME280: u8 = 0x76;
+//! const BME280_CHIP_ID_REGISTER: u8 = 0xD0;
+//! const TMP117: u8 = 0x48;
+//! const TMP117_DEVICE_ID_REGISTER: u8 = 0x0F;
 //! let bus = I2cBus::simulated([
-//!     I2cPart::new(0x76).holding(0xd0, &[0x60]),
-//!     I2cPart::new(0x48).holding(0x0f, &[0x01, 0x17]),
+//!     I2cPart::new(BME280).holding(BME280_CHIP_ID_REGISTER, &[0x60]),
+//!     I2cPart::new(TMP117).holding(TMP117_DEVICE_ID_REGISTER, &0x0117u16.to_be_bytes()),
 //! ]);
 //!
 //! // A clone is what a driver is given; the program keeps the original.
 //! let mut driver = bus.clone();
 //! let mut id = [0u8; 1];
-//! driver.write_read(0x76, &[0xd0], &mut id)?;
+//! driver.write_read(BME280, &[BME280_CHIP_ID_REGISTER], &mut id)?;
 //! assert_eq!(id, [0x60]);
 //!
-//! // Nothing answers at 0x77.
-//! assert!(driver.write_read(0x77, &[0xd0], &mut id).is_err());
+//! // Nothing answers at the BME280's other address.
+//! assert!(driver.write_read(BME280 + 1, &[BME280_CHIP_ID_REGISTER], &mut id).is_err());
 //! assert_eq!(bus.transfers(), 2);
 //! # Ok::<(), pamoja_hal::bus::BusError>(())
 //! ```
@@ -176,14 +180,22 @@ impl embedded_hal::i2c::Error for BusError {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::script::{I2cScript, I2cStep};
 ///
-/// // A script of one register read, and a driver that makes it.
-/// let bus = I2cBus::scripted(I2cScript::new([I2cStep::write_read(0x76, [0xd0], [0x60])]));
+/// // A script of one register read, a BME280 answering its chip id, and a driver that
+/// // makes it.
+/// const BME280: u8 = 0x76;
+/// const CHIP_ID_REGISTER: u8 = 0xD0;
+/// const BME280_CHIP_ID: u8 = 0x60;
+/// let bus = I2cBus::scripted(I2cScript::new([I2cStep::write_read(
+///     BME280,
+///     [CHIP_ID_REGISTER],
+///     [BME280_CHIP_ID],
+/// )]));
 /// let mut driver = bus.clone();
 /// let mut id = [0u8; 1];
-/// driver.write_read(0x76, &[0xd0], &mut id)?;
+/// driver.write_read(BME280, &[CHIP_ID_REGISTER], &mut id)?;
 ///
 /// assert_eq!(bus.kind(), BusKind::Scripted);
-/// assert_eq!(bus.remaining(), Some(0));
+/// assert_eq!(bus.remaining(), Some(0), "the script has been played through");
 /// # Ok::<(), pamoja_hal::bus::BusError>(())
 /// ```
 #[derive(Clone)]
@@ -374,12 +386,18 @@ impl I2cBus {
     /// use pamoja_hal::i2c::I2c;
     /// use pamoja_hal::sim::{I2cPart, WordPart};
     ///
-    /// let mut bus = I2cBus::simulated([I2cPart::new(0x76)]);
-    /// bus.write(0x76, &[0xf4, 0x25])?;
+    /// // A driver asks a BME280 for one forced measurement: ctrl_meas takes one temperature
+    /// // sample, one pressure sample, and forced mode, in its three fields.
+    /// const BME280: u8 = 0x76;
+    /// const CTRL_MEAS: u8 = 0xF4;
+    /// const FORCED_ONCE: u8 = 0b001_001_01;
+    /// let mut bus = I2cBus::simulated([I2cPart::new(BME280)]);
+    /// bus.write(BME280, &[CTRL_MEAS, FORCED_ONCE])?;
     ///
-    /// let part: I2cPart = bus.part(0x76).expect("a byte-wide part at 0x76");
-    /// assert_eq!(part.register(0xf4), 0x25);
-    /// assert!(bus.part::<WordPart>(0x76).is_none(), "it is not a word-wide one");
+    /// // The program looks at what the driver left in the part.
+    /// let part: I2cPart = bus.part(BME280).expect("a byte-wide part");
+    /// assert_eq!(part.register(CTRL_MEAS), FORCED_ONCE);
+    /// assert!(bus.part::<WordPart>(BME280).is_none(), "it is not a word-wide one");
     /// # Ok::<(), pamoja_hal::bus::BusError>(())
     /// ```
     #[must_use]

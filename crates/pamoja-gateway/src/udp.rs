@@ -17,28 +17,31 @@
 //!
 //! # Examples
 //!
-//! A server reads a forwarded packet and answers it.
+//! A server reads what a gateway sent and answers it: a PUSH_DATA with a packet it heard,
+//! then a PULL_DATA holding its route open for downlinks.
 //!
 //! ```
 //! use pamoja_gateway::udp::{Eui, Packet, PacketKind, Rxpk, Uplink};
 //! use pamoja_lora::LinkSettings;
 //!
-//! let gateway = Eui::new([0xB8, 0x27, 0xEB, 0xFF, 0xFE, 0x01, 0x02, 0x03]);
-//! let datagram = Packet::PushData {
-//!     token: 0x0102,
-//!     gateway,
-//!     uplink: Uplink::from(Rxpk::new(
-//!         868_100_000,
-//!         LinkSettings::new(7, 125_000),
-//!         b"hello".to_vec(),
-//!     )),
-//! }
-//! .to_bytes();
+//! let gateway = Eui::from_hex("b827ebfffe010203").expect("sixteen hex digits");
+//! let heard = Rxpk::new(868_100_000, LinkSettings::new(9, 125_000), b"open".to_vec());
+//! let arrivals = [
+//!     Packet::PushData { token: 1, gateway, uplink: Uplink::from(heard) }.to_bytes(),
+//!     Packet::PullData { token: 2, gateway }.to_bytes(),
+//! ];
 //!
-//! let packet = Packet::parse(&datagram)?;
-//! assert_eq!(packet.kind(), PacketKind::PushData);
-//! assert_eq!(packet.gateway(), Some(gateway));
-//! assert_eq!(packet.acknowledgment().map(|ack| ack.to_bytes()), Some(vec![2, 0x01, 0x02, 0x01]));
+//! for datagram in arrivals {
+//!     let packet = Packet::parse(&datagram)?;
+//!     assert_eq!(packet.gateway(), Some(gateway));
+//!     let ack = packet.acknowledgment().expect("both are acknowledged");
+//!     assert_eq!(ack.token(), packet.token());
+//!     match packet.kind() {
+//!         PacketKind::PushData => assert_eq!(ack.kind(), PacketKind::PushAck),
+//!         PacketKind::PullData => assert_eq!(ack.kind(), PacketKind::PullAck),
+//!         other => unreachable!("a gateway does not send {other:?} here"),
+//!     }
+//! }
 //! # Ok::<(), pamoja_gateway::udp::ProtocolError>(())
 //! ```
 
@@ -136,9 +139,9 @@ impl PacketKind {
 /// ```
 /// use pamoja_gateway::udp::Eui;
 ///
-/// let gateway = Eui::from_hex("b827ebfffe010203").expect("sixteen hex digits");
-/// assert_eq!(gateway.to_hex(), "b827ebfffe010203");
-/// assert_eq!(gateway.bytes()[0], 0xB8);
+/// let gateway = Eui::from_hex("B827EBFFFE010203").expect("sixteen hex digits");
+/// assert_eq!(gateway.to_string(), "b827ebfffe010203");
+/// assert_eq!(Eui::from_hex("b827ebfffe01"), None, "twelve digits is a MAC, not an EUI");
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Eui([u8; EUI_LEN]);

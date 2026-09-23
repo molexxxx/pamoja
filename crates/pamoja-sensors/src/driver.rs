@@ -26,15 +26,18 @@ pub const SPI_ADDRESS_MASK: u8 = 0x7F;
 ///
 /// ```
 /// use pamoja_hal::script::{I2cScript, I2cStep};
+/// use pamoja_sensors::bme280::{register, CHIP_ID, I2C_ADDRESS_PRIMARY, RESET_WORD};
 /// use pamoja_sensors::driver::{I2cRegisters, RegisterBus};
 ///
+/// // A BME280 answers its chip id, then takes the word that resets it.
+/// const PART: u8 = I2C_ADDRESS_PRIMARY;
 /// let script = I2cScript::new([
-///     I2cStep::write_read(0x76, [0xD0], [0x60]),
-///     I2cStep::write(0x76, [0xE0, 0xB6]),
+///     I2cStep::write_read(PART, [register::CHIP_ID], [CHIP_ID]),
+///     I2cStep::write(PART, [register::RESET, RESET_WORD]),
 /// ]);
-/// let mut part = I2cRegisters::new(script, 0x76);
-/// assert_eq!(part.read_register(0xD0)?, 0x60);
-/// part.write_register(0xE0, 0xB6)?;
+/// let mut part = I2cRegisters::new(script, PART);
+/// assert_eq!(part.read_register(register::CHIP_ID)?, CHIP_ID);
+/// part.write_register(register::RESET, RESET_WORD)?;
 /// assert!(part.release().done());
 /// # Ok::<(), pamoja_hal::script::ScriptError>(())
 /// ```
@@ -207,10 +210,13 @@ impl<SPI: SpiDevice> RegisterBus for SpiRegisters<SPI> {
 /// ```
 /// use pamoja_hal::script::{I2cScript, I2cStep};
 /// use pamoja_sensors::driver::read_word;
+/// use pamoja_sensors::tmp117::{address, register, DEVICE_ID};
 ///
-/// // A TMP117 reads its device id register as 0x0117.
-/// let mut bus = I2cScript::new([I2cStep::write_read(0x48, [0x0F], [0x01, 0x17])]);
-/// assert_eq!(read_word(&mut bus, 0x48, 0x0F)?, 0x0117);
+/// // A TMP117 reads its device id register as one word, high byte first.
+/// const PART: u8 = address::ADD0_GND;
+/// let answer = DEVICE_ID.to_be_bytes();
+/// let mut bus = I2cScript::new([I2cStep::write_read(PART, [register::DEVICE_ID], answer)]);
+/// assert_eq!(read_word(&mut bus, PART, register::DEVICE_ID)?, DEVICE_ID);
 /// # Ok::<(), pamoja_hal::script::ScriptError>(())
 /// ```
 pub fn read_word<I2C: I2c>(bus: &mut I2C, address: u8, register: u8) -> Result<u16, I2C::Error> {

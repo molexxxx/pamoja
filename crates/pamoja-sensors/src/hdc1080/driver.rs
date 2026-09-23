@@ -25,27 +25,19 @@ use crate::error::{DriverError, SensorError};
 ///
 /// # Examples
 ///
+/// A humidor's climate, read from an HDC1080 that is not plugged in yet: the simulated part
+/// holds 21.5 °C and 45 % relative humidity, and the driver waits out both conversions
+/// before it reads them.
+///
 /// ```
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::hdc1080::{Hdc1080, Measurement, I2C_ADDRESS};
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::hdc1080::{sim, Hdc1080};
 ///
-/// const PART: u8 = I2C_ADDRESS;
-/// let bus = I2cScript::new([
-///     I2cStep::write_read(PART, [0xFE], [0x54, 0x49]),
-///     I2cStep::write_read(PART, [0xFF], [0x10, 0x50]),
-///     I2cStep::write(PART, [0x02, 0x10, 0x00]),
-///     I2cStep::write(PART, [0x00]),
-///     I2cStep::read(PART, Measurement::from_physical(21_500, 45_000).to_bytes()),
-/// ]);
-///
-/// let mut sensor = Hdc1080::new(bus, DelayLog::new());
-/// let measurement = block_on(sensor.read())?;
-/// assert_eq!(measurement, Measurement::from_physical(21_500, 45_000));
-/// assert!((measurement.milli_celsius() - 21_500).abs() < 10);
-/// let (bus, delay) = sensor.release();
-/// assert!(bus.done());
-/// assert_eq!(delay.total_micros(), 6_350 + 6_500);
+/// let mut sensor = Hdc1080::new(sim::reporting(21.5, 45.0), DelayLog::new());
+/// let climate = block_on(sensor.read())?;
+/// assert!((climate.milli_celsius() - 21_500).abs() < 10);
+/// assert!((climate.relative_humidity() - 45.0).abs() < 0.1);
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -329,5 +321,28 @@ mod tests {
         let sensor = Hdc1080::new(I2cScript::new(steps), DelayLog::new());
         let mut humidity = sensor.map(|measurement| measurement.relative_humidity());
         assert!((block_on(humidity.read()).unwrap() - 45.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn init_and_one_measurement_make_the_transfers_the_datasheet_gives() {
+        use crate::hdc1080::{Measurement, I2C_ADDRESS};
+
+        const PART: u8 = I2C_ADDRESS;
+        let bus = I2cScript::new([
+            I2cStep::write_read(PART, [0xFE], [0x54, 0x49]),
+            I2cStep::write_read(PART, [0xFF], [0x10, 0x50]),
+            I2cStep::write(PART, [0x02, 0x10, 0x00]),
+            I2cStep::write(PART, [0x00]),
+            I2cStep::read(PART, Measurement::from_physical(21_500, 45_000).to_bytes()),
+        ]);
+
+        let mut sensor = Hdc1080::new(bus, DelayLog::new());
+        let measurement = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(measurement, Measurement::from_physical(21_500, 45_000));
+        assert!((measurement.milli_celsius() - 21_500).abs() < 10);
+
+        let (bus, delay) = sensor.release();
+        assert!(bus.done());
+        assert_eq!(delay.total_micros(), 6_350 + 6_500);
     }
 }

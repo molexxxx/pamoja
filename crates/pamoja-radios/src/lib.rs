@@ -30,18 +30,42 @@
 //!
 //! # Examples
 //!
+//! A node on EU868 works out how it may transmit before it touches a radio: the link its
+//! data rate names, how hard its amplifier may drive through its antenna under the plan's
+//! ceiling, and how long it must stay silent after each reading.
+//!
 //! ```
-//! use pamoja_lora::LinkSettings;
-//! use pamoja_radios::sx126x::{command, config};
+//! use pamoja_lora::budget::{Decibels, LinkBudget};
+//! use pamoja_lora::region::Region;
+//! use pamoja_radios::duty::DutyCycle;
+//! use pamoja_radios::radio::{RadioConfig, SyncWord};
+//! use pamoja_radios::sx126x::config::{PowerAmplifier, TxPower};
 //!
-//! // The commands that tune an SX1262 to 868.1 MHz for SF9 at 125 kHz.
-//! let link = LinkSettings::new(9, 125_000);
-//! let tune = command::set_rf_frequency(config::frequency_word(868_100_000));
-//! let modulation = config::LoraModulation::from_link(&link).expect("125 kHz is an SX126x bandwidth");
-//! let modulate = command::set_lora_modulation_params(modulation);
+//! let eu868 = Region::Eu868.plan();
+//! let carrier = 868_100_000;
+//! let link = eu868.link_settings(3).expect("DR3 is a LoRa data rate");
 //!
-//! assert_eq!(tune.as_bytes(), [0x86, 0x36, 0x41, 0x99, 0x9A]);
-//! assert_eq!(modulate.as_bytes(), [0x8B, 0x09, 0x04, 0x01, 0x00]);
+//! // A 2.15 dBi whip on half a decibel of pigtail: the amplifier drives only as hard as
+//! // keeps the radiated power under the plan's ceiling at that carrier.
+//! let whip = LinkBudget {
+//!     transmit_antenna_gain_dbi: Decibels::from_hundredths(215),
+//!     transmit_cable_loss_db: Decibels::from_tenths(5),
+//!     ..LinkBudget::default()
+//! };
+//! let ceiling = Decibels::from_db(eu868.max_eirp_dbm(carrier).into());
+//! let power = TxPower::under_ceiling(PowerAmplifier::HighPower, &whip, ceiling);
+//! assert_eq!(power.setting_dbm, 14);
+//!
+//! // The configuration an SX126x or an SX127x takes, as a LoRaWAN device uses it.
+//! let config = RadioConfig::new(carrier, link, power.setting_dbm).lorawan_device();
+//! assert_eq!(config.link.spreading_factor(), 9);
+//! assert_eq!(config.sync_word, SyncWord::Public);
+//!
+//! // Under the band's one percent duty cycle, a ten-byte reading owes ninety-nine times
+//! // its airtime in silence before the next one may start.
+//! let mut guard = DutyCycle::new(10);
+//! let airtime = guard.transmitted(0, &link, 10);
+//! assert_eq!(guard.wait_us(airtime), 99 * airtime);
 //! ```
 
 pub mod duty;

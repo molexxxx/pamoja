@@ -32,11 +32,12 @@
 //! let device = DeviceIdentity::from_seed(&[9u8; 32]);
 //! let public = device.public();
 //!
-//! // Record two readings, persisting each entry's bytes as you would to an SD card.
+//! // An irrigation gate records what it did, persisting each entry's bytes as it would
+//! // to an SD card.
 //! let mut log = AuditLog::new(device);
 //! let mut stored: Vec<Vec<u8>> = Vec::new();
-//! for reading in [b"4.6C".as_slice(), b"4.9C".as_slice()] {
-//!     stored.push(log.append(reading).to_bytes());
+//! for action in [b"gate=open".as_slice(), b"gate=closed".as_slice()] {
+//!     stored.push(log.append(action).to_bytes());
 //! }
 //!
 //! // An auditor rebuilds the chain from storage and verifies it.

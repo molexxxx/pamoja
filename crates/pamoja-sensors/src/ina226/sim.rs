@@ -67,10 +67,11 @@ pub fn part(address: u8) -> WordPart {
 ///
 /// ```
 /// use pamoja_hal::script::DelayLog;
-/// use pamoja_sensors::ina226::{sim, Ina226};
+/// use pamoja_sensors::ina226::{sim, Ina226, BASE_ADDRESS};
 ///
-/// let part = sim::reporting(0x40, 100, 3_200_000, 24_000_000, 1_000_000);
-/// let mut monitor = Ina226::new(part, 0x40, DelayLog::new());
+/// // 24 V on the bus and 1 A through a 100 mΩ shunt, for a part calibrated to 3.2 A.
+/// let part = sim::reporting(BASE_ADDRESS, 100, 3_200_000, 24_000_000, 1_000_000);
+/// let mut monitor = Ina226::new(part, BASE_ADDRESS, DelayLog::new());
 /// let reading = monitor.measure().expect("the part answers");
 /// assert_eq!(reading.bus_microvolts(), 24_000_000);
 /// ```

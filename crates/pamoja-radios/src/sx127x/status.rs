@@ -70,8 +70,10 @@ impl Port {
 /// ```
 /// use pamoja_radios::sx127x::status::{rssi_dbm, Port};
 ///
-/// assert_eq!(rssi_dbm(0x30, Port::High).to_string(), "-109.00");
-/// assert_eq!(rssi_dbm(0x30, Port::Low).to_string(), "-116.00");
+/// // RegRssiValue reads 48: -109 dBm on the high band's port, whose offset is -157, and
+/// // -116 dBm on the low band's, whose offset is -164.
+/// assert_eq!(rssi_dbm(48, Port::High).to_string(), "-109.00");
+/// assert_eq!(rssi_dbm(48, Port::Low).to_string(), "-116.00");
 /// ```
 pub const fn rssi_dbm(byte: u8, port: Port) -> Decibels {
     Decibels::from_hundredths((port.rssi_offset_dbm() + byte as i32) * 100)

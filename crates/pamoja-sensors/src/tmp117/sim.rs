@@ -47,9 +47,11 @@ pub fn part(address: u8) -> WordPart {
 ///
 /// ```
 /// use pamoja_hal::script::DelayLog;
-/// use pamoja_sensors::tmp117::{sim, Tmp117};
+/// use pamoja_sensors::tmp117::{address, sim, Tmp117};
 ///
-/// let mut thermometer = Tmp117::new(sim::reporting(0x48, -18.5), 0x48, DelayLog::new());
+/// // A cold room at -18.5 °C.
+/// let part = sim::reporting(address::ADD0_GND, -18.5);
+/// let mut thermometer = Tmp117::new(part, address::ADD0_GND, DelayLog::new());
 /// let reading = thermometer.measure().expect("the part answers");
 /// assert_eq!(reading.celsius(), -18.5);
 /// ```

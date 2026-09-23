@@ -450,7 +450,7 @@ impl Configuration {
 /// // Exponent 0 over mantissa 3200: 0.01 lux per count, 32 lux.
 /// let reading = Reading::new(0x0C80);
 /// assert_eq!(reading.milli_lux(), 32_000);
-/// assert_eq!(reading.to_bytes(), [0x0C, 0x80]);
+/// assert_eq!(u16::from_be_bytes(reading.to_bytes()), 0x0C80, "high byte first");
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Reading {

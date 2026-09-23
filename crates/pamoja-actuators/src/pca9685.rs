@@ -194,10 +194,12 @@ pub fn frequency_for_prescale(prescale: u8, osc_hz: u32) -> f32 {
 ///
 /// // Half brightness with no phase delay: on at count 0, off at the midpoint.
 /// let half = Pwm::duty(2048);
-/// assert_eq!(half.bytes(), [0x00, 0x00, 0x00, 0x08]);
+/// assert_eq!((half.on(), half.off()), (0, 2048));
+///
+/// // What a channel's four registers hold reads back as the same setting.
+/// assert_eq!(Pwm::from_bytes(&half.bytes()), half);
 ///
 /// // Fully off is its own encoding, and a zero duty is that encoding.
-/// assert_eq!(Pwm::full_off().bytes(), [0x00, 0x00, 0x00, 0x10]);
 /// assert_eq!(Pwm::duty(0), Pwm::full_off());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

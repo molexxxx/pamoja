@@ -14,6 +14,29 @@
 //! events it missed and resumes from the most recent ones, and
 //! [`BroadcastBus::missed`] counts what it lost. This keeps a slow consumer from
 //! holding memory without bound, which matters on constrained devices.
+//!
+//! # Examples
+//!
+//! A pump controller's events reach a logger and a dashboard: each subscriber hears every
+//! event published after it joined, in order.
+//!
+//! ```
+//! use pamoja_bus::BroadcastBus;
+//! use pamoja_core::EventBus;
+//!
+//! # tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+//! let bus = BroadcastBus::new(16);
+//! let mut logger = bus.subscribe();
+//! let mut dashboard = bus.subscribe();
+//!
+//! bus.publish("pump started").await?;
+//! bus.publish("pressure low").await?;
+//! assert_eq!(logger.next_event().await?, Some("pump started"));
+//! assert_eq!(logger.next_event().await?, Some("pressure low"));
+//! assert_eq!(dashboard.next_event().await?, Some("pump started"));
+//! # Ok::<(), pamoja_core::Error>(())
+//! # }).unwrap();
+//! ```
 
 use pamoja_core::{EventBus, Result};
 use tokio::sync::broadcast;

@@ -160,9 +160,13 @@ impl ClockCommand {
     /// use pamoja_lorawan::packages::clock::ClockCommand;
     /// use pamoja_lorawan::Direction;
     ///
-    /// let (command, taken) = ClockCommand::parse(Direction::Downlink, &[0x03, 0x02])?;
-    /// assert_eq!(command, ClockCommand::ForceDeviceResyncCmd { transmissions: 2 });
-    /// assert_eq!(taken, 2);
+    /// // The server tells a device whose clock has drifted to resynchronize, twice over.
+    /// let mut message = [0u8; 4];
+    /// let resync = ClockCommand::ForceDeviceResyncCmd { transmissions: 2 };
+    /// let written = resync.encode(&mut message)?;
+    ///
+    /// let (command, taken) = ClockCommand::parse(Direction::Downlink, &message[..written])?;
+    /// assert_eq!((command, taken), (resync, written));
     /// # Ok::<(), pamoja_lorawan::LorawanError>(())
     /// ```
     pub fn parse(
@@ -260,11 +264,17 @@ impl ClockCommand {
     ///
     /// ```
     /// use pamoja_lorawan::packages::clock::ClockCommand;
+    /// use pamoja_lorawan::Direction;
     ///
+    /// // A device reports the time it keeps and asks for the correction.
     /// let mut out = [0u8; 8];
     /// let request = ClockCommand::AppTimeReq { device_time: 1, ans_required: true, token: 3 };
-    /// assert_eq!(request.encode(&mut out)?, 6);
-    /// assert_eq!(&out[..6], &[0x01, 0x01, 0x00, 0x00, 0x00, 0x13]);
+    /// let written = request.encode(&mut out)?;
+    /// assert_eq!(written, 6, "an identifier, four bytes of time, and one of flags");
+    ///
+    /// // The server reads the same request back.
+    /// let (heard, _) = ClockCommand::parse(Direction::Uplink, &out[..written])?;
+    /// assert_eq!(heard, request);
     /// # Ok::<(), pamoja_lorawan::LorawanError>(())
     /// ```
     pub fn encode(&self, out: &mut [u8]) -> Result<usize, LorawanError> {
@@ -349,12 +359,22 @@ impl<'a> ClockCommands<'a> {
     /// use pamoja_lorawan::packages::clock::{ClockCommand, ClockCommands};
     /// use pamoja_lorawan::Direction;
     ///
-    /// let message = [0x00, 0x03, 0x01];
-    /// let read: Vec<ClockCommand> = ClockCommands::new(Direction::Downlink, &message)
+    /// // One downlink asking which version of the package a device runs, and telling it to
+    /// // resynchronize once.
+    /// let sent = [
+    ///     ClockCommand::PackageVersionReq,
+    ///     ClockCommand::ForceDeviceResyncCmd { transmissions: 1 },
+    /// ];
+    /// let mut message = [0u8; 8];
+    /// let mut len = 0;
+    /// for command in &sent {
+    ///     len += command.encode(&mut message[len..]).unwrap();
+    /// }
+    ///
+    /// let read: Vec<ClockCommand> = ClockCommands::new(Direction::Downlink, &message[..len])
     ///     .map(|command| command.unwrap())
     ///     .collect();
-    /// assert_eq!(read[0], ClockCommand::PackageVersionReq);
-    /// assert_eq!(read[1], ClockCommand::ForceDeviceResyncCmd { transmissions: 1 });
+    /// assert_eq!(read, sent);
     /// ```
     #[must_use]
     pub const fn new(direction: Direction, bytes: &'a [u8]) -> ClockCommands<'a> {

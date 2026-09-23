@@ -147,10 +147,15 @@ impl<E: fmt::Debug> core::error::Error for OneWireError<E> {}
 /// ```
 /// use pamoja_hal::onewire::RomCode;
 ///
-/// let rom = RomCode::new(0x28, 0x0000_05E2_FDC3).expect("a 48-bit serial");
-/// assert_eq!(rom.family(), 0x28);
-/// assert_eq!(rom.serial(), 0x0000_05E2_FDC3);
-/// assert_eq!(RomCode::from_bytes(rom.bytes())?, rom);
+/// // Every DS18B20 carries family code 0x28, and each its own 48-bit serial, the one
+/// // printed by a bus search.
+/// const DS18B20: u8 = 0x28;
+/// let probe = RomCode::new(DS18B20, 0x0000_05E2_FDC3).expect("a 48-bit serial");
+/// assert_eq!(probe.family(), DS18B20);
+/// assert_eq!(probe.serial(), 0x0000_05E2_FDC3);
+///
+/// // The eight bytes it answers a search with, CRC and all, read back to the same probe.
+/// assert_eq!(RomCode::from_bytes(probe.bytes())?, probe);
 /// # Ok::<(), pamoja_hal::onewire::OneWireError<core::convert::Infallible>>(())
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

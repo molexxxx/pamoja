@@ -23,9 +23,11 @@
 //! let controller = CanBus::simulated();
 //! let gateway = controller.join()?;
 //!
-//! controller.send(&Frame::new(CanId::standard(0x20A), &[0x01, 0xF4])?)?;
+//! // The controller reports a motor speed of 500 rpm, big-endian.
+//! let speed = 500u16.to_be_bytes();
+//! controller.send(&Frame::new(CanId::standard(0x20A), &speed)?)?;
 //! let heard = gateway.receive(Duration::from_millis(10))?.expect("a frame is waiting");
-//! assert_eq!(heard.data(), &[0x01, 0xF4]);
+//! assert_eq!(heard.data(), speed);
 //!
 //! // A node does not hear its own frames, and a receive with nothing waiting is counted.
 //! assert_eq!(controller.receive(Duration::from_millis(250))?, None);
@@ -226,17 +228,23 @@ impl std::error::Error for BusError {}
 /// use std::time::Duration;
 ///
 /// use pamoja_can::bus::{CanBus, Filter};
-/// use pamoja_can::{CanId, Frame, J1939Id};
+/// use pamoja_can::{Frame, J1939Id, Signals};
+///
+/// // EEC1 carries engine speed, and ET1 the engine's temperatures.
+/// const EEC1: u32 = 61_444;
+/// const ET1: u32 = 65_262;
 ///
 /// let engine = CanBus::simulated();
 /// let gateway = engine.join()?;
-/// gateway.set_filters(&[Filter::pgn(61_444)])?;
+/// gateway.set_filters(&[Filter::pgn(EEC1)])?;
 ///
-/// // The gateway keeps engine speed and lets the engine's other groups go by.
-/// let speed = J1939Id::broadcast(3, 61_444, 0x00).to_id();
-/// let other = J1939Id::broadcast(6, 65_262, 0x00).to_id();
-/// engine.send(&Frame::new(other, &[0xFF; 8])?)?;
-/// engine.send(&Frame::new(speed, &[0xFF; 8])?)?;
+/// // The gateway keeps engine speed and lets the engine's other groups go by. Each frame
+/// // here reports nothing yet, every signal marked not available.
+/// let nothing = Signals::new();
+/// let speed = J1939Id::broadcast(3, EEC1, 0).to_id();
+/// let temperatures = J1939Id::broadcast(6, ET1, 0).to_id();
+/// engine.send(&Frame::new(temperatures, nothing.as_bytes())?)?;
+/// engine.send(&Frame::new(speed, nothing.as_bytes())?)?;
 ///
 /// let heard = gateway.receive(Duration::from_millis(10))?.expect("engine speed");
 /// assert_eq!(heard.id(), speed);

@@ -40,16 +40,16 @@
 //! # Examples
 //!
 //! ```
-//! use pamoja_mavlink::dialect::{Heartbeat, Message};
+//! use pamoja_mavlink::dialect::{mav_autopilot, mav_state, mav_type, Heartbeat, Message};
 //! use pamoja_mavlink::{Frame, Header};
 //!
-//! // Announce this node as an onboard controller.
+//! // Announce this node as an onboard controller that is up and running.
 //! let heartbeat = Heartbeat {
 //!     custom_mode: 0,
-//!     type_: 18, // MAV_TYPE_ONBOARD_CONTROLLER
-//!     autopilot: 0,
+//!     type_: mav_type::ONBOARD_CONTROLLER,
+//!     autopilot: mav_autopilot::GENERIC,
 //!     base_mode: 0,
-//!     system_status: 4, // MAV_STATE_ACTIVE
+//!     system_status: mav_state::ACTIVE,
 //!     mavlink_version: 3,
 //! };
 //!
@@ -60,7 +60,7 @@
 //!
 //! let received = Frame::parse(frame.as_bytes(), Heartbeat::CRC_EXTRA)?;
 //! let decoded = Heartbeat::decode(received.payload())?;
-//! assert_eq!(decoded.system_status, 4);
+//! assert_eq!(decoded.system_status, mav_state::ACTIVE);
 //! # Ok::<(), pamoja_mavlink::MavlinkError>(())
 //! ```
 

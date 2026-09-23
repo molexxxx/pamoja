@@ -13,12 +13,13 @@ use crate::function::Exception;
 /// # Examples
 ///
 /// ```
-/// use pamoja_modbus::Response;
+/// use pamoja_modbus::{Pdu, Response};
 ///
-/// // A read-holding-registers reply: function 0x03, byte count 6, three registers.
-/// let pdu = [0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64];
-/// let values: Vec<u16> = Response::new(&pdu).registers().unwrap().collect();
-/// assert_eq!(values, [0x022B, 0x0000, 0x0064]);
+/// // A soil probe's reply to a read of three registers: nitrogen, phosphorus, and
+/// // potassium, in milligrams per kilogram.
+/// let reply = Pdu::read_holding_registers_reply(&[555, 0, 100]).unwrap();
+/// let values: Vec<u16> = Response::new(reply.as_bytes()).registers().unwrap().collect();
+/// assert_eq!(values, [555, 0, 100]);
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Response<'a> {

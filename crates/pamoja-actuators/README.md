@@ -47,6 +47,37 @@ Simple on/off actuators (relays, solenoid valves, a pump switched through a
 transistor) need no driver of their own: they are a GPIO line, modeled by the pin
 and logic-level types in [`pamoja-gpio`](https://docs.rs/pamoja-gpio).
 
+**Examples**
+
+The encode layer works out what a part is to be told, with nothing plugged in: the
+prescale that runs a PCA9685 at the 50 Hz a servo wants, the pulse that centers the
+servo, and the steps a geared stepper takes to swing a greenhouse vent a quarter turn.
+
+```rust
+use pamoja_actuators::pca9685::{
+    frequency_for_prescale, prescale_for_frequency, Pwm, INTERNAL_OSC_HZ,
+};
+use pamoja_actuators::stepper::{steps_for_degrees, Direction, Drive, Sequencer};
+
+// The PCA9685 divides its 25 MHz clock by a prescale, so 50 Hz is as close as it gets.
+let prescale = prescale_for_frequency(50, INTERNAL_OSC_HZ);
+assert!((frequency_for_prescale(prescale, INTERNAL_OSC_HZ) - 50.0).abs() < 0.5);
+
+// A 1.5 ms pulse in each 20 ms period centers a hobby servo: 307 of the 4096 counts.
+let center = Pwm::servo(1_500, 50);
+assert_eq!(center.off() - center.on(), 307);
+
+// A stepper geared to 2048 full steps a turn needs 512 for the quarter, a whole number
+// of coil cycles, so the coils end where they started.
+let steps = steps_for_degrees(90.0, 2_048);
+assert_eq!(steps, 512);
+let mut coils = Sequencer::new(Drive::FullStep);
+for _ in 0..steps {
+    coils.step(Direction::Forward);
+}
+assert_eq!(coils.coils(), Drive::FullStep.pattern()[0]);
+```
+
 ## License
 
 MIT - part of the [pamoja](https://github.com/molexxxx/pamoja) workspace: one memory-safe Rust core with bindings for every language.

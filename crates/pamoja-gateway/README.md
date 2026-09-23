@@ -50,29 +50,42 @@ keepalive, and the scheduling to the program that owns them.
 
 **Examples**
 
-A gateway forwards one packet it heard, and the server acknowledges it.
+A gateway forwards a packet it heard, and the server reads it and acknowledges it.
 
 ```rust
-use pamoja_gateway::udp::{Eui, Packet, Rxpk, Uplink};
+use pamoja_gateway::udp::{Eui, Packet, PacketKind, Rxpk, Uplink};
 use pamoja_lora::LinkSettings;
 
-let gateway = Eui::new([0xB8, 0x27, 0xEB, 0xFF, 0xFE, 0x01, 0x02, 0x03]);
-let heard = Rxpk::new(868_100_000, LinkSettings::new(7, 125_000), b"hello".to_vec())
+// A gateway names itself by its Ethernet address with FF FE in the middle, written
+// the way a network server's console shows it.
+let gateway = Eui::from_hex("b827ebfffe010203").expect("sixteen hex digits");
+
+// What its radio heard: a reading at SF7 on 868.1 MHz, and how strongly it arrived.
+let heard = Rxpk::new(868_100_000, LinkSettings::new(7, 125_000), b"21.5".to_vec())
     .with_rssi_dbm(-35)
     .with_snr_db(5.1);
-let push = Packet::PushData {
-    token: 0x1234,
+
+// It forwards the packet with a token of its choosing, which the answer carries back.
+let forwarded = Packet::PushData {
+    token: 1,
     gateway,
     uplink: Uplink::from(heard),
 };
+let datagram = forwarded.to_bytes();
 
-let datagram = push.to_bytes();
-assert_eq!(&datagram[..4], &[2, 0x12, 0x34, 0x00]);
+// The server reads back exactly what was sent: who sent it, and what was heard.
+let received = Packet::parse(&datagram).expect("a well-formed datagram");
+assert_eq!(received, forwarded);
+assert_eq!(received.gateway(), Some(gateway));
+if let Packet::PushData { uplink, .. } = &received {
+    assert_eq!(uplink.packets[0].frequency_hz, 868_100_000);
+    assert_eq!(uplink.packets[0].payload, b"21.5");
+}
 
-// The server reads it and answers with the same token.
-let received = Packet::parse(&datagram).expect("the datagram is well formed");
+// And answers with the acknowledgment the protocol owes it, under the same token.
 let ack = received.acknowledgment().expect("a PUSH_DATA is acknowledged");
-assert_eq!(ack.to_bytes(), [2, 0x12, 0x34, 0x01]);
+assert_eq!(ack.kind(), PacketKind::PushAck);
+assert_eq!(ack.token(), forwarded.token());
 ```
 
 ## License

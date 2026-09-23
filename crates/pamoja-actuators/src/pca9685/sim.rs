@@ -42,24 +42,30 @@ pub const RULES: Rules = Rules { write, read, next };
 /// # Examples
 ///
 /// ```
-/// use pamoja_actuators::pca9685::{register, sim, Pwm, DEFAULT_I2C_ADDRESS};
+/// use pamoja_actuators::pca9685::{
+///     channel_register, mode1, register, sim, Pwm, DEFAULT_I2C_ADDRESS, PRE_SCALE_RESET,
+/// };
 /// use pamoja_hal::i2c::I2c;
 ///
-/// let mut part = sim::part(DEFAULT_I2C_ADDRESS);
-/// assert_eq!(part.register(register::PRE_SCALE), 0x1E, "200 Hz");
+/// const PART: u8 = DEFAULT_I2C_ADDRESS;
+/// let mut part = sim::part(PART);
+/// assert_eq!(part.register(register::PRE_SCALE), PRE_SCALE_RESET, "200 Hz");
 ///
 /// // Awake, the part keeps its prescale whatever is written to it.
-/// part.write(DEFAULT_I2C_ADDRESS, &[register::MODE1, 0x00]).unwrap();
-/// part.write(DEFAULT_I2C_ADDRESS, &[register::PRE_SCALE, 121]).unwrap();
-/// assert_eq!(part.register(register::PRE_SCALE), 0x1E);
+/// part.write(PART, &[register::MODE1, 0]).unwrap();
+/// part.write(PART, &[register::PRE_SCALE, 121]).unwrap();
+/// assert_eq!(part.register(register::PRE_SCALE), PRE_SCALE_RESET);
 ///
-/// // One write to the ALL_LED registers loads every channel.
-/// let mut all = [register::ALL_LED_ON_L, 0, 0, 0, 0];
-/// all[1..].copy_from_slice(&Pwm::duty(2048).bytes());
-/// part.write(DEFAULT_I2C_ADDRESS, &[register::MODE1, 0x20]).unwrap();
-/// part.write(DEFAULT_I2C_ADDRESS, &all).unwrap();
-/// assert_eq!(part.register(0x09), 0x08, "LED0_OFF_H");
-/// assert_eq!(part.register(0x45), 0x08, "LED15_OFF_H");
+/// // With auto-increment on, one write to the ALL_LED registers loads every channel.
+/// let half = Pwm::duty(2048);
+/// let [on_l, on_h, off_l, off_h] = half.bytes();
+/// part.write(PART, &[register::MODE1, mode1::AUTO_INCREMENT]).unwrap();
+/// part.write(PART, &[register::ALL_LED_ON_L, on_l, on_h, off_l, off_h]).unwrap();
+/// for channel in [0, 15] {
+///     let mut held = [0u8; 4];
+///     part.write_read(PART, &[channel_register(channel)], &mut held).unwrap();
+///     assert_eq!(Pwm::from_bytes(&held), half, "channel {channel}");
+/// }
 /// ```
 #[must_use]
 pub fn part(address: u8) -> I2cPart {

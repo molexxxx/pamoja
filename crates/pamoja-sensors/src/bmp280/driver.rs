@@ -30,39 +30,20 @@ pub const STATUS_POLLS: u8 = 20;
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: what the datasheet says a BMP280
-/// answers during initialization and one forced measurement.
+/// A drone's barometer, read from a BMP280 that is not plugged in yet: the simulated part
+/// holds 25 °C and 1006.5 hPa, and the driver compensates its raw readings with the
+/// trimming the part carries.
 ///
 /// ```
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::bmp280::{Bmp280, I2C_ADDRESS_PRIMARY};
 /// use pamoja_core::Sensor;
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::bmp280::{sim, Bmp280, I2C_ADDRESS_PRIMARY};
 ///
-/// const PART: u8 = I2C_ADDRESS_PRIMARY;
-/// let trimming = [
-///     0x70, 0x6B, 0x43, 0x67, 0x18, 0xFC, 0x7D, 0x8E, 0x43, 0xD6, 0xD0, 0x0B, 0x27, 0x0B,
-///     0x8C, 0x00, 0xF9, 0xFF, 0x8C, 0x3C, 0xF8, 0xC6, 0x70, 0x17,
-/// ];
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0xE0, 0xB6]),
-///     I2cStep::write_read(PART, [0xF3], [0x00]),
-///     I2cStep::write_read(PART, [0xD0], [0x58]),
-///     I2cStep::write_read(PART, [0x88], trimming),
-///     I2cStep::write(PART, [0xF5, 0x00]),
-///     I2cStep::write(PART, [0xF4, 0x24]),
-///     I2cStep::write(PART, [0xF4, 0x25]),
-///     I2cStep::write_read(PART, [0xF3], [0x00]),
-///     I2cStep::write_read(PART, [0xF7], [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00]),
-/// ]);
-///
-/// let mut sensor = Bmp280::i2c(bus, PART, DelayLog::new());
-/// let reading = block_on(sensor.read())?;
-/// assert_eq!(reading.temperature_centi_celsius, 2508);
-/// assert_eq!(reading.pascals(), 100_653);
-///
-/// let (registers, delay) = sensor.release();
-/// assert!(registers.release().done());
-/// assert!(delay.total_micros() >= 2_000 + 6_425);
+/// let part = sim::reporting(I2C_ADDRESS_PRIMARY, 25.0, 1006.5);
+/// let mut barometer = Bmp280::i2c(part, I2C_ADDRESS_PRIMARY, DelayLog::new());
+/// let reading = block_on(barometer.read())?;
+/// assert!((reading.celsius() - 25.0).abs() < 0.01);
+/// assert!((reading.hectopascals() - 1006.5).abs() < 0.1);
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -499,5 +480,34 @@ mod tests {
         let reading = sensor.measure().unwrap();
         assert_eq!(reading.temperature_centi_celsius, 2508);
         assert!(sensor.release().0.release().done());
+    }
+
+    #[test]
+    fn init_and_a_forced_measurement_make_the_transfers_the_datasheet_gives() {
+        const PART: u8 = crate::bmp280::I2C_ADDRESS_PRIMARY;
+        let trimming = [
+            0x70, 0x6B, 0x43, 0x67, 0x18, 0xFC, 0x7D, 0x8E, 0x43, 0xD6, 0xD0, 0x0B, 0x27, 0x0B,
+            0x8C, 0x00, 0xF9, 0xFF, 0x8C, 0x3C, 0xF8, 0xC6, 0x70, 0x17,
+        ];
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0xE0, 0xB6]),
+            I2cStep::write_read(PART, [0xF3], [0x00]),
+            I2cStep::write_read(PART, [0xD0], [0x58]),
+            I2cStep::write_read(PART, [0x88], trimming),
+            I2cStep::write(PART, [0xF5, 0x00]),
+            I2cStep::write(PART, [0xF4, 0x24]),
+            I2cStep::write(PART, [0xF4, 0x25]),
+            I2cStep::write_read(PART, [0xF3], [0x00]),
+            I2cStep::write_read(PART, [0xF7], [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00]),
+        ]);
+
+        let mut sensor = Bmp280::i2c(bus, PART, DelayLog::new());
+        let reading = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(reading.temperature_centi_celsius, 2508);
+        assert_eq!(reading.pascals(), 100_653);
+
+        let (registers, delay) = sensor.release();
+        assert!(registers.release().done());
+        assert!(delay.total_micros() >= 2_000 + 6_425);
     }
 }

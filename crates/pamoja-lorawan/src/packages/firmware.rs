@@ -21,18 +21,33 @@
 //! A server asks what the device would boot into, and schedules it:
 //!
 //! ```
-//! use pamoja_lorawan::packages::firmware::{FirmwareManager, Image, UpImageStatus};
+//! use pamoja_lorawan::packages::firmware::{
+//!     FirmwareCommand, FirmwareCommands, FirmwareManager, Image, UpImageStatus,
+//! };
+//! use pamoja_lorawan::Direction;
 //!
+//! // A device running version 1.2.3 holds a valid image of 1.2.4, waiting to be booted.
 //! let mut manager = FirmwareManager::new(0x0001_0203, 0xAABB_CCDD)
 //!     .with_image(Image::valid(0x0001_0204));
 //!
-//! // DevUpgradeImageReq, then a reboot in an hour.
+//! // The server asks what it would boot into, and schedules a reboot in an hour.
+//! let mut asked = [0u8; 8];
+//! let mut len = FirmwareCommand::DevUpgradeImageReq.encode(&mut asked)?;
+//! len += FirmwareCommand::DevRebootCountdownReq { countdown: 3_600 }.encode(&mut asked[len..])?;
+//!
 //! let mut out = [0u8; 16];
-//! let len = manager.heard(&[0x04, 0x03, 0x10, 0x0E, 0x00], &mut out)?;
-//! assert_eq!(out[0], 0x04, "the image answer comes first");
-//! assert_eq!(out[1], UpImageStatus::Valid as u8);
-//! assert_eq!(manager.reboot_in_s(), Some(3600));
-//! # assert!(len > 6);
+//! let answered = manager.heard(&asked[..len], &mut out)?;
+//! let answers: Vec<FirmwareCommand> = FirmwareCommands::new(Direction::Uplink, &out[..answered])
+//!     .map(|answer| answer.unwrap())
+//!     .collect();
+//! assert_eq!(
+//!     answers[0],
+//!     FirmwareCommand::DevUpgradeImageAns {
+//!         status: UpImageStatus::Valid,
+//!         next_version: Some(0x0001_0204),
+//!     }
+//! );
+//! assert_eq!(manager.reboot_in_s(), Some(3_600));
 //! # Ok::<(), pamoja_lorawan::LorawanError>(())
 //! ```
 
@@ -296,9 +311,13 @@ impl FirmwareCommand {
     /// use pamoja_lorawan::packages::firmware::FirmwareCommand;
     /// use pamoja_lorawan::Direction;
     ///
-    /// let (command, taken) = FirmwareCommand::parse(Direction::Downlink, &[0x03, 0x10, 0x0E, 0x00])?;
-    /// assert_eq!(command, FirmwareCommand::DevRebootCountdownReq { countdown: 3_600 });
-    /// assert_eq!(taken, 4);
+    /// // The server schedules a reboot in an hour.
+    /// let mut message = [0u8; 8];
+    /// let reboot = FirmwareCommand::DevRebootCountdownReq { countdown: 3_600 };
+    /// let written = reboot.encode(&mut message)?;
+    ///
+    /// let (command, taken) = FirmwareCommand::parse(Direction::Downlink, &message[..written])?;
+    /// assert_eq!((command, taken), (reboot, written));
     /// # Ok::<(), pamoja_lorawan::LorawanError>(())
     /// ```
     pub fn parse(

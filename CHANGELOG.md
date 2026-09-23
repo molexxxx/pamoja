@@ -1039,6 +1039,18 @@ released together, so one entry covers all of them.
   a second time. It prints the same twelve lines in every language, and the page gains a
   paragraph for each language, tables of the manifest, the slot states, the boot
   decisions and the calls, and a section on what goes wrong.
+- The reference examples read like the guides. A crate's front page and its items build
+  what they need with the library and check what it means, where they pasted frames,
+  register images, and command bytes: a gateway forwards a reading and is acknowledged, a
+  Modbus meter answers with its registers, the radio crate works out what EU868 lets a
+  node transmit, every sensor and actuator driver runs on its simulated part, and the
+  LoRaWAN MAC commands are built before they are read back. Where a page's subject is the
+  wire, as in the bus layer, each value is named for what it is and the datasheet it
+  comes from. The byte sequences the examples showed are unit tests now, so each is still
+  checked. The Python reference had a few of the same, in its CAN, bus, and MAVLink
+  docstrings, and they read the same way now.
+- The bus, loopback, store-and-forward, sensor, and actuator crates open with an example,
+  where they had none, and the first three run rather than only compile.
 
 ### Fixed
 

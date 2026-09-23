@@ -42,18 +42,29 @@
 //! # Examples
 //!
 //! ```
-//! use pamoja_modbus::{Adu, Pdu};
+//! use pamoja_modbus::{Adu, Exception, Function, Pdu, Request};
 //!
-//! // Ask unit 0x11 for three holding registers starting at 0x006B.
-//! let request = Pdu::read_holding_registers(0x006B, 3).to_adu(0x11);
-//! assert_eq!(request.as_bytes(), &[0x11, 0x03, 0x00, 0x6B, 0x00, 0x03, 0x76, 0x87]);
+//! // An energy meter at unit 17 keeps its voltage in tenths of a volt, its current in
+//! // milliamps, and a fault word in the three holding registers from 107.
+//! let request = Pdu::read_holding_registers(107, 3).to_adu(17);
 //!
-//! // The device replies with three 16-bit registers; the frame carries its own CRC,
-//! // so a receiver validates it before reading the values.
-//! let on_wire = Adu::from_pdu(0x11, &[0x03, 0x06, 0x02, 0x2B, 0x00, 0x00, 0x00, 0x64])?;
-//! let reply = Adu::parse(on_wire.as_bytes())?;
-//! let registers: Vec<u16> = reply.response().registers()?.collect();
-//! assert_eq!(registers, [0x022B, 0x0000, 0x0064]);
+//! // The meter reads the request the way the specification says a device does.
+//! let asked = Request::parse(request.pdu()).expect("a request the meter can serve");
+//! assert_eq!(asked.span(), (107, 3));
+//!
+//! // Its reply carries the unit and a CRC, and a receiver checks both before it reads a
+//! // value, so a frame mangled on a long cable never reaches the application.
+//! let reply = Pdu::read_holding_registers_reply(&[2301, 418, 0])?.to_adu(17);
+//! let received = Adu::parse(reply.as_bytes())?;
+//! let registers: Vec<u16> = received.response().registers()?.collect();
+//! assert_eq!(registers, [2301, 418, 0]);
+//! assert_eq!(f64::from(registers[0]) / 10.0, 230.1);
+//!
+//! // Asked for a register it does not have, the meter answers with an exception instead.
+//! let function = Function::ReadHoldingRegisters.code();
+//! let refused = Pdu::exception(function, Exception::IllegalDataAddress).to_adu(17);
+//! let answer = Adu::parse(refused.as_bytes())?;
+//! assert_eq!(answer.exception(), Some(Exception::IllegalDataAddress));
 //! # Ok::<(), pamoja_modbus::ModbusError>(())
 //! ```
 

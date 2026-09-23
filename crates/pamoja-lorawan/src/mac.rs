@@ -695,11 +695,16 @@ impl MacCommand {
     ///
     /// ```
     /// use pamoja_lorawan::mac::MacCommand;
+    /// use pamoja_lorawan::Direction;
     ///
+    /// // The network's answer to a link check: heard 20 dB above the floor by three gateways.
     /// let mut out = [0u8; 8];
     /// let command = MacCommand::LinkCheckAns { margin: 20, gateways: 3 };
-    /// assert_eq!(command.encode(&mut out).unwrap(), 3);
-    /// assert_eq!(&out[..3], &[0x02, 20, 3]);
+    /// let written = command.encode(&mut out).unwrap();
+    ///
+    /// // The device reads it back from the downlink's frame options.
+    /// let (heard, taken) = MacCommand::parse(Direction::Downlink, &out[..written]).unwrap();
+    /// assert_eq!((heard, taken), (command, written));
     /// ```
     pub fn encode(&self, out: &mut [u8]) -> Result<usize, LorawanError> {
         if let MacCommand::FilterListReq { eui_len, .. } = *self {
@@ -981,10 +986,14 @@ impl MacCommand {
     /// ```
     /// use pamoja_lorawan::{Direction, mac::MacCommand};
     ///
-    /// // The same byte, read both ways.
-    /// let bytes = [0x04, 0x0a];
+    /// // A request and its answer share an identifier, so the direction decides which one
+    /// // the same bytes are.
+    /// let mut bytes = [0u8; 2];
+    /// let request = MacCommand::DutyCycleReq { max_duty_cycle: 10 };
+    /// request.encode(&mut bytes).unwrap();
+    ///
     /// let (down, _) = MacCommand::parse(Direction::Downlink, &bytes).unwrap();
-    /// assert_eq!(down, MacCommand::DutyCycleReq { max_duty_cycle: 10 });
+    /// assert_eq!(down, request);
     ///
     /// let (up, taken) = MacCommand::parse(Direction::Uplink, &bytes).unwrap();
     /// assert_eq!(up, MacCommand::DutyCycleAns);
@@ -1267,15 +1276,18 @@ impl MacCommand {
 /// # Examples
 ///
 /// ```
-/// use pamoja_lorawan::mac::{encode_all, MacCommand, FOPTS_MAX};
+/// use pamoja_lorawan::mac::{encode_all, MacCommand, MacCommands, FOPTS_MAX};
+/// use pamoja_lorawan::Direction;
 ///
+/// // A device asks how well it is heard and what time it is, in one frame's options.
+/// let asked = [MacCommand::LinkCheckReq, MacCommand::DeviceTimeReq];
 /// let mut out = [0u8; FOPTS_MAX];
-/// let written = encode_all(
-///     &[MacCommand::LinkCheckReq, MacCommand::DeviceTimeReq],
-///     &mut out,
-/// )
-/// .unwrap();
-/// assert_eq!(&out[..written], &[0x02, 0x0d]);
+/// let written = encode_all(&asked, &mut out).unwrap();
+///
+/// let read: Vec<MacCommand> = MacCommands::new(Direction::Uplink, &out[..written])
+///     .map(|command| command.unwrap())
+///     .collect();
+/// assert_eq!(read, asked);
 /// ```
 pub fn encode_all(commands: &[MacCommand], out: &mut [u8]) -> Result<usize, LorawanError> {
     let mut at = 0;
@@ -1312,9 +1324,12 @@ impl<'a> MacCommands<'a> {
     /// # Examples
     ///
     /// ```
-    /// use pamoja_lorawan::{Direction, mac::{MacCommand, MacCommands}};
+    /// use pamoja_lorawan::{Direction, mac::{encode_all, MacCommand, MacCommands}};
     ///
-    /// let field = [0x02, 0x0d];
+    /// // The frame options of an uplink that asks for a link check and the time.
+    /// let mut field = [0u8; 2];
+    /// encode_all(&[MacCommand::LinkCheckReq, MacCommand::DeviceTimeReq], &mut field).unwrap();
+    ///
     /// let read: Vec<MacCommand> = MacCommands::new(Direction::Uplink, &field)
     ///     .map(|command| command.unwrap())
     ///     .collect();
@@ -1340,13 +1355,19 @@ impl<'a> MacCommands<'a> {
     /// # Examples
     ///
     /// ```
-    /// use pamoja_lorawan::{Direction, mac::MacCommands};
+    /// use pamoja_lorawan::{Direction, mac::{MacCommand, MacCommands}};
     ///
-    /// let field = [0x02, 0x7f, 0x11, 0x22];
+    /// // A link check request, then a command from a later version of the specification,
+    /// // identifier 0x7F with two bytes of its own, which this one cannot step over.
+    /// let later = [0x7F, 0x11, 0x22];
+    /// let mut field = [0u8; 4];
+    /// let written = MacCommand::LinkCheckReq.encode(&mut field).unwrap();
+    /// field[written..].copy_from_slice(&later);
+    ///
     /// let mut walk = MacCommands::new(Direction::Uplink, &field);
     /// assert!(walk.next().is_some(), "the first one is known");
-    /// assert!(walk.next().is_none(), "0x7f is not, so the walk stops");
-    /// assert_eq!(walk.remaining(), &[0x7f, 0x11, 0x22]);
+    /// assert!(walk.next().is_none(), "the later one is not, so the walk stops");
+    /// assert_eq!(walk.remaining(), later);
     /// ```
     #[must_use]
     pub fn remaining(&self) -> &'a [u8] {

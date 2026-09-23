@@ -35,6 +35,26 @@ events it missed and resumes from the most recent ones, and
 `BroadcastBus::missed` counts what it lost. This keeps a slow consumer from
 holding memory without bound, which matters on constrained devices.
 
+**Examples**
+
+A pump controller's events reach a logger and a dashboard: each subscriber hears every
+event published after it joined, in order.
+
+```rust
+use pamoja_bus::BroadcastBus;
+use pamoja_core::EventBus;
+
+let bus = BroadcastBus::new(16);
+let mut logger = bus.subscribe();
+let mut dashboard = bus.subscribe();
+
+bus.publish("pump started").await?;
+bus.publish("pressure low").await?;
+assert_eq!(logger.next_event().await?, Some("pump started"));
+assert_eq!(logger.next_event().await?, Some("pressure low"));
+assert_eq!(dashboard.next_event().await?, Some("pump started"));
+```
+
 ## const `MAX_CAPACITY`
 
 The largest buffer a bus sets aside; a larger capacity is lowered to it.

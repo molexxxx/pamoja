@@ -72,6 +72,23 @@ datasheet's calibration example.
 - `sht3x` - Sensirion humidity and temperature sensor, with CRC-checked words.
 - `tmp117` - Texas Instruments ±0.1 °C digital temperature sensor with alert limits.
 
+**Examples**
+
+A greenhouse soil bed, read through a TMP117 that is not plugged in yet, as the one
+number a controller wants: `Sensor::map` picks degrees Celsius out of the part's full
+reading. A real bus from `pamoja-hal` takes the simulated part's place unchanged.
+
+```rust
+use pamoja_core::Sensor;
+use pamoja_hal::script::{block_on, DelayLog};
+use pamoja_sensors::tmp117::{address, sim, Tmp117};
+
+let part = sim::reporting(address::ADD0_GND, 18.5);
+let thermometer = Tmp117::new(part, address::ADD0_GND, DelayLog::new());
+let mut celsius = thermometer.map(|reading| reading.celsius());
+assert_eq!(block_on(celsius.read())?, 18.5);
+```
+
 ## License
 
 MIT - part of the [pamoja](https://github.com/molexxxx/pamoja) workspace: one memory-safe Rust core with bindings for every language.

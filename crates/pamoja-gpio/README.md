@@ -63,11 +63,11 @@ use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Level, Polarity};
 use pamoja_gpio::spi::Mode;
 
-// A DS3231 real-time clock answers at 7-bit address 0x68; its read frame is one byte.
+// A DS3231 real-time clock answers at 7-bit address 0x68. Its address frame is one
+// byte: the address, then the bit that says whether the controller reads or writes.
 let rtc = Address::seven_bit(0x68)?;
-let mut frame = [0u8; 2];
-let n = rtc.write_frame(Direction::Read, &mut frame)?;
-assert_eq!(&frame[..n], &[0xD1]); // (0x68 << 1) | 1
+let read = rtc.frame(Direction::Read);
+assert_eq!(read.as_bytes(), [(0x68 << 1) | Direction::Read.rw_bit()]);
 
 // SPI clock mode 0 is the (CPOL, CPHA) pair (false, false), as a datasheet quotes it.
 assert_eq!(Mode::Mode0.cpol_cpha(), (false, false));

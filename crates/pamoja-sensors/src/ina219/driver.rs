@@ -30,35 +30,19 @@ pub const STATUS_POLLS: u8 = 20;
 ///
 /// # Examples
 ///
-/// A 100 mΩ shunt on a 12 V bus carrying 1 A, with the part expected to see up to
-/// 3.2 A, the design example the datasheet works through.
+/// A solar charger's output, read through an INA219 that is not plugged in yet: 12 V on the
+/// bus and 1 A through a 100 mΩ shunt, with the part calibrated for up to 3.2 A.
 ///
 /// ```
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::ina219::{
-///     bus_register, current_register, power_register, shunt_register, Ina219, BASE_ADDRESS,
-/// };
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::ina219::{sim, Ina219, BASE_ADDRESS};
 ///
-/// const PART: u8 = BASE_ADDRESS;
-/// const LSB: u32 = 98;
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0x00, 0xB9, 0x9F]),
-///     I2cStep::write(PART, [0x00, 0x39, 0x9F]),
-///     I2cStep::write(PART, [0x05, 0x10, 0x53]),
-///     I2cStep::write_read(PART, [0x05], [0x10, 0x53]),
-///     I2cStep::write(PART, [0x00, 0x39, 0x9B]),
-///     I2cStep::write_read(PART, [0x02], (bus_register(12_000) | 0x02).to_be_bytes()),
-///     I2cStep::write_read(PART, [0x01], shunt_register(100_000).to_be_bytes()),
-///     I2cStep::write_read(PART, [0x04], current_register(1_000_000, LSB).to_be_bytes()),
-///     I2cStep::write_read(PART, [0x03], power_register(12_000_000, LSB).to_be_bytes()),
-/// ]);
-///
-/// let mut monitor = Ina219::new(bus, PART, DelayLog::new()).with_shunt(100, 3_200_000);
-/// let reading = block_on(monitor.read())?;
+/// let part = sim::reporting(BASE_ADDRESS, 100, 3_200_000, 12_000, 1_000_000);
+/// let mut charger = Ina219::new(part, BASE_ADDRESS, DelayLog::new()).with_shunt(100, 3_200_000);
+/// let reading = block_on(charger.read())?;
 /// assert_eq!(reading.bus_millivolts(), 12_000);
-/// assert_eq!(reading.shunt_microvolts(), 100_000);
-/// assert!((reading.current_microamps() - 1_000_000).abs() < LSB as i32);
+/// assert!((reading.current_microamps() - 1_000_000).abs() < 100);
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -425,5 +409,30 @@ mod tests {
         let mut watts = monitor.map(|reading| reading.power_microwatts() as f32 / 1e6);
         let reading = block_on(watts.read()).unwrap();
         assert!((reading - 12.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn calibration_and_one_reading_make_the_transfers_the_datasheet_gives() {
+        use crate::ina219::{bus_register, current_register, power_register, shunt_register};
+
+        const PART: u8 = crate::ina219::BASE_ADDRESS;
+        const LSB: u32 = 98;
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0x00, 0xB9, 0x9F]),
+            I2cStep::write(PART, [0x00, 0x39, 0x9F]),
+            I2cStep::write(PART, [0x05, 0x10, 0x53]),
+            I2cStep::write_read(PART, [0x05], [0x10, 0x53]),
+            I2cStep::write(PART, [0x00, 0x39, 0x9B]),
+            I2cStep::write_read(PART, [0x02], (bus_register(12_000) | 0x02).to_be_bytes()),
+            I2cStep::write_read(PART, [0x01], shunt_register(100_000).to_be_bytes()),
+            I2cStep::write_read(PART, [0x04], current_register(1_000_000, LSB).to_be_bytes()),
+            I2cStep::write_read(PART, [0x03], power_register(12_000_000, LSB).to_be_bytes()),
+        ]);
+
+        let mut monitor = Ina219::new(bus, PART, DelayLog::new()).with_shunt(100, 3_200_000);
+        let reading = block_on(Sensor::read(&mut monitor)).expect("the scripted part answers");
+        assert_eq!(reading.bus_millivolts(), 12_000);
+        assert_eq!(reading.shunt_microvolts(), 100_000);
+        assert!((reading.current_microamps() - 1_000_000).abs() < LSB as i32);
     }
 }

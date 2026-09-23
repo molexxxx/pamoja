@@ -91,16 +91,22 @@ impl embedded_hal::i2c::Error for PartError {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::sim::I2cPart;
 ///
-/// // A part at 0x76 whose chip id register reads 0x60.
-/// let mut part = I2cPart::new(0x76).holding(0xd0, &[0x60]);
+/// // A BME280, whose chip id register holds the id its datasheet gives.
+/// const BME280: u8 = 0x76;
+/// const CHIP_ID_REGISTER: u8 = 0xD0;
+/// const BME280_CHIP_ID: u8 = 0x60;
+/// let mut part = I2cPart::new(BME280).holding(CHIP_ID_REGISTER, &[BME280_CHIP_ID]);
 ///
 /// let mut id = [0u8; 1];
-/// part.write_read(0x76, &[0xd0], &mut id).unwrap();
-/// assert_eq!(id, [0x60]);
+/// part.write_read(BME280, &[CHIP_ID_REGISTER], &mut id).unwrap();
+/// assert_eq!(id, [BME280_CHIP_ID]);
 ///
-/// // What a driver writes stays written, so a test can read its configuration back.
-/// part.write(0x76, &[0xf4, 0x25]).unwrap();
-/// assert_eq!(part.register(0xf4), 0x25);
+/// // What a driver writes stays written, so a test can read its configuration back: here
+/// // one temperature sample, one pressure sample, and forced mode, in ctrl_meas.
+/// const CTRL_MEAS: u8 = 0xF4;
+/// const FORCED_ONCE: u8 = 0b001_001_01;
+/// part.write(BME280, &[CTRL_MEAS, FORCED_ONCE]).unwrap();
+/// assert_eq!(part.register(CTRL_MEAS), FORCED_ONCE);
 /// ```
 #[derive(Clone, Debug)]
 pub struct I2cPart {
@@ -126,20 +132,28 @@ pub struct I2cPart {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::sim::{I2cPart, Rules, REGISTERS};
 ///
-/// // A part whose register 0x10 only takes a write while bit 0 of register 0x00 is set.
+/// // A PCA9685 takes a new PWM frequency only while it sleeps: its prescale register
+/// // ignores a write unless the SLEEP bit of MODE1 is set.
+/// const PCA9685: u8 = 0x40;
+/// const MODE1: u8 = 0x00;
+/// const SLEEP: u8 = 1 << 4;
+/// const PRE_SCALE: u8 = 0xFE;
 /// fn write(registers: &mut [u8; REGISTERS], register: u8, value: u8) {
-///     if register != 0x10 || registers[0x00] & 1 != 0 {
-///         registers[register as usize] = value;
+///     if register != PRE_SCALE || registers[usize::from(MODE1)] & SLEEP != 0 {
+///         registers[usize::from(register)] = value;
 ///     }
 /// }
 /// let rules = Rules { write, ..Rules::MEMORY };
-/// let mut part = I2cPart::new(0x40).following(rules);
 ///
-/// part.write(0x40, &[0x10, 0x55]).unwrap();
-/// assert_eq!(part.register(0x10), 0x00, "locked");
-/// part.write(0x40, &[0x00, 0x01]).unwrap();
-/// part.write(0x40, &[0x10, 0x55]).unwrap();
-/// assert_eq!(part.register(0x10), 0x55, "unlocked");
+/// // Awake, at its power-on prescale of 30, about 200 Hz from its 25 MHz clock.
+/// let mut part = I2cPart::new(PCA9685).following(rules).holding(PRE_SCALE, &[30]);
+///
+/// // 121 is the prescale for the 50 Hz a servo wants.
+/// part.write(PCA9685, &[PRE_SCALE, 121]).unwrap();
+/// assert_eq!(part.register(PRE_SCALE), 30, "ignored while it runs");
+/// part.write(PCA9685, &[MODE1, SLEEP]).unwrap();
+/// part.write(PCA9685, &[PRE_SCALE, 121]).unwrap();
+/// assert_eq!(part.register(PRE_SCALE), 121, "taken while it sleeps");
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Rules {
@@ -224,8 +238,10 @@ impl I2cPart {
     /// ```
     /// use pamoja_hal::sim::I2cPart;
     ///
-    /// let part = I2cPart::new(0x48).holding(0x00, &[0x12, 0x34]);
-    /// assert_eq!(part.register(0x01), 0x34);
+    /// // A 16-bit reading, high byte first, lands in two registers from the first one.
+    /// let [high, low] = 1000u16.to_be_bytes();
+    /// let part = I2cPart::new(0x48).holding(0x00, &[high, low]);
+    /// assert_eq!([part.register(0x00), part.register(0x01)], [high, low]);
     /// ```
     #[must_use]
     pub fn holding(mut self, first: u8, bytes: &[u8]) -> I2cPart {
@@ -360,17 +376,26 @@ impl I2c<SevenBitAddress> for I2cPart {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::sim::WordPart;
 ///
-/// // A TMP117's device id register, 0x0F, reads 0x0117.
-/// let mut part = WordPart::new(0x48).holding(0x0F, 0x0117);
+/// // A TMP117, from its datasheet: the device id register reads 0x0117, and Data_Ready,
+/// // bit 13 of the configuration register, is the part's to set.
+/// const TMP117: u8 = 0x48;
+/// const CONFIGURATION: u8 = 0x01;
+/// const DEVICE_ID: u8 = 0x0F;
+/// const DATA_READY: u16 = 1 << 13;
+/// let mut part = WordPart::new(TMP117)
+///     .holding(DEVICE_ID, 0x0117)
+///     .holding(CONFIGURATION, DATA_READY)
+///     .read_only(CONFIGURATION, DATA_READY);
+///
 /// let mut id = [0u8; 2];
-/// part.write_read(0x48, &[0x0F], &mut id).unwrap();
+/// part.write_read(TMP117, &[DEVICE_ID], &mut id).unwrap();
 /// assert_eq!(u16::from_be_bytes(id), 0x0117);
 ///
-/// // Bit 7 of register 0x01 is a ready flag the part sets; a driver writing zero there
-/// // does not clear it.
-/// let mut part = WordPart::new(0x44).holding(0x01, 0x0080).read_only(0x01, 0x0080);
-/// part.write(0x44, &[0x01, 0xCA, 0x10]).unwrap();
-/// assert_eq!(part.word(0x01), 0xCA90);
+/// // A driver writing the factory configuration leaves the flag as the part holds it.
+/// const CONFIG_RESET: u16 = 0x0220;
+/// let [high, low] = CONFIG_RESET.to_be_bytes();
+/// part.write(TMP117, &[CONFIGURATION, high, low]).unwrap();
+/// assert_eq!(part.word(CONFIGURATION), CONFIG_RESET | DATA_READY);
 /// ```
 #[derive(Clone, Debug)]
 pub struct WordPart {
@@ -556,17 +581,21 @@ impl I2c<SevenBitAddress> for WordPart {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::sim::CommandPart;
 ///
-/// // A part whose 16-bit status command, 0xF32D, answers with three bytes.
-/// let mut part = CommandPart::new(0x44, 2).answering(&[0xF3, 0x2D], &[0x80, 0x10, 0xE1]);
-/// part.write(0x44, &[0xF3, 0x2D]).unwrap();
+/// // An SHT3x, from its datasheet: the read-status command answers with the status word,
+/// // 0x8010 after a reset, then that word's CRC.
+/// const SHT3X: u8 = 0x44;
+/// const READ_STATUS: [u8; 2] = 0xF32Du16.to_be_bytes();
+/// const STATUS_AFTER_RESET: [u8; 3] = [0x80, 0x10, 0xE1];
+/// let mut part = CommandPart::new(SHT3X, 2).answering(&READ_STATUS, &STATUS_AFTER_RESET);
+///
+/// part.write(SHT3X, &READ_STATUS).unwrap();
 /// let mut status = [0u8; 3];
-/// part.read(0x44, &mut status).unwrap();
-/// assert_eq!(status, [0x80, 0x10, 0xE1]);
+/// part.read(SHT3X, &mut status).unwrap();
+/// assert_eq!(status, STATUS_AFTER_RESET);
 ///
 /// // The reply was taken, so a second read finds nothing waiting.
-/// assert!(part.read(0x44, &mut status).is_err());
-/// assert_eq!(part.received().len(), 1);
-/// assert_eq!(part.received()[0], [0xF3, 0x2D]);
+/// assert!(part.read(SHT3X, &mut status).is_err());
+/// assert_eq!(part.received(), [READ_STATUS.to_vec()]);
 /// ```
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]

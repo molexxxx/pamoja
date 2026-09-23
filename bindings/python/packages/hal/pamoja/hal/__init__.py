@@ -85,9 +85,10 @@ class I2cPart:
     back from wherever the last write left off. What a driver writes stays written, so
     :meth:`register` reads a part's configuration back once a driver is done with it.
 
-    >>> part = I2cPart(0x76).holding(0xD0, bytes([0x60]))
-    >>> hex(part.register(0xD0))
-    '0x60'
+    >>> BME280, CHIP_ID_REGISTER, BME280_CHIP_ID = 0x76, 0xD0, 0x60
+    >>> part = I2cPart(BME280).holding(CHIP_ID_REGISTER, bytes([BME280_CHIP_ID]))
+    >>> part.register(CHIP_ID_REGISTER) == BME280_CHIP_ID
+    True
     """
 
     __slots__ = ("_native",)
@@ -152,9 +153,10 @@ class WordPart:
     a conversion-ready flag, are marked with :meth:`read_only` and keep the part's value
     whatever a driver writes.
 
-    >>> part = WordPart(0x48).holding(0x0F, 0x0117)
-    >>> hex(part.word(0x0F))
-    '0x117'
+    >>> TMP117, DEVICE_ID_REGISTER, TMP117_DEVICE_ID = 0x48, 0x0F, 0x0117
+    >>> part = WordPart(TMP117).holding(DEVICE_ID_REGISTER, TMP117_DEVICE_ID)
+    >>> part.word(DEVICE_ID_REGISTER) == TMP117_DEVICE_ID
+    True
     """
 
     __slots__ = ("_native",)
@@ -228,9 +230,11 @@ class CommandPart:
     and a read then is not acknowledged, which is what a real part does when asked for data
     it does not have.
 
-    >>> part = CommandPart(0x44).answering(bytes([0xF3, 0x2D]), bytes([0x80, 0x10, 0xE1]))
-    >>> part.address
-    68
+    >>> SHT3X, READ_STATUS = 0x44, (0xF32D).to_bytes(2, "big")
+    >>> STATUS_AFTER_RESET = bytes([0x80, 0x10, 0xE1])  # the word 0x8010, then its CRC
+    >>> part = CommandPart(SHT3X).answering(READ_STATUS, STATUS_AFTER_RESET)
+    >>> part.address == SHT3X
+    True
     """
 
     __slots__ = ("_native",)
@@ -359,9 +363,10 @@ class I2cBus:
     failed transfer raises ``PamojaError`` with the reason: nothing answered at the address,
     the script expected something else, or the kernel's own words.
 
-    >>> bus = I2cBus.simulated([I2cPart(0x76).holding(0xD0, bytes([0x60]))])
-    >>> bus.write_read(0x76, bytes([0xD0]), 1).hex()
-    '60'
+    >>> BME280, CHIP_ID_REGISTER, BME280_CHIP_ID = 0x76, 0xD0, 0x60
+    >>> bus = I2cBus.simulated([I2cPart(BME280).holding(CHIP_ID_REGISTER, bytes([BME280_CHIP_ID]))])
+    >>> bus.write_read(BME280, bytes([CHIP_ID_REGISTER]), 1) == bytes([BME280_CHIP_ID])
+    True
     >>> bus.transfers
     1
     """

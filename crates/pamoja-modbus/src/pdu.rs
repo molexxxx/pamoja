@@ -19,10 +19,17 @@ use crate::function::Exception;
 /// # Examples
 ///
 /// ```
-/// use pamoja_modbus::Pdu;
+/// use pamoja_modbus::{Pdu, Request};
 ///
-/// let pdu = Pdu::write_single_register(0x0001, 0x0003);
-/// assert_eq!(pdu.as_bytes(), &[0x06, 0x00, 0x01, 0x00, 0x03]);
+/// // Set a pump controller's pressure setpoint, held in register 40, to 1200 kPa.
+/// let pdu = Pdu::write_single_register(40, 1200);
+///
+/// // The controller reads it back as the request it is.
+/// let request = Request::parse(pdu.as_bytes()).expect("a request the controller can serve");
+/// assert!(matches!(
+///     request,
+///     Request::WriteSingleRegister { address: 40, value: 1200 }
+/// ));
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pdu {

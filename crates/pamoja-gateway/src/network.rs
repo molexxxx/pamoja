@@ -21,21 +21,51 @@
 //!
 //! ```
 //! use pamoja_gateway::network::{Event, Network, Registration};
-//! use pamoja_gateway::udp::Rxpk;
+//! use pamoja_gateway::udp::{Eui, Rxpk};
 //! use pamoja_lora::region::Region;
 //! use pamoja_lora::LinkSettings;
-//! use pamoja_lorawan::Device;
+//! use pamoja_lorawan::{Device, Uplink};
 //!
+//! // What a soil probe was provisioned with: its own EUI from its label, the EUI of the
+//! // application it joins, and its root key.
+//! let dev_eui = Eui::from_hex("70b3d57ed0001234").expect("the probe's EUI").bytes();
+//! let join_eui = Eui::from_hex("70b3d57ed0000000").expect("the application's EUI").bytes();
+//! let app_key = [7; 16];
+//!
+//! // A private network that admits it.
 //! let mut network = Network::new(Region::Eu868.plan(), 0x00_00_2A);
-//! let device = Device::new([1; 8], [2; 8], [3; 16]);
-//! network.register(Registration::new([1; 8], [2; 8], [3; 16]));
+//! network.register(Registration::new(dev_eui, join_eui, app_key));
 //!
-//! // The gateway forwards the join request it heard.
+//! // The gateway forwards the probe's join request, and the network grants it a session.
+//! let probe = Device::new(dev_eui, join_eui, app_key);
 //! let link = LinkSettings::new(7, 125_000);
-//! let request = device.join_request(0x1234);
+//! let request = probe.join_request(1);
 //! let heard = Rxpk::new(868_100_000, link, request.as_bytes().to_vec()).with_timestamp_us(1_000);
-//! let joined = network.uplink(&heard).expect("the request verifies");
-//! assert!(matches!(joined, Event::Joined { .. }));
+//! let Ok(Event::Joined { dev_addr, accept, .. }) = network.uplink(&heard) else {
+//!     panic!("the join request verifies");
+//! };
+//!
+//! // The probe reads the accept and holds the session the network granted.
+//! let session = probe
+//!     .accept_join(&accept.payload, 1)
+//!     .expect("the accept verifies")
+//!     .session();
+//! assert_eq!(session.dev_addr(), dev_addr);
+//!
+//! // Its first reading arrives decrypted, and the answer goes out in the first receive
+//! // window, a second after the uplink ended.
+//! let frame = session
+//!     .encode_uplink(&Uplink::new(0, 2, b"21.5"))
+//!     .expect("an uplink");
+//! let heard = Rxpk::new(868_100_000, link, frame.as_bytes().to_vec()).with_timestamp_us(9_000_000);
+//! let Ok(Event::Data { payload, slot, .. }) = network.uplink(&heard) else {
+//!     panic!("the reading verifies");
+//! };
+//! assert_eq!(payload, b"21.5");
+//! let reply = network
+//!     .answer(dev_addr, slot, 2, b"ok")
+//!     .expect("the probe holds a session");
+//! assert_eq!(reply.timestamp_us, Some(10_000_000));
 //! ```
 
 use pamoja_lora::region::{ChannelBlock, ChannelPlan, OwnedChannelPlan};

@@ -15,10 +15,12 @@
 /// ```
 /// use pamoja_mesh::SeenCache;
 ///
+/// // A packet is known by the node that sent it and its number.
+/// let sensor = 66;
 /// let mut seen: SeenCache<8> = SeenCache::new();
-/// assert!(seen.record((0x42, 1)));  // first time: newly recorded
-/// assert!(!seen.record((0x42, 1))); // again: a duplicate
-/// assert!(seen.record((0x42, 2)));  // a different packet
+/// assert!(seen.record((sensor, 1)), "the first copy is new");
+/// assert!(!seen.record((sensor, 1)), "a second copy, by another path, is a duplicate");
+/// assert!(seen.record((sensor, 2)), "the sensor's next packet is new");
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct SeenCache<const N: usize> {
@@ -110,9 +112,10 @@ fn record_into(keys: &mut [Option<(u32, u16)>], next: &mut usize, key: (u32, u16
 /// use pamoja_mesh::DynamicSeenCache;
 ///
 /// // A busy relay remembers more packets than a leaf node needs to.
+/// let sensor = 66;
 /// let mut seen = DynamicSeenCache::new(1024);
-/// assert!(seen.record((0x42, 1)));
-/// assert!(!seen.record((0x42, 1)));
+/// assert!(seen.record((sensor, 1)));
+/// assert!(!seen.record((sensor, 1)));
 /// assert_eq!(seen.capacity(), 1024);
 /// ```
 #[cfg(any(feature = "alloc", test))]

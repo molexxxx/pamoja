@@ -33,16 +33,29 @@
 //! # Examples
 //!
 //! ```
-//! use pamoja_can::{CanId, Frame, J1939Id};
+//! use pamoja_can::{CanId, Frame, J1939Id, Signals};
 //!
-//! // Build a classic frame for a motor controller.
-//! let frame = Frame::new(CanId::standard(0x20A), &[0x01, 0xF4]).unwrap();
-//! assert_eq!(frame.dlc(), 2);
+//! // A classic frame: the motor controller at identifier 0x20A told to run at 500 rpm,
+//! // sent big-endian as its protocol asks.
+//! let command = Frame::new(CanId::standard(0x20A), &500u16.to_be_bytes())?;
+//! assert_eq!(command.dlc(), 2);
 //!
-//! // Decode an engine-speed broadcast from a J1939 genset.
-//! let message = J1939Id::from_id(CanId::extended(0x0CF0_0400)).unwrap();
-//! assert_eq!(message.pgn(), 61_444);
-//! assert!(message.is_broadcast());
+//! // A J1939 broadcast: a genset's engine controller, at source address 0, reports its
+//! // speed in EEC1, parameter group 61444. The speed sits in bytes 4 and 5 of the payload,
+//! // offset 3 counting from zero, at 0.125 rpm per bit, and every signal the controller does
+//! // not report stays marked not available.
+//! const EEC1: u32 = 61_444;
+//! let mut payload = Signals::new();
+//! payload.set_u16(3, (1500.0 / 0.125) as u16);
+//! let report = Frame::new(J1939Id::broadcast(3, EEC1, 0).to_id(), payload.as_bytes())?;
+//!
+//! // A listener reads the group from the identifier and the speed from the payload.
+//! let heard = J1939Id::from_id(report.id()).expect("an extended identifier");
+//! assert_eq!(heard.pgn(), EEC1);
+//! assert!(heard.is_broadcast());
+//! let speed = report.signals().and_then(|signals| signals.u16(3)).expect("a speed");
+//! assert_eq!(f64::from(speed) * 0.125, 1500.0);
+//! # Ok::<(), pamoja_can::CanError>(())
 //! ```
 
 #[cfg(feature = "bus")]

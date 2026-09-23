@@ -36,8 +36,9 @@
 //! ```
 //! use pamoja_mesh::{Frame, SeenCache};
 //!
-//! // A flood-warning sensor broadcasts a reading into the mesh.
-//! let reading = Frame::broadcast(0x1234_5678, 1, b"level=high")?;
+//! // A flood-warning sensor, node 4021, broadcasts its first reading into the mesh.
+//! let flood_sensor = 4021;
+//! let reading = Frame::broadcast(flood_sensor, 1, b"level=high")?;
 //! let on_air = reading.as_bytes();
 //!
 //! // A neighbor receives it, checks it has not already seen this packet, and reads it.

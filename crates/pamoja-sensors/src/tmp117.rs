@@ -653,7 +653,7 @@ impl Configuration {
 /// let reading = Reading::new(0x0C80);
 /// assert_eq!(reading.celsius(), 25.0);
 /// assert_eq!(reading.micro_celsius(), 25_000_000);
-/// assert_eq!(reading.to_bytes(), [0x0C, 0x80]);
+/// assert_eq!(i16::from_be_bytes(reading.to_bytes()), 0x0C80, "high byte first");
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Reading {

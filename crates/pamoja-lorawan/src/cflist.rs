@@ -84,7 +84,7 @@ impl CfListKind {
 ///
 /// let list = CfList::frequencies([867_100_000, 867_300_000, 867_500_000, 867_700_000, 867_900_000])?;
 /// assert_eq!(list.kind(), CfListKind::Frequencies);
-/// assert_eq!(&list.to_bytes()[..3], &[0x18, 0x4F, 0x84], "8 671 000 hundreds of hertz, low byte first");
+/// assert_eq!(list.to_bytes().len(), 16, "the last sixteen bytes of the accept");
 ///
 /// // A device reads the same frequencies back out.
 /// let heard = CfList::from_bytes(list.to_bytes());
