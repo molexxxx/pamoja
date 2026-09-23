@@ -348,8 +348,9 @@ impl<S: Store> TransportLadder<S> {
     ///
     /// If the buffer is empty, each connected rung is tried in order and the first
     /// to accept the message delivers it. If every rung fails, or the buffer
-    /// already holds a backlog, the message is buffered to preserve order. A rung
-    /// that answers [`Error::Closed`] is treated as down until the next
+    /// already holds a backlog, the message is buffered to preserve order, and only
+    /// [`flush`](Self::flush) drains a backlog. A rung that answers
+    /// [`Error::Closed`] is treated as down until the next
     /// [`connect`](Self::connect).
     ///
     /// # Arguments
@@ -498,6 +499,11 @@ impl<S: Store> TransportLadder<S> {
     /// a quiet one. A rung whose link ends, or that answers [`Error::Closed`], is
     /// treated as down until the next [`connect`](Self::connect), and the wait
     /// continues on the rungs that remain.
+    ///
+    /// The wait is cancel-safe when every rung's receive is, as the receives of the
+    /// links pamoja ships are: a wait given up, by a timeout or a `select!`, takes no
+    /// message. That is how a node that both listens and reports shares one ladder,
+    /// waiting with a limit and sending between waits.
     ///
     /// # Returns
     ///

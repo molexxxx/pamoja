@@ -92,6 +92,48 @@ pub unsafe extern "C" fn pamoja_ladder_rung(
     ladder: *mut PamojaLadder,
     transport: *mut PamojaTransport,
 ) -> PamojaStatus {
+    add(ladder, transport, false)
+}
+
+/// Adds a rung that only sends, tried after the rungs already added.
+///
+/// The ladder sends over it in its turn but never subscribes it or listens on it,
+/// whatever the transport could do. This is the shape of a satellite messenger, a
+/// LoRa uplink, or any link a node reports over but takes no commands from.
+///
+/// # Arguments
+///
+/// * `ladder` - the ladder to add to.
+/// * `transport` - the transport to add, consumed by this call.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] once the rung is added.
+///
+/// # Safety
+///
+/// `ladder` must be a live handle, and `transport` a live transport handle that
+/// has not been freed or consumed. After this call the transport must not be
+/// used again, whatever the result.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ladder_uplink(
+    ladder: *mut PamojaLadder,
+    transport: *mut PamojaTransport,
+) -> PamojaStatus {
+    add(ladder, transport, true)
+}
+
+/// Adds a transport to a ladder, as an uplink when asked or when it cannot
+/// deliver, and as a rung that is listened on otherwise.
+///
+/// # Safety
+///
+/// As for [`pamoja_ladder_rung`].
+unsafe fn add(
+    ladder: *mut PamojaLadder,
+    transport: *mut PamojaTransport,
+    uplink: bool,
+) -> PamojaStatus {
     let Some(handle) = ladder_handle(ladder) else {
         // The transport was promised to this call, so it is released rather than
         // left for a caller who has already been told not to touch it again.
@@ -105,10 +147,10 @@ pub unsafe extern "C" fn pamoja_ladder_rung(
         set_last_error("this ladder is no longer usable".to_owned());
         return PamojaStatus::InvalidArgument;
     };
-    handle.inner = Some(if transport.listens() {
-        inner.rung(transport)
-    } else {
+    handle.inner = Some(if uplink || !transport.listens() {
         inner.uplink(transport)
+    } else {
+        inner.rung(transport)
     });
     PamojaStatus::Ok
 }
@@ -434,10 +476,12 @@ fn fail(error: pamoja_core::Error) -> PamojaStatus {
 mod tests {
     use super::*;
     use crate::loopback::{
-        pamoja_loopback_broker_free, pamoja_loopback_broker_new, pamoja_loopback_transport_connect,
-        pamoja_loopback_transport_free, pamoja_loopback_transport_new,
-        pamoja_loopback_transport_recv, pamoja_loopback_transport_send,
-        pamoja_loopback_transport_subscribe, pamoja_transport_loopback,
+        pamoja_loopback_broker_free, pamoja_loopback_broker_is_reachable,
+        pamoja_loopback_broker_new, pamoja_loopback_broker_set_reachable,
+        pamoja_loopback_transport_connect, pamoja_loopback_transport_free,
+        pamoja_loopback_transport_new, pamoja_loopback_transport_recv,
+        pamoja_loopback_transport_send, pamoja_loopback_transport_subscribe,
+        pamoja_transport_loopback,
     };
     use crate::sync::pamoja_store_memory;
     use crate::transport::{
@@ -629,6 +673,65 @@ mod tests {
             pamoja_ladder_free(ladder);
             pamoja_loopback_transport_free(upstream);
             pamoja_loopback_broker_free(broker);
+        }
+    }
+
+    #[test]
+    fn an_uplink_carries_what_an_unreachable_rung_refuses_and_is_never_listened_on() {
+        unsafe {
+            let near = pamoja_loopback_broker_new();
+            let far = pamoja_loopback_broker_new();
+            let ashore = pamoja_loopback_transport_new(far);
+            pamoja_loopback_transport_connect(ashore);
+            let reports = std::ffi::CString::new("reports").expect("static");
+            let orders = std::ffi::CString::new("orders").expect("static");
+            pamoja_loopback_transport_subscribe(ashore, reports.as_ptr());
+
+            let ladder = pamoja_ladder_new(pamoja_store_memory(0));
+            assert_eq!(
+                pamoja_ladder_rung(ladder, pamoja_transport_loopback(near)),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_ladder_uplink(ladder, pamoja_transport_loopback(far)),
+                PamojaStatus::Ok
+            );
+            pamoja_ladder_connect(ladder);
+            assert_eq!(
+                pamoja_ladder_subscribe(ladder, orders.as_ptr()),
+                PamojaStatus::Ok
+            );
+
+            assert_eq!(
+                pamoja_loopback_broker_set_reachable(near, false),
+                PamojaStatus::Ok
+            );
+            assert!(!pamoja_loopback_broker_is_reachable(near));
+            let mut delivery = PamojaDelivery::Buffered;
+            pamoja_ladder_send(ladder, reports.as_ptr(), b"1".as_ptr(), 1, &mut delivery);
+            assert_eq!(delivery, PamojaDelivery::Sent, "the uplink carried it");
+            let mut message = ptr::null_mut();
+            pamoja_loopback_transport_recv(ashore, &mut message);
+            assert!(!message.is_null());
+            pamoja_message_free(message);
+
+            pamoja_loopback_transport_send(ashore, orders.as_ptr(), b"stop".as_ptr(), 4);
+            let mut timed_out = false;
+            pamoja_ladder_recv_within(ladder, 20, &mut message, &mut timed_out);
+            assert!(timed_out, "an uplink is never listened on");
+
+            pamoja_loopback_broker_set_reachable(far, false);
+            pamoja_ladder_send(ladder, reports.as_ptr(), b"2".as_ptr(), 1, &mut delivery);
+            assert_eq!(
+                delivery,
+                PamojaDelivery::Buffered,
+                "with every link out of reach"
+            );
+
+            pamoja_ladder_free(ladder);
+            pamoja_loopback_transport_free(ashore);
+            pamoja_loopback_broker_free(near);
+            pamoja_loopback_broker_free(far);
         }
     }
 

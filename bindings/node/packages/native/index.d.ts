@@ -973,6 +973,15 @@ export declare class Ladder {
    */
   rung(transport: Transport): Promise<void>
   /**
+   * Adds a rung that only sends, tried after the rungs already added.
+   *
+   * The ladder sends over it in its turn but never subscribes it or listens on
+   * it, whatever the transport could do: a satellite messenger, a LoRa uplink,
+   * or any link a node reports over but takes no commands from. The transport
+   * is consumed.
+   */
+  uplink(transport: Transport): Promise<void>
+  /**
    * Connects every rung, so a send can be tried against each in turn.
    *
    * A rung that will not connect is left in the ladder: it may come back, and
@@ -1005,13 +1014,14 @@ export declare class Ladder {
    * delivers first.
    *
    * Throws if no connected rung listens: none was added, the ladder is not
-   * connected, or every listening link has ended. The ladder is held while
-   * waiting, so a send from elsewhere waits behind the receive.
+   * connected, or every listening link has ended. The ladder does one thing at
+   * a time, so a send waits behind a receive in progress; a node that listens
+   * and reports waits with a limit and sends between waits.
    *
    * @param timeoutMs - how long to wait before rejecting; a message that arrives later
    * waits for the next receive.
    */
-  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage>
 }
 
 /**
@@ -1030,6 +1040,15 @@ export declare class LoopbackBroker {
    * ladder or a wrapper.
    */
   rung(): Transport
+  /**
+   * Whether the broker is in reach. Set it to `false` to put every link on it
+   * out of range at once, links a ladder owns included: they fail to connect,
+   * send, or subscribe until it is `true` again, keeping their connections and
+   * filters through the outage.
+   */
+  get reachable(): boolean
+  /** Takes the broker out of reach, or brings it back. */
+  set reachable(reachable: boolean)
 }
 
 /** One in-process link to a broker. */

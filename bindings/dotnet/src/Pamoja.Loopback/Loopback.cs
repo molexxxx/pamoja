@@ -38,6 +38,20 @@ public sealed class LoopbackBroker : IDisposable
         _handle.Use(NativeMethods.pamoja_transport_loopback),
         "loopback transport");
 
+    /// <summary>Gets or sets whether the broker is in reach.</summary>
+    /// <remarks>
+    /// Set it to <c>false</c> to put every link on the broker out of range at once,
+    /// links a ladder owns included: they fail to connect, send, or subscribe until
+    /// it is <c>true</c> again, keeping their connections and filters through the
+    /// outage.
+    /// </remarks>
+    public bool Reachable
+    {
+        get => _handle.Use(NativeMethods.pamoja_loopback_broker_is_reachable);
+        set => Status.ThrowIfError(_handle.Use(handle =>
+            NativeMethods.pamoja_loopback_broker_set_reachable(handle, value)));
+    }
+
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
 }

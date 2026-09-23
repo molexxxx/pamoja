@@ -36,6 +36,8 @@
 //! # }
 //! ```
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 pub use pamoja_core::Message;
@@ -195,6 +197,7 @@ pub struct MqttTransport {
     client: Option<AsyncClient>,
     incoming: Option<mpsc::UnboundedReceiver<Result<Message>>>,
     pump: Option<JoinHandle<()>>,
+    ended: Arc<AtomicBool>,
 }
 
 impl MqttTransport {
@@ -213,6 +216,7 @@ impl MqttTransport {
             client: None,
             incoming: None,
             pump: None,
+            ended: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -228,9 +232,16 @@ impl MqttTransport {
     }
 
     /// The client, while its connection is up.
+    ///
+    /// The event loop marks the connection ended before it reports why, so a
+    /// receive that has seen the report never finds the transport still up.
     fn live(&self) -> Result<&AsyncClient> {
         match (&self.client, &self.pump) {
-            (Some(client), Some(pump)) if !pump.is_finished() => Ok(client),
+            (Some(client), Some(pump))
+                if !pump.is_finished() && !self.ended.load(Ordering::SeqCst) =>
+            {
+                Ok(client)
+            }
             _ => Err(Error::Closed),
         }
     }
@@ -287,6 +298,8 @@ impl Transport for MqttTransport {
         let (client, mut eventloop) = AsyncClient::new(options, self.config.capacity);
         let (tx, rx) = mpsc::unbounded_channel();
         let (ready_tx, ready_rx) = oneshot::channel::<Result<()>>();
+        let ended = Arc::new(AtomicBool::new(false));
+        let marked = Arc::clone(&ended);
 
         let pump = tokio::spawn(async move {
             let mut ready_tx = Some(ready_tx);
@@ -305,6 +318,7 @@ impl Transport for MqttTransport {
                     }
                     Ok(_) => {}
                     Err(err) => {
+                        marked.store(true, Ordering::SeqCst);
                         match ready_tx.take() {
                             Some(ready_tx) => {
                                 let _ = ready_tx.send(Err(map_connection_error(err)));
@@ -326,6 +340,7 @@ impl Transport for MqttTransport {
                 self.client = Some(client);
                 self.incoming = Some(rx);
                 self.pump = Some(pump);
+                self.ended = ended;
                 Ok(())
             }
             Ok(Err(err)) => {

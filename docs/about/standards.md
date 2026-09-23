@@ -844,7 +844,7 @@ The protocols a node speaks to a broker or a server.
 </header>
 <p class="hw-summary">The valid and invalid filters of sections 4.7.1.2 and 4.7.1.3, and the remaining-length boundaries of Table 2.4.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html"><span class="hw-main"><b>The document</b><small>MQTT Version 3.1.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mqtt/src/lib.rs#L525"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 525</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mqtt/src/lib.rs#L540"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 540</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-7252">

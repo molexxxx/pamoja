@@ -4426,6 +4426,15 @@ class Ladder:
         is consumed. A transport that delivers is subscribed and listened on; a
         host transport without `recv` is an uplink the ladder never listens on.
         """
+    def uplink(self, transport: PyTransport) -> typing.Any:
+        r"""
+        Adds a rung that only sends, tried after the rungs already added.
+        
+        The ladder sends over it in its turn but never subscribes it or listens on
+        it, whatever the transport could do: a satellite messenger, a LoRa uplink, or
+        any link a node reports over but takes no commands from. The transport is
+        consumed.
+        """
     def connect(self) -> typing.Any:
         r"""
         Connects every rung, so a send can be tried against each in turn.
@@ -4463,8 +4472,9 @@ class Ladder:
         delivers first.
         
         Raises if no connected rung listens: none was added, the ladder is not
-        connected, or every listening link has ended. The ladder is held while
-        waiting, so a send from elsewhere waits behind the receive.
+        connected, or every listening link has ended. The ladder does one thing at
+        a time, so a send waits behind a receive in progress; a node that listens
+        and reports waits with `asyncio.wait_for` and sends between waits.
         """
 
 @typing.final
@@ -4554,6 +4564,19 @@ class LoopbackBroker:
     Every transport built from one broker shares its traffic, so a message one
     publishes reaches the others that subscribed to the topic.
     """
+    @property
+    def reachable(self) -> builtins.bool:
+        r"""
+        Whether the broker is in reach. Set it to `False` to put every link on it
+        out of range at once, links a ladder owns included: they fail to connect,
+        send, or subscribe until it is `True` again, keeping their connections and
+        filters through the outage.
+        """
+    @reachable.setter
+    def reachable(self, value: builtins.bool) -> None:
+        r"""
+        Takes the broker out of reach, or brings it back.
+        """
     def __new__(cls) -> LoopbackBroker:
         r"""
         Creates a broker with no traffic.

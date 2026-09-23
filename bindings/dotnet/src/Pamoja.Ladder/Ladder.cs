@@ -57,6 +57,23 @@ public sealed class Ladder : IDisposable
             NativeMethods.pamoja_ladder_rung(handle, transport.Take())));
     }
 
+    /// <summary>Adds a rung that only sends, tried after the rungs already added.</summary>
+    /// <remarks>
+    /// The ladder sends over it in its turn but never subscribes it or listens on
+    /// it, whatever the transport could do: a satellite messenger, a LoRa uplink, or
+    /// any link a node reports over but takes no commands from.
+    /// </remarks>
+    /// <param name="transport">The transport to add, consumed by this call.</param>
+    /// <exception cref="PamojaException">
+    /// The transport was already handed on, or a call on it is still running.
+    /// </exception>
+    public void Uplink(Transport transport)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        Status.ThrowIfError(_handle.Use(handle =>
+            NativeMethods.pamoja_ladder_uplink(handle, transport.Take())));
+    }
+
     /// <summary>Connects every rung, so a send can be tried against each in turn.</summary>
     /// <remarks>
     /// A rung that will not connect is left in the ladder: it may come back, and
@@ -139,17 +156,18 @@ public sealed class Ladder : IDisposable
     /// <summary>Waits for the next message from any rung that listens, whichever delivers first.</summary>
     /// <remarks>
     /// Calls on a ladder run one at a time, so a send made while a receive is waiting
-    /// runs once the receive returns.
+    /// runs once the receive returns. A node that listens and reports waits with
+    /// <see cref="ReceiveAsync(TimeSpan)"/> and sends between waits.
     /// </remarks>
     /// <returns>The message.</returns>
     /// <exception cref="PamojaException">
     /// No connected rung listens: none was added, the ladder is not connected, or
     /// every listening link has ended.
     /// </exception>
-    public Task<TransportMessage?> ReceiveAsync() => _handle.UseAsync(handle =>
+    public Task<TransportMessage> ReceiveAsync() => _handle.UseAsync(handle =>
     {
         Status.ThrowIfError(NativeMethods.pamoja_ladder_recv(handle, out IntPtr message));
-        return Messages.Take(message);
+        return Received(message);
     });
 
     /// <summary>Waits a limited time for the next message from any rung that listens.</summary>
@@ -161,17 +179,21 @@ public sealed class Ladder : IDisposable
     /// <returns>The message.</returns>
     /// <exception cref="TimeoutException">No message arrived in time.</exception>
     /// <exception cref="PamojaException">No connected rung listens.</exception>
-    public Task<TransportMessage?> ReceiveAsync(TimeSpan timeout)
+    public Task<TransportMessage> ReceiveAsync(TimeSpan timeout)
     {
         ulong milliseconds = Messages.Milliseconds(timeout);
         return _handle.UseAsync(handle =>
         {
             Status.ThrowIfError(NativeMethods.pamoja_ladder_recv_within(
                 handle, milliseconds, out IntPtr message, out bool timedOut));
-            return timedOut ? throw Messages.TimedOut(timeout) : Messages.Take(message);
+            return timedOut ? throw Messages.TimedOut(timeout) : Received(message);
         });
     }
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
+
+    /// <summary>Copies a received message out of its native handle.</summary>
+    private static TransportMessage Received(IntPtr message) =>
+        Messages.Take(message) ?? throw new PamojaException("resource is closed");
 }

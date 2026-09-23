@@ -50,6 +50,21 @@ impl LoopbackBroker {
     fn rung(&self) -> PyTransport {
         PyTransport::wrap(Kind::Loopback(CoreLoopback::new(self.inner.clone())))
     }
+
+    /// Whether the broker is in reach. Set it to `False` to put every link on it
+    /// out of range at once, links a ladder owns included: they fail to connect,
+    /// send, or subscribe until it is `True` again, keeping their connections and
+    /// filters through the outage.
+    #[getter]
+    fn reachable(&self) -> bool {
+        self.inner.is_reachable()
+    }
+
+    /// Takes the broker out of reach, or brings it back.
+    #[setter]
+    fn set_reachable(&self, reachable: bool) {
+        self.inner.set_reachable(reachable);
+    }
 }
 
 /// One in-process link to a broker.

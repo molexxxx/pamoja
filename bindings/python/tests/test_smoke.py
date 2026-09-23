@@ -1135,6 +1135,37 @@ def test_a_send_only_link_is_an_uplink():
     asyncio.run(run())
 
 
+def test_a_shipped_uplink_carries_what_an_unreachable_rung_refuses():
+    from pamoja import ladder, loopback, sync
+
+    async def run():
+        near = loopback.LoopbackBroker()
+        far = loopback.LoopbackBroker()
+        ashore = far.link()
+        await ashore.connect()
+        await ashore.subscribe("reports")
+        reach = ladder.Ladder(sync.Store.memory())
+        await reach.rung(near.rung())
+        await reach.uplink(far.rung())
+        await reach.connect()
+        await reach.subscribe("orders")
+
+        near.reachable = False
+        assert near.reachable is False
+        assert await reach.send("reports", "1") == ladder.Delivery.SENT
+        assert (await asyncio.wait_for(ashore.recv(), 5)).text == "1"
+        await ashore.send("orders", "stop")
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(reach.recv(), 0.02)
+
+        far.reachable = False
+        assert await reach.send("reports", "2") == ladder.Delivery.BUFFERED
+        near.reachable = True
+        assert await reach.flush() == 1
+
+    asyncio.run(run())
+
+
 def test_a_handler_that_raises_reports_its_reason():
     from pamoja import core, ladder, sync
 

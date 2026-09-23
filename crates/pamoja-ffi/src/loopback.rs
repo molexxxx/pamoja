@@ -47,6 +47,60 @@ pub extern "C" fn pamoja_loopback_broker_new() -> *mut PamojaLoopbackBroker {
     }))
 }
 
+/// Takes a broker out of reach, or brings it back.
+///
+/// Out of reach, every link on the broker fails to connect, send, or subscribe
+/// with [`PamojaStatus::Transport`], as an out-of-range radio would, and nothing
+/// is delivered. Links keep their connections and filters through the outage,
+/// including links a ladder owns, so they carry traffic again once it ends.
+///
+/// # Arguments
+///
+/// * `broker` - the broker.
+/// * `reachable` - `false` to take it out of reach, `true` to bring it back.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if `broker` is
+/// null.
+///
+/// # Safety
+///
+/// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_loopback_broker_set_reachable(
+    broker: *const PamojaLoopbackBroker,
+    reachable: bool,
+) -> PamojaStatus {
+    match broker_handle(broker) {
+        Some(broker) => {
+            broker.inner.set_reachable(reachable);
+            PamojaStatus::Ok
+        }
+        None => PamojaStatus::InvalidArgument,
+    }
+}
+
+/// Reports whether a broker is in reach.
+///
+/// # Arguments
+///
+/// * `broker` - the broker.
+///
+/// # Returns
+///
+/// `true` unless it was taken out of reach, and `false` if `broker` is null.
+///
+/// # Safety
+///
+/// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_loopback_broker_is_reachable(
+    broker: *const PamojaLoopbackBroker,
+) -> bool {
+    broker_handle(broker).is_some_and(|broker| broker.inner.is_reachable())
+}
+
 /// Releases a broker handle.
 ///
 /// Transports already built from the broker keep working, because each holds

@@ -9930,6 +9930,28 @@ PamojaLadder *pamoja_ladder_new(PamojaStore *store);
 // used again, whatever the result.
 PamojaStatus pamoja_ladder_rung(PamojaLadder *ladder, PamojaTransport *transport);
 
+// Adds a rung that only sends, tried after the rungs already added.
+//
+// The ladder sends over it in its turn but never subscribes it or listens on it,
+// whatever the transport could do. This is the shape of a satellite messenger, a
+// LoRa uplink, or any link a node reports over but takes no commands from.
+//
+// # Arguments
+//
+// * `ladder` - the ladder to add to.
+// * `transport` - the transport to add, consumed by this call.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the rung is added.
+//
+// # Safety
+//
+// `ladder` must be a live handle, and `transport` a live transport handle that
+// has not been freed or consumed. After this call the transport must not be
+// used again, whatever the result.
+PamojaStatus pamoja_ladder_uplink(PamojaLadder *ladder, PamojaTransport *transport);
+
 // Connects every rung, so a send can be tried against each in turn.
 //
 // A rung that will not connect is left in the ladder: it may come back, and a
@@ -10095,6 +10117,44 @@ void pamoja_ladder_free(PamojaLadder *ladder);
 //
 // A handle the caller must release with [`pamoja_loopback_broker_free`].
 PamojaLoopbackBroker *pamoja_loopback_broker_new(void);
+
+// Takes a broker out of reach, or brings it back.
+//
+// Out of reach, every link on the broker fails to connect, send, or subscribe
+// with [`PamojaStatus::Transport`], as an out-of-range radio would, and nothing
+// is delivered. Links keep their connections and filters through the outage,
+// including links a ladder owns, so they carry traffic again once it ends.
+//
+// # Arguments
+//
+// * `broker` - the broker.
+// * `reachable` - `false` to take it out of reach, `true` to bring it back.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if `broker` is
+// null.
+//
+// # Safety
+//
+// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+PamojaStatus pamoja_loopback_broker_set_reachable(const PamojaLoopbackBroker *broker,
+                                                  bool reachable);
+
+// Reports whether a broker is in reach.
+//
+// # Arguments
+//
+// * `broker` - the broker.
+//
+// # Returns
+//
+// `true` unless it was taken out of reach, and `false` if `broker` is null.
+//
+// # Safety
+//
+// `broker` must be a live handle from [`pamoja_loopback_broker_new`], or null.
+bool pamoja_loopback_broker_is_reachable(const PamojaLoopbackBroker *broker);
 
 // Releases a broker handle.
 //

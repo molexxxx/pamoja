@@ -56,15 +56,18 @@ impl Ladder {
     /// host transport without `recv` is an uplink the ladder never listens on.
     #[napi]
     pub async fn rung(&self, transport: &Transport) -> napi::Result<()> {
-        let transport = transport.take()?;
-        let mut slot = self.inner.lock().await;
-        let ladder = slot.take().ok_or_else(unusable)?;
-        *slot = Some(if transport.listens() {
-            ladder.rung(transport)
-        } else {
-            ladder.uplink(transport)
-        });
-        Ok(())
+        self.add(transport, false).await
+    }
+
+    /// Adds a rung that only sends, tried after the rungs already added.
+    ///
+    /// The ladder sends over it in its turn but never subscribes it or listens on
+    /// it, whatever the transport could do: a satellite messenger, a LoRa uplink,
+    /// or any link a node reports over but takes no commands from. The transport
+    /// is consumed.
+    #[napi]
+    pub async fn uplink(&self, transport: &Transport) -> napi::Result<()> {
+        self.add(transport, true).await
     }
 
     /// Connects every rung, so a send can be tried against each in turn.
@@ -147,13 +150,14 @@ impl Ladder {
     /// delivers first.
     ///
     /// Throws if no connected rung listens: none was added, the ladder is not
-    /// connected, or every listening link has ended. The ladder is held while
-    /// waiting, so a send from elsewhere waits behind the receive.
+    /// connected, or every listening link has ended. The ladder does one thing at
+    /// a time, so a send waits behind a receive in progress; a node that listens
+    /// and reports waits with a limit and sends between waits.
     ///
     /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
     /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self, timeout_ms: Option<f64>) -> napi::Result<Option<TransportMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<f64>) -> napi::Result<TransportMessage> {
         within(timeout_ms, async {
             let mut slot = self.inner.lock().await;
             let received = slot
@@ -162,9 +166,27 @@ impl Ladder {
                 .recv()
                 .await
                 .map_err(to_napi)?;
-            Ok(received.map(message_of))
+            received
+                .map(message_of)
+                .ok_or_else(|| to_napi(pamoja_core::Error::Closed))
         })
         .await
+    }
+}
+
+impl Ladder {
+    /// Moves a transport onto the ladder, as an uplink when asked or when it cannot
+    /// deliver, and as a rung that is listened on otherwise.
+    async fn add(&self, transport: &Transport, uplink: bool) -> napi::Result<()> {
+        let transport = transport.take()?;
+        let mut slot = self.inner.lock().await;
+        let ladder = slot.take().ok_or_else(unusable)?;
+        *slot = Some(if uplink || !transport.listens() {
+            ladder.uplink(transport)
+        } else {
+            ladder.rung(transport)
+        });
+        Ok(())
     }
 }
 

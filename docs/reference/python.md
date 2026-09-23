@@ -419,7 +419,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="python-loopback">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">pamoja.loopback</code><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">pamoja.loopback</code><p>An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker</p></div>
 <div class="pkg-get"><code class="cmd">pip install pamoja-loopback</code><button class="copy" type="button" data-copy="pip install pamoja-loopback" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
