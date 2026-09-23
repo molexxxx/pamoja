@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Pamoja.Codec/Pamoja.Codec.csproj" />
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
   </ItemGroup>
 

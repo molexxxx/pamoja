@@ -1,3 +1,4 @@
+using Pamoja.Codec;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Bus;
