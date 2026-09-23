@@ -2,18 +2,22 @@ name: prices
 
 on:
   schedule:
-    # Weekly, an hour after the link check, so no price on the hardware page is more
-    # than a week old.
-    - cron: "17 7 * * 1"
+    # Daily, so no price read from a store's page is more than a day old on the site.
+    - cron: "17 7 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
 jobs:
   refresh:
     name: refresh the hardware prices
     runs-on: ubuntu-latest
+    timeout-minutes: 150
     steps:
       # The checkout's own token is read-only and, left in the git config, git sends it in
       # place of the one in the push URL below, so it is not kept.
@@ -37,8 +41,10 @@ jobs:
         run: cargo run -p xtask -- docs
 
       # The changes go up as a pull request under the same token the badge refresh uses,
-      # so the usual checks run on it; the report is its description.
-      - name: Open a pull request with what changed
+      # so every check runs on it, with the report as its description. A refresh that
+      # never merged is closed as superseded, and this one merges itself once every
+      # check passes; one that fails stays open for a person to read.
+      - name: Open a pull request with what changed, and merge it once its checks pass
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
@@ -51,5 +57,23 @@ jobs:
           git config user.email "$(git log -1 --format=%ae)"
           git switch -c "$branch"
           git commit -am "Refresh the hardware prices"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
-          gh pr create --base main --head "$branch" --title "Refresh the hardware prices" --body-file "${{ runner.temp }}/prices.md" --label documentation
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+
+          url="$(gh pr view "$branch" --json url --jq .url 2>/dev/null || true)"
+          if [ -z "$url" ]; then
+            url="$(gh pr create --base main --head "$branch" --title "Refresh the hardware prices" --body-file "${{ runner.temp }}/prices.md" --label documentation)"
+          fi
+
+          gh pr list --state open --search "head:prices/" --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
+            while read -r old; do
+              gh pr close "$old" --delete-branch --comment "Superseded by $url."
+            done
+
+          for attempt in $(seq 1 30); do
+            started="$(gh pr view "$url" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+            [ "$started" -gt 0 ] && break
+            sleep 20
+          done
+          gh pr checks "$url" --watch --fail-fast --interval 60
+          gh pr merge "$url" --squash --delete-branch
