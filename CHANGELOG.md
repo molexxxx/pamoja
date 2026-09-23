@@ -1108,6 +1108,10 @@ released together, so one entry covers all of them.
 - A CoAP client stopped receiving for good once a datagram it sent found no one listening,
   because the operating system reports that on the socket's next receive, which ended the loop.
   It keeps listening, and a send no longer fails on that report.
+- A CoAP `subscribe` could return before the resource's current state was queued, so a
+  registration made straight after it, such as a node renewing its observation, raced the
+  first one and could lose its own copy of the state as a stale repeat. The client queues the
+  state before the request returns now.
 - The C# binding could reach one native transport, store, ladder, or simulated device from
   two thread-pool calls at once, such as a receive still waiting while a send ran, or a
   ladder taking a transport another call was using, which the native side does not allow.
