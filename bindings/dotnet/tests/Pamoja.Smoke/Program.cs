@@ -1330,6 +1330,35 @@ static void ProfilesAndRobotics()
         Assert(seen.Alert is null, "and judges nothing");
     }
 
+    var band = new ControlPolicy(ControlKind.Setpoint, Setpoint: 37.5f, Hysteresis: 7.5f, SafeBand: 15f);
+    var hourly = new PowerSchedule(300, 1800, 3600);
+    using (var drip = new Profile("raised-bed-drip", "garden/bed-1/moisture", band, hourly))
+    using (Controller decide = drip.Controller())
+    {
+        Assert(drip.Control.Cooling == false, "cooling is false unless given");
+        Assert(Math.Abs(drip.Power.CriticalBelow - 0.2f) < 1e-6f, "the thresholds default");
+        Assert(decide.Evaluate(16.7f).Actuator == true, "a dry bed opens the valve");
+    }
+
+    ExpectArgument(
+        () => new Profile("x", "t", new ControlPolicy(ControlKind.Setpoint, Setpoint: 1f), hourly).Dispose(),
+        "a Setpoint control needs Hysteresis",
+        "a setpoint without its band is refused");
+    PamojaException builtIn = Catch<PamojaException>(
+        () => new Profile("x", "t", new ControlPolicy(ControlKind.Custom, CustomKind: "level"), hourly).Dispose());
+    Assert(builtIn.Message.Contains("level is a built-in control kind"), builtIn.Message);
+    ExpectArgument(
+        () => new Profile(
+            "x",
+            "t",
+            new ControlPolicy(
+                ControlKind.Custom,
+                CustomKind: "frost_guard",
+                Params: new Dictionary<string, object> { ["zones"] = new[] { 1 } }),
+            hourly).Dispose(),
+        "parameter zones must be a number",
+        "a parameter that is not a number, a flag, or text is refused");
+
     using var reloaded = Profile.FromJson(fridge.ToJson());
     Assert(reloaded.Topic == fridge.Topic, "a manifest round-trips");
     Assert(
@@ -1514,6 +1543,44 @@ static void ConformProfile(JsonElement vector, double tolerance)
         Assert(
             observed.GetProperty("alert").GetProperty("kind").GetString() == "None",
             "which is what the vectors record");
+    }
+
+    foreach (JsonElement built in vector.GetProperty("built").EnumerateArray())
+    {
+        JsonElement want = built.GetProperty("control");
+        ControlPolicy control = want.GetProperty("kind").GetString() switch
+        {
+            "Setpoint" => new ControlPolicy(
+                ControlKind.Setpoint,
+                Setpoint: (float)want.GetProperty("setpoint").GetDouble(),
+                Hysteresis: (float)want.GetProperty("hysteresis").GetDouble(),
+                Cooling: want.GetProperty("cooling").GetBoolean(),
+                SafeBand: (float)want.GetProperty("safeBand").GetDouble()),
+            _ => new ControlPolicy(
+                ControlKind.Custom,
+                CustomKind: want.GetProperty("customKind").GetString(),
+                Params: want.GetProperty("params").EnumerateObject().ToDictionary(
+                    parameter => parameter.Name,
+                    parameter => parameter.Value.ValueKind switch
+                    {
+                        JsonValueKind.Number => (object)parameter.Value.GetDouble(),
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        _ => parameter.Value.GetString()!,
+                    })),
+        };
+        JsonElement wantPower = built.GetProperty("power");
+        var schedule = new PowerSchedule(
+            wantPower.GetProperty("activeSecs").GetUInt64(),
+            wantPower.GetProperty("saverSecs").GetUInt64(),
+            wantPower.GetProperty("criticalSecs").GetUInt64(),
+            (float)wantPower.GetProperty("saverBelow").GetDouble(),
+            (float)wantPower.GetProperty("criticalBelow").GetDouble());
+        using var made = new Profile(
+            built.GetProperty("name").GetString()!, built.GetProperty("topic").GetString()!, control, schedule);
+        Assert(
+            made.ToJson() == built.GetProperty("manifest").GetString(),
+            "a profile built from its parts writes the same manifest");
     }
 }
 

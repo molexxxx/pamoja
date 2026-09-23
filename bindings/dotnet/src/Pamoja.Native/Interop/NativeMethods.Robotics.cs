@@ -46,6 +46,23 @@ public static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_profile_from_json(string manifest);
 
+    /// <summary>Creates a profile of the caller's own from its parts.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_profile_new(
+        string name,
+        string topic,
+        in PamojaControlSpec control,
+        in PamojaPowerSchedule power);
+
+    /// <summary>Creates a profile whose control is a custom kind, its parameters a JSON object.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_profile_new_custom(
+        string name,
+        string topic,
+        string kind,
+        string parameters,
+        in PamojaPowerSchedule power);
+
     /// <summary>Serializes a profile to its JSON manifest.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_profile_to_json(IntPtr profile);

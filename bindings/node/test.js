@@ -2510,6 +2510,26 @@ async function asyncTransports() {
   assert.strictEqual(reloaded.topic, fridge.topic, "a manifest round-trips");
   assert.throws(() => profile.Profile.fromJson("{"), "a malformed manifest throws");
   assert.ok(fridge.description.includes("safe range"), "a preset says what it is for");
+
+  // A profile of the program's own, built from its parts.
+  const band = { kind: profile.ControlKind.Setpoint, setpoint: 37.5, hysteresis: 7.5, safeBand: 15 };
+  const hourly = { activeSecs: 300, saverSecs: 1800, criticalSecs: 3600 };
+  const drip = new profile.Profile("raised-bed-drip", "garden/bed-1/moisture", band, hourly);
+  assert.strictEqual(drip.control.cooling, false, "cooling is false unless given");
+  assert.strictEqual(drip.power.criticalBelow.toFixed(1), "0.2", "the thresholds default");
+  assert.strictEqual(drip.controller().evaluate(16.7).actuator, true, "a dry bed opens the valve");
+  assert.throws(
+    () => new profile.Profile("x", "t", { kind: profile.ControlKind.Setpoint, setpoint: 1 }, hourly),
+    /a Setpoint control needs hysteresis/,
+  );
+  assert.throws(
+    () => new profile.Profile("x", "t", { kind: profile.ControlKind.Custom, customKind: "level" }, hourly),
+    /level is a built-in control kind/,
+  );
+  assert.throws(
+    () => new profile.Profile("x", "t", band, { ...hourly, activeSecs: 2.5 }),
+    /activeSecs must be a whole number of seconds, not 2.5/,
+  );
   assert.ok(
     fridge.presentation.elements.some((element) => element.key === "fridge_temp"),
     "and says how it should be drawn"

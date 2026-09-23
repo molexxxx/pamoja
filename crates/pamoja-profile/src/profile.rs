@@ -95,6 +95,55 @@ impl ControlSpec {
             ControlSpec::Custom { kind, .. } => kind,
         }
     }
+
+    /// Creates a policy of a kind the library does not ship, checked so it survives a
+    /// trip through its manifest.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - the kind as the manifest will name it, such as `"frost_guard"`.
+    /// * `params` - every other field the policy needs.
+    ///
+    /// # Returns
+    ///
+    /// The custom policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `kind` is empty or names a
+    /// built-in kind, which a manifest would read back as that kind, or if `params`
+    /// holds a field named `kind`, which the manifest keeps for the kind itself.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ControlSpec, Params};
+    ///
+    /// let guard = ControlSpec::custom("frost_guard", Params::new().with("warn_below", 2.0))?;
+    /// assert_eq!(guard.kind(), "frost_guard");
+    /// assert!(ControlSpec::custom("setpoint", Params::new()).is_err());
+    /// # Ok::<(), pamoja_core::Error>(())
+    /// ```
+    pub fn custom(kind: impl Into<String>, params: Params) -> pamoja_core::Result<Self> {
+        let kind = kind.into();
+        if kind.is_empty() {
+            return Err(pamoja_core::Error::Codec(
+                "a custom control needs a kind to be named by".to_owned(),
+            ));
+        }
+        if matches!(kind.as_str(), "setpoint" | "level" | "surge" | "monitor") {
+            return Err(pamoja_core::Error::Codec(format!(
+                "{kind} is a built-in control kind, so it takes its own fields rather than parameters"
+            )));
+        }
+        if params.get("kind").is_some() {
+            return Err(pamoja_core::Error::Codec(
+                "a custom control cannot have a parameter named kind, which its manifest keeps for the kind itself"
+                    .to_owned(),
+            ));
+        }
+        Ok(ControlSpec::Custom { kind, params })
+    }
 }
 
 impl Serialize for ControlSpec {
@@ -335,6 +384,52 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// Creates a profile of the caller's own from its parts, with no description and no
+    /// presentation.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a stable, human-readable name, such as `"raised-bed-drip"`.
+    /// * `topic` - the topic each reading is published to.
+    /// * `control` - the control policy applied to each reading.
+    /// * `power` - how often the node samples as the battery drains.
+    ///
+    /// # Returns
+    ///
+    /// The profile. [`with_description`](Profile::with_description) and
+    /// [`with_presentation`](Profile::with_presentation) add the rest.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ControlSpec, PowerSchedule, Profile};
+    ///
+    /// let drip = Profile::new(
+    ///     "raised-bed-drip",
+    ///     "garden/bed-1/moisture",
+    ///     ControlSpec::Setpoint { setpoint: 37.5, hysteresis: 7.5, cooling: false, safe_band: 15.0 },
+    ///     PowerSchedule::new(300, 1800, 3600),
+    /// );
+    /// assert_eq!(drip.name, "raised-bed-drip");
+    /// assert_eq!(Profile::from_json(&drip.to_json()?)?, drip);
+    /// # Ok::<(), pamoja_core::Error>(())
+    /// ```
+    pub fn new(
+        name: impl Into<String>,
+        topic: impl Into<String>,
+        control: ControlSpec,
+        power: PowerSchedule,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            description: None,
+            topic: topic.into(),
+            control,
+            power,
+            presentation: None,
+        }
+    }
+
     /// A cold-chain fridge monitor: hold 5 C and alert on a spoilage excursion.
     ///
     /// Switches a cooler to hold the contents near 5 C and raises an

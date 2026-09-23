@@ -20607,6 +20607,63 @@ PamojaProfile *pamoja_profile_flood_sensor(void);
 // the call, or null.
 PamojaProfile *pamoja_profile_from_json(const char *manifest);
 
+// Creates a profile of the host's own from its parts, with no description and no
+// presentation.
+//
+// # Arguments
+//
+// * `name` - the profile's name, as null-terminated UTF-8.
+// * `topic` - the topic each reading is published to, as null-terminated UTF-8.
+// * `control` - the control policy; only the fields belonging to its kind are read.
+//   A custom kind carries parameters this call has no room for, so it is refused:
+//   build such a profile with [`pamoja_profile_new_custom`].
+// * `power` - the sampling schedule.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if a
+// pointer is null, a string is not UTF-8, or the control kind is custom or not one
+// this library knows, with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `name` and `topic` must be valid null-terminated UTF-8 strings for the duration of
+// the call, and `control` and `power` must point at readable values; any may be null.
+PamojaProfile *pamoja_profile_new(const char *name,
+                                  const char *topic,
+                                  const PamojaControlSpec *control,
+                                  const PamojaPowerSchedule *power);
+
+// Creates a profile of the host's own whose control is a kind the library does not
+// ship, decided by code the host registers.
+//
+// # Arguments
+//
+// * `name` - the profile's name, as null-terminated UTF-8.
+// * `topic` - the topic each reading is published to, as null-terminated UTF-8.
+// * `kind` - the kind as the manifest will name it, as null-terminated UTF-8.
+// * `params` - the policy's other fields, as the JSON object a manifest carries beside
+//   `kind`, each value a number, `true` or `false`, or text, as null-terminated UTF-8.
+// * `power` - the sampling schedule.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if a
+// pointer is null, a string is not UTF-8, `params` is not such an object, or the kind
+// is empty, names a built-in kind, or `params` holds a field named `kind`, with the
+// reason available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `name`, `topic`, `kind`, and `params` must be valid null-terminated UTF-8 strings for
+// the duration of the call, and `power` must point at a readable value; any may be null.
+PamojaProfile *pamoja_profile_new_custom(const char *name,
+                                         const char *topic,
+                                         const char *kind,
+                                         const char *params,
+                                         const PamojaPowerSchedule *power);
+
 // Serializes a profile to its JSON manifest.
 //
 // # Arguments
@@ -26598,7 +26655,7 @@ void pamoja_sim_sensor_free(PamojaSimSensor *sensor);
 // * `readings` - the series to read back.
 // * `count` - how many readings `readings` holds.
 // * `repeating` - `true` to start again at the beginning once exhausted,
-//   `false` to keep returning the last one.
+//   `false` to report the replay closed once it has run out.
 //
 // # Returns
 //
@@ -26619,7 +26676,8 @@ PamojaReplay *pamoja_replay_new(const float *readings, uintptr_t count, bool rep
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`] on success.
+// [`PamojaStatus::Ok`] on success, or [`PamojaStatus::Closed`] once a replay that
+// does not repeat has run out.
 //
 // # Safety
 //

@@ -59,8 +59,8 @@ public sealed class Replay : IDisposable
     /// <summary>Creates a replay over a recorded series.</summary>
     /// <param name="readings">The series to read back.</param>
     /// <param name="repeating">
-    /// Start again at the beginning once exhausted, rather than holding the last
-    /// reading.
+    /// Start again at the beginning once exhausted, rather than reporting the replay
+    /// closed.
     /// </param>
     /// <exception cref="PamojaException">The native replay could not be created.</exception>
     public Replay(ReadOnlySpan<float> readings, bool repeating = false)
@@ -74,7 +74,9 @@ public sealed class Replay : IDisposable
 
     /// <summary>Takes the next reading.</summary>
     /// <returns>The reading.</returns>
-    /// <exception cref="PamojaException">The native call failed.</exception>
+    /// <exception cref="PamojaException">
+    /// A replay that does not repeat has run out (<c>resource is closed</c>).
+    /// </exception>
     public Task<float> ReadAsync() => _handle.UseAsync(handle =>
     {
         Status.ThrowIfError(NativeMethods.pamoja_replay_read(handle, out float reading));

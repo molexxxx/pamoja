@@ -2558,6 +2558,20 @@ export declare class PowerPlan {
 
 /** A named, ready-to-run node assembled from pamoja capabilities. */
 export declare class Profile {
+  /**
+   * Creates a profile of the program's own from its parts, with no description and
+   * no presentation.
+   *
+   * @param name - a stable, human-readable name, such as `raised-bed-drip`.
+   * @param topic - the topic each reading is published to.
+   * @param control - the control policy; only the fields belonging to its kind are
+   *   read, and `cooling` and `rising` are false unless given.
+   * @param power - how often the node samples as the battery drains.
+   * @throws when the control lacks a field its kind needs, a custom kind is empty,
+   *   built in, or has a parameter named `kind`, or a schedule's seconds are not a
+   *   whole number.
+   */
+  constructor(name: string, topic: string, control: ControlPolicy, power: PowerScheduleSettings)
   /** A cold-chain fridge monitor, which holds 5 C and flags an excursion. */
   static vaccineFridgeMonitor(): Profile
   /** An irrigation node, which opens a valve as soil moisture falls. */
@@ -2736,10 +2750,14 @@ export declare class Replay {
    *
    * @param readings - the series to read back.
    * @param repeating - start again at the beginning once exhausted, rather
-   *   than holding the last reading.
+   *   than reporting the replay closed.
    */
   constructor(readings: Array<number>, repeating?: boolean | undefined | null)
-  /** Takes the next reading. */
+  /**
+   * Takes the next reading.
+   *
+   * @throws `resource is closed` once a replay that does not repeat has run out.
+   */
   read(): Promise<number>
 }
 
@@ -8155,6 +8173,23 @@ export declare const enum PowerMode {
   Saver = 'Saver',
   /** Minimum duty, to stay alive as long as possible. */
   Critical = 'Critical',
+}
+
+/**
+ * The sampling schedule a new profile keeps, in whole seconds. The thresholds default
+ * to entering the saver cadence below 50% charge and the critical cadence below 20%.
+ */
+export interface PowerScheduleSettings {
+  /** Seconds between samples at a healthy charge. */
+  activeSecs: number
+  /** Seconds between samples while conserving. */
+  saverSecs: number
+  /** Seconds between samples when critically low. */
+  criticalSecs: number
+  /** Enter the saver cadence below this state of charge; 0.5 unless given. */
+  saverBelow?: number
+  /** Enter the critical cadence below this state of charge; 0.2 unless given. */
+  criticalBelow?: number
 }
 
 /** How often a node samples as its battery drains, in whole seconds. */

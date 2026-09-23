@@ -87,14 +87,14 @@ public readonly record struct Reaction(bool? Actuator, Alert? Alert);
 /// </param>
 public readonly record struct ControlPolicy(
     ControlKind Kind,
-    float? Setpoint,
-    float? Hysteresis,
-    bool? Cooling,
-    float? SafeBand,
-    float? Empty,
-    uint? WarnWithin,
-    bool? Rising,
-    float? Limit,
+    float? Setpoint = null,
+    float? Hysteresis = null,
+    bool? Cooling = null,
+    float? SafeBand = null,
+    float? Empty = null,
+    uint? WarnWithin = null,
+    bool? Rising = null,
+    float? Limit = null,
     string? CustomKind = null,
     IReadOnlyDictionary<string, object>? Params = null);
 
@@ -102,14 +102,14 @@ public readonly record struct ControlPolicy(
 /// <param name="ActiveSecs">Seconds between samples at a healthy charge.</param>
 /// <param name="SaverSecs">Seconds between samples while conserving.</param>
 /// <param name="CriticalSecs">Seconds between samples when critically low.</param>
-/// <param name="SaverBelow">Enter the saver cadence below this state of charge.</param>
-/// <param name="CriticalBelow">Enter the critical cadence below this state of charge.</param>
+/// <param name="SaverBelow">Enter the saver cadence below this state of charge; 0.5 unless given.</param>
+/// <param name="CriticalBelow">Enter the critical cadence below this state of charge; 0.2 unless given.</param>
 public readonly record struct PowerSchedule(
     ulong ActiveSecs,
     ulong SaverSecs,
     ulong CriticalSecs,
-    float SaverBelow,
-    float CriticalBelow);
+    float SaverBelow = 0.5f,
+    float CriticalBelow = 0.2f);
 
 /// <summary>A named, ready-to-run node assembled from pamoja capabilities.</summary>
 /// <remarks>
@@ -125,6 +125,114 @@ public sealed class Profile : IDisposable
 
     private Profile(IntPtr handle, string what) =>
         _handle = NativeHandle.Create(handle, NativeMethods.pamoja_profile_free, what);
+
+    /// <summary>
+    /// Creates a profile of the program's own from its parts, with no description and no
+    /// presentation.
+    /// </summary>
+    /// <param name="name">A stable, human-readable name, such as <c>raised-bed-drip</c>.</param>
+    /// <param name="topic">The topic each reading is published to.</param>
+    /// <param name="control">
+    /// The control policy. Only the values belonging to its kind are read, and
+    /// <see cref="ControlPolicy.Cooling"/> and <see cref="ControlPolicy.Rising"/> are
+    /// <c>false</c> unless given.
+    /// </param>
+    /// <param name="power">How often the node samples as the battery drains.</param>
+    /// <exception cref="ArgumentException">
+    /// The control lacks a value its kind needs, or a custom parameter is not a number,
+    /// a <see cref="bool"/>, or a <see cref="string"/>.
+    /// </exception>
+    /// <exception cref="PamojaException">
+    /// A custom kind is empty, built in, or has a parameter named <c>kind</c>.
+    /// </exception>
+    public Profile(string name, string topic, ControlPolicy control, PowerSchedule power)
+        : this(Build(name, topic, control, power), "profile")
+    {
+    }
+
+    /// <summary>Creates the native profile a constructor wraps.</summary>
+    private static IntPtr Build(string name, string topic, ControlPolicy control, PowerSchedule power)
+    {
+        var schedule = new PamojaPowerSchedule
+        {
+            ActiveSecs = power.ActiveSecs,
+            SaverSecs = power.SaverSecs,
+            CriticalSecs = power.CriticalSecs,
+            SaverBelow = power.SaverBelow,
+            CriticalBelow = power.CriticalBelow,
+        };
+        if (control.Kind == ControlKind.Custom)
+        {
+            string kind = control.CustomKind
+                ?? throw new ArgumentException("a Custom control needs CustomKind", nameof(control));
+            string parameters = ParametersJson(control.Params ?? new Dictionary<string, object>());
+            return NativeMethods.pamoja_profile_new_custom(name, topic, kind, parameters, in schedule);
+        }
+
+        PamojaControlSpec spec = control.Kind switch
+        {
+            ControlKind.Setpoint => new PamojaControlSpec
+            {
+                Kind = PamojaControlKind.Setpoint,
+                Setpoint = Needs(control.Setpoint, "Setpoint", "Setpoint"),
+                Hysteresis = Needs(control.Hysteresis, "Setpoint", "Hysteresis"),
+                Cooling = control.Cooling == true ? (byte)1 : (byte)0,
+                SafeBand = Needs(control.SafeBand, "Setpoint", "SafeBand"),
+            },
+            ControlKind.Level => new PamojaControlSpec
+            {
+                Kind = PamojaControlKind.Level,
+                Empty = Needs(control.Empty, "Level", "Empty"),
+                WarnWithin = Needs(control.WarnWithin, "Level", "WarnWithin"),
+            },
+            ControlKind.Surge => new PamojaControlSpec
+            {
+                Kind = PamojaControlKind.Surge,
+                Rising = control.Rising == true ? (byte)1 : (byte)0,
+                Limit = Needs(control.Limit, "Surge", "Limit"),
+            },
+            _ => new PamojaControlSpec { Kind = PamojaControlKind.Monitor },
+        };
+        return NativeMethods.pamoja_profile_new(name, topic, in spec, in schedule);
+    }
+
+    /// <summary>Returns a value a control kind needs, or throws when it is missing.</summary>
+    private static T Needs<T>(T? value, string kind, string field)
+        where T : struct =>
+        value ?? throw new ArgumentException($"a {kind} control needs {field}", "control");
+
+    /// <summary>Writes a custom kind's parameters as the JSON object a manifest carries.</summary>
+    private static string ParametersJson(IReadOnlyDictionary<string, object> parameters)
+    {
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach ((string name, object value) in parameters)
+            {
+                switch (value)
+                {
+                    case bool flag:
+                        writer.WriteBoolean(name, flag);
+                        break;
+                    case string text:
+                        writer.WriteString(name, text);
+                        break;
+                    case double or float or int or long or uint or ulong or short or ushort or byte or sbyte or decimal:
+                        writer.WriteNumber(name, Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture));
+                        break;
+                    default:
+                        throw new ArgumentException(
+                            $"parameter {name} must be a number, true or false, or text, not {value?.GetType().Name ?? "null"}",
+                            "control");
+                }
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+    }
 
     /// <summary>A cold-chain fridge monitor, which holds 5 C and flags an excursion.</summary>
     /// <returns>The profile.</returns>

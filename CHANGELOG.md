@@ -287,6 +287,26 @@ released together, so one entry covers all of them.
   point, and the unit conversions, checked in all four languages.
 - The standards register lists REP-103, the units and axes every twist, pose, and chassis
   model uses, pinned to the odometry test that drives a quarter circle to the left.
+- A profile built from its parts, in every language. Rust gains
+  `Profile::new(name, topic, control, power)`. TypeScript gains
+  `new Profile(name, topic, control, power)`, with the control a plain object and the
+  power a `PowerScheduleSettings` whose thresholds default. Python gains
+  `Profile(name, topic, control, power)`, `ControlPolicy(kind, ...)` with keyword fields,
+  and `PowerScheduleSpec(active, saver, critical)` with default thresholds. C# gains
+  `new Profile(name, topic, control, power)`, and its `ControlPolicy` and `PowerSchedule`
+  records default what a kind does not use. Custom kinds cross too, through the C ABI's
+  `pamoja_profile_new` and `pamoja_profile_new_custom`. Before, a profile outside Rust
+  came only from a preset or a manifest, and Rust had no constructor.
+- `ControlSpec::custom` builds a custom control that survives a trip through its
+  manifest, refusing an empty kind, a built-in kind's name, which a manifest would read
+  back as that kind, and a parameter named `kind`, which the manifest keeps for the kind.
+- The device guide gains the maker's own profile in every language, built from its parts,
+  printing the same eleven lines in all four. Rust runs the parts under a `Node`, and the
+  other languages drive the profile's controller by hand. Its tables cover what makes a
+  part in each language, the pieces the loop uses, a profile's parts and the calls that
+  build one, what a reaction says, and what each error means.
+- Conformance vectors for profiles built from their parts, a setpoint one and a custom
+  one, pinning the manifest bytes in all four languages.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -1194,6 +1214,9 @@ released together, so one entry covers all of them.
 - The `Odometry::fuse_heading` documentation says the measurement is in the pose's own
   frame, counter-clockwise from the world x axis, and how a compass course converts to it,
   where it listed a GPS course as something to pass in as it came.
+- A replay that does not repeat reports closed once it runs out, in every language, but
+  the C ABI, TypeScript, and C# documentation said it kept returning its last reading. It
+  says what happens now, and Python's says it too.
 
 ## [0.1.18] - 2026-09-10
 

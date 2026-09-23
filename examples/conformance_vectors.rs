@@ -62,7 +62,7 @@ use pamoja_mavlink::{
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
-use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Profile, Reaction};
+use pamoja_profile::{Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, Reaction};
 use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
@@ -6437,6 +6437,41 @@ fn profile() -> Value {
         .map(|reading| reaction_value(*reading, inert.evaluate(*reading)))
         .collect();
 
+    // Profiles built from their parts rather than loaded: every binding must build the
+    // same two and write the same manifest bytes for them.
+    let drip = Profile::new(
+        "raised-bed-drip",
+        "garden/bed-1/moisture",
+        ControlSpec::Setpoint {
+            setpoint: 37.5,
+            hysteresis: 7.5,
+            cooling: false,
+            safe_band: 15.0,
+        },
+        PowerSchedule::new(300, 1800, 3600),
+    );
+    let guard_params = Params::new()
+        .with("warn_below", 2.0)
+        .with("latching", true)
+        .with("zone", "north");
+    let guard = Profile::new(
+        "orchard-frost",
+        "orchard/air/temperature",
+        ControlSpec::custom("frost_guard", guard_params).expect("a custom kind"),
+        PowerSchedule::new(60, 300, 900).with_thresholds(0.4, 0.1),
+    );
+    let built = |profile: &Profile| {
+        json!({
+            "name": profile.name,
+            "topic": profile.topic,
+            "control": control_value(&profile.control),
+            "power": schedule_value(profile.power),
+            "manifest": profile.to_json().expect("a profile serializes"),
+        })
+    };
+    let built_drip = built(&drip);
+    let built_guard = built(&guard);
+
     json!({
         "coldChain": {
             "name": fridge.name,
@@ -6457,6 +6492,7 @@ fn profile() -> Value {
             "control": control_value(&custom.control),
             "reactions": custom_reactions,
         },
+        "built": [built_drip, built_guard],
     })
 }
 

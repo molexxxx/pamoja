@@ -26,7 +26,9 @@
 use std::ffi::c_char;
 use std::ptr;
 
-use pamoja_profile::{Alert, ControlSpec, Controller, PowerSchedule, Presentation, Profile};
+use pamoja_profile::{
+    Alert, ControlSpec, Controller, Params, PowerSchedule, Presentation, Profile,
+};
 
 use crate::power::PamojaPowerPlan;
 use crate::{read_str, set_last_error, PamojaStatus, PamojaString};
@@ -319,6 +321,161 @@ pub unsafe extern "C" fn pamoja_profile_from_json(manifest: *const c_char) -> *m
             set_last_error(error.to_string());
             ptr::null_mut()
         }
+    }
+}
+
+/// Creates a profile of the host's own from its parts, with no description and no
+/// presentation.
+///
+/// # Arguments
+///
+/// * `name` - the profile's name, as null-terminated UTF-8.
+/// * `topic` - the topic each reading is published to, as null-terminated UTF-8.
+/// * `control` - the control policy; only the fields belonging to its kind are read.
+///   A custom kind carries parameters this call has no room for, so it is refused:
+///   build such a profile with [`pamoja_profile_new_custom`].
+/// * `power` - the sampling schedule.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_profile_free`], or null if a
+/// pointer is null, a string is not UTF-8, or the control kind is custom or not one
+/// this library knows, with the reason available from
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+///
+/// # Safety
+///
+/// `name` and `topic` must be valid null-terminated UTF-8 strings for the duration of
+/// the call, and `control` and `power` must point at readable values; any may be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_new(
+    name: *const c_char,
+    topic: *const c_char,
+    control: *const PamojaControlSpec,
+    power: *const PamojaPowerSchedule,
+) -> *mut PamojaProfile {
+    let Some(name) = read_str(name, "name") else {
+        return ptr::null_mut();
+    };
+    let Some(topic) = read_str(topic, "topic") else {
+        return ptr::null_mut();
+    };
+    if power.is_null() {
+        set_last_error("power must not be null".to_owned());
+        return ptr::null_mut();
+    }
+    let control = match read_control(control) {
+        Ok(control) => control,
+        Err(reason) => {
+            set_last_error(reason);
+            return ptr::null_mut();
+        }
+    };
+    PamojaProfile::into_raw(Profile::new(name, topic, control, schedule_of(*power)))
+}
+
+/// Creates a profile of the host's own whose control is a kind the library does not
+/// ship, decided by code the host registers.
+///
+/// # Arguments
+///
+/// * `name` - the profile's name, as null-terminated UTF-8.
+/// * `topic` - the topic each reading is published to, as null-terminated UTF-8.
+/// * `kind` - the kind as the manifest will name it, as null-terminated UTF-8.
+/// * `params` - the policy's other fields, as the JSON object a manifest carries beside
+///   `kind`, each value a number, `true` or `false`, or text, as null-terminated UTF-8.
+/// * `power` - the sampling schedule.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_profile_free`], or null if a
+/// pointer is null, a string is not UTF-8, `params` is not such an object, or the kind
+/// is empty, names a built-in kind, or `params` holds a field named `kind`, with the
+/// reason available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+///
+/// # Safety
+///
+/// `name`, `topic`, `kind`, and `params` must be valid null-terminated UTF-8 strings for
+/// the duration of the call, and `power` must point at a readable value; any may be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_new_custom(
+    name: *const c_char,
+    topic: *const c_char,
+    kind: *const c_char,
+    params: *const c_char,
+    power: *const PamojaPowerSchedule,
+) -> *mut PamojaProfile {
+    let (Some(name), Some(topic), Some(kind), Some(params)) = (
+        read_str(name, "name"),
+        read_str(topic, "topic"),
+        read_str(kind, "kind"),
+        read_str(params, "params"),
+    ) else {
+        return ptr::null_mut();
+    };
+    if power.is_null() {
+        set_last_error("power must not be null".to_owned());
+        return ptr::null_mut();
+    }
+    let control = Params::from_json(params).and_then(|params| ControlSpec::custom(kind, params));
+    match control {
+        Ok(control) => {
+            PamojaProfile::into_raw(Profile::new(name, topic, control, schedule_of(*power)))
+        }
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Rebuilds a schedule from the one the host wrote.
+fn schedule_of(power: PamojaPowerSchedule) -> PowerSchedule {
+    PowerSchedule {
+        active_secs: power.active_secs,
+        saver_secs: power.saver_secs,
+        critical_secs: power.critical_secs,
+        saver_below: power.saver_below,
+        critical_below: power.critical_below,
+    }
+}
+
+/// Reads a control policy the host wrote, checking its kind before trusting it.
+///
+/// The kind is read as the integer the host stored and the flags as the bytes it
+/// stored, so a value outside the enum or a flag other than 0 or 1 is refused or read
+/// as a C truth value rather than becoming a Rust enum or `bool` it cannot be.
+///
+/// # Safety
+///
+/// `control` must point at a readable [`PamojaControlSpec`], or be null.
+unsafe fn read_control(control: *const PamojaControlSpec) -> Result<ControlSpec, String> {
+    if control.is_null() {
+        return Err("control must not be null".to_owned());
+    }
+    let kind = ptr::addr_of!((*control).kind).cast::<u32>().read();
+    let flag = |field: *const bool| field.cast::<u8>().read() != 0;
+    match kind {
+        0 => Ok(ControlSpec::Setpoint {
+            setpoint: (*control).setpoint,
+            hysteresis: (*control).hysteresis,
+            cooling: flag(ptr::addr_of!((*control).cooling)),
+            safe_band: (*control).safe_band,
+        }),
+        1 => Ok(ControlSpec::Level {
+            empty: (*control).empty,
+            warn_within: (*control).warn_within,
+        }),
+        2 => Ok(ControlSpec::Surge {
+            rising: flag(ptr::addr_of!((*control).rising)),
+            limit: (*control).limit,
+        }),
+        3 => Ok(ControlSpec::Monitor),
+        4 => Err(
+            "a custom control carries parameters of its own, so build it with pamoja_profile_new_custom"
+                .to_owned(),
+        ),
+        other => Err(format!("{other} is not a control kind")),
     }
 }
 
@@ -986,6 +1143,120 @@ mod tests {
         }
         assert_eq!(restored.kind, PamojaControlKind::Level);
         assert_eq!(restored, original, "the policy came back unchanged");
+    }
+
+    fn last_error() -> String {
+        unsafe { CStr::from_ptr(crate::pamoja_last_error_message()) }
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn drip_band() -> PamojaControlSpec {
+        PamojaControlSpec::from(&ControlSpec::Setpoint {
+            setpoint: 37.5,
+            hysteresis: 7.5,
+            cooling: false,
+            safe_band: 15.0,
+        })
+    }
+
+    #[test]
+    fn a_profile_built_from_parts_matches_the_one_rust_builds() {
+        let name = CString::new("raised-bed-drip").unwrap();
+        let topic = CString::new("garden/bed-1/moisture").unwrap();
+        let schedule = PamojaPowerSchedule::from(PowerSchedule::new(300, 1800, 3600));
+        let profile =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), &drip_band(), &schedule) };
+        assert!(!profile.is_null());
+
+        let expected = Profile::new(
+            "raised-bed-drip",
+            "garden/bed-1/moisture",
+            ControlSpec::Setpoint {
+                setpoint: 37.5,
+                hysteresis: 7.5,
+                cooling: false,
+                safe_band: 15.0,
+            },
+            PowerSchedule::new(300, 1800, 3600),
+        );
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_to_json(profile) }),
+            expected.to_json().unwrap()
+        );
+
+        let controller = unsafe { pamoja_profile_controller(profile) };
+        let dry = reaction_for(controller, 16.7);
+        assert!(dry.actuator, "a dry bed opens the valve");
+        assert_eq!(dry.alert, PamojaAlertKind::OutOfRange);
+        unsafe {
+            pamoja_controller_free(controller);
+            pamoja_profile_free(profile);
+        }
+    }
+
+    #[test]
+    fn a_custom_or_unknown_kind_is_refused_by_the_constructor() {
+        let name = CString::new("orchard-frost").unwrap();
+        let topic = CString::new("orchard/air").unwrap();
+        let schedule = PamojaPowerSchedule::from(PowerSchedule::new(60, 300, 900));
+        let mut custom = drip_band();
+        custom.kind = PamojaControlKind::Custom;
+        let refused =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), &custom, &schedule) };
+        assert!(refused.is_null());
+        assert!(last_error().contains("pamoja_profile_new_custom"));
+
+        const WORDS: usize = std::mem::size_of::<PamojaControlSpec>() / 4;
+        let mut unknown = [0u32; WORDS];
+        unknown[0] = 9;
+        let unknown = unknown.as_ptr().cast::<PamojaControlSpec>();
+        let refused =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), unknown, &schedule) };
+        assert!(refused.is_null());
+        assert!(last_error().contains("9 is not a control kind"));
+
+        let refused =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), ptr::null(), &schedule) };
+        assert!(refused.is_null());
+    }
+
+    #[test]
+    fn a_custom_kind_is_built_from_its_parameters_and_checked() {
+        let name = CString::new("orchard-frost").unwrap();
+        let topic = CString::new("orchard/air").unwrap();
+        let schedule = PamojaPowerSchedule::from(PowerSchedule::new(60, 300, 900));
+        let build = |kind: &str, params: &str| {
+            let kind = CString::new(kind).unwrap();
+            let params = CString::new(params).unwrap();
+            unsafe {
+                pamoja_profile_new_custom(
+                    name.as_ptr(),
+                    topic.as_ptr(),
+                    kind.as_ptr(),
+                    params.as_ptr(),
+                    &schedule,
+                )
+            }
+        };
+
+        let guard = build("frost_guard", r#"{ "warn_below": 2.0, "zone": "north" }"#);
+        assert!(!guard.is_null());
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_control_kind(guard) }),
+            "frost_guard"
+        );
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_control_params_json(guard) }),
+            r#"{"warn_below":2.0,"zone":"north"}"#
+        );
+        unsafe { pamoja_profile_free(guard) };
+
+        assert!(build("setpoint", "{}").is_null());
+        assert!(last_error().contains("built-in control kind"));
+        assert!(build("frost_guard", r#"{ "kind": "x" }"#).is_null());
+        assert!(last_error().contains("parameter named kind"));
+        assert!(build("frost_guard", "[1, 2]").is_null());
     }
 
     #[test]

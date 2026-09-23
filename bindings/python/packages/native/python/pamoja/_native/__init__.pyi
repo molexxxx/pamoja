@@ -2395,6 +2395,15 @@ class ControlPolicy:
         Every field the manifest carried beside a custom kind, as numbers, flags, and
         text by name, or `None` for a built-in kind.
         """
+    def __new__(cls, kind: builtins.str, *, setpoint: typing.Optional[builtins.float] = None, hysteresis: typing.Optional[builtins.float] = None, cooling: typing.Optional[builtins.bool] = None, safe_band: typing.Optional[builtins.float] = None, empty: typing.Optional[builtins.float] = None, warn_within: typing.Optional[builtins.int] = None, rising: typing.Optional[builtins.bool] = None, limit: typing.Optional[builtins.float] = None, custom_kind: typing.Optional[builtins.str] = None, params: typing.Optional[dict] = None) -> ControlPolicy:
+        r"""
+        Creates a policy of `kind`, one of `Setpoint`, `Level`, `Surge`, `Monitor`, or
+        `Custom`, from the fields that kind reads. A `Profile` built from it refuses one
+        that lacks a field its kind needs; `cooling` and `rising` are `False` unless given.
+        
+        Raises `ValueError` for any other kind, and for a parameter that is not a number,
+        `True` or `False`, or text.
+        """
 
 @typing.final
 class Controller:
@@ -9315,6 +9324,12 @@ class PowerScheduleSpec:
         r"""
         Enter the critical cadence below this state of charge.
         """
+    def __new__(cls, active_secs: builtins.int, saver_secs: builtins.int, critical_secs: builtins.int, *, saver_below: builtins.float = 0.5, critical_below: builtins.float = 0.20000000298023224) -> PowerScheduleSpec:
+        r"""
+        Creates a schedule from its three intervals in whole seconds; the node enters
+        the saver cadence below `saver_below` charge and the critical one below
+        `critical_below`.
+        """
 
 @typing.final
 class Presentation:
@@ -9381,6 +9396,14 @@ class Profile:
     def power(self) -> PowerScheduleSpec:
         r"""
         The sampling schedule kept as the battery drains.
+        """
+    def __new__(cls, name: builtins.str, topic: builtins.str, control: ControlPolicy, power: PowerScheduleSpec) -> Profile:
+        r"""
+        Creates a profile of the program's own from its parts, with no description and
+        no presentation.
+        
+        Raises `ValueError` if the control lacks a field its kind needs, or a custom kind
+        is empty, built in, or has a parameter named `kind`.
         """
     @staticmethod
     def vaccine_fridge_monitor() -> Profile:
@@ -9725,11 +9748,15 @@ class Replay:
     """
     def __new__(cls, readings: typing.Sequence[builtins.float], *, repeating: builtins.bool = False) -> Replay:
         r"""
-        Creates a replay over a recorded series.
+        Creates a replay over a recorded series, which starts again at the beginning once
+        exhausted when `repeating` is set.
         """
     def read(self) -> typing.Any:
         r"""
         Takes the next reading.
+        
+        Raises `PamojaError` (`resource is closed`) once a replay that does not repeat has
+        run out.
         """
 
 @typing.final

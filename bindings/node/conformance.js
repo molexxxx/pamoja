@@ -3467,6 +3467,12 @@ function profileVectors() {
   assert.strictEqual(orchard.name, custom.name, "a custom kind's profile carries its name");
   assertControl(orchard.control, custom.control);
   assertReactions(orchard.controller(), custom.reactions);
+
+  // Profiles built from their parts write the same manifest bytes Rust does.
+  for (const built of vector.built) {
+    const made = new profile.Profile(built.name, built.topic, built.control, built.power);
+    assert.strictEqual(made.toJson(), built.manifest, `the manifest ${built.name} writes`);
+  }
 }
 
 // Walks a controller through a recorded run and checks every decision.
