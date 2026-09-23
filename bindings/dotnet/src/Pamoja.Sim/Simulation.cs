@@ -1,19 +1,8 @@
 using Pamoja.Codec;
+using Pamoja.Kit;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sim;
-
-/// <summary>Where a robot is and which way it faces.</summary>
-/// <param name="X">Position along the world x axis, in meters.</param>
-/// <param name="Y">Position along the world y axis, in meters.</param>
-/// <param name="Theta">Heading from the world x axis, in radians.</param>
-public readonly record struct Pose(float X, float Y, float Theta);
-
-/// <summary>How fast a robot is asked to move.</summary>
-/// <param name="Vx">Forward speed along the x axis.</param>
-/// <param name="Vy">Leftward speed along the y axis.</param>
-/// <param name="Omega">Yaw rate about the z axis, positive counter-clockwise.</param>
-public readonly record struct Twist(float Vx, float Vy = 0.0f, float Omega = 0.0f);
 
 /// <summary>A sensor that invents plausible readings.</summary>
 /// <remarks>

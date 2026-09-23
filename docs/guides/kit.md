@@ -9,14 +9,15 @@ hysteresis, a `Depletion` is a projected countdown, an `Anomaly` is the three-si
 They are synchronous and allocation-free, so the same code runs on a gateway and on a
 microcontroller, and every language gets the same numbers from them.
 
-The helpers fall into four families. Reading helpers turn raw values into trustworthy
-ones: `Calibration`, `Median`, `Smoother`, `Kalman`, and `deadband`. Deciding helpers turn
-a reading into an action: `Thermostat`, `Trigger`, `Debounce`, `Pid`, and `Ramp`. Warning
-helpers look at recent readings for trouble on its way: `Window`, `Trend`, `Surge`,
-`Depletion`, and `Anomaly`. Place helpers work on fixes: `Geofence` and the distance and
-bearing between two coordinates. The crate also has motion helpers for robots (chassis
-kinematics, odometry, waypoint following, a safety gate, and servo, ESC, and encoder
-decoding), which are in the Rust crate only and documented in its reference.
+The helpers fall into five families. Reading helpers turn raw values into trustworthy
+ones: `Calibration`, `Median`, `Smoother`, `Kalman`, `Complementary`, and `deadband`.
+Deciding helpers turn a reading into an action: `Thermostat`, `Trigger`, `Debounce`, `Pid`,
+and `Ramp`. Warning helpers look at recent readings for trouble on its way: `Window`,
+`Trend`, `Surge`, `Depletion`, and `Anomaly`. Place helpers work on fixes: `Geofence` and
+the distance and bearing between two coordinates. Conversion helpers turn one quantity into
+another: the unit conversions, the tilt an accelerometer reads, and the dew point of air.
+The motion helpers for robots, from wheel kinematics to a safety gate, have
+[a guide of their own](motion.md).
 
 ## What the example does
 
@@ -28,12 +29,15 @@ prints what each decided.
 - **The tower level** arrives on a 4-20 mA loop. A two-point calibration turns the current
   into a percentage, a median of five readings rides over a dropout, a smoother takes the
   slosh out, and two Kalman filters tuned differently follow a real rise.
+- **The tower's lean** is watched by an accelerometer on the tank, and in wind a
+  complementary filter steadies it with a gyro.
 - **The refill pump** starts at 40% and stops at 60%, and the tower's float switch has to
   read full three times running before the controller believes it.
 - **The low-water alarm** is sent once when the level drops under 20% and cleared once it
   is back above 25%.
 - **The booster pump** holds the mains at 3.0 bar with a PID, soft-started by a ramp so the
-  pipes never take a water hammer.
+  pipes never take a water hammer. Its controller hangs in the pump house, where the
+  thermometer reads Fahrenheit and the dew point says whether the cold mains sweat.
 - **The warnings**: a countdown to the reserve level during a power cut, a leak seen as a
   steady fall overnight, a burst main seen as a sudden pressure drop, and a flow meter
   whose odd readings stand out from their own baseline.
@@ -52,12 +56,16 @@ It proves:
 - Four readings into a rise from 50% to 60%, a Kalman filter told the level barely moves
   reads 55.2% and one told it moves reads 58.6%. Its process noise is the whole
   difference.
+- A pull of 0.007 g sideways against 1 g down is a lean of 0.40 degrees. In wind the
+  accelerometer's tilt swings from -1.3 to 2.1 degrees, and fused with the gyro the lean
+  still reads 0.4.
 - The pump holds its state inside the band: off at 50%, on at 39%, still on at 45%, off
   at 61%.
 - Five raw changes on the float switch settle into one debounced change.
 - Six readings hovering around the low-water line send one alarm and one all clear.
 - The PID asks for 96% at 1.0 bar while the ramp gives the pump 25%, and at 3.02 bar,
   inside the 0.05 bar deadband, the PID's integral alone holds the pump at 30%.
+- 84 F is 28.9 C, and at 78% humidity that air dews at 24.7 C, so mains at 18 C sweat.
 - A level falling 4% an hour from 72% reaches the 20% reserve in 13 hours.
 - A least-squares line through six overnight levels falls 0.45% an hour.
 - A 1.2 bar drop between two readings is a surge past the 0.5 bar limit.
@@ -90,7 +98,8 @@ yet, such as a median before the first reading, is an `Option`. Nothing returns 
 `Result`: a helper never fails, and a parameter outside its range falls back as the
 parameter table below says. The windowed helpers take their capacity as a const generic,
 `Median::<5>::new()`, and `with_capacity(n)` keeps fewer than that at run time. The geo
-helpers are methods on `Coordinate`: `distance_to` and `bearing_to`. The default features
+helpers are methods on `Coordinate`: `distance_to` and `bearing_to`. The tilt and the dew
+point live in the `imu` and `weather` modules, and the conversions in `units`. The default features
 are `geo`, `imu`, `weather`, and `robotics`; each pulls in `libm` for float math, and
 turning them off leaves a crate with no dependencies at all.
 
@@ -98,9 +107,12 @@ turning them off leaves a crate with no dependencies at all.
 From [`examples/guides/kit.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/kit.rs):
 
 ```rust
+use pamoja_kit::imu::tilt_from_accel;
+use pamoja_kit::weather::dew_point;
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Edge, Geofence,
-    Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Trigger, Window,
+    deadband, units, Anomaly, Boundary, Calibration, Complementary, Coordinate, Debounce,
+    Depletion, Edge, Geofence, Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend,
+    Trigger, Window,
 };
 
 // The tower's level transmitter reports on a 4-20 mA loop: 4 mA is empty and 20 mA is
@@ -146,6 +158,33 @@ for percent in [50.0, 50.0, 50.0, 60.0, 60.0, 60.0, 60.0] {
 }
 let (slow, fast) = (expects_steady.estimate(), expects_motion.estimate());
 println!("level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads {slow:.1}%, one expecting motion {fast:.1}%");
+
+// An accelerometer on the tank watches the tower's lean. Standing still, only gravity
+// pulls on it, so the direction of the pull, in g, gives the tilt.
+let at_rest = tilt_from_accel(0.0, 0.007, 1.0);
+println!(
+    "tower     at rest the accelerometer reads a lean of {:.2} degrees",
+    at_rest.roll
+);
+
+// In wind the tower sways, and the sway's own acceleration swings the accelerometer's
+// tilt. A gyro's rate of turn does not swing, but it drifts. A complementary filter
+// trusts the gyro from one tenth of a second to the next and the accelerometer over time.
+let mut lean = Complementary::new(0.98, at_rest.roll as f32);
+let mut gusts = Window::<5>::new();
+for (rate, tilt) in [
+    (0.4, 2.1),
+    (-0.6, -1.3),
+    (0.5, 1.8),
+    (-0.3, -0.9),
+    (0.1, 1.2),
+] {
+    lean.update(rate, tilt, 0.1);
+    gusts.push(tilt);
+}
+let (low, high) = (gusts.min().unwrap_or(0.0), gusts.max().unwrap_or(0.0));
+let steady_lean = lean.estimate();
+println!("tower     in wind the accelerometer swings from {low:.1} to {high:.1} degrees; fused with the gyro the lean reads {steady_lean:.1}");
 
 // The refill pump starts at 40% and stops at 60%: on/off control with a band either
 // side of 50. Starting when the level falls is the direction `heating` names.
@@ -196,6 +235,13 @@ for bar in [1.0, 1.8, 2.5, 2.9, 3.02] {
         "booster   at {bar:.2} bar the PID asks for {asked:.0}%, the pump is given {given:.0}%"
     );
 }
+
+// The booster's controller hangs in the pump house above the mains. The pump house
+// thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+let air = units::fahrenheit_to_celsius(84.0);
+let dew = dew_point(f64::from(air), 78.0);
+let sweats = if 18.0 < dew { "sweat" } else { "stay dry" };
+println!("pumphouse 84 F is {air:.1} C, and at 78% humidity it dews at {dew:.1} C, so the 18 C mains {sweats}");
 
 // A power cut stops the borehole pump. From the hourly level, the countdown says how
 // long until the tower reaches its 20% reserve.
@@ -278,8 +324,9 @@ with `new` or a static factory, such as `Thermostat.heating(setpoint, hysteresis
 their state reads as a property: `smoother.value`, `pump.isOn`, `trend.slope`. An answer
 that may not exist yet is `null`. `Trigger.update` returns `Edge.Set`, `Edge.Cleared`, or
 `null`, and `Geofence.update` returns `'Inside'`, `'Outside'`, `'Exited'`, or `'Entered'`.
-A coordinate is a plain `{ latitude, longitude }` object. The windowed helpers take an
-optional capacity, `new Median(5)`, up to `WINDOW_CAPACITY` (32), and throw on one they
+A coordinate is a plain `{ latitude, longitude }` object. The conversions, the tilt, and the
+dew point are plain functions, such as `fahrenheitToCelsius(84)`. The windowed helpers take
+an optional capacity, `new Median(5)`, up to `WINDOW_CAPACITY` (32), and throw on one they
 cannot keep. Readings are narrowed to 32-bit floats on their way in, as they are in every
 language, so a result carries about seven significant digits; coordinates stay 64-bit.
 
@@ -291,12 +338,15 @@ import {
   Anomaly,
   bearingBetween,
   Calibration,
+  Complementary,
   type Coord,
   deadband,
   Debounce,
   Depletion,
+  dewPoint,
   distanceBetween,
   Edge,
+  fahrenheitToCelsius,
   Geofence,
   Kalman,
   Median,
@@ -305,6 +355,7 @@ import {
   Smoother,
   Surge,
   Thermostat,
+  tiltFromAccel,
   Trend,
   Trigger,
   Window,
@@ -358,6 +409,31 @@ console.log(
   `level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads ${slow.toFixed(1)}%, one expecting motion ${fast.toFixed(1)}%`,
 )
 
+// An accelerometer on the tank watches the tower's lean. Standing still, only gravity pulls
+// on it, so the direction of the pull, in g, gives the tilt.
+const atRest = tiltFromAccel(0, 0.007, 1)
+console.log(`tower     at rest the accelerometer reads a lean of ${atRest.roll.toFixed(2)} degrees`)
+
+// In wind the tower sways, and the sway's own acceleration swings the accelerometer's tilt.
+// A gyro's rate of turn does not swing, but it drifts. A complementary filter trusts the gyro
+// from one tenth of a second to the next and the accelerometer over time.
+const lean = new Complementary(0.98, atRest.roll)
+const gusts = new Window(5)
+for (const [rate, tilt] of [
+  [0.4, 2.1],
+  [-0.6, -1.3],
+  [0.5, 1.8],
+  [-0.3, -0.9],
+  [0.1, 1.2],
+]) {
+  lean.update(rate, tilt, 0.1)
+  gusts.push(tilt)
+}
+const steadyLean = lean.estimate
+console.log(
+  `tower     in wind the accelerometer swings from ${gusts.min()!.toFixed(1)} to ${gusts.max()!.toFixed(1)} degrees; fused with the gyro the lean reads ${steadyLean.toFixed(1)}`,
+)
+
 // The refill pump starts at 40% and stops at 60%: on/off control with a band either side
 // of 50. Starting when the level falls is the direction heating names.
 const pump = Thermostat.heating(50, 10)
@@ -405,6 +481,15 @@ for (const bar of [1.0, 1.8, 2.5, 2.9, 3.02]) {
     `booster   at ${bar.toFixed(2)} bar the PID asks for ${asked.toFixed(0)}%, the pump is given ${given.toFixed(0)}%`,
   )
 }
+
+// The booster's controller hangs in the pump house above the mains. The pump house
+// thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+const air = fahrenheitToCelsius(84)
+const dew = dewPoint(air, 78)
+const sweats = 18 < dew ? 'sweat' : 'stay dry'
+console.log(
+  `pumphouse 84 F is ${air.toFixed(1)} C, and at 78% humidity it dews at ${dew.toFixed(1)} C, so the 18 C mains ${sweats}`,
+)
 
 // A power cut stops the borehole pump. From the hourly level, the countdown says how long
 // until the tower reaches its 20% reserve.
@@ -470,7 +555,8 @@ console.log(`truck     ${crossings.join(', ')}`)
 In Python, `pamoja.kit` works the same way, with state as properties: `smoother.value`,
 `pump.is_on`, `trend.slope`. An answer that may not exist yet is `None`. `Trigger.update`
 returns the `Edge` enum or `None`, and `Geofence.update` returns the `Boundary` enum.
-`Coordinate(latitude, longitude)` is a named tuple the geo helpers take. `Pid` takes its
+`Coordinate(latitude, longitude)` is a named tuple the geo helpers take, and the
+conversions, the tilt, and the dew point are plain functions. `Pid` takes its
 output limits as keywords, and either one alone leaves the other side open:
 `Pid(40.0, 8.0, 0.0, min=0.0, max=100.0)`. The windowed helpers take an optional capacity,
 `Median(5)`, up to `WINDOW_CAPACITY` (32); one out of range raises `ValueError`, and a
@@ -485,6 +571,7 @@ import math
 from pamoja.kit import (
     Anomaly,
     Calibration,
+    Complementary,
     Coordinate,
     Debounce,
     Depletion,
@@ -502,7 +589,10 @@ from pamoja.kit import (
     Window,
     bearing_between,
     deadband,
+    dew_point,
     distance_between,
+    fahrenheit_to_celsius,
+    tilt_from_accel,
 )
 
 # The tower's level transmitter reports on a 4-20 mA loop: 4 mA is empty and 20 mA is
@@ -548,6 +638,25 @@ slow, fast = expects_steady.estimate, expects_motion.estimate
 print(
     f"level     four readings into a rise to 60%, a Kalman filter expecting a steady level "
     f"reads {slow:.1f}%, one expecting motion {fast:.1f}%"
+)
+
+# An accelerometer on the tank watches the tower's lean. Standing still, only gravity pulls
+# on it, so the direction of the pull, in g, gives the tilt.
+at_rest = tilt_from_accel(0.0, 0.007, 1.0)
+print(f"tower     at rest the accelerometer reads a lean of {at_rest.roll:.2f} degrees")
+
+# In wind the tower sways, and the sway's own acceleration swings the accelerometer's tilt.
+# A gyro's rate of turn does not swing, but it drifts. A complementary filter trusts the gyro
+# from one tenth of a second to the next and the accelerometer over time.
+lean = Complementary(0.98, at_rest.roll)
+gusts = Window(5)
+for rate, tilt in ((0.4, 2.1), (-0.6, -1.3), (0.5, 1.8), (-0.3, -0.9), (0.1, 1.2)):
+    lean.update(rate, tilt, 0.1)
+    gusts.push(tilt)
+steady_lean = lean.estimate
+print(
+    f"tower     in wind the accelerometer swings from {gusts.min():.1f} to {gusts.max():.1f} "
+    f"degrees; fused with the gyro the lean reads {steady_lean:.1f}"
 )
 
 # The refill pump starts at 40% and stops at 60%: on/off control with a band either side
@@ -597,6 +706,16 @@ for bar in (1.0, 1.8, 2.5, 2.9, 3.02):
         f"booster   at {bar:.2f} bar the PID asks for {asked:.0f}%, "
         f"the pump is given {given:.0f}%"
     )
+
+# The booster's controller hangs in the pump house above the mains. The pump house
+# thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+air = fahrenheit_to_celsius(84.0)
+dew = dew_point(air, 78.0)
+sweats = "sweat" if 18.0 < dew else "stay dry"
+print(
+    f"pumphouse 84 F is {air:.1f} C, and at 78% humidity it dews at {dew:.1f} C, "
+    f"so the 18 C mains {sweats}"
+)
 
 # A power cut stops the borehole pump. From the hourly level, the countdown says how long
 # until the tower reaches its 20% reserve.
@@ -663,8 +782,9 @@ In C#, `Pamoja.Kit` holds each stateful helper over a native handle, so each is
 `IDisposable` and belongs in a `using`. State reads as a property (`Value`, `IsOn`,
 `Slope`), and an answer that may not exist yet is a nullable value type such as `float?`.
 `Trigger.Update` returns `Edge?`, and `Geofence.Update` returns `Boundary`. The stateless
-helpers are static methods on `Kit`: `Kit.Deadband`, `Kit.DistanceBetween`, and
-`Kit.BearingBetween`. The windowed helpers take a capacity, `new Median(5)`, up to
+helpers are static methods on `Kit`, such as `Kit.Deadband`, `Kit.DistanceBetween`, and
+`Kit.DewPoint`, and the unit conversions are static methods on `Units`. The windowed
+helpers take a capacity, `new Median(5)`, up to
 `Kit.WindowCapacity` (32), and throw `ArgumentOutOfRangeException` on one they cannot keep.
 Every helper is safe to call from more than one thread; calls on the same helper run one at
 a time.
@@ -726,6 +846,27 @@ foreach (float percent in new[] { 50.0f, 50.0f, 50.0f, 60.0f, 60.0f, 60.0f, 60.0
 Console.WriteLine(Invariant(
     $"level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads {slow:F1}%, one expecting motion {fast:F1}%"));
 
+// An accelerometer on the tank watches the tower's lean. Standing still, only gravity
+// pulls on it, so the direction of the pull, in g, gives the tilt.
+Tilt atRest = Kit.TiltFromAccel(0.0, 0.007, 1.0);
+Console.WriteLine(Invariant($"tower     at rest the accelerometer reads a lean of {atRest.Roll:F2} degrees"));
+
+// In wind the tower sways, and the sway's own acceleration swings the accelerometer's
+// tilt. A gyro's rate of turn does not swing, but it drifts. A complementary filter
+// trusts the gyro from one tenth of a second to the next and the accelerometer over
+// time.
+using var lean = new Complementary(0.98f, (float)atRest.Roll);
+using var gusts = new Window(5);
+foreach ((float rate, float tilt) in new[] { (0.4f, 2.1f), (-0.6f, -1.3f), (0.5f, 1.8f), (-0.3f, -0.9f), (0.1f, 1.2f) })
+{
+    lean.Update(rate, tilt, 0.1f);
+    gusts.Push(tilt);
+}
+
+float steadyLean = lean.Estimate;
+Console.WriteLine(Invariant(
+    $"tower     in wind the accelerometer swings from {gusts.Min():F1} to {gusts.Max():F1} degrees; fused with the gyro the lean reads {steadyLean:F1}"));
+
 // The refill pump starts at 40% and stops at 60%: on/off control with a band either
 // side of 50. Starting when the level falls is the direction Heating names.
 using var pump = Thermostat.Heating(50.0f, 10.0f);
@@ -782,6 +923,14 @@ foreach (float bar in new[] { 1.0f, 1.8f, 2.5f, 2.9f, 3.02f })
     Console.WriteLine(Invariant(
         $"booster   at {bar:F2} bar the PID asks for {asked:F0}%, the pump is given {given:F0}%"));
 }
+
+// The booster's controller hangs in the pump house above the mains. The pump house
+// thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+float air = Units.FahrenheitToCelsius(84.0f);
+double dew = Kit.DewPoint(air, 78.0);
+string sweats = 18.0 < dew ? "sweat" : "stay dry";
+Console.WriteLine(Invariant(
+    $"pumphouse 84 F is {air:F1} C, and at 78% humidity it dews at {dew:F1} C, so the 18 C mains {sweats}"));
 
 // A power cut stops the borehole pump. From the hourly level, the countdown says how
 // long until the tower reaches its 20% reserve.
@@ -858,6 +1007,7 @@ Console.WriteLine($"truck     {string.Join(", ", crossings)}");
 | median | the middle of the recent readings, which a single spike cannot move |
 | smoother | an exponential moving average: each output moves part of the way toward the new sample |
 | Kalman filter | an estimate that weighs how far the true value can move against how noisy the sensor is |
+| complementary filter | fuses a fast rate that drifts, such as a gyro's, with a slow absolute reading that does not, such as an accelerometer's tilt |
 | deadband | holds a reading at a center while it stays close to it |
 
 **Deciding helpers** turn a reading into an action:
@@ -888,6 +1038,14 @@ Console.WriteLine($"truck     {string.Join(", ", crossings)}");
 | distance and bearing | the great-circle distance in meters, and the initial bearing in degrees clockwise from north |
 | geofence | inside or outside a circle, and the one fix that crossed |
 
+**Conversion helpers** turn one quantity into another:
+
+| Helper | What it does |
+| --- | --- |
+| units | Celsius to and from Fahrenheit and kelvin; pascals to and from hectopascals, kilopascals, and psi; a ratio to and from a percentage |
+| tilt | the roll and pitch, in degrees, of a three-axis accelerometer at rest, from any units it reads in |
+| dew point | the temperature air must cool to before its water condenses, by the Magnus formula with the WMO coefficients |
+
 **The calls in each language.** Each language makes, feeds, and reads the helpers as its
 own conventions do:
 
@@ -901,6 +1059,7 @@ Constructors are associated functions, and state reads through a method:
 | median | `Median::<N>::new()` or `Median::<N>::with_capacity(n)` | `update(reading)`; `median()`, `capacity()` |
 | smoother | `Smoother::new(weight)` | `update(sample)`; `value()`, `reset()` |
 | Kalman filter | `Kalman::new(process_noise, measurement_noise, initial)` | `update(reading)`; `estimate()` |
+| complementary filter | `Complementary::new(alpha, initial)` | `update(rate, absolute, dt)`; `estimate()` |
 | deadband | `deadband(value, center, width)` | |
 | thermostat | `Thermostat::cooling(setpoint, hysteresis)` or `Thermostat::heating(setpoint, hysteresis)` | `update(reading)`; `is_on()` |
 | trigger | `Trigger::above(threshold, hysteresis)` or `Trigger::below(threshold, hysteresis)` | `update(reading)` gives `Option<Edge>`; `is_set()`, `threshold()`, `hysteresis()`, `watches_above()` |
@@ -914,6 +1073,9 @@ Constructors are associated functions, and state reads through a method:
 | anomaly | `Anomaly::<N>::new(sigmas)` or `Anomaly::<N>::with_capacity(sigmas, n)` | `check(reading)`; `len()`, `capacity()` |
 | coordinate | `Coordinate::new(latitude, longitude)` | `distance_to(other)`, `bearing_to(other)` |
 | geofence | `Geofence::new(center, radius_m)` | `update(fix)` gives a `Boundary`; `contains(fix)` |
+| units | `units::fahrenheit_to_celsius(fahrenheit)`, and the rest named the same way | |
+| tilt | `imu::tilt_from_accel(ax, ay, az)` gives a `Tilt` | `roll`, `pitch` |
+| dew point | `weather::dew_point(celsius, humidity_percent)` | |
 
 ### TypeScript
 
@@ -925,6 +1087,7 @@ Stateful helpers are classes, and state reads as a property:
 | median | `new Median(capacity?)` | `update(reading)`; `value`, `capacity` |
 | smoother | `new Smoother(weight)` | `update(sample)`; `value`, `reset()` |
 | Kalman filter | `new Kalman(processNoise, measurementNoise, initial)` | `update(reading)`; `estimate` |
+| complementary filter | `new Complementary(alpha, initial)` | `update(rate, absolute, dt)`; `estimate` |
 | deadband | `deadband(value, center, width)` | |
 | thermostat | `Thermostat.cooling(setpoint, hysteresis)` or `Thermostat.heating(setpoint, hysteresis)` | `update(reading)`; `isOn` |
 | trigger | `Trigger.above(threshold, hysteresis)` or `Trigger.below(threshold, hysteresis)` | `update(reading)` gives `Edge.Set`, `Edge.Cleared`, or `null`; `isSet`, `threshold`, `hysteresis`, `watchesAbove` |
@@ -938,6 +1101,9 @@ Stateful helpers are classes, and state reads as a property:
 | anomaly | `new Anomaly(sigmas, capacity?)` | `check(reading)`; `capacity` |
 | coordinate | `{ latitude, longitude }`, typed `Coord` | `distanceBetween(from, to)`, `bearingBetween(from, to)` |
 | geofence | `new Geofence(center, radiusM)` | `update(point)` gives `'Inside'`, `'Outside'`, `'Exited'`, or `'Entered'`; `contains(point)` |
+| units | `fahrenheitToCelsius(fahrenheit)`, and the rest named the same way | |
+| tilt | `tiltFromAccel(ax, ay, az)` gives `{ roll, pitch }` | |
+| dew point | `dewPoint(celsius, humidityPercent)` | |
 
 ### Python
 
@@ -949,6 +1115,7 @@ Stateful helpers are classes, and state reads as a property:
 | median | `Median(capacity=None)` | `update(reading)`; `value`, `capacity` |
 | smoother | `Smoother(weight)` | `update(sample)`; `value`, `reset()` |
 | Kalman filter | `Kalman(process_noise, measurement_noise, initial)` | `update(reading)`; `estimate` |
+| complementary filter | `Complementary(alpha, initial)` | `update(rate, absolute, dt)`; `estimate` |
 | deadband | `deadband(value, center, width)` | |
 | thermostat | `Thermostat.cooling(setpoint, hysteresis)` or `Thermostat.heating(setpoint, hysteresis)` | `update(reading)`; `is_on` |
 | trigger | `Trigger.above(threshold, hysteresis)` or `Trigger.below(threshold, hysteresis)` | `update(reading)` gives `Edge.SET`, `Edge.CLEARED`, or `None`; `is_set`, `threshold`, `hysteresis`, `watches_above` |
@@ -962,6 +1129,9 @@ Stateful helpers are classes, and state reads as a property:
 | anomaly | `Anomaly(sigmas, capacity=None)` | `check(reading)`; `capacity` |
 | coordinate | `Coordinate(latitude, longitude)` | `distance_between(origin, destination)`, `bearing_between(origin, destination)` |
 | geofence | `Geofence(center, radius_m)` | `update(point)` gives a `Boundary`; `contains(point)` |
+| units | `fahrenheit_to_celsius(fahrenheit)`, and the rest named the same way | |
+| tilt | `tilt_from_accel(ax, ay, az)` gives a `Tilt` | `roll`, `pitch` |
+| dew point | `dew_point(celsius, humidity_percent)` | |
 
 ### C#
 
@@ -973,6 +1143,7 @@ Stateful helpers are `IDisposable` classes, and state reads as a property:
 | median | `new Median(capacity)` | `Update(reading)`; `Value`, `Capacity` |
 | smoother | `new Smoother(weight)` | `Update(sample)`; `Value`, `Reset()` |
 | Kalman filter | `new Kalman(processNoise, measurementNoise, initial)` | `Update(reading)`; `Estimate` |
+| complementary filter | `new Complementary(alpha, initial)` | `Update(rate, absolute, dt)`; `Estimate` |
 | deadband | `Kit.Deadband(value, center, width)` | |
 | thermostat | `Thermostat.Cooling(setpoint, hysteresis)` or `Thermostat.Heating(setpoint, hysteresis)` | `Update(reading)`; `IsOn` |
 | trigger | `Trigger.Above(threshold, hysteresis)` or `Trigger.Below(threshold, hysteresis)` | `Update(reading)` gives an `Edge?`; `IsSet`, `Threshold`, `Hysteresis`, `WatchesAbove` |
@@ -986,6 +1157,9 @@ Stateful helpers are `IDisposable` classes, and state reads as a property:
 | anomaly | `new Anomaly(sigmas, capacity)` | `Check(reading)`; `Capacity` |
 | coordinate | `new Coordinate(latitude, longitude)` | `Kit.DistanceBetween(origin, destination)`, `Kit.BearingBetween(origin, destination)` |
 | geofence | `new Geofence(center, radiusM)` | `Update(point)` gives a `Boundary`; `Contains(point)` |
+| units | `Units.FahrenheitToCelsius(fahrenheit)`, and the rest named the same way | |
+| tilt | `Kit.TiltFromAccel(ax, ay, az)` gives a `Tilt` | `Roll`, `Pitch` |
+| dew point | `Kit.DewPoint(celsius, humidityPercent)` | |
 
 <!-- languages end -->
 
@@ -999,6 +1173,8 @@ shows up as behavior you can see rather than as a crash in the field:
 | Kalman `process_noise` | how much the true value can move between readings | its magnitude is used; not finite is 0 |
 | Kalman `measurement_noise` | how noisy the sensor is; larger trusts each reading less | its magnitude is used; not finite, or 0, trusts every reading outright |
 | Kalman `initial` | the estimate before the first reading, which replaces it | |
+| complementary `alpha` | the weight on the integrated rate, 0 to 1; near 1 trusts the rate and corrects slowly toward the absolute reading | clamped to 0 to 1; NaN is 0, which follows the absolute reading, since that one cannot drift |
+| complementary `dt` | the time since the last update, in the unit the rate is per | used as given; not finite skips the update |
 | `deadband` `width` | how far either side of the center counts as on target | its magnitude is used |
 | thermostat `hysteresis` | half the band: a `heating` thermostat turns on at `setpoint - hysteresis` and off at `setpoint + hysteresis` | its magnitude is used; NaN is 0 |
 | trigger `hysteresis` | how far back past the line a reading must come to clear | its magnitude is used; NaN is 0 |
@@ -1012,6 +1188,7 @@ shows up as behavior you can see rather than as a crash in the field:
 | depletion `threshold` | the level to count down to | NaN never reports |
 | anomaly `sigmas` | how many standard deviations away stands out; 3 is the usual choice | its magnitude is used; NaN is 0, so nearly every reading stands out |
 | geofence `radius_m` | the fence radius, in meters | its magnitude is used; NaN contains nothing |
+| dew point `humidity_percent` | the relative humidity, above 0 and up to 100 | 0 or below is taken as a trace, so the logarithm stays defined |
 
 **The windowed helpers keep a fixed number of readings.** In Rust the storage is a const
 generic, and `with_capacity(n)` keeps fewer. The other languages build every windowed
@@ -1034,14 +1211,14 @@ ignores a reading that is not a finite number:
 
 | Helper | Given NaN or infinity |
 | --- | --- |
-| smoother, Kalman filter, median, ramp | ignores it and returns the value it already held |
+| smoother, Kalman filter, complementary filter, median, ramp | ignores it and returns the value it already held |
 | thermostat, debounce | ignores it and keeps its output: a pump that was running keeps running |
 | PID | ignores a setpoint or measurement that is not finite and returns its last output |
 | trigger, surge, depletion | ignores it and reports nothing |
 | window, trend | does not keep it |
 | anomaly | flags it, and keeps it out of the baseline |
 | geofence | ignores the fix and reports where the last fix was, with no crossing |
-| calibration, `deadband` | keep nothing, so NaN in gives NaN out, as arithmetic does |
+| calibration, `deadband`, units, tilt, dew point | keep nothing, so NaN in gives NaN out, as arithmetic does |
 
 **Tuning, in one table:**
 
@@ -1053,6 +1230,7 @@ ignores a reading that is not a finite number:
 | a pump or heater that switches less often | a wider hysteresis |
 | fewer false anomalies | `sigmas` up, or more readings in the baseline |
 | a gentler actuator | a smaller ramp step |
+| a complementary filter that settles on the absolute reading sooner | `alpha` down; it settles over about `alpha * dt / (1 - alpha)` |
 
 ## When it goes wrong
 
@@ -1097,6 +1275,9 @@ The mistakes that cost an afternoon:
 - **The slope is in the wrong units.** A trend's slope is per reading, and a depletion
   countdown is in readings. With a reading every ten minutes, a slope of 0.5 is 3 an hour,
   and a countdown of 12 is two hours.
+- **The tilt jumps whenever the board moves.** An accelerometer feels every acceleration,
+  not only gravity, so the tilt it gives is right only at rest. Fuse it with a gyro's rate
+  through a complementary filter, as the tower does.
 - **A pump keeps running on a dead sensor.** A thermostat that was on stays on while its
   reading is NaN, because the helper cannot know what off means for your plant. A node
   that must fail safe checks the reading itself before it trusts the decision.

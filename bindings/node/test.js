@@ -59,6 +59,30 @@ const {
   Trend,
   Anomaly,
   WINDOW_CAPACITY,
+  Complementary,
+  tiltFromAccel,
+  dewPoint,
+  celsiusToFahrenheit,
+  pascalsToHectopascals,
+  DiffDrive,
+  Ackermann,
+  SkidSteer,
+  Mecanum,
+  TwoLinkArm,
+  Elbow,
+  forwardKinematics,
+  Transform,
+  Odometry,
+  WaypointFollower,
+  obstacleStop,
+  SafetyGate,
+  Limits,
+  Watchdog,
+  EStop,
+  ServoMap,
+  Esc,
+  Quadrature,
+  QuadratureScale,
 } = require("pamoja");
 
 async function main() {
@@ -96,6 +120,7 @@ async function main() {
   identity();
   codecs();
   helpers();
+  motion();
   fieldIo();
   sensingAndActuation();
   laterSensors();
@@ -242,6 +267,99 @@ function helpers() {
   assert.strictEqual(pen.update(away), Boundary.Exited, "the crossing fix reports once");
   assert.strictEqual(pen.update(away), Boundary.Outside, "later fixes stay outside");
   assert.ok(distanceBetween(center, away) > 50, "the fix is beyond the radius");
+
+  assert.strictEqual(celsiusToFahrenheit(100), 212);
+  assert.strictEqual(pascalsToHectopascals(101325), 1013.25);
+  const rolled = tiltFromAccel(0, 1, 1);
+  assert.ok(Math.abs(rolled.roll - 45) < 1e-9 && Math.abs(rolled.pitch) < 1e-9);
+  assert.ok(Math.abs(dewPoint(15, 100) - 15) < 1e-6, "saturated air dews at its temperature");
+  const tilt = new Complementary(0.98, 0);
+  const settled = tilt.update(10, 1, 0.1);
+  assert.strictEqual(tilt.update(NaN, 1, 0.1), settled, "a reading that is not a number is ignored");
+  assert.strictEqual(tilt.estimate, settled);
+}
+
+// Driving a robot: the chassis, an arm, odometry, a waypoint, and the gate every command
+// passes through.
+function motion() {
+  const drive = new DiffDrive(0.5);
+  assert.deepStrictEqual(drive.wheelSpeeds(0, 2), { left: -0.5, right: 0.5 }, "spinning in place");
+  assert.deepStrictEqual(drive.bodyMotion(-0.5, 0.5), { linear: 0, angular: 2 });
+
+  const car = new Ackermann(2.5);
+  assert.strictEqual(car.turnRadius(0), Infinity, "wheels straight never turn");
+  const omega = car.yawRate(5, 0.4);
+  assert.ok(Math.abs(car.steeringAngle(5, omega) - 0.4) < 1e-5);
+
+  const tracked = new SkidSteer(0.5, 1.2);
+  const spin = tracked.wheelSpeeds(0, 2);
+  assert.ok(Math.abs(spin.left + 0.6) < 1e-6 && Math.abs(spin.right - 0.6) < 1e-6);
+
+  const base = new Mecanum(0.4, 0.3);
+  assert.deepStrictEqual(
+    base.wheelSpeeds({ vx: 0, vy: 1, omega: 0 }),
+    { frontLeft: -1, frontRight: 1, rearLeft: 1, rearRight: -1 },
+    "a strafe spins the diagonals against each other",
+  );
+
+  const arm = new TwoLinkArm(1, 1);
+  const hand = arm.tip(0.5, 0.7);
+  const joints = arm.jointsFor(hand.x, hand.y, Elbow.Up);
+  assert.ok(Math.abs(joints.shoulder - 0.5) < 1e-4 && Math.abs(joints.elbow - 0.7) < 1e-4);
+  assert.strictEqual(arm.jointsFor(5, 0, Elbow.Up), null, "out of reach");
+  assert.deepStrictEqual(arm.reach, { min: 0, max: 2 });
+
+  const link = { a: 1, alpha: 0, d: 0, theta: 0 };
+  const tool = forwardKinematics([link, link]);
+  assert.ok(Math.abs(tool.position.x - 2) < 1e-6 && Math.abs(tool.position.y) < 1e-6);
+  assert.deepStrictEqual(forwardKinematics([]).elements, Transform.identity().elements);
+  assert.strictEqual(Transform.ofJoint(link).elements[3], 1);
+
+  const odometry = new Odometry();
+  const pose = odometry.integrate(1, 1, Math.PI / 2);
+  assert.ok(Math.abs(pose.x - 1) < 1e-5 && Math.abs(pose.y - 1) < 1e-5, "a quarter circle");
+  assert.deepStrictEqual(odometry.integrate(NaN, 1, 1), pose, "a bad sample leaves the pose");
+  odometry.integrateWheels(0.1, 0.1, drive);
+  assert.ok(odometry.pose.y > pose.y, "rolling on along the new heading");
+
+  const follower = new WaypointFollower(1.5, 3, 1.5, 1);
+  const here = { latitude: 0, longitude: 0 };
+  const east = { latitude: 0, longitude: 0.01 };
+  const guidance = follower.guide(here, 90, east);
+  assert.strictEqual(guidance.arrived, false);
+  assert.ok(Math.abs(guidance.twist.vx - 1.5) < 1e-3, "pointed at it, so cruise");
+  assert.strictEqual(follower.guide(here, 90, here).arrived, true);
+  assert.deepStrictEqual(
+    obstacleStop({ vx: 1, vy: 0, omega: 0.5 }, NaN, 0.5),
+    { vx: 0, vy: 0, omega: 0.5 },
+    "a range that is not a number is an obstacle",
+  );
+
+  const gate = new SafetyGate(new Limits(1, 2, 0.5, 4), 0.2);
+  gate.feed();
+  assert.ok(Math.abs(gate.command({ vx: 1, vy: 0, omega: 0 }, 0.1).vx - 0.05) < 1e-6);
+  gate.engageEstop();
+  assert.ok(gate.isStopped);
+  assert.strictEqual(gate.command({ vx: 1, vy: 0, omega: 0 }, 0.1).vx, 0);
+  const dog = new Watchdog(0.5);
+  assert.strictEqual(dog.update(NaN), true, "an unknown silence expires the watchdog");
+  const estop = new EStop();
+  estop.engage();
+  assert.strictEqual(estop.gate({ vx: 1, vy: 0, omega: 0 }).vx, 0);
+
+  const servo = ServoMap.standard();
+  assert.strictEqual(servo.pulse(90), 1500);
+  assert.strictEqual(servo.pulse(NaN), 0, "no pulse for an angle that is not a number");
+  assert.throws(() => new ServoMap(-1, 2000, 180), /minUs must be a whole number of microseconds/);
+  assert.strictEqual(Esc.bidirectional().pulse(0.5), 1750);
+  const encoder = new Quadrature();
+  for (const [a, b] of [[false, true], [true, true], [true, false], [false, false]]) {
+    assert.strictEqual(encoder.update(a, b), 1);
+  }
+  assert.strictEqual(encoder.count, 4);
+  const scale = new QuadratureScale(360, 0.05);
+  assert.ok(Math.abs(scale.distance(360) - 2 * Math.PI * 0.05) < 1e-6);
+  assert.throws(() => scale.distance(1.5), /count must be a whole number of steps/);
 }
 
 // The wires a gateway actually has: framed serial packets, an RS485 request and

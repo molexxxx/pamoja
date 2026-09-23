@@ -52,6 +52,29 @@ const {
   Trend,
   Anomaly,
   WINDOW_CAPACITY,
+  Complementary,
+  celsiusToFahrenheit,
+  celsiusToKelvin,
+  pascalsToHectopascals,
+  pascalsToPsi,
+  tiltFromAccel,
+  dewPoint,
+  DiffDrive,
+  Ackermann,
+  SkidSteer,
+  Mecanum,
+  TwoLinkArm,
+  Elbow,
+  forwardKinematics,
+  Odometry,
+  WaypointFollower,
+  obstacleStop,
+  SafetyGate,
+  Limits,
+  ServoMap,
+  Esc,
+  Quadrature,
+  QuadratureScale,
 } = require("pamoja");
 
 const VECTORS = JSON.parse(
@@ -3604,6 +3627,143 @@ function zenohVectors() {
   }
 }
 
+// Unit conversions, tilt, the dew point, and a complementary filter that skips a reading
+// it cannot use.
+function kitExtraVectors() {
+  const vector = VECTORS.kitExtras;
+  const closeAll = (got, want, what) => {
+    assert.strictEqual(got.length, want.length, `${what}: length`);
+    got.forEach((value, index) => close(value, want[index], `${what}[${index}]`));
+  };
+  const units = vector.units;
+  closeAll(units.celsius.map(celsiusToFahrenheit), units.fahrenheit, "fahrenheit");
+  closeAll(units.celsius.map(celsiusToKelvin), units.kelvin, "kelvin");
+  closeAll(units.pascals.map(pascalsToHectopascals), units.hectopascals, "hectopascals");
+  closeAll(units.pascals.map(pascalsToPsi), units.psi, "psi");
+  for (const want of vector.tilts) {
+    const got = tiltFromAccel(...want.accel);
+    close(got.roll, want.roll, "roll");
+    close(got.pitch, want.pitch, "pitch");
+  }
+  for (const want of vector.dewPoints) {
+    close(dewPoint(want.celsius, want.humidity), want.dewPoint, "dew point");
+  }
+  const c = vector.complementary;
+  const filter = new Complementary(c.alpha, c.initial);
+  const estimates = c.steps.map((step) =>
+    filter.update(step.rate === null ? NaN : step.rate, step.absolute, step.dt),
+  );
+  closeAll(estimates, c.estimates, "complementary");
+}
+
+// Chassis kinematics, an arm, odometry, waypoint guidance, the safety gate, and the servo,
+// ESC, and encoder conversions.
+function motionVectors() {
+  const vector = VECTORS.motion;
+  const closeAll = (got, want, what) => {
+    assert.strictEqual(got.length, want.length, `${what}: length`);
+    got.forEach((value, index) => close(value, want[index], `${what}[${index}]`));
+  };
+
+  const drive = new DiffDrive(vector.diffDrive.track);
+  for (const want of vector.diffDrive.commands) {
+    const got = drive.wheelSpeeds(want.linear, want.angular);
+    closeAll([got.left, got.right], [want.left, want.right], "differential wheels");
+  }
+
+  const car = new Ackermann(vector.ackermann.wheelbase);
+  for (const want of vector.ackermann.steering) {
+    const radius = car.turnRadius(want.steering);
+    if (want.turnRadius === null) {
+      assert.strictEqual(radius, Infinity, "wheels straight never turn");
+    } else {
+      close(radius, want.turnRadius, "turn radius");
+    }
+    close(car.yawRate(vector.ackermann.linear, want.steering), want.yawRate, "yaw rate");
+    close(car.curvature(want.steering), want.curvature, "curvature");
+  }
+
+  const skid = vector.skidSteer;
+  const sides = new SkidSteer(skid.track, skid.slip).wheelSpeeds(skid.linear, skid.angular);
+  closeAll([sides.left, sides.right], [skid.left, skid.right], "skid steer");
+
+  const base = new Mecanum(vector.mecanum.wheelbase, vector.mecanum.track);
+  for (const want of vector.mecanum.twists) {
+    const [vx, vy, omega] = want.twist;
+    const w = base.wheelSpeeds({ vx, vy, omega });
+    closeAll([w.frontLeft, w.frontRight, w.rearLeft, w.rearRight], want.wheels, "mecanum wheels");
+  }
+
+  const arm = new TwoLinkArm(vector.arm.l1, vector.arm.l2);
+  for (const want of vector.arm.targets) {
+    const [x, y] = want.target;
+    for (const [elbow, key] of [[Elbow.Up, "up"], [Elbow.Down, "down"]]) {
+      const got = arm.jointsFor(x, y, elbow);
+      if (want[key] === null) {
+        assert.strictEqual(got, null, `no ${key} solution for ${want.target}`);
+      } else {
+        closeAll([got.shoulder, got.elbow], want[key], `arm ${key}`);
+      }
+    }
+  }
+
+  const chain = vector.forwardKinematics.joints.map(([a, alpha, d, theta]) => ({ a, alpha, d, theta }));
+  closeAll(forwardKinematics(chain).elements, vector.forwardKinematics.transform, "forward kinematics");
+
+  const odometry = new Odometry();
+  vector.odometry.steps.forEach(([linear, angular, dt], index) => {
+    const pose = odometry.integrate(linear, angular, dt);
+    closeAll([pose.x, pose.y, pose.theta], vector.odometry.poses[index], "odometry pose");
+  });
+
+  const w = vector.waypoint;
+  const follower = new WaypointFollower(w.cruise, w.arrivalM, w.headingGain, w.maxAngular);
+  const here = { latitude: w.here[0], longitude: w.here[1] };
+  for (const want of w.guidance) {
+    const target = { latitude: want.target[0], longitude: want.target[1] };
+    const got = follower.guide(here, want.heading, target);
+    closeAll([got.twist.vx, got.twist.vy, got.twist.omega], want.twist, "guidance twist");
+    close(got.distanceM, want.distanceM, "guidance distance");
+    close(got.headingErrorDeg, want.headingErrorDeg, "guidance heading error");
+    assert.strictEqual(got.arrived, want.arrived, "arrival");
+  }
+
+  const stop = vector.obstacleStop;
+  const [svx, svy, somega] = stop.twist;
+  const moving = { vx: svx, vy: svy, omega: somega };
+  const clear = obstacleStop(moving, stop.clear, stop.stopDistance);
+  closeAll([clear.vx, clear.vy, clear.omega], stop.clearTwist, "clear ahead");
+  const near = obstacleStop(moving, stop.near, stop.stopDistance);
+  closeAll([near.vx, near.vy, near.omega], stop.nearTwist, "obstacle ahead");
+
+  const g = vector.safetyGate;
+  const gate = new SafetyGate(new Limits(...g.limits), g.watchdogTimeout);
+  gate.feed();
+  const [dvx, dvy, domega] = g.desired;
+  for (const want of g.commands) {
+    const got = gate.command({ vx: dvx, vy: dvy, omega: domega }, g.dt);
+    closeAll([got.vx, got.vy, got.omega], want, "gate command");
+  }
+  const silent = gate.command({ vx: dvx, vy: dvy, omega: domega }, g.dt);
+  closeAll([silent.vx, silent.vy, silent.omega], g.afterSilence, "gate after silence");
+
+  const servo = ServoMap.standard();
+  closeAll(vector.servo.angles.map((angle) => servo.pulse(angle)), vector.servo.pulses, "servo pulses");
+  close(servo.angle(vector.servo.pulseBack), vector.servo.angleBack, "servo angle");
+  const esc = Esc.bidirectional();
+  closeAll(vector.esc.throttles.map((throttle) => esc.pulse(throttle)), vector.esc.pulses, "esc pulses");
+
+  const q = vector.quadrature;
+  const encoder = new Quadrature();
+  closeAll(q.edges.map(([a, b]) => encoder.update(a, b)), q.deltas, "quadrature deltas");
+  assert.strictEqual(encoder.count, q.count, "quadrature count");
+  const scale = new QuadratureScale(q.countsPerRev, q.wheelRadius);
+  close(scale.distance(encoder.count), q.distance, "encoder distance");
+  close(scale.velocity(90, 0.5), q.velocity, "encoder velocity");
+}
+
+kitExtraVectors();
+motionVectors();
 auditVectors();
 sessionVectors();
 updateVectors();

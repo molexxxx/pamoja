@@ -44,4 +44,40 @@ public static class Kit
     public static double BearingBetween(Coordinate origin, Coordinate destination) =>
         NativeMethods.pamoja_coordinate_bearing_to(
             Geofence.ToNative(origin), Geofence.ToNative(destination));
+
+    /// <summary>Computes roll and pitch from a three-axis accelerometer at rest.</summary>
+    /// <param name="ax">Acceleration along the forward axis, in any unit.</param>
+    /// <param name="ay">Acceleration along the right axis, in the same unit.</param>
+    /// <param name="az">Acceleration along the up axis, in the same unit.</param>
+    /// <returns>The tilt in degrees; only the ratios between axes set it.</returns>
+    public static Tilt TiltFromAccel(double ax, double ay, double az)
+    {
+        PamojaTilt tilt = NativeMethods.pamoja_imu_tilt_from_accel(ax, ay, az);
+        return new Tilt(tilt.Roll, tilt.Pitch);
+    }
+
+    /// <summary>Computes the dew point from the air temperature and relative humidity.</summary>
+    /// <param name="celsius">The air temperature, in degrees Celsius.</param>
+    /// <param name="humidityPercent">The relative humidity, in percent.</param>
+    /// <returns>The dew point, in degrees Celsius.</returns>
+    public static double DewPoint(double celsius, double humidityPercent) =>
+        NativeMethods.pamoja_weather_dew_point(celsius, humidityPercent);
+
+    /// <summary>Returns the transform from a serial arm's base to its tool.</summary>
+    /// <param name="joints">The arm's joints, base first.</param>
+    /// <returns>The composed transform, or the identity for an arm with no joints.</returns>
+    public static Transform ForwardKinematics(params DhParameters[] joints)
+    {
+        ArgumentNullException.ThrowIfNull(joints);
+        PamojaDhParameters[] native = Array.ConvertAll(joints, joint => joint.ToNative());
+        return new Transform(NativeMethods.pamoja_forward_kinematics(native, (nuint)native.Length));
+    }
+
+    /// <summary>Cuts forward and sideways motion when an obstacle is within the stopping distance, keeping the turn.</summary>
+    /// <param name="twist">The requested motion.</param>
+    /// <param name="rangeM">The nearest range ahead, in meters; one that is not a number counts as an obstacle.</param>
+    /// <param name="stopDistanceM">The range at or below which motion is cut; its magnitude is used.</param>
+    /// <returns><paramref name="twist"/> while the way is clear, or it with no forward or sideways speed.</returns>
+    public static Twist ObstacleStop(Twist twist, float rangeM, float stopDistanceM) =>
+        Twist.From(NativeMethods.pamoja_obstacle_stop(twist.ToNative(), rangeM, stopDistanceM));
 }

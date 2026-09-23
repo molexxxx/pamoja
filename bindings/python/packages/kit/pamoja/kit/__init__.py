@@ -2,17 +2,21 @@
 
 The helpers are named for the goal rather than the technique, with the real
 algorithm one layer down: smooth a noisy reading, hold a value with a PID, warn
-before a tank runs dry, and notice when a tracked point leaves its area.
+before a tank runs dry, notice when a tracked point leaves its area, and drive a
+robot: chassis kinematics, an arm, odometry, waypoint guidance, and the safety
+gate every motion command passes through.
 
 They are synchronous and allocation-free in the core, so this module re-exports
 most of the generated classes rather than wrapping them. What it adds is a
 :class:`Coordinate` for the geo helpers, so a fix travels as one value instead of
-a pair of loose floats, and the :class:`Boundary` and :class:`Edge` enums for the
-crossing states a :class:`Geofence` and a :class:`Trigger` report.
+a pair of loose floats, and the :class:`Boundary`, :class:`Edge`, and
+:class:`Elbow` enums for the crossing states a :class:`Geofence` and a
+:class:`Trigger` report and the branch a :class:`TwoLinkArm` solves for.
 
 A reading that is not a finite number, such as the NaN a failed sensor reports,
 is ignored by every helper that keeps state, so one bad reading cannot poison an
-average or an integral. :class:`Anomaly` flags such a reading instead.
+average or an integral. :class:`Anomaly` flags such a reading instead, and the
+motion helpers stop or hold rather than move on one.
 """
 
 from __future__ import annotations
@@ -23,6 +27,46 @@ from typing import NamedTuple
 from pamoja._native import Anomaly, Median, Trend, Window
 from pamoja._native import window_capacity as _window_capacity
 from pamoja._native import Calibration, Debounce, Depletion, Kalman, Pid, Ramp, Smoother, Surge, Thermostat
+from pamoja._native import Complementary, Tilt, dew_point, tilt_from_accel
+from pamoja._native import (
+    celsius_to_fahrenheit,
+    celsius_to_kelvin,
+    fahrenheit_to_celsius,
+    hectopascals_to_pascals,
+    kelvin_to_celsius,
+    kilopascals_to_pascals,
+    pascals_to_hectopascals,
+    pascals_to_kilopascals,
+    pascals_to_psi,
+    percent_to_ratio,
+    psi_to_pascals,
+    ratio_to_percent,
+)
+from pamoja._native import (
+    Ackermann,
+    DhParameters,
+    DiffDrive,
+    EStop,
+    Esc,
+    Guidance,
+    Limits,
+    Mecanum,
+    Odometry,
+    Pose,
+    Quadrature,
+    QuadratureScale,
+    SafetyGate,
+    ServoMap,
+    SkidSteer,
+    Transform,
+    Twist,
+    TwoLinkArm,
+    Watchdog,
+    WaypointFollower,
+    WheelSpeeds,
+    forward_kinematics,
+    obstacle_stop,
+)
 from pamoja._native import Geofence as _NativeGeofence
 from pamoja._native import Trigger as _NativeTrigger
 from pamoja._native import bearing_between as _bearing_between
@@ -40,6 +84,7 @@ __all__ = [
     "Anomaly",
     "Boundary",
     "Calibration",
+    "Complementary",
     "Coordinate",
     "Debounce",
     "Depletion",
@@ -50,12 +95,60 @@ __all__ = [
     "Smoother",
     "Surge",
     "Thermostat",
+    "Tilt",
     "Trigger",
     "Edge",
     "bearing_between",
     "deadband",
+    "dew_point",
     "distance_between",
+    "tilt_from_accel",
+    "celsius_to_fahrenheit",
+    "celsius_to_kelvin",
+    "fahrenheit_to_celsius",
+    "hectopascals_to_pascals",
+    "kelvin_to_celsius",
+    "kilopascals_to_pascals",
+    "pascals_to_hectopascals",
+    "pascals_to_kilopascals",
+    "pascals_to_psi",
+    "percent_to_ratio",
+    "psi_to_pascals",
+    "ratio_to_percent",
+    "Ackermann",
+    "DhParameters",
+    "DiffDrive",
+    "EStop",
+    "Elbow",
+    "Esc",
+    "Guidance",
+    "Limits",
+    "Mecanum",
+    "Odometry",
+    "Pose",
+    "Quadrature",
+    "QuadratureScale",
+    "SafetyGate",
+    "ServoMap",
+    "SkidSteer",
+    "Transform",
+    "Twist",
+    "TwoLinkArm",
+    "Watchdog",
+    "WaypointFollower",
+    "WheelSpeeds",
+    "forward_kinematics",
+    "obstacle_stop",
 ]
+
+
+class Elbow(str, enum.Enum):
+    """Which way a :class:`TwoLinkArm`'s elbow bends; both reach the same point."""
+
+    #: The elbow angle is positive, counter-clockwise.
+    UP = "up"
+    #: The elbow angle is negative, clockwise.
+    DOWN = "down"
 
 
 class Edge(str, enum.Enum):

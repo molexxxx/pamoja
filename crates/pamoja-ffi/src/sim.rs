@@ -13,34 +13,10 @@
 use std::ptr;
 
 use pamoja_core::{Actuator, Sensor};
-use pamoja_kit::{Pose, Twist};
 use pamoja_sim::{RecordingActuator, Replay, SimRobot, SimSensor};
 
+use crate::motion::{PamojaPose, PamojaTwist};
 use crate::{runtime, set_last_error, PamojaStatus};
-
-/// Where a robot is and which way it faces.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PamojaPose {
-    /// Position along the world x axis, in meters.
-    pub x: f32,
-    /// Position along the world y axis, in meters.
-    pub y: f32,
-    /// Heading from the world x axis, in radians, positive counter-clockwise.
-    pub theta: f32,
-}
-
-/// How fast a robot is asked to move.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PamojaTwist {
-    /// Forward speed along the x axis.
-    pub vx: f32,
-    /// Leftward speed along the y axis; zero for drives that cannot strafe.
-    pub vy: f32,
-    /// Yaw rate about the z axis, positive counter-clockwise.
-    pub omega: f32,
-}
 
 /// An opaque handle to a sensor that invents plausible readings.
 pub struct PamojaSimSensor {
@@ -358,7 +334,7 @@ pub unsafe extern "C" fn pamoja_recording_actuator_free(actuator: *mut PamojaRec
 #[no_mangle]
 pub extern "C" fn pamoja_sim_robot_new(start: PamojaPose, dt: f32) -> *mut PamojaSimRobot {
     Box::into_raw(Box::new(PamojaSimRobot {
-        inner: SimRobot::starting_at(Pose::new(start.x, start.y, start.theta), dt),
+        inner: SimRobot::starting_at(start.into(), dt),
     }))
 }
 
@@ -385,8 +361,7 @@ pub unsafe extern "C" fn pamoja_sim_robot_apply(
         set_last_error("robot must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    let twist = Twist::new(command.vx, command.vy, command.omega);
-    match runtime().block_on((*robot).inner.apply(twist)) {
+    match runtime().block_on((*robot).inner.apply(command.into())) {
         Ok(()) => PamojaStatus::Ok,
         Err(error) => fail(error),
     }
@@ -414,12 +389,7 @@ pub unsafe extern "C" fn pamoja_sim_robot_pose(robot: *const PamojaSimRobot) -> 
             theta: 0.0,
         };
     }
-    let pose = (*robot).inner.pose();
-    PamojaPose {
-        x: pose.x,
-        y: pose.y,
-        theta: pose.theta,
-    }
+    (*robot).inner.pose().into()
 }
 
 /// Releases a simulated robot handle.

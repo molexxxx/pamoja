@@ -167,6 +167,10 @@ name = "kit"
 path = "guides/kit.rs"
 
 [[example]]
+name = "motion"
+path = "guides/motion.rs"
+
+[[example]]
 name = "ladder"
 path = "guides/ladder.rs"
 

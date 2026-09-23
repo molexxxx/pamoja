@@ -83,8 +83,8 @@ each under its own name:
 <div class="pkg-get"><code class="cmd">npm install @pamoja/profiles</code><button class="copy" type="button" data-copy="npm install @pamoja/profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
 </details><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node.html#profiles-and-robotics">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/profiles">npm</a></div></div>
 </div>
 </div>
@@ -167,7 +167,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="node-kit">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">@pamoja/kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/kit.html">Helpers</a><code class="pkg-import">@pamoja/kit</code><p>Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, unit conversions, geo, and robot motion</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/kit</code><button class="copy" type="button" data-copy="npm install @pamoja/kit" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
@@ -488,6 +488,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/kit">npm</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-kit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Kit">C#</a></p>
+</div>
+</div>
+<div class="pkg" id="node-motion">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a><code class="pkg-import">@pamoja/kit</code><p>Wheel speeds for differential, skid-steer, car-like, and mecanum chassis, a two-link arm and Denavit-Hartenberg forward kinematics, odometry, waypoint guidance, a safety gate, and servo, ESC, and encoder conversions</p></div>
+<div class="pkg-get"><code class="cmd">npm install @pamoja/kit</code><button class="copy" type="button" data-copy="npm install @pamoja/kit" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/motion.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/motion.html#typescript">Worked example</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/kit">npm</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-motion" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-motion" title="pamoja-kit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-motion" title="Pamoja.Kit">C#</a></p>
 </div>
 </div>
 <div class="pkg" id="node-ros2">

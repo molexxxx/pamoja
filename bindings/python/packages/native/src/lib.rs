@@ -70,6 +70,8 @@ mod mavlink_schema;
 mod mesh;
 #[cfg(feature = "modbus")]
 mod modbus;
+#[cfg(feature = "kit")]
+mod motion;
 #[cfg(feature = "mqtt")]
 mod mqtt;
 #[cfg(feature = "hal")]
@@ -167,6 +169,45 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<kit::Trend>()?;
         m.add_class::<kit::Anomaly>()?;
         m.add_function(wrap_pyfunction!(kit::window_capacity, m)?)?;
+        m.add_class::<kit::Complementary>()?;
+        m.add_class::<kit::Tilt>()?;
+        m.add_function(wrap_pyfunction!(kit::tilt_from_accel, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::dew_point, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::celsius_to_fahrenheit, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::fahrenheit_to_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::celsius_to_kelvin, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::kelvin_to_celsius, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::pascals_to_hectopascals, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::hectopascals_to_pascals, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::pascals_to_kilopascals, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::kilopascals_to_pascals, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::pascals_to_psi, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::psi_to_pascals, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::ratio_to_percent, m)?)?;
+        m.add_function(wrap_pyfunction!(kit::percent_to_ratio, m)?)?;
+        m.add_class::<motion::Pose>()?;
+        m.add_class::<motion::Twist>()?;
+        m.add_class::<motion::DiffDrive>()?;
+        m.add_class::<motion::Ackermann>()?;
+        m.add_class::<motion::SkidSteer>()?;
+        m.add_class::<motion::WheelSpeeds>()?;
+        m.add_class::<motion::Mecanum>()?;
+        m.add_class::<motion::TwoLinkArm>()?;
+        m.add_class::<motion::DhParameters>()?;
+        m.add_class::<motion::Transform>()?;
+        m.add_function(wrap_pyfunction!(motion::forward_kinematics, m)?)?;
+        m.add_class::<motion::Odometry>()?;
+        m.add_class::<motion::Guidance>()?;
+        m.add_class::<motion::WaypointFollower>()?;
+        m.add_function(wrap_pyfunction!(motion::obstacle_stop, m)?)?;
+        m.add_class::<motion::EStop>()?;
+        m.add_class::<motion::Watchdog>()?;
+        m.add_class::<motion::Limits>()?;
+        m.add_class::<motion::SafetyGate>()?;
+        m.add_class::<motion::ServoMap>()?;
+        m.add_class::<motion::Esc>()?;
+        m.add_class::<motion::Quadrature>()?;
+        m.add_class::<motion::QuadratureScale>()?;
     }
     #[cfg(feature = "serial")]
     {
@@ -859,7 +900,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<sim::Replay>()?;
         m.add_class::<sim::RecordingActuatorHandle>()?;
         m.add_class::<sim::SimulatedRobot>()?;
-        m.add_class::<sim::Pose>()?;
     }
     #[cfg(feature = "mqtt")]
     {

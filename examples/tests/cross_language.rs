@@ -21,8 +21,11 @@ use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Edge as TriggerEdge, Geofence,
-    Median, Pid, Smoother, Thermostat, Trend, Trigger, Window,
+    deadband, forward_kinematics, imu, obstacle_stop, units, weather, Ackermann, Anomaly, Boundary,
+    Calibration, Complementary, Coordinate, Depletion, DhParameters, DiffDrive,
+    Edge as TriggerEdge, Elbow, Esc, Geofence, Limits, Mecanum, Median, Odometry, Pid, Quadrature,
+    QuadratureScale, SafetyGate, ServoMap, SkidSteer, Smoother, Thermostat, Trend, Trigger, Twist,
+    TwoLinkArm, WaypointFollower, Window,
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
@@ -280,6 +283,321 @@ fn helper_vectors_match() {
     {
         assert!((deadband(*value, center, width) - want).abs() <= tolerance);
     }
+}
+
+/// Asserts two floats agree within the vectors' tolerance.
+fn close(got: f64, want: f64, what: &str) {
+    assert!((got - want).abs() <= 1e-6, "{what}: got {got}, want {want}");
+}
+
+/// Asserts a list of floats agrees with an array in the vectors.
+fn close_all(got: &[f32], want: &Value, what: &str) {
+    let want = floats(want);
+    assert_eq!(got.len(), want.len(), "{what}: length");
+    for (index, (got, want)) in got.iter().zip(&want).enumerate() {
+        close(
+            f64::from(*got),
+            f64::from(*want),
+            &format!("{what}[{index}]"),
+        );
+    }
+}
+
+#[test]
+fn kit_extra_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["kitExtras"];
+
+    let units_case = &case["units"];
+    let celsius = floats(&units_case["celsius"]);
+    let fahrenheit: Vec<f32> = celsius
+        .iter()
+        .map(|&c| units::celsius_to_fahrenheit(c))
+        .collect();
+    close_all(&fahrenheit, &units_case["fahrenheit"], "fahrenheit");
+    let kelvin: Vec<f32> = celsius
+        .iter()
+        .map(|&c| units::celsius_to_kelvin(c))
+        .collect();
+    close_all(&kelvin, &units_case["kelvin"], "kelvin");
+    let pascals = floats(&units_case["pascals"]);
+    let hectopascals: Vec<f32> = pascals
+        .iter()
+        .map(|&p| units::pascals_to_hectopascals(p))
+        .collect();
+    close_all(&hectopascals, &units_case["hectopascals"], "hectopascals");
+    let psi: Vec<f32> = pascals.iter().map(|&p| units::pascals_to_psi(p)).collect();
+    close_all(&psi, &units_case["psi"], "psi");
+
+    for tilt in case["tilts"].as_array().expect("tilts") {
+        let accel = tilt["accel"].as_array().expect("an accel reading");
+        let axis = |index: usize| accel[index].as_f64().expect("a number");
+        let got = imu::tilt_from_accel(axis(0), axis(1), axis(2));
+        close(got.roll, tilt["roll"].as_f64().expect("a roll"), "roll");
+        close(got.pitch, tilt["pitch"].as_f64().expect("a pitch"), "pitch");
+    }
+
+    for air in case["dewPoints"].as_array().expect("dew points") {
+        let got = weather::dew_point(
+            air["celsius"].as_f64().expect("a temperature"),
+            air["humidity"].as_f64().expect("a humidity"),
+        );
+        close(
+            got,
+            air["dewPoint"].as_f64().expect("a dew point"),
+            "dew point",
+        );
+    }
+
+    let complementary = &case["complementary"];
+    let mut filter = Complementary::new(
+        float(&complementary["alpha"]),
+        float(&complementary["initial"]),
+    );
+    let estimates: Vec<f32> = complementary["steps"]
+        .as_array()
+        .expect("steps")
+        .iter()
+        .map(|step| {
+            let rate = step["rate"].as_f64().map_or(f32::NAN, |rate| rate as f32);
+            filter.update(rate, float(&step["absolute"]), float(&step["dt"]))
+        })
+        .collect();
+    close_all(&estimates, &complementary["estimates"], "complementary");
+}
+
+#[test]
+fn motion_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["motion"];
+
+    let drive = DiffDrive::new(float(&case["diffDrive"]["track"]));
+    for command in case["diffDrive"]["commands"].as_array().expect("commands") {
+        let (left, right) =
+            drive.wheel_speeds(float(&command["linear"]), float(&command["angular"]));
+        close(
+            f64::from(left),
+            command["left"].as_f64().expect("a speed"),
+            "left wheel",
+        );
+        close(
+            f64::from(right),
+            command["right"].as_f64().expect("a speed"),
+            "right wheel",
+        );
+    }
+
+    let car = Ackermann::new(float(&case["ackermann"]["wheelbase"]));
+    let linear = float(&case["ackermann"]["linear"]);
+    for steering in case["ackermann"]["steering"].as_array().expect("steering") {
+        let angle = float(&steering["steering"]);
+        match steering["turnRadius"].as_f64() {
+            Some(radius) => close(f64::from(car.turn_radius(angle)), radius, "turn radius"),
+            None => assert!(car.turn_radius(angle).is_infinite(), "straight is no turn"),
+        }
+        close(
+            f64::from(car.yaw_rate(linear, angle)),
+            steering["yawRate"].as_f64().expect("a yaw rate"),
+            "yaw rate",
+        );
+        close(
+            f64::from(car.curvature(angle)),
+            steering["curvature"].as_f64().expect("a curvature"),
+            "curvature",
+        );
+    }
+
+    let skid = &case["skidSteer"];
+    let (left, right) = SkidSteer::new(float(&skid["track"]), float(&skid["slip"]))
+        .wheel_speeds(float(&skid["linear"]), float(&skid["angular"]));
+    close_all(
+        &[left, right],
+        &Value::from(vec![skid["left"].clone(), skid["right"].clone()]),
+        "skid steer",
+    );
+
+    let base = Mecanum::new(
+        float(&case["mecanum"]["wheelbase"]),
+        float(&case["mecanum"]["track"]),
+    );
+    for twist in case["mecanum"]["twists"].as_array().expect("twists") {
+        let parts = floats(&twist["twist"]);
+        let wheels = base.wheel_speeds(Twist::new(parts[0], parts[1], parts[2]));
+        close_all(
+            &[
+                wheels.front_left,
+                wheels.front_right,
+                wheels.rear_left,
+                wheels.rear_right,
+            ],
+            &twist["wheels"],
+            "mecanum wheels",
+        );
+    }
+
+    let arm = TwoLinkArm::new(float(&case["arm"]["l1"]), float(&case["arm"]["l2"]));
+    for target in case["arm"]["targets"].as_array().expect("targets") {
+        let point = floats(&target["target"]);
+        for (elbow, key) in [(Elbow::Up, "up"), (Elbow::Down, "down")] {
+            match (
+                arm.joints_for(point[0], point[1], elbow),
+                target[key].is_null(),
+            ) {
+                (Some((shoulder, bend)), false) => {
+                    close_all(&[shoulder, bend], &target[key], "arm joints");
+                }
+                (None, true) => {}
+                (got, _) => panic!("arm {key} for {point:?}: got {got:?}"),
+            }
+        }
+    }
+
+    let chain: Vec<DhParameters> = case["forwardKinematics"]["joints"]
+        .as_array()
+        .expect("joints")
+        .iter()
+        .map(|joint| {
+            let parts = floats(joint);
+            DhParameters {
+                a: parts[0],
+                alpha: parts[1],
+                d: parts[2],
+                theta: parts[3],
+            }
+        })
+        .collect();
+    close_all(
+        &forward_kinematics(&chain).m,
+        &case["forwardKinematics"]["transform"],
+        "forward kinematics",
+    );
+
+    let mut odometry = Odometry::at_origin();
+    let steps = case["odometry"]["steps"].as_array().expect("steps");
+    let poses = case["odometry"]["poses"].as_array().expect("poses");
+    for (step, want) in steps.iter().zip(poses) {
+        let parts = floats(step);
+        let pose = odometry.integrate(parts[0], parts[1], parts[2]);
+        close_all(&[pose.x, pose.y, pose.theta], want, "odometry pose");
+    }
+
+    let waypoint = &case["waypoint"];
+    let follower = WaypointFollower::new(
+        float(&waypoint["cruise"]),
+        waypoint["arrivalM"].as_f64().expect("an arrival radius"),
+        float(&waypoint["headingGain"]),
+        float(&waypoint["maxAngular"]),
+    );
+    let here_parts = waypoint["here"].as_array().expect("a position");
+    let here = Coordinate::new(
+        here_parts[0].as_f64().expect("a latitude"),
+        here_parts[1].as_f64().expect("a longitude"),
+    );
+    for want in waypoint["guidance"].as_array().expect("guidance") {
+        let target_parts = want["target"].as_array().expect("a target");
+        let target = Coordinate::new(
+            target_parts[0].as_f64().expect("a latitude"),
+            target_parts[1].as_f64().expect("a longitude"),
+        );
+        let got = follower.guide(here, float(&want["heading"]), target);
+        close_all(
+            &[got.twist.vx, got.twist.vy, got.twist.omega],
+            &want["twist"],
+            "guidance twist",
+        );
+        close(
+            got.distance_m,
+            want["distanceM"].as_f64().expect("a distance"),
+            "guidance distance",
+        );
+        close(
+            f64::from(got.heading_error_deg),
+            want["headingErrorDeg"].as_f64().expect("a heading error"),
+            "guidance heading error",
+        );
+        assert_eq!(got.arrived, want["arrived"].as_bool().expect("a flag"));
+    }
+
+    let stop = &case["obstacleStop"];
+    let parts = floats(&stop["twist"]);
+    let twist = Twist::new(parts[0], parts[1], parts[2]);
+    for (range, key) in [("clear", "clearTwist"), ("near", "nearTwist")] {
+        let got = obstacle_stop(twist, float(&stop[range]), float(&stop["stopDistance"]));
+        close_all(&[got.vx, got.vy, got.omega], &stop[key], "obstacle stop");
+    }
+
+    let gate_case = &case["safetyGate"];
+    let limits = floats(&gate_case["limits"]);
+    let mut gate = SafetyGate::new(
+        Limits::new(limits[0], limits[1], limits[2], limits[3]),
+        float(&gate_case["watchdogTimeout"]),
+    );
+    gate.feed();
+    let parts = floats(&gate_case["desired"]);
+    let desired = Twist::new(parts[0], parts[1], parts[2]);
+    let dt = float(&gate_case["dt"]);
+    for want in gate_case["commands"].as_array().expect("commands") {
+        let got = gate.command(desired, dt);
+        close_all(&[got.vx, got.vy, got.omega], want, "gate command");
+    }
+    let silent = gate.command(desired, dt);
+    close_all(
+        &[silent.vx, silent.vy, silent.omega],
+        &gate_case["afterSilence"],
+        "gate after silence",
+    );
+
+    let servo = ServoMap::standard();
+    let pulses: Vec<f32> = floats(&case["servo"]["angles"])
+        .iter()
+        .map(|&angle| f32::from(servo.pulse(angle)))
+        .collect();
+    close_all(&pulses, &case["servo"]["pulses"], "servo pulses");
+    let back = case["servo"]["pulseBack"].as_u64().expect("a pulse") as u16;
+    close(
+        f64::from(servo.angle(back)),
+        case["servo"]["angleBack"].as_f64().expect("an angle"),
+        "servo angle",
+    );
+
+    let esc = Esc::bidirectional();
+    let esc_pulses: Vec<f32> = floats(&case["esc"]["throttles"])
+        .iter()
+        .map(|&throttle| f32::from(esc.pulse(throttle)))
+        .collect();
+    close_all(&esc_pulses, &case["esc"]["pulses"], "esc pulses");
+
+    let quadrature = &case["quadrature"];
+    let mut encoder = Quadrature::new();
+    let deltas: Vec<f32> = quadrature["edges"]
+        .as_array()
+        .expect("edges")
+        .iter()
+        .map(|edge| {
+            let levels = edge.as_array().expect("a pair of levels");
+            let level = |index: usize| levels[index].as_bool().expect("a level");
+            f32::from(encoder.update(level(0), level(1)))
+        })
+        .collect();
+    close_all(&deltas, &quadrature["deltas"], "quadrature deltas");
+    assert_eq!(
+        encoder.count(),
+        quadrature["count"].as_i64().expect("a count")
+    );
+    let scale = QuadratureScale::new(
+        float(&quadrature["countsPerRev"]),
+        float(&quadrature["wheelRadius"]),
+    );
+    close(
+        f64::from(scale.distance(encoder.count())),
+        quadrature["distance"].as_f64().expect("a distance"),
+        "encoder distance",
+    );
+    close(
+        f64::from(scale.velocity(90, 0.5)),
+        quadrature["velocity"].as_f64().expect("a velocity"),
+        "encoder velocity",
+    );
 }
 
 #[test]

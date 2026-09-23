@@ -28,11 +28,13 @@ fn magnitude_f64(value: f64) -> f64 {
 /// The steering command toward a waypoint, with the geometry behind it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Guidance {
-    /// The body twist to drive: a forward speed and a yaw rate toward the target.
+    /// The body twist to drive: a forward speed and a yaw rate toward the target, positive
+    /// turning left as [`Twist`] has it.
     pub twist: Twist,
     /// The remaining distance to the target, in meters.
     pub distance_m: f64,
-    /// The heading error to the target, in degrees, in `(-180, 180]`.
+    /// The heading error to the target, in degrees, in `(-180, 180]`: compass degrees, so
+    /// positive when the target lies clockwise of the heading, to the robot's right.
     pub heading_error_deg: f32,
     /// Whether the target is within the arrival radius.
     pub arrived: bool,
@@ -47,6 +49,9 @@ pub struct Guidance {
 /// a target behind it before driving off, rather than swinging wide. The caller holds the list of
 /// waypoints and advances to the next once [`Guidance::arrived`] is set, which keeps this
 /// allocation-free.
+///
+/// Headings are compass degrees, clockwise from north, while the [`Twist`] it returns turns left
+/// for a positive yaw rate, so a target to the robot's right gives a negative yaw rate.
 ///
 /// # Examples
 ///
@@ -123,7 +128,7 @@ impl WaypointFollower {
 
         let error_rad = heading_error_deg * (PI / 180.0);
         let angular = clamp(
-            self.heading_gain * error_rad,
+            -self.heading_gain * error_rad,
             -self.max_angular,
             self.max_angular,
         );
@@ -210,6 +215,36 @@ mod tests {
         let g = follower.guide(here, 270.0, target); // facing west: 180 deg error
         assert!(g.twist.vx.abs() < 1e-6); // cosine of 180 is negative -> no forward
         assert!(g.twist.omega.abs() > 0.0); // but it turns
+    }
+
+    #[test]
+    fn it_turns_toward_the_side_the_target_is_on() {
+        let follower = WaypointFollower::new(1.5, 3.0, 1.5, 1.0);
+        let here = Coordinate::new(0.0, 0.0);
+        let east = Coordinate::new(0.0, 0.01);
+        let north = Coordinate::new(0.01, 0.0);
+        // Facing north with the target east, it is to the right: turn clockwise.
+        assert!(follower.guide(here, 0.0, east).twist.omega < 0.0);
+        // Facing east with the target north, it is to the left: turn counter-clockwise.
+        assert!(follower.guide(here, 90.0, north).twist.omega > 0.0);
+    }
+
+    #[test]
+    fn a_robot_that_follows_the_guidance_comes_to_face_the_target() {
+        let follower = WaypointFollower::new(0.0, 3.0, 1.5, 1.0);
+        let here = Coordinate::new(0.0, 0.0);
+        let east = Coordinate::new(0.0, 0.01);
+        // Start facing north and turn as told: a counter-clockwise yaw rate lowers a
+        // compass heading.
+        let mut heading_deg = 0.0f32;
+        for _ in 0..200 {
+            let omega = follower.guide(here, heading_deg, east).twist.omega;
+            heading_deg -= omega * 0.05 * (180.0 / PI);
+        }
+        assert!(
+            (wrap_deg_180(heading_deg - 90.0)).abs() < 0.5,
+            "ended at {heading_deg}"
+        );
     }
 
     #[test]

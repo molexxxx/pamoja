@@ -697,6 +697,18 @@ anchor = "rule"
 # Robotics
 
 [[entry]]
+key = "rep-103"
+chapter = "profiles"
+designation = "REP-103"
+body = "ROS project"
+subject = "The units and axes a robot's motion is measured in"
+url = "https://ros.org/reps/rep-0103.html"
+evidence = "crates/pamoja-kit/src/odometry.rs"
+at = "fn a_quarter_circle_lands_at_the_arc_corner"
+anchor = "rule"
+note = "Every twist, pose, and chassis model uses its body frame: x forward, y left, and a positive yaw turning left."
+
+[[entry]]
 key = "ros2-names"
 chapter = "profiles"
 designation = "ROS 2 topic and service names"

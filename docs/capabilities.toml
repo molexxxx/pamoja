@@ -86,14 +86,14 @@ next = ["mqtt", "sync", "lorawan"]
 key = "kit"
 chapter = "helpers"
 title = "Helpers"
-summary = "Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo"
+summary = "Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, unit conversions, geo, and robot motion"
 crates = ["pamoja-kit"]
 node = "kit"
 python = "kit"
 dotnet = [
     "Kit", "Smoother", "Median", "Kalman", "Calibration", "Pid", "Ramp", "Thermostat",
     "Trigger", "Edge", "Debounce", "Boundary", "Coordinate", "Geofence", "Window",
-    "Trend", "Surge", "Depletion", "Anomaly",
+    "Trend", "Surge", "Depletion", "Anomaly", "Complementary", "Tilt", "Units",
 ]
 guide = "guides/kit.md"
 next = ["sensors", "rules", "telemetry"]
@@ -506,7 +506,7 @@ summary = "Noisy and replay sensors, a recording actuator, a simulated robot tha
 crates = ["pamoja-sim"]
 node = "sim"
 python = "sim"
-dotnet = ["SimulatedSensor", "Replay", "RecordingActuator", "SimulatedRobot", "Pose", "Twist"]
+dotnet = ["SimulatedSensor", "Replay", "RecordingActuator", "SimulatedRobot"]
 guide = "guides/sim.md"
 next = ["loopback", "device", "profile"]
 
@@ -536,6 +536,25 @@ python = "kit"
 dotnet = []
 guide = "guides/rules.md"
 next = ["profile", "bus", "kit"]
+
+[[capability]]
+key = "motion"
+chapter = "profiles"
+title = "Robot motion"
+summary = "Wheel speeds for differential, skid-steer, car-like, and mecanum chassis, a two-link arm and Denavit-Hartenberg forward kinematics, odometry, waypoint guidance, a safety gate, and servo, ESC, and encoder conversions"
+crates = []
+rust_items = ["DiffDrive", "Odometry", "WaypointFollower", "SafetyGate"]
+rust_crate = "pamoja-kit"
+node = "kit"
+python = "kit"
+dotnet = [
+    "Pose", "Twist", "DiffDrive", "Ackermann", "SkidSteer", "Mecanum", "WheelSpeeds",
+    "TwoLinkArm", "Elbow", "DhParameters", "Transform", "Odometry", "Guidance",
+    "WaypointFollower", "EStop", "Watchdog", "Limits", "SafetyGate", "ServoMap", "Esc",
+    "Quadrature", "QuadratureScale",
+]
+guide = "guides/motion.md"
+next = ["sim", "ros2", "actuators"]
 
 [[capability]]
 key = "ros2"

@@ -6,6 +6,7 @@ import math
 from pamoja.kit import (
     Anomaly,
     Calibration,
+    Complementary,
     Coordinate,
     Debounce,
     Depletion,
@@ -23,7 +24,10 @@ from pamoja.kit import (
     Window,
     bearing_between,
     deadband,
+    dew_point,
     distance_between,
+    fahrenheit_to_celsius,
+    tilt_from_accel,
 )
 
 # The tower's level transmitter reports on a 4-20 mA loop: 4 mA is empty and 20 mA is
@@ -69,6 +73,25 @@ slow, fast = expects_steady.estimate, expects_motion.estimate
 print(
     f"level     four readings into a rise to 60%, a Kalman filter expecting a steady level "
     f"reads {slow:.1f}%, one expecting motion {fast:.1f}%"
+)
+
+# An accelerometer on the tank watches the tower's lean. Standing still, only gravity pulls
+# on it, so the direction of the pull, in g, gives the tilt.
+at_rest = tilt_from_accel(0.0, 0.007, 1.0)
+print(f"tower     at rest the accelerometer reads a lean of {at_rest.roll:.2f} degrees")
+
+# In wind the tower sways, and the sway's own acceleration swings the accelerometer's tilt.
+# A gyro's rate of turn does not swing, but it drifts. A complementary filter trusts the gyro
+# from one tenth of a second to the next and the accelerometer over time.
+lean = Complementary(0.98, at_rest.roll)
+gusts = Window(5)
+for rate, tilt in ((0.4, 2.1), (-0.6, -1.3), (0.5, 1.8), (-0.3, -0.9), (0.1, 1.2)):
+    lean.update(rate, tilt, 0.1)
+    gusts.push(tilt)
+steady_lean = lean.estimate
+print(
+    f"tower     in wind the accelerometer swings from {gusts.min():.1f} to {gusts.max():.1f} "
+    f"degrees; fused with the gyro the lean reads {steady_lean:.1f}"
 )
 
 # The refill pump starts at 40% and stops at 60%: on/off control with a band either side
@@ -118,6 +141,16 @@ for bar in (1.0, 1.8, 2.5, 2.9, 3.02):
         f"booster   at {bar:.2f} bar the PID asks for {asked:.0f}%, "
         f"the pump is given {given:.0f}%"
     )
+
+# The booster's controller hangs in the pump house above the mains. The pump house
+# thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+air = fahrenheit_to_celsius(84.0)
+dew = dew_point(air, 78.0)
+sweats = "sweat" if 18.0 < dew else "stay dry"
+print(
+    f"pumphouse 84 F is {air:.1f} C, and at 78% humidity it dews at {dew:.1f} C, "
+    f"so the 18 C mains {sweats}"
+)
 
 # A power cut stops the borehole pump. From the hourly level, the countdown says how long
 # until the tower reaches its 20% reserve.
@@ -186,6 +219,9 @@ assert float_switch.state is True
 assert hours_left == 13
 assert abs(slope + 0.4457) < 1e-3
 assert slow < 56.0 and fast > 58.0
+assert abs(at_rest.roll - 0.401) < 1e-3
+assert abs(steady_lean - 0.426) < 1e-3
+assert 24.0 < dew < 25.0
 assert hydrant and failed
 assert flagged == 0
 assert crossings == ["inside", "inside", "exited", "outside", "entered"]

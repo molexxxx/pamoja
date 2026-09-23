@@ -1,21 +1,23 @@
 //! Generated Python bindings for the goal-named helper math.
 //!
-//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are
-//! Rust only. The helpers are synchronous pure math, so every method here returns its value
-//! directly; the ones that answer "maybe" return `None` rather than raising, because having
-//! no answer yet is an ordinary state and not a failure. A reading that is not a finite
-//! number is ignored by every helper that keeps state, as the Rust crate documents.
+//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are in
+//! the `motion` module. The helpers are synchronous pure math, so every method here returns
+//! its value directly; the ones that answer "maybe" return `None` rather than raising,
+//! because having no answer yet is an ordinary state and not a failure. A reading that is
+//! not a finite number is ignored by every helper that keeps state, as the Rust crate
+//! documents.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_kit::{
-    deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
-    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Edge,
-    Geofence as CoreGeofence, Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid,
-    Ramp as CoreRamp, Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat,
-    Trend as CoreTrend, Trigger as CoreTrigger, Window as CoreWindow,
+    deadband as core_deadband, imu, units, weather, Anomaly as CoreAnomaly, Boundary,
+    Calibration as CoreCalibration, Complementary as CoreComplementary, Coordinate,
+    Debounce as CoreDebounce, Depletion as CoreDepletion, Edge, Geofence as CoreGeofence,
+    Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid, Ramp as CoreRamp,
+    Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat, Trend as CoreTrend,
+    Trigger as CoreTrigger, Window as CoreWindow,
 };
 
 /// Names the boundary state a geofence reports, as a plain string.
@@ -464,6 +466,164 @@ pub fn bearing_between(
 #[pyfunction]
 pub fn deadband(value: f32, center: f32, width: f32) -> f32 {
     core_deadband(value, center, width)
+}
+
+/// Fuses a drifting rate, such as a gyroscope's, with a noisy absolute reading, such as an
+/// accelerometer's tilt, into one steady estimate.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Complementary {
+    inner: CoreComplementary,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Complementary {
+    /// Creates a filter. `alpha` is the weight on the integrated rate, held to 0 to 1: near
+    /// 1 trusts the rate and corrects slowly. One that is not a number is taken as 0.
+    #[new]
+    fn new(alpha: f32, initial: f32) -> Self {
+        Self {
+            inner: CoreComplementary::new(alpha, initial),
+        }
+    }
+
+    /// Fuses a rate and an absolute reading over `dt` and returns the estimate. If any of
+    /// the three is not a finite number, the update is ignored.
+    fn update(&mut self, rate: f32, absolute: f32, dt: f32) -> f32 {
+        self.inner.update(rate, absolute, dt)
+    }
+
+    /// The current estimate.
+    #[getter]
+    fn estimate(&self) -> f32 {
+        self.inner.estimate()
+    }
+}
+
+/// Roll and pitch, in degrees.
+#[gen_stub_pyclass]
+#[pyclass(frozen, eq, skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+pub struct Tilt {
+    /// Rotation about the forward axis, in degrees, from -180 to 180.
+    #[pyo3(get)]
+    roll: f64,
+    /// Rotation about the right axis, in degrees, from -90 to 90.
+    #[pyo3(get)]
+    pitch: f64,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Tilt {
+    fn __repr__(&self) -> String {
+        format!("Tilt(roll={:?}, pitch={:?})", self.roll, self.pitch)
+    }
+}
+
+/// Computes roll and pitch from a three-axis accelerometer at rest; the reading's unit
+/// does not matter, since only the ratios between axes set the angles.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn tilt_from_accel(ax: f64, ay: f64, az: f64) -> Tilt {
+    let tilt = imu::tilt_from_accel(ax, ay, az);
+    Tilt {
+        roll: tilt.roll,
+        pitch: tilt.pitch,
+    }
+}
+
+/// Computes the dew point, in degrees Celsius, from the air temperature in degrees
+/// Celsius and the relative humidity in percent.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn dew_point(celsius: f64, humidity_percent: f64) -> f64 {
+    weather::dew_point(celsius, humidity_percent)
+}
+
+/// Converts degrees Celsius to degrees Fahrenheit.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn celsius_to_fahrenheit(celsius: f32) -> f32 {
+    units::celsius_to_fahrenheit(celsius)
+}
+
+/// Converts degrees Fahrenheit to degrees Celsius.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn fahrenheit_to_celsius(fahrenheit: f32) -> f32 {
+    units::fahrenheit_to_celsius(fahrenheit)
+}
+
+/// Converts degrees Celsius to kelvin.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn celsius_to_kelvin(celsius: f32) -> f32 {
+    units::celsius_to_kelvin(celsius)
+}
+
+/// Converts kelvin to degrees Celsius.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn kelvin_to_celsius(kelvin: f32) -> f32 {
+    units::kelvin_to_celsius(kelvin)
+}
+
+/// Converts pascals to hectopascals.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn pascals_to_hectopascals(pascals: f32) -> f32 {
+    units::pascals_to_hectopascals(pascals)
+}
+
+/// Converts hectopascals to pascals.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn hectopascals_to_pascals(hectopascals: f32) -> f32 {
+    units::hectopascals_to_pascals(hectopascals)
+}
+
+/// Converts pascals to kilopascals.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn pascals_to_kilopascals(pascals: f32) -> f32 {
+    units::pascals_to_kilopascals(pascals)
+}
+
+/// Converts kilopascals to pascals.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn kilopascals_to_pascals(kilopascals: f32) -> f32 {
+    units::kilopascals_to_pascals(kilopascals)
+}
+
+/// Converts pascals to pounds per square inch.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn pascals_to_psi(pascals: f32) -> f32 {
+    units::pascals_to_psi(pascals)
+}
+
+/// Converts pounds per square inch to pascals.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn psi_to_pascals(psi: f32) -> f32 {
+    units::psi_to_pascals(psi)
+}
+
+/// Converts a ratio from 0 to 1 to a percentage.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ratio_to_percent(ratio: f32) -> f32 {
+    units::ratio_to_percent(ratio)
+}
+
+/// Converts a percentage to a ratio from 0 to 1.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn percent_to_ratio(percent: f32) -> f32 {
+    units::percent_to_ratio(percent)
 }
 
 /// The storage every windowed helper here is built with.

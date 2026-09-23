@@ -70,6 +70,163 @@ def test_codec_vectors_match():
         assert got == pytest.approx(want, abs=quantizer_vector["tolerance"])
 
 
+def close_all(got, want, what):
+    """Assert a list of numbers agrees with the vectors, element by element."""
+    assert len(got) == len(want), f"{what}: length"
+    for index, (value, expected) in enumerate(zip(got, want)):
+        assert value == pytest.approx(expected, abs=TOLERANCE), f"{what}[{index}]"
+
+
+def test_kit_extra_vectors_match():
+    import math
+
+    from pamoja.kit import (
+        Complementary,
+        celsius_to_fahrenheit,
+        celsius_to_kelvin,
+        dew_point,
+        pascals_to_hectopascals,
+        pascals_to_psi,
+        tilt_from_accel,
+    )
+
+    vector = VECTORS["kitExtras"]
+    units = vector["units"]
+    close_all([celsius_to_fahrenheit(c) for c in units["celsius"]], units["fahrenheit"], "fahrenheit")
+    close_all([celsius_to_kelvin(c) for c in units["celsius"]], units["kelvin"], "kelvin")
+    close_all([pascals_to_hectopascals(p) for p in units["pascals"]], units["hectopascals"], "hectopascals")
+    close_all([pascals_to_psi(p) for p in units["pascals"]], units["psi"], "psi")
+    for want in vector["tilts"]:
+        tilt = tilt_from_accel(*want["accel"])
+        assert tilt.roll == pytest.approx(want["roll"], abs=TOLERANCE)
+        assert tilt.pitch == pytest.approx(want["pitch"], abs=TOLERANCE)
+    for want in vector["dewPoints"]:
+        assert dew_point(want["celsius"], want["humidity"]) == pytest.approx(want["dewPoint"], abs=TOLERANCE)
+    complementary = vector["complementary"]
+    fused = Complementary(complementary["alpha"], complementary["initial"])
+    estimates = [
+        fused.update(math.nan if step["rate"] is None else step["rate"], step["absolute"], step["dt"])
+        for step in complementary["steps"]
+    ]
+    close_all(estimates, complementary["estimates"], "complementary")
+
+
+def test_motion_vectors_match():
+    from pamoja.kit import (
+        Ackermann,
+        Coordinate,
+        DhParameters,
+        DiffDrive,
+        Elbow,
+        Esc,
+        Limits,
+        Mecanum,
+        Odometry,
+        Quadrature,
+        QuadratureScale,
+        SafetyGate,
+        ServoMap,
+        SkidSteer,
+        Twist,
+        TwoLinkArm,
+        WaypointFollower,
+        forward_kinematics,
+        obstacle_stop,
+    )
+
+    vector = VECTORS["motion"]
+
+    drive = DiffDrive(vector["diffDrive"]["track"])
+    for want in vector["diffDrive"]["commands"]:
+        got = drive.wheel_speeds(want["linear"], want["angular"])
+        close_all(got, [want["left"], want["right"]], "differential wheels")
+
+    car = Ackermann(vector["ackermann"]["wheelbase"])
+    for want in vector["ackermann"]["steering"]:
+        radius = car.turn_radius(want["steering"])
+        if want["turnRadius"] is None:
+            assert radius == float("inf"), "wheels straight never turn"
+        else:
+            assert radius == pytest.approx(want["turnRadius"], abs=TOLERANCE)
+        assert car.yaw_rate(vector["ackermann"]["linear"], want["steering"]) == pytest.approx(
+            want["yawRate"], abs=TOLERANCE
+        )
+        assert car.curvature(want["steering"]) == pytest.approx(want["curvature"], abs=TOLERANCE)
+
+    skid = vector["skidSteer"]
+    sides = SkidSteer(skid["track"], skid["slip"]).wheel_speeds(skid["linear"], skid["angular"])
+    close_all(sides, [skid["left"], skid["right"]], "skid steer")
+
+    base = Mecanum(vector["mecanum"]["wheelbase"], vector["mecanum"]["track"])
+    for want in vector["mecanum"]["twists"]:
+        wheels = base.wheel_speeds(Twist(*want["twist"]))
+        close_all(
+            [wheels.front_left, wheels.front_right, wheels.rear_left, wheels.rear_right],
+            want["wheels"],
+            "mecanum wheels",
+        )
+
+    arm = TwoLinkArm(vector["arm"]["l1"], vector["arm"]["l2"])
+    for want in vector["arm"]["targets"]:
+        for elbow, key in ((Elbow.UP, "up"), (Elbow.DOWN, "down")):
+            got = arm.joints_for(*want["target"], elbow)
+            if want[key] is None:
+                assert got is None, f"no {key} solution for {want['target']}"
+            else:
+                close_all(got, want[key], f"arm {key}")
+
+    chain = [DhParameters(*joint) for joint in vector["forwardKinematics"]["joints"]]
+    close_all(forward_kinematics(chain).elements, vector["forwardKinematics"]["transform"], "forward kinematics")
+
+    odometry = Odometry()
+    for step, want in zip(vector["odometry"]["steps"], vector["odometry"]["poses"]):
+        pose = odometry.integrate(*step)
+        close_all([pose.x, pose.y, pose.theta], want, "odometry pose")
+
+    waypoint = vector["waypoint"]
+    follower = WaypointFollower(
+        waypoint["cruise"], waypoint["arrivalM"], waypoint["headingGain"], waypoint["maxAngular"]
+    )
+    here = Coordinate(*waypoint["here"])
+    for want in waypoint["guidance"]:
+        got = follower.guide(here, want["heading"], Coordinate(*want["target"]))
+        close_all([got.twist.vx, got.twist.vy, got.twist.omega], want["twist"], "guidance twist")
+        assert got.distance_m == pytest.approx(want["distanceM"], abs=TOLERANCE)
+        assert got.heading_error_deg == pytest.approx(want["headingErrorDeg"], abs=TOLERANCE)
+        assert got.arrived is want["arrived"]
+
+    stop = vector["obstacleStop"]
+    moving = Twist(*stop["twist"])
+    clear = obstacle_stop(moving, stop["clear"], stop["stopDistance"])
+    close_all([clear.vx, clear.vy, clear.omega], stop["clearTwist"], "clear ahead")
+    near = obstacle_stop(moving, stop["near"], stop["stopDistance"])
+    close_all([near.vx, near.vy, near.omega], stop["nearTwist"], "obstacle ahead")
+
+    gate_vector = vector["safetyGate"]
+    gate = SafetyGate(Limits(*gate_vector["limits"]), gate_vector["watchdogTimeout"])
+    gate.feed()
+    desired = Twist(*gate_vector["desired"])
+    for want in gate_vector["commands"]:
+        got = gate.command(desired, gate_vector["dt"])
+        close_all([got.vx, got.vy, got.omega], want, "gate command")
+    silent = gate.command(desired, gate_vector["dt"])
+    close_all([silent.vx, silent.vy, silent.omega], gate_vector["afterSilence"], "gate after silence")
+
+    servo = ServoMap.standard()
+    close_all([servo.pulse(angle) for angle in vector["servo"]["angles"]], vector["servo"]["pulses"], "servo")
+    assert servo.angle(vector["servo"]["pulseBack"]) == pytest.approx(vector["servo"]["angleBack"], abs=TOLERANCE)
+    esc = Esc.bidirectional()
+    close_all([esc.pulse(throttle) for throttle in vector["esc"]["throttles"]], vector["esc"]["pulses"], "esc")
+
+    q = vector["quadrature"]
+    encoder = Quadrature()
+    close_all([encoder.update(a, b) for a, b in q["edges"]], q["deltas"], "quadrature deltas")
+    assert encoder.count == q["count"]
+    scale = QuadratureScale(q["countsPerRev"], q["wheelRadius"])
+    assert scale.distance(encoder.count) == pytest.approx(q["distance"], abs=TOLERANCE)
+    assert scale.velocity(90, 0.5) == pytest.approx(q["velocity"], abs=TOLERANCE)
+
+
 def test_smoother_vectors_match():
     vector = VECTORS["smoother"]
     smoother = Smoother(vector["weight"])

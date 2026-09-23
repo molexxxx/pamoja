@@ -123,7 +123,9 @@ impl Odometry {
     ///
     /// # Arguments
     ///
-    /// * `measured` - the absolute heading in radians.
+    /// * `measured` - the absolute heading in the pose's own frame: radians counter-clockwise
+    ///   from the world x axis. A compass course, clockwise from north, is not in that frame;
+    ///   with the world x axis pointing east it converts as `FRAC_PI_2 - course`.
     /// * `weight` - how strongly to trust the measurement, clamped to `[0, 1]`; zero keeps the
     ///   dead-reckoned heading, one snaps to `measured`.
     ///

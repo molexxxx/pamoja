@@ -3,41 +3,111 @@
  *
  * The helpers are named for the goal rather than the technique, with the real
  * algorithm one layer down: smooth a noisy reading, hold a value with a PID, warn
- * before a tank runs dry, and notice when a tracked point leaves its area.
+ * before a tank runs dry, notice when a tracked point leaves its area, and drive
+ * a robot: chassis kinematics, an arm, odometry, waypoint guidance, and the
+ * safety gate every motion command passes through.
  *
  * They are synchronous and allocation-free in the core, so the facade re-exports
  * the generated classes rather than wrapping them; the additions are the runtime
- * {@link Boundary} and {@link Edge} objects, because the generated enums are
- * types-only. A reading that is not a finite number is ignored by every helper
- * that keeps state, and an {@link Anomaly} flags it.
+ * {@link Boundary}, {@link Edge}, and {@link Elbow} objects, because the generated
+ * enums are types-only. A reading that is not a finite number is ignored by every
+ * helper that keeps state, an {@link Anomaly} flags it, and the motion helpers
+ * stop or hold rather than move on it.
  *
  * @packageDocumentation
  */
 
-import type { BoundaryState as BoundaryName, Edge as EdgeName } from '@pamoja/native'
+import type {
+  BoundaryState as BoundaryName,
+  Edge as EdgeName,
+  Elbow as ElbowName,
+} from '@pamoja/native'
 
 export {
   Anomaly,
   bearingBetween,
   Calibration,
+  celsiusToFahrenheit,
+  celsiusToKelvin,
+  Complementary,
   type Coord,
   deadband,
   Debounce,
   Depletion,
+  dewPoint,
   distanceBetween,
+  fahrenheitToCelsius,
   Geofence,
+  hectopascalsToPascals,
   Kalman,
+  kelvinToCelsius,
+  kilopascalsToPascals,
   Median,
+  pascalsToHectopascals,
+  pascalsToKilopascals,
+  pascalsToPsi,
+  percentToRatio,
   Pid,
+  psiToPascals,
   Ramp,
+  ratioToPercent,
   Smoother,
   Surge,
   Thermostat,
+  type Tilt,
+  tiltFromAccel,
   Trend,
   Trigger,
   Window,
   WINDOW_CAPACITY,
 } from '@pamoja/native'
+
+export {
+  Ackermann,
+  type BodyMotion,
+  type DhParameters,
+  DiffDrive,
+  EStop,
+  Esc,
+  forwardKinematics,
+  type Guidance,
+  type Joints,
+  Limits,
+  Mecanum,
+  obstacleStop,
+  Odometry,
+  type Point,
+  type Pose,
+  type Position,
+  Quadrature,
+  QuadratureScale,
+  type Reach,
+  SafetyGate,
+  ServoMap,
+  type SideSpeeds,
+  SkidSteer,
+  Transform,
+  type Twist,
+  TwoLinkArm,
+  Watchdog,
+  WaypointFollower,
+  type WheelSpeeds,
+} from '@pamoja/native'
+
+/**
+ * Which way a {@link TwoLinkArm}'s elbow bends; both reach the same point.
+ *
+ * Provided as a runtime object plus a matching string-union type.
+ */
+export const Elbow = {
+  /** The elbow angle is positive, counter-clockwise. */
+  Up: 'up' as ElbowName,
+  /** The elbow angle is negative, clockwise. */
+  Down: 'down' as ElbowName,
+} as const
+
+/** One of the {@link Elbow} branches. */
+export type Elbow = ElbowName
 
 /**
  * What a {@link Trigger} reports when a reading changes its state.

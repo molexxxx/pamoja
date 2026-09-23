@@ -9,6 +9,26 @@
  */
 export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
 
+/** Car-like steering: one steered axle and a driven axle a wheelbase apart. */
+export declare class Ackermann {
+  /** Creates a model for axles `wheelbase` apart; its magnitude is used. */
+  constructor(wheelbase: number)
+  /**
+   * Returns the steering angle, in radians, for a forward speed and a yaw rate, or 0
+   * while stopped.
+   */
+  steeringAngle(linear: number, angular: number): number
+  /** Returns the yaw rate a forward speed and a steering angle, in radians, produce. */
+  yawRate(linear: number, steering: number): number
+  /**
+   * Returns the turn radius of a steering angle, in meters, or `Infinity` with the wheels
+   * straight.
+   */
+  turnRadius(steering: number): number
+  /** Returns the path curvature of a steering angle, the reciprocal of the turn radius. */
+  curvature(steering: number): number
+}
+
 /** A Texas Instruments ADS1115 driven over an I2C bus, converting one input on demand. */
 export declare class Ads1115 {
   /**
@@ -425,6 +445,25 @@ export declare class CommandProtocol {
 }
 
 /**
+ * Fuses a drifting rate, such as a gyroscope's, with a noisy absolute reading, such as an
+ * accelerometer's tilt, into one steady estimate.
+ */
+export declare class Complementary {
+  /**
+   * Creates a filter. `alpha` is the weight on the integrated rate, held to 0 to 1: near
+   * 1 trusts the rate and corrects slowly. One that is not a number is taken as 0.
+   */
+  constructor(alpha: number, initial: number)
+  /**
+   * Fuses a rate and an absolute reading over `dt` and returns the estimate. If any of
+   * the three is not a finite number, the update is ignored.
+   */
+  update(rate: number, absolute: number, dt: number): number
+  /** The current estimate. */
+  get estimate(): number
+}
+
+/**
  * The decision logic a profile assembles.
  *
  * A controller carries state between readings, because a level estimate and a
@@ -530,6 +569,19 @@ export declare class Dialect {
   crcExtra(msgid: number): number | null
 }
 
+/**
+ * Wheel speeds for a desired body motion, and the body motion measured wheel speeds make,
+ * for a robot that steers by spinning two wheels at different speeds.
+ */
+export declare class DiffDrive {
+  /** Creates a model for wheels `track` apart; its magnitude is used. */
+  constructor(track: number)
+  /** Returns the left and right wheel speeds for a forward speed and a turn rate. */
+  wheelSpeeds(linear: number, angular: number): SideSpeeds
+  /** Returns the forward speed and turn rate measured wheel speeds make. */
+  bodyMotion(left: number, right: number): BodyMotion
+}
+
 /** A DS18B20 the Linux kernel serves as a `w1_slave` file under `/sys/bus/w1/devices`. */
 export declare class Ds18b20Thermometer {
   /**
@@ -578,6 +630,39 @@ export declare class DutyCycle {
   get periodUs(): number
   /** The share of the period spent awake, from 0 through 1. */
   get fraction(): number
+}
+
+/** An electronic speed controller's pulse widths from full reverse to full forward. */
+export declare class Esc {
+  /** Creates a map from the full-reverse, neutral, and full-forward pulse widths. */
+  constructor(minUs: number, neutralUs: number, maxUs: number)
+  /** The common reversible controller: 1000, 1500, and 2000 microseconds. */
+  static bidirectional(): Esc
+  /** The pulse width at full reverse, in microseconds. */
+  get minUs(): number
+  /** The pulse width at rest, in microseconds. */
+  get neutralUs(): number
+  /** The pulse width at full forward, in microseconds. */
+  get maxUs(): number
+  /**
+   * Returns the pulse width for a throttle from -1 to 1, held to that range, or the
+   * neutral one for a throttle that is not a number.
+   */
+  pulse(throttle: number): number
+}
+
+/** An emergency stop that latches until a person resets it. */
+export declare class EStop {
+  /** Creates an e-stop that is not engaged. */
+  constructor()
+  /** Engages the stop; it holds until reset. */
+  engage(): void
+  /** Clears the stop. */
+  reset(): void
+  /** Whether the stop is engaged. */
+  get isEngaged(): boolean
+  /** Returns `desired` while clear, or a zero twist while engaged. */
+  gate(desired: Twist): Twist
 }
 
 /**
@@ -1040,6 +1125,27 @@ export declare class Ladder {
    * waits for the next receive.
    */
   recv(timeoutMs?: number | undefined | null): Promise<TransportMessage>
+}
+
+/** Speed and acceleration limits, with the motion they last allowed. */
+export declare class Limits {
+  /**
+   * Creates limits starting from rest. Each magnitude is used, and one that is not a
+   * number is taken as 0, which holds the robot still.
+   *
+   * @param maxLinear - the largest planar speed.
+   * @param maxAngular - the largest yaw rate.
+   * @param maxLinearAccel - the largest change in speed per second.
+   * @param maxAngularAccel - the largest change in yaw rate per second.
+   */
+  constructor(maxLinear: number, maxAngular: number, maxLinearAccel: number, maxAngularAccel: number)
+  /**
+   * Returns `desired` held to the speed limits and eased toward within the acceleration
+   * limits over `dt`.
+   */
+  apply(desired: Twist, dt: number): Twist
+  /** Forgets the motion last allowed, so the next command eases up from rest. */
+  reset(): void
 }
 
 /**
@@ -2009,6 +2115,19 @@ export declare class MavlinkVerifier {
   verify(frame: MavlinkFrame): void
 }
 
+/** A four-wheel mecanum base, which drives, strafes, and turns at once. */
+export declare class Mecanum {
+  /**
+   * Creates a model from the front-to-rear `wheelbase` and side-to-side `track`; each
+   * magnitude is used.
+   */
+  constructor(wheelbase: number, track: number)
+  /** Returns the four wheel speeds for a body twist. */
+  wheelSpeeds(twist: Twist): WheelSpeeds
+  /** Returns the body twist measured wheel speeds make. */
+  bodyMotion(wheels: WheelSpeeds): Twist
+}
+
 /** Rejects a single wild reading, where an average would let it pull the answer. */
 export declare class Median {
   /**
@@ -2311,6 +2430,25 @@ export declare class MqttClient {
   disconnect(): Promise<void>
 }
 
+/** Tracks a robot's pose by adding up its motion. */
+export declare class Odometry {
+  /** Creates an estimate starting at `start`, or at the origin facing along x. */
+  constructor(start?: Pose | undefined | null)
+  /** The pose so far. */
+  get pose(): Pose
+  /** Sets the estimate to a known pose. */
+  reset(pose: Pose): void
+  /** Adds a forward speed and yaw rate held for `dt`, and returns the new pose. */
+  integrate(linear: number, angular: number, dt: number): Pose
+  /**
+   * Adds the distances two wheels rolled, through a differential drive, and returns the
+   * new pose.
+   */
+  integrateWheels(left: number, right: number, drive: DiffDrive): Pose
+  /** Nudges the heading toward an absolute measurement by `weight`, from 0 to 1. */
+  fuseHeading(measured: number, weight: number): void
+}
+
 /** A Texas Instruments OPT3001 driven over an I2C bus, measuring on demand in single-shot mode. */
 export declare class Opt3001 {
   /**
@@ -2461,6 +2599,40 @@ export declare class Profile {
   get power(): PowerScheduleSpec
   /** Builds the decision logic this profile describes. */
   controller(): Controller
+}
+
+/** Counts a quadrature encoder's steps from its A and B channels. */
+export declare class Quadrature {
+  /**
+   * Creates a decoder seeded with the channel levels it reads now, both low unless
+   * given, so the first reading does not count a step that did not happen.
+   */
+  constructor(a?: boolean | undefined | null, b?: boolean | undefined | null)
+  /**
+   * Feeds the channel levels read now, and returns 1 or -1 for a step in either
+   * direction, or 0 for no change or a jump past a step.
+   */
+  update(a: boolean, b: boolean): number
+  /** The signed count of steps so far. */
+  get count(): number
+  /** Sets the count back to 0, keeping the channel state last read. */
+  reset(): void
+}
+
+/** Turns encoder steps into the distance and speed of the wheel they turn with. */
+export declare class QuadratureScale {
+  /**
+   * Creates a scale from the steps per wheel revolution and the wheel radius in meters;
+   * each magnitude is used.
+   */
+  constructor(countsPerRev: number, wheelRadius: number)
+  /** Returns the distance, in meters, a wheel rolled for a step count. */
+  distance(count: number): number
+  /**
+   * Returns the speed, in meters per second, from the steps counted over `dt`, or 0 when
+   * `dt` is 0.
+   */
+  velocity(deltaCount: number, dt: number): number
 }
 
 /** Packs float readings to a fixed precision for a metered link. */
@@ -2640,6 +2812,25 @@ export declare class Router {
   get capacity(): number
 }
 
+/** The gate every motion command passes through: an e-stop, a watchdog, and limits. */
+export declare class SafetyGate {
+  /** Creates a gate from limits, copied as they stand, and a watchdog timeout. */
+  constructor(limits: Limits, watchdogTimeout: number)
+  /** Feeds the watchdog; call it whenever a fresh command arrives. */
+  feed(): void
+  /** Engages the latching e-stop. */
+  engageEstop(): void
+  /** Clears the e-stop. */
+  resetEstop(): void
+  /** Whether the gate is forcing a stop: its e-stop is engaged or its watchdog expired. */
+  get isStopped(): boolean
+  /**
+   * Returns the command that is safe to drive: a zero twist while stopped, otherwise
+   * `desired` bounded by the limits.
+   */
+  command(desired: Twist, dt: number): Twist
+}
+
 /**
  * A Sensirion SCD40 or SCD41 driven over an I2C bus in periodic measurement, a result every
  * five seconds.
@@ -2806,6 +2997,30 @@ export declare class SerialStep {
   static read(bytes: Buffer): SerialStep
 }
 
+/** A hobby servo's pulse widths across its travel. */
+export declare class ServoMap {
+  /**
+   * Creates a map from the pulse at zero degrees, the pulse at full travel, and the
+   * travel in degrees, whose magnitude is used.
+   */
+  constructor(minUs: number, maxUs: number, rangeDeg: number)
+  /** The standard hobby servo: 1000 to 2000 microseconds over 180 degrees. */
+  static standard(): ServoMap
+  /** The pulse width at zero degrees, in microseconds. */
+  get minUs(): number
+  /** The pulse width at full travel, in microseconds. */
+  get maxUs(): number
+  /** The full travel, in degrees. */
+  get rangeDeg(): number
+  /**
+   * Returns the pulse width for an angle, held to the travel, or 0, no pulse, for an
+   * angle that is not a number.
+   */
+  pulse(angleDeg: number): number
+  /** Returns the angle a pulse width sets, held to the pulse range. */
+  angle(pulseUs: number): number
+}
+
 /** A confidential, tamper-evident, replay-protected channel with one peer. */
 export declare class Session {
   /**
@@ -2918,6 +3133,22 @@ export declare class SimulatedSensor {
   constructor(baseline: number, driftPerRead?: number | undefined | null, noise?: number | undefined | null, seed?: number | undefined | null)
   /** Takes the next reading. */
   read(): Promise<number>
+}
+
+/**
+ * A tracked or four-wheel drive that turns by skidding, with its track widened by a slip
+ * factor.
+ */
+export declare class SkidSteer {
+  /**
+   * Creates a model for sides `track` apart with a `slip` factor, 1 unless given; each
+   * magnitude is used, and a slip of 0 is taken as 1.
+   */
+  constructor(track: number, slip?: number | undefined | null)
+  /** Returns the left and right speeds for a forward speed and a yaw rate. */
+  wheelSpeeds(linear: number, angular: number): SideSpeeds
+  /** Returns the forward speed and yaw rate measured side speeds make. */
+  bodyMotion(left: number, right: number): BodyMotion
 }
 
 /** Reassembles whole SLIP frames from the chunks a serial port delivers. */
@@ -3078,6 +3309,20 @@ export declare class Tmp117 {
   get siliconRevision(): number | null
 }
 
+/** A 4x4 homogeneous transform: a rotation and a translation. */
+export declare class Transform {
+  /** The identity: no rotation and no translation. */
+  static identity(): Transform
+  /** The transform one Denavit-Hartenberg joint makes. */
+  static ofJoint(joint: DhParameters): Transform
+  /** Returns `this * other`, the transform that applies `other` and then this one. */
+  multiply(other: Transform): Transform
+  /** Where this transform places the origin: its translation. */
+  get position(): Position
+  /** The sixteen elements, row-major. */
+  get elements(): Array<number>
+}
+
 /**
  * One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`, or to
  * compose into a ladder or a wrapper.
@@ -3197,6 +3442,21 @@ export declare class Trigger {
   get watchesAbove(): boolean
 }
 
+/** A planar arm of two links, with a closed-form inverse. */
+export declare class TwoLinkArm {
+  /** Creates an arm from its shoulder and elbow link lengths; each magnitude is used. */
+  constructor(l1: number, l2: number)
+  /** The closest and farthest the hand reaches. */
+  get reach(): Reach
+  /** Returns where the hand is for a shoulder and an elbow angle, in radians. */
+  tip(shoulder: number, elbow: number): Point
+  /**
+   * Returns the joint angles that put the hand at a point, or `null` for a point out of
+   * reach, an arm with a link of no length, or a coordinate that is not a finite number.
+   */
+  jointsFor(x: number, y: number, elbow: Elbow): Joints | null
+}
+
 /** A device slots, and the rules applied to what is offered for them. */
 export declare class Updater {
   /**
@@ -3264,6 +3524,45 @@ export declare class Updater {
   confirm(): number
   /** Fails the pending image and goes back to the confirmed one. */
   revert(): number
+}
+
+/** A deadman timer that expires unless fed often enough. */
+export declare class Watchdog {
+  /**
+   * Creates a watchdog that expires after `timeout` without being fed; a timeout that is
+   * not a number is taken as 0.
+   */
+  constructor(timeout: number)
+  /** Feeds the watchdog, restarting its silence timer. */
+  feed(): void
+  /**
+   * Advances the timer by `dt` and returns whether it has expired; a `dt` that is not a
+   * finite number expires it until it is fed.
+   */
+  update(dt: number): boolean
+  /** Whether the watchdog has expired. */
+  get isExpired(): boolean
+}
+
+/**
+ * Steers toward a waypoint: pivot toward it, then drive, slowing as the heading error
+ * grows.
+ */
+export declare class WaypointFollower {
+  /**
+   * Creates a follower. Each magnitude is used.
+   *
+   * @param cruise - the forward speed when pointed at the target.
+   * @param arrivalM - how close, in meters, counts as arrived.
+   * @param headingGain - the yaw rate commanded per radian of heading error.
+   * @param maxAngular - the largest yaw rate to command.
+   */
+  constructor(cruise: number, arrivalM: number, headingGain: number, maxAngular: number)
+  /**
+   * Returns the command from a position and a compass heading, in degrees clockwise from
+   * north, toward a target.
+   */
+  guide(here: Coord, headingDeg: number, target: Coord): Guidance
 }
 
 /** A rolling window of the most recent readings, with the stats over them. */
@@ -3706,6 +4005,14 @@ export declare function bmp280StandbyMicros(code: number): number
 /** Reports whether a raw temperature code says the channel's oversampling is off. */
 export declare function bmp280TemperatureSkipped(temperature: number): boolean
 
+/** A planar body motion: a forward speed and a yaw rate. */
+export interface BodyMotion {
+  /** The forward speed. */
+  linear: number
+  /** The yaw rate, positive turning left. */
+  angular: number
+}
+
 /** The decision a device made at boot, already recorded before it was returned. */
 export interface Boot {
   /** What the bootloader should do. */
@@ -3809,6 +4116,12 @@ export declare function canRemoteFrame(id: number, extended: boolean, len: numbe
 
 /** Converts a CBOR document back into its JSON encoding. */
 export declare function cborToJsonBytes(cbor: Buffer): Buffer
+
+/** Converts degrees Celsius to degrees Fahrenheit. */
+export declare function celsiusToFahrenheit(celsius: number): number
+
+/** Converts degrees Celsius to kelvin. */
+export declare function celsiusToKelvin(celsius: number): number
 
 /**
  * The MQTT topic every application's uplink events are published on, with wildcards in place
@@ -4018,6 +4331,24 @@ export declare const enum Delivery {
   Buffered = 'Buffered',
 }
 
+/**
+ * Computes the dew point, in degrees Celsius, from the air temperature in degrees
+ * Celsius and the relative humidity in percent.
+ */
+export declare function dewPoint(celsius: number, humidityPercent: number): number
+
+/** One joint of a serial arm in the Denavit-Hartenberg convention. */
+export interface DhParameters {
+  /** The link length along the common normal, in meters. */
+  a: number
+  /** The link twist about the common normal, in radians. */
+  alpha: number
+  /** The link offset along the previous z axis, in meters. */
+  d: number
+  /** The joint angle about the previous z axis, in radians. */
+  theta: number
+}
+
 /** Returns the great-circle distance between two coordinates, in meters. */
 export declare function distanceBetween(from: Coord, to: Coord): number
 
@@ -4084,6 +4415,14 @@ export declare const enum Edge {
   Cleared = 'cleared',
 }
 
+/** Which way a two-link arm's elbow bends. */
+export declare const enum Elbow {
+  /** The elbow angle is positive, counter-clockwise. */
+  Up = 'up',
+  /** The elbow angle is negative, clockwise. */
+  Down = 'down',
+}
+
 /** A custom sensor or node stat a profile contributes to the dashboard. */
 export interface ElementSpec {
   /** The stable, language-neutral element key, such as `water_turbidity`. */
@@ -4141,6 +4480,9 @@ export declare const enum EntityKindName {
  */
 export declare function envelopeBody(bytes: Buffer): Buffer
 
+/** Converts degrees Fahrenheit to degrees Celsius. */
+export declare function fahrenheitToCelsius(fahrenheit: number): number
+
 /** Which faults a degraded link injects, each off unless named. */
 export interface Faults {
   /** Lose one send in every this many. */
@@ -4171,6 +4513,12 @@ export interface ForwardDecision {
   /** The neighbor to unicast to, or `null` unless the action is `Relay`. */
   nextHop?: number
 }
+
+/**
+ * Returns the transform from a serial arm's base to its tool, or the identity for an arm
+ * with no joints.
+ */
+export declare function forwardKinematics(joints: Array<DhParameters>): Transform
 
 /**
  * Writes a signed update into one block, for a transport that moves blocks.
@@ -4581,6 +4929,18 @@ export interface GatewayTxpk {
   withoutCrc?: boolean
 }
 
+/** The command toward a waypoint, with the geometry behind it. */
+export interface Guidance {
+  /** The body motion to drive. */
+  twist: Twist
+  /** The distance left to the target, in meters. */
+  distanceM: number
+  /** The heading error to the target, in degrees, in `(-180, 180]`. */
+  headingErrorDeg: number
+  /** Whether the target is within the arrival radius. */
+  arrived: boolean
+}
+
 /** Converts a raw HDC1080 temperature register to degrees Celsius. */
 export declare function hdc1080Celsius(raw: number): number
 
@@ -4677,6 +5037,9 @@ export declare function hdc1080TemperatureConversionMicros(bits: number): number
 
 /** Builds the HDC1080 temperature register that decodes to a temperature. */
 export declare function hdc1080TemperatureRegister(milliCelsius: number): number
+
+/** Converts hectopascals to pascals. */
+export declare function hectopascalsToPascals(hectopascals: number): number
 
 /** Expands input keying material into `length` bytes bound to `info`. */
 export declare function hkdfSha256Expand(salt: Buffer, ikm: Buffer, info: Buffer, length: number): Buffer
@@ -5165,8 +5528,19 @@ export interface J1939Message {
   broadcast: boolean
 }
 
+/** A two-link arm's joint angles, in radians. */
+export interface Joints {
+  /** The shoulder angle, from the x axis. */
+  shoulder: number
+  /** The elbow angle, relative to the first link. */
+  elbow: number
+}
+
 /** Converts a JSON document into its CBOR encoding, which is typically smaller. */
 export declare function jsonToCborBytes(json: Buffer): Buffer
+
+/** Converts kelvin to degrees Celsius. */
+export declare function kelvinToCelsius(kelvin: number): number
 
 /**
  * Rewrites a key expression into its canonical form, or `null` if it is
@@ -5191,6 +5565,9 @@ export declare function keyexprIsValid(key: string): boolean
  * @param key - the concrete key to test against it.
  */
 export declare function keyexprMatches(pattern: string, key: string): boolean
+
+/** Converts kilopascals to pascals. */
+export declare function kilopascalsToPascals(kilopascals: number): number
 
 /** How urgent an event is. */
 export declare const enum Level {
@@ -7489,6 +7866,12 @@ export interface MqttMessage {
   number?: number
 }
 
+/**
+ * Cuts forward and sideways motion when an obstacle is within `stopDistanceM`, keeping the
+ * turn. A range that is not a number counts as an obstacle.
+ */
+export declare function obstacleStop(twist: Twist, rangeM: number, stopDistanceM: number): Twist
+
 /** Opens a signed delegation against the anchor that should have signed it. */
 export declare function openDelegation(bytes: Buffer, anchorPublicKey: Buffer): Delegation
 
@@ -7597,6 +7980,15 @@ export declare const enum Parity {
   Odd = 'Odd',
 }
 
+/** Converts pascals to hectopascals. */
+export declare function pascalsToHectopascals(pascals: number): number
+
+/** Converts pascals to kilopascals. */
+export declare function pascalsToKilopascals(pascals: number): number
+
+/** Converts pascals to pounds per square inch. */
+export declare function pascalsToPsi(pascals: number): number
+
 /** How many PWM channels a PCA9685 drives. */
 export declare const PCA9685_CHANNELS: number
 
@@ -7683,6 +8075,9 @@ export interface Pca9685Settings {
  */
 export declare function pca9685SimPart(address: number): I2cPart
 
+/** Converts a percentage to a ratio from 0 to 1. */
+export declare function percentToRatio(percent: number): number
+
 /** The signal transition that triggers a pin interrupt. */
 export declare const enum PinEdge {
   /** A low-to-high transition. */
@@ -7724,6 +8119,14 @@ export declare function pinPolarityIsAsserted(polarity: PinPolarity, level: PinL
 /** Returns the physical level that represents a logical state under a polarity. */
 export declare function pinPolarityLevel(polarity: PinPolarity, asserted: boolean): PinLevel
 
+/** A point in a plane. */
+export interface Point {
+  /** The x coordinate. */
+  x: number
+  /** The y coordinate. */
+  y: number
+}
+
 /** Where a robot is and which way it faces. */
 export interface Pose {
   /** Position along the world x axis, in meters. */
@@ -7732,6 +8135,16 @@ export interface Pose {
   y: number
   /** Heading from the world x axis, in radians, positive counter-clockwise. */
   theta: number
+}
+
+/** A point in space. */
+export interface Position {
+  /** The x coordinate. */
+  x: number
+  /** The y coordinate. */
+  y: number
+  /** The z coordinate. */
+  z: number
 }
 
 /** What a node should be doing at the current state of charge. */
@@ -7783,6 +8196,9 @@ export interface Progress {
   total: number
 }
 
+/** Converts pounds per square inch to pascals. */
+export declare function psiToPascals(psi: number): number
+
 /** Reads a PCA9685 setting back from the four register bytes a channel holds. */
 export declare function pwmCounts(bytes: Buffer): PwmCounts
 
@@ -7826,6 +8242,17 @@ export declare const enum Qos {
   AtLeastOnce = 'AtLeastOnce',
   /** Delivered exactly once via a four-step handshake. */
   ExactlyOnce = 'ExactlyOnce',
+}
+
+/** Converts a ratio from 0 to 1 to a percentage. */
+export declare function ratioToPercent(ratio: number): number
+
+/** The closest and farthest an arm's hand reaches from its shoulder. */
+export interface Reach {
+  /** The closest reach, the difference of the link lengths. */
+  min: number
+  /** The farthest reach, the sum of the link lengths. */
+  max: number
 }
 
 /** What a controller decided about one reading. */
@@ -8239,6 +8666,14 @@ export declare function sht3xWord(frame: Buffer): number
 
 /** Builds the three bytes an SHT3x sends for a word: the word then its CRC. */
 export declare function sht3xWordBytes(value: number): Buffer
+
+/** The speeds of a two-sided drive's left and right wheels or tracks. */
+export interface SideSpeeds {
+  /** The left side's speed. */
+  left: number
+  /** The right side's speed. */
+  right: number
+}
 
 /** Signs a delegation, naming a release key the anchor stands behind. */
 export declare function signDelegation(delegation: Delegation, anchor: DeviceIdentity): Buffer
@@ -8929,6 +9364,20 @@ export interface Theme {
   track?: string
 }
 
+/** Roll and pitch, in degrees. */
+export interface Tilt {
+  /** Rotation about the forward axis, in degrees, from -180 to 180. */
+  roll: number
+  /** Rotation about the right axis, in degrees, from -90 to 90. */
+  pitch: number
+}
+
+/**
+ * Computes roll and pitch from a three-axis accelerometer at rest; the reading's unit
+ * does not matter, since only the ratios between axes set the angles.
+ */
+export declare function tiltFromAccel(ax: number, ay: number, az: number): Tilt
+
 /** The TMP117's alert flags: whether a result since they were last read crossed a limit. */
 export interface Tmp117Alerts {
   /** A result was above the high limit. */
@@ -9163,6 +9612,18 @@ export declare const enum Viz {
   Mesh = 'mesh',
   /** A plain numeric counter, for a node or network stat. */
   Count = 'count',
+}
+
+/** The four wheel speeds of a mecanum base. */
+export interface WheelSpeeds {
+  /** The front-left wheel's speed. */
+  frontLeft: number
+  /** The front-right wheel's speed. */
+  frontRight: number
+  /** The rear-left wheel's speed. */
+  rearLeft: number
+  /** The rear-right wheel's speed. */
+  rearRight: number
 }
 
 /**
