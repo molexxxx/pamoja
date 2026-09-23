@@ -463,7 +463,7 @@ pub unsafe extern "C" fn pamoja_i2c_bus_open(
 #[no_mangle]
 pub extern "C" fn pamoja_i2c_bus_simulated() -> *mut PamojaI2cBus {
     Box::into_raw(Box::new(PamojaI2cBus {
-        bus: I2cBus::simulated([]),
+        bus: I2cBus::simulated(Vec::<I2cPart>::new()),
     }))
 }
 

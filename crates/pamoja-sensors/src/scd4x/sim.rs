@@ -10,7 +10,7 @@
 use pamoja_hal::sim::CommandPart;
 
 use super::{
-    command, command_frame, data_ready, serial_number_frame, word_frame, Measurement, I2C_ADDRESS,
+    command, command_frame, serial_number_frame, word_frame, Measurement, I2C_ADDRESS,
 };
 
 /// The carbon dioxide concentration [`part`] reports, in parts per million.
@@ -90,7 +90,7 @@ fn rounded(value: f32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scd4x::Scd4x;
+    use crate::scd4x::{data_ready, Scd4x};
     use pamoja_hal::script::DelayLog;
 
     #[test]
