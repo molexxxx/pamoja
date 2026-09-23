@@ -1083,7 +1083,9 @@ which is why the 200 Hz the datasheet names for the power-up prescale is 196.89 
 | 2500 µs | 512 |
 
 Which pulse widths reach which angles belongs to the servo: 1000 to 2000 µs is the usual range,
-and a pulse past a servo's end stops drives it into them.
+and a pulse past a servo's end stops drives it into them. To command an angle rather than a
+width, the helpers' `ServoMap` turns one into the other, as the
+[motion guide's arm](motion.md#on-a-board) does.
 
 **A channel's settings.** The datasheet says the on and off counts should never hold the same
 value, and that full off wins when both flags are set, so 0 % and 100 % are always the flags:
