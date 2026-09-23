@@ -14,7 +14,7 @@
 //!   registers the way a [`sim::I2cPart`](crate::sim::I2cPart) does. A transfer to an address
 //!   no part holds is not acknowledged, as on a real bus.
 //! - A script, [`I2cBus::scripted`], that plays one conversation and refuses any other, the way
-//!   an [`I2cScript`](crate::script::I2cScript) does.
+//!   an [`I2cScript`] does.
 //!
 //! A driver also takes a delay. [`I2cBus::delay`] gives it one that suits the bus: the process
 //! sleeps when real parts are on the other end, and carries straight on when simulated or

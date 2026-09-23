@@ -1,8 +1,7 @@
 //! The C ABI for the sensor drivers that run over an I2C bus.
 //!
-//! A driver runs the datasheet's whole conversation with a part over a
-//! [`PamojaI2cBus`](crate::hal::PamojaI2cBus): reset, identify, read the calibration,
-//! configure, measure. It holds a share of the bus, so the caller may free its own bus handle
+//! A driver runs the datasheet's whole conversation with a part over a [`PamojaI2cBus`]:
+//! reset, identify, read the calibration, configure, measure. It holds a share of the bus, so the caller may free its own bus handle
 //! straight after building the driver, or keep it to look at the bus between reads. A driver
 //! waits as its datasheet asks through the bus's delay, which sleeps only when real parts are
 //! on the other end.
