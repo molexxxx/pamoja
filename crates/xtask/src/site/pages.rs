@@ -81,12 +81,20 @@ pub fn page(source: &str, url: &str, text: &str) -> Page {
     let (body, toc) = match language_tabs(&rendered.html) {
         Some(html) => {
             let language_ids: BTreeSet<&str> = LANGUAGES.iter().map(|(_, id)| *id).collect();
+            let is_language = |id: &str| {
+                let base = match id.rsplit_once('-') {
+                    Some((base, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => {
+                        base
+                    }
+                    _ => id,
+                };
+                language_ids.contains(base)
+            };
             let toc = rendered
                 .headings
                 .into_iter()
                 .filter(|heading| {
-                    !((heading.level == 2 || heading.level == 3)
-                        && language_ids.contains(heading.id.as_str()))
+                    !((heading.level == 2 || heading.level == 3) && is_language(&heading.id))
                 })
                 .collect();
             (html, toc)
@@ -105,8 +113,11 @@ pub fn page(source: &str, url: &str, text: &str) -> Page {
     }
 }
 
-/// Fold the four consecutive language sections of a guide into a tab block. The headings
-/// keep their ids on the panels, so the anchors the guides have always had still resolve.
+/// Fold every run of four language sections in a guide into a tab block. A guide shows its
+/// example in the four languages, and a later section, such as the same program on a board,
+/// may show another four; each run becomes its own block, and all of them follow the one
+/// language the reader picked. The headings keep their ids on the panels, so the anchors
+/// the guides have always had still resolve, and a later run's `rust-1` does too.
 ///
 /// # Arguments
 ///
@@ -114,24 +125,38 @@ pub fn page(source: &str, url: &str, text: &str) -> Page {
 ///
 /// # Returns
 ///
-/// The guide with the tab block in place of the four sections, or `None` when the four
-/// headings are not all present in order.
+/// The guide with a tab block in place of each run, or `None` when no run of the four
+/// headings is present in order.
 pub fn language_tabs(html: &str) -> Option<String> {
-    ["h2", "h3"].iter().find_map(|level| fold(html, level))
+    let mut folded: Option<String> = None;
+    while let Some(next) = ["h2", "h3"]
+        .iter()
+        .find_map(|level| fold(folded.as_deref().unwrap_or(html), level))
+    {
+        folded = Some(next);
+    }
+    folded
 }
 
-// The fold at one heading level: the four languages in order, each becoming a panel, and
-// the run ends at the next heading of that level or above.
+// The fold at one heading level: the next four language headings in order, each becoming
+// a panel. A run of h2 sections ends at the next h2, so a panel may carry subheadings of
+// its own; a run of h3 sections ends at the next h2 or h3.
 fn fold(html: &str, level: &str) -> Option<String> {
     let mut starts = Vec::with_capacity(LANGUAGES.len());
+    let mut anchors = Vec::with_capacity(LANGUAGES.len());
     let mut from = 0;
     for (_, id) in LANGUAGES {
-        let marker = format!("<{level} id=\"{id}\">");
-        let at = html[from..].find(&marker)? + from;
+        let (at, anchor) = language_heading(html, from, level, id)?;
+        from = at + format!("<{level} id=\"{anchor}\">").len();
         starts.push(at);
-        from = at + marker.len();
+        anchors.push(anchor);
     }
-    let end = ["<h2 id=\"", "<h3 id=\""]
+    let stops: &[&str] = if level == "h2" {
+        &["<h2 id=\"", "<h1"]
+    } else {
+        &["<h2 id=\"", "<h3 id=\""]
+    };
+    let end = stops
         .iter()
         .filter_map(|next| html[from..].find(next))
         .min()
@@ -140,25 +165,45 @@ fn fold(html: &str, level: &str) -> Option<String> {
     let mut out = String::with_capacity(html.len() + 1024);
     out.push_str(&html[..starts[0]]);
     out.push_str("<div class=\"langs\">\n<div class=\"lang-tabs\" role=\"tablist\" aria-label=\"Language\">\n");
-    for (label, id) in LANGUAGES {
+    for ((label, id), anchor) in LANGUAGES.iter().zip(&anchors) {
         out.push_str(&format!(
-            "<button class=\"lang-tab\" role=\"tab\" type=\"button\" id=\"tab-{id}\" aria-controls=\"{id}\" aria-selected=\"false\" data-lang=\"{id}\">{label}</button>\n"
+            "<button class=\"lang-tab\" role=\"tab\" type=\"button\" id=\"tab-{anchor}\" aria-controls=\"{anchor}\" aria-selected=\"false\" data-lang=\"{id}\">{label}</button>\n"
         ));
     }
     out.push_str("</div>\n");
-    for (index, (_, id)) in LANGUAGES.iter().enumerate() {
+    for (index, ((_, id), anchor)) in LANGUAGES.iter().zip(&anchors).enumerate() {
         let start = starts[index];
         let stop = starts.get(index + 1).copied().unwrap_or(end);
-        let heading = format!("<{level} id=\"{id}\">");
+        let heading = format!("<{level} id=\"{anchor}\">");
         let section =
             html[start..stop].replacen(&heading, &format!("<{level} class=\"lang-heading\">"), 1);
         out.push_str(&format!(
-            "<section class=\"lang-panel\" id=\"{id}\" role=\"tabpanel\" aria-labelledby=\"tab-{id}\" data-lang=\"{id}\" tabindex=\"0\">\n{section}</section>\n"
+            "<section class=\"lang-panel\" id=\"{anchor}\" role=\"tabpanel\" aria-labelledby=\"tab-{anchor}\" data-lang=\"{id}\" tabindex=\"0\">\n{section}</section>\n"
         ));
     }
     out.push_str("</div>\n");
     out.push_str(&html[end..]);
     Some(out)
+}
+
+// The next heading at `level` for a language from `from` on: its id, or that id with the
+// `-1`, `-2` a page gives a heading it has used already. The position and the id found.
+fn language_heading(html: &str, from: usize, level: &str, id: &str) -> Option<(usize, String)> {
+    let prefix = format!("<{level} id=\"{id}");
+    let mut search = from;
+    while let Some(found) = html[search..].find(&prefix) {
+        let at = search + found;
+        let rest = &html[at + prefix.len()..];
+        let suffix = &rest[..rest.find("\">")?];
+        let numbered = suffix
+            .strip_prefix('-')
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+        if suffix.is_empty() || numbered {
+            return Some((at, format!("{id}{suffix}")));
+        }
+        search = at + prefix.len();
+    }
+    None
 }
 
 #[cfg(test)]
@@ -220,5 +265,46 @@ mod tests {
         )
         .unwrap();
         assert!(tail.ends_with("<p>last</p></section>\n</div>\n"), "{tail}");
+    }
+
+    #[test]
+    fn a_panel_keeps_its_subheadings_and_a_second_run_folds_on_its_own_anchors() {
+        let guide = format!(
+            "{}\n## On a board\n\nWired up.\n\n### Rust\n\nrust pin\n\n### TypeScript\n\nts pin\n\n### Python\n\npy pin\n\n### C#\n\ncs pin\n",
+            GUIDE.replace("cs body\n", "cs body\n\n### Errors\n\nWhat it refuses.\n")
+        );
+        let page = page("docs/guides/modbus.md", "docs/guides/modbus.html", &guide);
+        assert_eq!(
+            page.body.matches("<div class=\"lang-tabs\"").count(),
+            2,
+            "{}",
+            page.body
+        );
+        let first = page.body.find("id=\"c\" role=\"tabpanel\"").unwrap();
+        let errors = page.body.find("Errors").unwrap();
+        let reference = page.body.find("<h2 id=\"reference\"").unwrap();
+        assert!(
+            first < errors && errors < reference,
+            "a subheading stays in its panel"
+        );
+        assert!(page.body.contains("<button class=\"lang-tab\" role=\"tab\" type=\"button\" id=\"tab-python-1\" aria-controls=\"python-1\" aria-selected=\"false\" data-lang=\"python\">Python</button>"), "{}", page.body);
+        assert!(page.body.contains("<section class=\"lang-panel\" id=\"c-1\" role=\"tabpanel\" aria-labelledby=\"tab-c-1\" data-lang=\"c\""));
+        assert!(page.body.contains("cs pin"));
+        let toc: Vec<&str> = page.toc.iter().map(|h| h.text.as_str()).collect();
+        assert_eq!(
+            toc,
+            [
+                "Modbus RTU",
+                "What the example does",
+                "Errors",
+                "Reference",
+                "On a board"
+            ]
+        );
+        assert_eq!(language_heading("<h2 id=\"can\">", 0, "h2", "c"), None);
+        assert_eq!(
+            language_heading("<h2 id=\"c-12\">", 0, "h2", "c"),
+            Some((0, "c-12".to_owned()))
+        );
     }
 }

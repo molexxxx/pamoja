@@ -434,8 +434,8 @@ tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { backgrou
   border-color: var(--ink) var(--ink) var(--paper);
 }
 .no-js .lang-tabs { display: none; }
-.lang-panel { padding-top: 0.5rem; }
-.lang-panel:focus { outline: none; }
+.lang-panel { padding-top: 0.5rem; scroll-margin-top: calc(var(--stick, 5.0625rem) + 3.25rem); }
+.lang-panel:focus:not(:focus-visible) { outline: none; }
 
 /* Install lines */
 .pkg-get { display: inline-flex; align-items: stretch; gap: 0.4rem; min-width: 0; max-width: 100%; }

@@ -361,14 +361,13 @@ Console.WriteLine(
 
 ## Where next
 
-- [Buses and links](../buses.md), for what each bus is for and which crate
-  carries its logic, and [Buses](hal.md) for the bus traits, the scripted buses,
-  and the Linux backend.
-- The board pages wire a part to a [Raspberry Pi](../boards/raspberry-pi.md), an
-  [ESP32](../boards/esp32.md), or an [RP2040](../boards/rp2040.md) and run a
-  first program on it.
-- [Your own device](device.md), for a part pamoja has never heard of, and
-  [Sensor drivers](sensors.md) for the ones it has.
+<!-- table: next gpio -->
+- [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
+- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- [Actuator drivers](actuators.md): PCA9685 PWM and servo pulses, and stepper coil sequencing.
+- Beside it: [Buses and links](../buses.md), [Raspberry Pi](../boards/raspberry-pi.md), [ESP32](../boards/esp32.md), [RP2040](../boards/rp2040.md).
+- Also in Field I/O: [Serial framing](serial.md), [Modbus RTU](modbus.md), [CAN and J1939](can.md), [Buses](hal.md).
+<!-- end -->
 
 ## Reference
 

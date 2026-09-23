@@ -321,6 +321,15 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next mqtt -->
+- [Codecs](codec.md): CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links.
+- [Store and forward](sync.md): Offline-first queues.
+- [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
+- Also in Transports and testing: [CoAP](coap.md), [Loopback](loopback.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference mqtt -->

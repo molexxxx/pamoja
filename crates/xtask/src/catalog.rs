@@ -34,6 +34,11 @@ pub struct Capability {
     /// Further guides that belong here rather than to a capability of their own, because
     /// they cross two: the page and the title the navigation shows it under.
     pub guides: Vec<(String, String)>,
+    /// The capabilities whose guides a reader of this one goes to next, in order.
+    pub next: Vec<String>,
+    /// Pages under `docs/` beside the guide that are not guides themselves, such as a board
+    /// page or the bus overview, as paths relative to `docs/`.
+    pub pages: Vec<String>,
 }
 
 impl Capability {
@@ -106,6 +111,8 @@ impl Catalog {
                 dotnet: strings(table, "dotnet", &context)?,
                 guide: table.get("guide").and_then(Item::as_str).map(str::to_owned),
                 guides: further(table, &context)?,
+                next: optional_strings(table, "next", &context)?,
+                pages: optional_strings(table, "pages", &context)?,
                 key,
             });
         }
@@ -202,6 +209,112 @@ impl Catalog {
         self.capabilities
             .iter()
             .find(|capability| capability.key == key)
+    }
+
+    /// Where a reader goes after a guide: the guides the capability names as next, each
+    /// with what it covers, the pages beside it, and the rest of its chapter. A guide that
+    /// belongs to a capability without being its own, such as a walkthrough that crosses
+    /// two, leads back to that capability's guide first and then goes where it goes.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - the capability key, or the file stem of a further guide.
+    /// * `root` - the repository root, whose pages give their own titles.
+    ///
+    /// # Returns
+    ///
+    /// Markdown list lines linking relative to `docs/guides/`, without a trailing newline.
+    ///
+    /// # Errors
+    ///
+    /// When the key names no guide, when `next` names a capability without a guide, or
+    /// when a page is missing or has no title.
+    pub fn next_links(&self, key: &str, root: &Path) -> Result<String, String> {
+        let page = format!("guides/{key}.md");
+        let (capability, further) = match self.capability(key) {
+            Some(capability) => (capability, false),
+            None => (
+                self.capabilities
+                    .iter()
+                    .find(|capability| capability.guides.iter().any(|(p, _)| *p == page))
+                    .ok_or_else(|| format!("`next` names {key}, which is no guide"))?,
+                true,
+            ),
+        };
+
+        let mut lines = Vec::new();
+        let mut listed: BTreeSet<&str> = BTreeSet::new();
+        listed.insert(capability.key.as_str());
+        let link = |target: &Capability| -> Result<String, String> {
+            let guide = target.guide.as_deref().ok_or_else(|| {
+                format!(
+                    "capability {}: `next` names {}, which has no guide",
+                    capability.key, target.key
+                )
+            })?;
+            Ok(format!(
+                "- [{}]({}): {}.",
+                target.title,
+                guide_file(guide),
+                clause(&target.summary)
+            ))
+        };
+        if further {
+            lines.push(link(capability)?);
+        }
+        for name in &capability.next {
+            let target = self.capability(name).ok_or_else(|| {
+                format!(
+                    "capability {}: `next` names the unknown {name}",
+                    capability.key
+                )
+            })?;
+            if target.key == key {
+                continue;
+            }
+            listed.insert(target.key.as_str());
+            lines.push(link(target)?);
+        }
+
+        let mut beside = Vec::new();
+        for path in capability.pages.iter().filter(|path| **path != page) {
+            let text = fs::read_to_string(root.join("docs").join(path))
+                .map_err(|err| format!("capability {}: the page {path}: {err}", capability.key))?;
+            let title = text
+                .lines()
+                .find_map(|line| line.strip_prefix("# "))
+                .ok_or_else(|| format!("capability {}: {path} has no title", capability.key))?;
+            let href = match path.strip_prefix("guides/") {
+                Some(file) => file.to_owned(),
+                None => format!("../{path}"),
+            };
+            beside.push(format!("[{}]({href})", title.trim()));
+        }
+        if !beside.is_empty() {
+            lines.push(format!("- Beside it: {}.", beside.join(", ")));
+        }
+
+        let chapter = self
+            .chapters
+            .iter()
+            .find(|chapter| chapter.key == capability.chapter)
+            .map_or(capability.chapter.as_str(), |chapter| {
+                chapter.title.as_str()
+            });
+        let rest: Vec<String> = self
+            .in_chapter(&capability.chapter)
+            .filter(|other| !listed.contains(other.key.as_str()))
+            .filter_map(|other| {
+                other
+                    .guide
+                    .as_deref()
+                    .map(|guide| format!("[{}]({})", other.title, guide_file(guide)))
+            })
+            .collect();
+        if !rest.is_empty() {
+            lines.push(format!("- Also in {chapter}: {}.", rest.join(", ")));
+        }
+        Ok(lines.join("\n"))
     }
 
     /// The same capability in the other three languages: where to install it from and
@@ -1434,6 +1547,45 @@ fn strings(
     strings_of(table, key, context)
 }
 
+// An array of strings that may be left out, which reads as empty.
+fn optional_strings(
+    table: &dyn toml_edit::TableLike,
+    key: &str,
+    context: &str,
+) -> Result<Vec<String>, String> {
+    if table.get(key).is_none() {
+        return Ok(Vec::new());
+    }
+    strings_of(table, key, context)
+}
+
+/// The opening clause of a summary, which is what a link line has room for. A summary that
+/// lists its parts or qualifies itself is cut at that turn; one that joins two things with
+/// ", and" keeps both, or a reader would be told a guide covers only the first.
+///
+/// # Arguments
+///
+/// * `summary` - a capability's summary.
+///
+/// # Returns
+///
+/// The clause, without a closing period.
+pub(crate) fn clause(summary: &str) -> &str {
+    let cut = [": ", "; ", ". "]
+        .iter()
+        .filter_map(|mark| summary.find(mark))
+        .min();
+    match cut {
+        Some(at) => summary[..at].trim_end_matches(['.', ',']),
+        None => summary.trim_end_matches('.'),
+    }
+}
+
+// A guide's link from another guide: both live under `docs/guides/`.
+fn guide_file(guide: &str) -> &str {
+    guide.strip_prefix("guides/").unwrap_or(guide)
+}
+
 fn strings_of(
     table: &dyn toml_edit::TableLike,
     key: &str,
@@ -1623,6 +1775,51 @@ crate = "pamoja"
         assert_eq!(modbus.dotnet, ["Modbus", "ModbusFrame"]);
         assert_eq!(modbus.guide.as_deref(), Some("guides/modbus.md"));
         assert!(catalog.capability("transport").unwrap().guide.is_none());
+    }
+
+    #[test]
+    fn a_guide_leads_to_its_next_guides_the_pages_beside_it_and_its_chapter() {
+        let root = std::env::temp_dir().join("pamoja-next-links");
+        fs::create_dir_all(root.join("docs/boards")).unwrap();
+        fs::create_dir_all(root.join("docs/guides")).unwrap();
+        fs::write(root.join("docs/guides/walk.md"), "# A walk\n").unwrap();
+        fs::write(root.join("docs/buses.md"), "# Buses and links\n\nText.\n").unwrap();
+        fs::write(root.join("docs/boards/pi.md"), "Intro\n# Raspberry Pi\n").unwrap();
+        let text = format!(
+            "{}\n[[capability]]\nkey = \"serial\"\nchapter = \"field-io\"\ntitle = \"Serial framing\"\nsummary = \"Frames on a serial line: COBS and SLIP\"\ncrates = [\"pamoja-serial\"]\nnode = \"serial\"\npython = \"serial\"\ndotnet = [\"Serial\"]\nguide = \"guides/serial.md\"\n\n[[capability.guides]]\npage = \"guides/walk.md\"\ntitle = \"A walk\"\n\n[[capability]]\nkey = \"can\"\nchapter = \"field-io\"\ntitle = \"CAN\"\nsummary = \"CAN frames\"\ncrates = [\"pamoja-can\"]\nnode = \"can\"\npython = \"can\"\ndotnet = [\"Can\"]\nguide = \"guides/can.md\"\n",
+            SAMPLE.replace(
+                "guide = \"guides/modbus.md\"\n",
+                "guide = \"guides/modbus.md\"\nnext = [\"serial\"]\npages = [\"buses.md\", \"boards/pi.md\", \"guides/walk.md\"]\n"
+            )
+        )
+        .replace("[engine]", "\n[engine]");
+        let catalog = Catalog::parse(&text).unwrap();
+        assert_eq!(
+            catalog.next_links("modbus", &root).unwrap(),
+            "- [Serial framing](serial.md): Frames on a serial line.\n- Beside it: [Buses and links](../buses.md), [Raspberry Pi](../boards/pi.md), [A walk](walk.md).\n- Also in Field I/O: [CAN](can.md)."
+        );
+        assert!(catalog
+            .next_links("walk", &root)
+            .unwrap()
+            .starts_with("- [Serial framing](serial.md): Frames on a serial line.\n- Also in Field I/O: [Modbus RTU](modbus.md), [CAN](can.md)."));
+        assert!(catalog.next_links("nowhere", &root).is_err());
+        let unknown = text.replace("next = [\"serial\"]", "next = [\"radio\"]");
+        let err = Catalog::parse(&unknown)
+            .unwrap()
+            .next_links("modbus", &root)
+            .unwrap_err();
+        assert!(err.contains("unknown radio"), "{err}");
+        let guideless = text.replace("next = [\"serial\"]", "next = [\"transport\"]");
+        let err = Catalog::parse(&guideless)
+            .unwrap()
+            .next_links("modbus", &root)
+            .unwrap_err();
+        assert!(err.contains("has no guide"), "{err}");
+        assert_eq!(
+            clause("PCA9685 PWM and servo pulses, and stepper coil sequencing"),
+            "PCA9685 PWM and servo pulses, and stepper coil sequencing"
+        );
+        fs::remove_dir_all(&root).ok();
     }
 
     #[test]

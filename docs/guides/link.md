@@ -383,6 +383,15 @@ Console.WriteLine(
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next link -->
+- [Engine surface](transport.md): The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version.
+- [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
+- [Secured session](session.md): X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack.
+- Also in Transports and testing: [MQTT](mqtt.md), [CoAP](coap.md), [Loopback](loopback.md), [Store and forward](sync.md), [Event bus](bus.md), [Simulators](sim.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference link -->

@@ -1148,6 +1148,8 @@ detail = "With partners."
                 dotnet: Vec::new(),
                 guide: guide.map(str::to_owned),
                 guides: Vec::new(),
+                next: Vec::new(),
+                pages: Vec::new(),
             }],
             ..bare()
         }

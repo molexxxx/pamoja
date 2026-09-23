@@ -50,15 +50,35 @@
       const select = (lang) =>
       {
         root.dataset.lang = lang;
-        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.lang === lang)));
+        tabs.forEach((tab) =>
+        {
+          const on = tab.dataset.lang === lang;
+          tab.setAttribute('aria-selected', String(on));
+          tab.tabIndex = on ? 0 : -1;
+        });
       };
-      select(known.has(root.dataset.lang) ? root.dataset.lang : 'rust');
-      tabs.forEach((tab) => tab.addEventListener('click', () =>
+      const choose = (tab) =>
       {
         select(tab.dataset.lang);
         remember(tab.dataset.lang);
         history.replaceState(history.state, '', '#' + tab.dataset.lang);
-      }));
+      };
+      select(known.has(root.dataset.lang) ? root.dataset.lang : 'rust');
+      tabs.forEach((tab) =>
+      {
+        tab.addEventListener('click', () => choose(tab));
+        tab.addEventListener('keydown', (e) =>
+        {
+          const group = [...tab.closest('[role="tablist"]').querySelectorAll('.lang-tab')];
+          const at = group.indexOf(tab);
+          const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: group.length - 1 }[e.key];
+          if (to === undefined) return;
+          e.preventDefault();
+          const next = group[(to + group.length) % group.length];
+          choose(next);
+          next.focus();
+        });
+      });
     }
 
     // Copy buttons: an install line carries its text; a code figure copies its code.

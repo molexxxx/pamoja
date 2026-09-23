@@ -210,6 +210,14 @@ Console.WriteLine($"recovered {string.Join(", ", recovered.Select(v => v.ToStrin
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next codec -->
+- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
+- [Store and forward](sync.md): Offline-first queues.
+- [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference codec -->

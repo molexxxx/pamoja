@@ -227,6 +227,15 @@ Console.WriteLine(
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next bus -->
+- [Rules](rules.md): Rules between nodes as a file.
+- [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
+- [Loopback](loopback.md): An in-process transport with topic matching and a fault injector, for testing with no broker.
+- Also in Transports and testing: [MQTT](mqtt.md), [CoAP](coap.md), [Store and forward](sync.md), [Transport ladder](ladder.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference bus -->

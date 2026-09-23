@@ -271,6 +271,15 @@ Console.WriteLine(
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next routing -->
+- [Mesh frames](mesh.md): Addressed, hop-limited, CRC-checked frames and duplicate suppression that floods a packet exactly once.
+- [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
+- [Store and forward](sync.md): Offline-first queues.
+- Also in Radio and reach: [LoRa airtime and range](lora.md), [LoRaWAN](lorawan.md), [LoRa radios](radios.md), [LoRaWAN gateways](gateway.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference routing -->

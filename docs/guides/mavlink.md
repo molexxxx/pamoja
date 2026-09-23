@@ -463,6 +463,14 @@ static MavlinkAckOutcome? Acknowledge(
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next mavlink -->
+- [ROS 2 rules](ros2.md): ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed.
+- [Serial framing](serial.md): SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets.
+- [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference mavlink -->

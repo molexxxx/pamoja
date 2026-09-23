@@ -551,6 +551,15 @@ Console.WriteLine($"gateway got {string.Join(", ", got)}");
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next device -->
+- [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
+- [Simulators](sim.md): Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose.
+- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- Also in Sensing and actuation: [Actuator drivers](actuators.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference device -->

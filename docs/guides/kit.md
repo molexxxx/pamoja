@@ -210,6 +210,14 @@ foreach (float reading in new[] { percent, 38.0f, 45.0f, 62.0f })
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next kit -->
+- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- [Rules](rules.md): Rules between nodes as a file.
+- [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference kit -->

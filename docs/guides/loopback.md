@@ -264,6 +264,15 @@ catch (PamojaException error)
 ```
 <!-- end -->
 
+## Where next
+
+<!-- table: next loopback -->
+- [Simulators](sim.md): Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose.
+- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
+- [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
+- Also in Transports and testing: [CoAP](coap.md), [Store and forward](sync.md), [Transport ladder](ladder.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference loopback -->

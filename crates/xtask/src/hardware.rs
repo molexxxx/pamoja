@@ -12,7 +12,7 @@ use std::path::Path;
 
 use toml_edit::{DocumentMut, Item};
 
-use crate::catalog::{escape, rustdoc_url, Catalog, SITE};
+use crate::catalog::{clause, escape, rustdoc_url, Catalog, SITE};
 
 /// The repository, for the links to a driver's source.
 const REPO: &str = "https://github.com/molexxxx/pamoja";
@@ -746,21 +746,6 @@ fn speakers<'a>(bus: &Entry, all: &'a [Entry]) -> Vec<&'a Entry> {
                 .any(|word| word == token)
         })
         .collect()
-}
-
-// The opening clause of a capability's summary, which is what a card's guide row has room
-// for. A summary that lists its parts or qualifies itself is cut at that turn; one that
-// joins two things with ", and" keeps both, or the second part's card would be told the
-// guide covers only the first.
-fn clause(summary: &str) -> &str {
-    let cut = [": ", "; ", ". "]
-        .iter()
-        .filter_map(|mark| summary.find(mark))
-        .min();
-    match cut {
-        Some(at) => summary[..at].trim_end_matches(['.', ',']),
-        None => summary.trim_end_matches('.'),
-    }
 }
 
 // A part name as a search query.

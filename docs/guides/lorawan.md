@@ -1095,6 +1095,16 @@ Console.WriteLine(
 <!-- end -->
 
 
+## Where next
+
+<!-- table: next lorawan -->
+- [LoRaWAN gateways](gateway.md): What a LoRaWAN gateway speaks.
+- [Secured session](session.md): X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack.
+- [Signed updates](update.md): Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.
+- Beside it: [Radios and antennas](../radio.md), [Firmware over the air](fuota.md).
+- Also in Radio and reach: [LoRa airtime and range](lora.md), [LoRa radios](radios.md), [Mesh frames](mesh.md), [Routing](routing.md).
+<!-- end -->
+
 ## Reference
 
 <!-- table: reference lorawan -->

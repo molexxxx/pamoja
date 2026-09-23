@@ -469,6 +469,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- Every guide ends with a Where next generated from the capability map: the guides a
+  reader goes to after it, each with what it covers, the pages beside it such as a board
+  page, and the rest of its chapter. Before, one guide in 37 had one. The language tabs move
+  with the arrow keys, Home and End, keep only the selected tab in the tab order, and show
+  keyboard focus on their panels, and a link to a language lands with its tabs in view. A
+  guide can now carry more than one set of language tabs, and a panel can carry subheadings
+  of its own.
 - The hardware page opens each group with a numbered selection table: every part with what
   it does, how it connects, when to pick it over its neighbors, and the lowest price listed,
   linked to its card. The page states the days its prices were read, generated from the
