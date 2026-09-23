@@ -1,18 +1,21 @@
 //! Generated Python bindings for on-board bus addressing and pin logic.
 //!
 //! These mirror the `pamoja-gpio` Rust API: I2C addressing per NXP UM10204, the
-//! four SPI clock modes, and the pin model that maps a logical "asserted" onto a
-//! physical level. Everything here is pure arithmetic over small values, so
-//! nothing holds state.
+//! four SPI clock modes, the pin model that maps a logical "asserted" onto a
+//! physical level, and a line opened on a Linux board. The first three are pure
+//! arithmetic over small values; a [`GpioLine`] holds the line until it is closed.
 //!
 //! The pin enumerations cross as plain strings, which the facade turns back into
 //! Python enum members.
+
+use std::sync::{Mutex, PoisonError};
 
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
 use pamoja_gpio::i2c::{Address, Direction};
+use pamoja_gpio::linux::{self, Line, OpenError};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_gpio::GpioError;
@@ -141,6 +144,99 @@ pub fn pin_polarity_level(polarity: &str, asserted: bool) -> PyResult<String> {
 #[pyfunction]
 pub fn pin_polarity_is_asserted(polarity: &str, level: &str) -> PyResult<bool> {
     Ok(read_polarity(polarity)?.is_asserted(read_level(level)?))
+}
+
+/// A GPIO line opened on a Linux board, through the kernel's GPIO character device.
+///
+/// Levels cross as `"Low"` and `"High"`; the facade's `GpioLine` speaks the `Level` enum.
+#[gen_stub_pyclass]
+#[pyclass(frozen)]
+pub struct GpioLine {
+    inner: Mutex<Option<Line>>,
+    chip: String,
+    offset: u32,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl GpioLine {
+    /// Opens a line as an output, driving `initial` from the moment it is taken.
+    ///
+    /// Raises `PamojaError` when the platform is not Linux, or the chip or the line cannot
+    /// be opened, and `ValueError` for a level other than `"Low"` or `"High"`.
+    #[staticmethod]
+    fn open_output(chip: String, line: u32, initial: &str) -> PyResult<GpioLine> {
+        let initial = read_level(initial)?;
+        GpioLine::opened(linux::output(&chip, line, initial), chip, line)
+    }
+
+    /// Opens a line as an input.
+    ///
+    /// Raises `PamojaError` when the platform is not Linux, or the chip or the line cannot
+    /// be opened.
+    #[staticmethod]
+    fn open_input(chip: String, line: u32) -> PyResult<GpioLine> {
+        GpioLine::opened(linux::input(&chip, line), chip, line)
+    }
+
+    /// The GPIO chip's device file.
+    #[getter]
+    fn chip(&self) -> String {
+        self.chip.clone()
+    }
+
+    /// The line's number on its chip.
+    #[getter]
+    fn offset(&self) -> u32 {
+        self.offset
+    }
+
+    /// Drives the line to `"Low"` or `"High"`. Raises `PamojaError` when the kernel refuses
+    /// the write, which an input line does, or the line is closed.
+    fn drive(&self, level: &str) -> PyResult<()> {
+        let level = read_level(level)?;
+        self.with_line(|line| line.drive(level))
+    }
+
+    /// Reads the level on the line now, as `"Low"` or `"High"`. Raises `PamojaError` when
+    /// the kernel refuses the read, or the line is closed.
+    fn read(&self) -> PyResult<String> {
+        self.with_line(Line::read)
+            .map(|level| name(level).to_owned())
+    }
+
+    /// Hands the line back to the kernel. Calls after this raise `PamojaError`.
+    fn close(&self) {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+    }
+}
+
+impl GpioLine {
+    fn opened(result: Result<Line, OpenError>, chip: String, offset: u32) -> PyResult<GpioLine> {
+        let line = result.map_err(|error| PamojaError::new_err(error.to_string()))?;
+        Ok(GpioLine {
+            inner: Mutex::new(Some(line)),
+            chip,
+            offset,
+        })
+    }
+
+    fn with_line<T>(
+        &self,
+        call: impl FnOnce(&mut Line) -> Result<T, linux::LineError>,
+    ) -> PyResult<T> {
+        let mut guard = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let line = guard.as_mut().ok_or_else(|| {
+            PamojaError::new_err(format!(
+                "{} line {}: the line is closed",
+                self.chip, self.offset
+            ))
+        })?;
+        call(line).map_err(|error| PamojaError::new_err(error.to_string()))
+    }
 }
 
 /// Names a level as the string that crosses the boundary.

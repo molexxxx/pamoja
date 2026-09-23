@@ -34,7 +34,9 @@
 //! a single line: [`Switch`](switch::Switch) drives a relay, a valve, or a lamp as a
 //! core `Actuator`, and [`Contact`](switch::Contact) reads a button, a float switch,
 //! or a motion detector as a core `Sensor`, each with its [`Polarity`](pin::Polarity)
-//! carried by the type rather than remembered at every call.
+//! carried by the type rather than remembered at every call. The `linux` module (the
+//! `linux` feature) opens a line on a Linux board through the GPIO character device, so the
+//! same switch runs a real relay on a Raspberry Pi.
 //!
 //! # Examples
 //!
@@ -61,6 +63,8 @@
 extern crate alloc;
 
 pub mod i2c;
+#[cfg(feature = "linux")]
+pub mod linux;
 pub mod pin;
 pub mod spi;
 #[cfg(feature = "embedded-hal")]

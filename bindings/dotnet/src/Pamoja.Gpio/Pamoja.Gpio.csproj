@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Gpio</PackageId>
     <AssemblyName>Pamoja.Gpio</AssemblyName>
     <RootNamespace>Pamoja.Gpio</RootNamespace>
-    <Description>I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins.</Description>
+    <Description>I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board.</Description>
     <PackageTags>pamoja;iot;robotics;gpio</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/gpio.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

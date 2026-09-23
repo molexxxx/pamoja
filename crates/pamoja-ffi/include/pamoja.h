@@ -2073,6 +2073,10 @@ typedef struct PamojaGatewayUplink PamojaGatewayUplink;
 // An opaque handle to a circular geofence.
 typedef struct PamojaGeofence PamojaGeofence;
 
+// A GPIO line opened on a Linux board. Opaque; let it go with [`pamoja_gpio_line_free`],
+// which hands the line back to the kernel.
+typedef struct PamojaGpioLine PamojaGpioLine;
+
 // An opaque handle that hashes an image as it arrives.
 //
 // Create it with [`pamoja_image_verifier_new`], feed it with
@@ -6918,6 +6922,95 @@ PamojaPinLevel pamoja_pin_polarity_level(PamojaPinPolarity polarity, bool assert
 //
 // `true` if `level` asserts the signal under `polarity`.
 bool pamoja_pin_polarity_is_asserted(PamojaPinPolarity polarity, PamojaPinLevel level);
+
+// Opens a line on a Linux board as an output, driving `initial` from the moment it is taken.
+//
+// # Arguments
+//
+// * `chip` - the GPIO chip's device file, such as `/dev/gpiochip0`.
+// * `line` - the line's number on that chip, the GPIO or BCM number on a Raspberry Pi.
+// * `initial` - the level to drive as soon as the line is taken; an active-low relay is
+//   opened high so it stays off.
+// * `out_line` - receives the line, or null when opening fails.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the line in `out_line`; [`PamojaStatus::Unsupported`] on any
+// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument;
+// or [`PamojaStatus::Io`] when the chip or the line cannot be opened. The last error
+// message names the chip and the line.
+//
+// # Safety
+//
+// `chip` must be a null-terminated string or null, and `out_line` a writable pointer or
+// null.
+PamojaStatus pamoja_gpio_line_open_output(const char *chip,
+                                          uint32_t line,
+                                          PamojaPinLevel initial,
+                                          PamojaGpioLine **out_line);
+
+// Opens a line on a Linux board as an input.
+//
+// # Arguments
+//
+// * `chip` - the GPIO chip's device file, such as `/dev/gpiochip0`.
+// * `line` - the line's number on that chip.
+// * `out_line` - receives the line, or null when opening fails.
+//
+// # Returns
+//
+// As [`pamoja_gpio_line_open_output`].
+//
+// # Safety
+//
+// `chip` must be a null-terminated string or null, and `out_line` a writable pointer or
+// null.
+PamojaStatus pamoja_gpio_line_open_input(const char *chip,
+                                         uint32_t line,
+                                         PamojaGpioLine **out_line);
+
+// Drives an output line to a level.
+//
+// # Arguments
+//
+// * `line` - the line.
+// * `level` - the level to drive.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null line; or
+// [`PamojaStatus::Io`] when the kernel refuses the write, which is what an input line
+// answers.
+//
+// # Safety
+//
+// `line` must be a live handle from one of the open functions, or null.
+PamojaStatus pamoja_gpio_line_drive(PamojaGpioLine *line, PamojaPinLevel level);
+
+// Reads the level on a line now.
+//
+// # Arguments
+//
+// * `line` - the line.
+// * `out_level` - receives the level.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the level in `out_level`; [`PamojaStatus::InvalidArgument`] for
+// a null argument; or [`PamojaStatus::Io`] when the kernel refuses the read.
+//
+// # Safety
+//
+// `line` must be a live handle from one of the open functions, or null, and `out_level` a
+// writable pointer or null.
+PamojaStatus pamoja_gpio_line_read(PamojaGpioLine *line, PamojaPinLevel *out_level);
+
+// Lets a line go, handing it back to the kernel. A null pointer is ignored.
+//
+// # Safety
+//
+// `line` must be a handle from one of the open functions that has not been freed, or null.
+void pamoja_gpio_line_free(PamojaGpioLine *line);
 
 // Wraps host callbacks in a transport.
 //

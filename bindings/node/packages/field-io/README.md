@@ -14,7 +14,7 @@ npm install @pamoja/field-io
 | [Serial framing](https://pamoja.molex.cloud/docs/guides/serial.html) | `@pamoja/serial` | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
 | [Modbus RTU](https://pamoja.molex.cloud/docs/guides/modbus.html) | `@pamoja/modbus` | Modbus RTU requests and replies with CRC-16/MODBUS for RS485 field devices |
 | [CAN and J1939](https://pamoja.molex.cloud/docs/guides/can.html) | `@pamoja/can` | CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose |
-| [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | `@pamoja/gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins |
+| [I2C, SPI, and GPIO](https://pamoja.molex.cloud/docs/guides/gpio.html) | `@pamoja/gpio` | I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board |
 | [Buses](https://pamoja.molex.cloud/docs/guides/hal.html) | `@pamoja/core` | The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

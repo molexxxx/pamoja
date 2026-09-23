@@ -603,7 +603,42 @@ static void FieldIo()
     Assert(Spi.ClockFor(3) is { Cpol: true, Cpha: true }, "mode 3 idles high and samples late");
     Assert(
         Pin.LevelFor(PinPolarity.ActiveLow, asserted: true) == PinLevel.Low,
-        "an active-low relay is energised by a low level");
+        "an active-low relay is energized by a low level");
+
+    var relay = Switch.ActiveLow(new PinScript());
+    Assert(!relay.IsAsserted, "a switch starts off and drives nothing");
+    relay.Set(true);
+    relay.Set(false);
+    Assert(
+        relay.Release().Driven.SequenceEqual(new[] { PinLevel.Low, PinLevel.High }),
+        "an active-low switch drives low to turn on and high to turn off");
+    var button = Contact.ActiveLow(new PinScript(PinLevel.High, PinLevel.Low));
+    Assert(
+        !button.IsAsserted() && button.IsAsserted(),
+        "an active-low contact reads closed on a low level");
+    var idle = new PinScript();
+    Assert(idle.Read() == PinLevel.High, "a script starts released and high");
+    idle.Drive(PinLevel.Low);
+    Assert(idle.Read() == PinLevel.Low, "past its reads a script answers its driven level");
+
+    // A line opens on Linux alone, and a missing chip is refused naming the chip and line.
+    try
+    {
+        using GpioLine absent = GpioLine.OpenInput("/dev/gpiochip-pamoja-absent", 27);
+        Assert(false, "a missing chip does not open");
+    }
+    catch (PlatformNotSupportedException refused)
+    {
+        Assert(!OperatingSystem.IsLinux(), "only a platform that is not Linux refuses outright");
+        Assert(refused.Message.Contains("only Linux"), "the refusal says where lines open");
+    }
+    catch (PamojaException refused)
+    {
+        Assert(OperatingSystem.IsLinux(), "only Linux gets as far as the chip");
+        Assert(
+            refused.Message.StartsWith("/dev/gpiochip-pamoja-absent line 27: "),
+            "the error names the chip and the line");
+    }
 }
 
 // The parts wired to a board: a compensated environment reading, a thermometer

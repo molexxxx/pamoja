@@ -9,7 +9,10 @@ byte, the SPI clock mode, and whether a relay is active high or active low.
 from __future__ import annotations
 
 import enum
+from collections import deque
+from typing import Generic, Iterable, Protocol, TypeVar
 
+from pamoja._native import GpioLine as _NativeLine
 from pamoja._native import I2C_RESERVED_BELOW as _RESERVED_BELOW
 from pamoja._native import I2C_RESERVED_FROM as _RESERVED_FROM
 from pamoja._native import SpiClock
@@ -25,7 +28,21 @@ from pamoja._native import pin_polarity_level as _polarity_level
 from pamoja._native import spi_mode_clock as _mode_clock
 from pamoja._native import spi_mode_from_clock as _mode_from_clock
 
-__all__ = ["Edge", "Level", "Polarity", "SpiClock", "i2c", "pin", "spi"]
+__all__ = [
+    "Contact",
+    "Edge",
+    "GpioLine",
+    "InputLine",
+    "Level",
+    "OutputLine",
+    "PinScript",
+    "Polarity",
+    "SpiClock",
+    "Switch",
+    "i2c",
+    "pin",
+    "spi",
+]
 
 
 class Level(str, enum.Enum):
@@ -204,3 +221,312 @@ spi = _Spi()
 
 #: The GPIO pin model, so an active-low relay is handled by the type.
 pin = _Pin()
+
+
+class OutputLine(Protocol):
+    """A line a pin library drives: ``gpiozero`` or ``lgpio`` on a Raspberry Pi, a
+    vendor SDK on a microcontroller, or a :class:`PinScript` in a test. Anything with
+    this one method can sit under a :class:`Switch`."""
+
+    def drive(self, level: Level) -> None:
+        """Drive the line to a level.
+
+        :param level: The level to drive.
+        """
+        ...
+
+
+class InputLine(Protocol):
+    """A line a pin library reads, which a :class:`Contact` sits over."""
+
+    def read(self) -> Level:
+        """Read the line's level now.
+
+        :returns: The level on the line.
+        """
+        ...
+
+
+_Out = TypeVar("_Out", bound=OutputLine)
+_In = TypeVar("_In", bound=InputLine)
+
+
+class Switch(Generic[_Out]):
+    """A two-state output over any line, with its polarity said once: a relay, an
+    LED, a solenoid valve, a buzzer. ``set(True)`` asserts it, which drives the line
+    low for an active-low part, so no call site inverts a level by hand.
+
+    >>> pump = Switch.active_low(PinScript())
+    >>> pump.set(True)
+    >>> pump.is_asserted, pump.release().driven
+    (True, [<Level.LOW: 'Low'>])
+    """
+
+    __slots__ = ("_asserted", "_line", "_polarity")
+
+    def __init__(self, line: _Out, polarity: Polarity) -> None:
+        """Wrap a line, starting deasserted. Nothing is driven until :meth:`set`.
+
+        :param line: The line the part is wired to.
+        :param polarity: How the part is wired.
+        """
+        self._line = line
+        self._polarity = Polarity(polarity)
+        self._asserted = False
+
+    @classmethod
+    def active_high(cls, line: _Out) -> Switch[_Out]:
+        """A switch whose part is asserted by a high level.
+
+        :param line: The line the part is wired to.
+        :returns: The switch.
+        """
+        return cls(line, Polarity.ACTIVE_HIGH)
+
+    @classmethod
+    def active_low(cls, line: _Out) -> Switch[_Out]:
+        """A switch whose part is asserted by a low level, the wiring of most relay
+        boards.
+
+        :param line: The line the part is wired to.
+        :returns: The switch.
+        """
+        return cls(line, Polarity.ACTIVE_LOW)
+
+    @property
+    def polarity(self) -> Polarity:
+        """How the part is wired."""
+        return self._polarity
+
+    @property
+    def is_asserted(self) -> bool:
+        """Whether the part was last set on."""
+        return self._asserted
+
+    def set(self, asserted: bool) -> None:
+        """Turn the part on or off, driving whichever level that means for its wiring.
+
+        :param asserted: ``True`` to turn it on.
+        :raises Exception: Whatever the line raises when it cannot be driven.
+        """
+        self._line.drive(pin.level_for(self._polarity, asserted))
+        self._asserted = asserted
+
+    def release(self) -> _Out:
+        """Hand the line back, for a test to read what was driven or a program to
+        reuse it.
+
+        :returns: The line.
+        """
+        return self._line
+
+
+class Contact(Generic[_In]):
+    """A two-state input over any line, with its polarity said once: a button, a
+    float switch, a reed switch, a limit switch. :meth:`is_asserted` answers whether
+    it is closed, pressed, or tripped, whatever level that takes on the wire.
+
+    >>> float_switch = Contact.active_low(PinScript([Level.LOW]))
+    >>> float_switch.is_asserted()
+    True
+    """
+
+    __slots__ = ("_line", "_polarity")
+
+    def __init__(self, line: _In, polarity: Polarity) -> None:
+        """Wrap a line.
+
+        :param line: The line the part is wired to.
+        :param polarity: How the part is wired.
+        """
+        self._line = line
+        self._polarity = Polarity(polarity)
+
+    @classmethod
+    def active_high(cls, line: _In) -> Contact[_In]:
+        """A contact that reads high when asserted.
+
+        :param line: The line the part is wired to.
+        :returns: The contact.
+        """
+        return cls(line, Polarity.ACTIVE_HIGH)
+
+    @classmethod
+    def active_low(cls, line: _In) -> Contact[_In]:
+        """A contact that reads low when asserted, the wiring of a switch to ground
+        with a pull-up.
+
+        :param line: The line the part is wired to.
+        :returns: The contact.
+        """
+        return cls(line, Polarity.ACTIVE_LOW)
+
+    @property
+    def polarity(self) -> Polarity:
+        """How the part is wired."""
+        return self._polarity
+
+    def level(self) -> Level:
+        """Read the raw level on the line.
+
+        :returns: The level.
+        :raises Exception: Whatever the line raises when it cannot be read.
+        """
+        return Level(self._line.read())
+
+    def is_asserted(self) -> bool:
+        """Read the line and report whether the part is asserted.
+
+        :returns: Whether it is closed, pressed, or tripped.
+        :raises Exception: Whatever the line raises when it cannot be read.
+        """
+        return pin.is_asserted(self._polarity, self.level())
+
+    def release(self) -> _In:
+        """Hand the line back.
+
+        :returns: The line.
+        """
+        return self._line
+
+
+class GpioLine:
+    """A GPIO line opened on a Linux board, through the kernel's GPIO character device:
+    the line a :class:`Switch` or a :class:`Contact` sits over on a Raspberry Pi or any
+    Linux board.
+
+    :meth:`open_output` drives its initial level from the moment the line is taken, so an
+    active-low relay is opened ``Level.HIGH`` and stays off; :meth:`open_input` opens one
+    to read. The chip is a device file such as ``/dev/gpiochip0``, and the line is the GPIO
+    or BCM number a Raspberry Pi pinout gives. A line is held by one process at a time;
+    :meth:`close`, or leaving a ``with`` block, hands it back. On Raspberry Pi OS a user in
+    the ``gpio`` group opens lines without root. Opening raises ``PamojaError`` on any
+    platform but Linux, and names the chip and the line when either cannot be opened.
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, native: _NativeLine) -> None:
+        """Wrap an opened native line. Use :meth:`open_output` or :meth:`open_input`."""
+        self._native = native
+
+    @classmethod
+    def open_output(cls, chip: str, line: int, initial: Level) -> GpioLine:
+        """Open a line as an output, driving ``initial`` from the moment it is taken.
+
+        :param chip: The GPIO chip's device file, ``/dev/gpiochip0`` on most boards.
+        :param line: The line's number on that chip, the GPIO or BCM number on a
+            Raspberry Pi.
+        :param initial: The level to drive as soon as the line is taken.
+        :returns: The line.
+        :raises PamojaError: If the platform is not Linux, or the chip or the line
+            cannot be opened.
+        """
+        return cls(_NativeLine.open_output(chip, line, Level(initial).value))
+
+    @classmethod
+    def open_input(cls, chip: str, line: int) -> GpioLine:
+        """Open a line as an input.
+
+        :param chip: The GPIO chip's device file.
+        :param line: The line's number on that chip.
+        :returns: The line.
+        :raises PamojaError: If the platform is not Linux, or the chip or the line
+            cannot be opened.
+        """
+        return cls(_NativeLine.open_input(chip, line))
+
+    @property
+    def chip(self) -> str:
+        """The GPIO chip's device file."""
+        return self._native.chip
+
+    @property
+    def offset(self) -> int:
+        """The line's number on its chip."""
+        return self._native.offset
+
+    def drive(self, level: Level) -> None:
+        """Drive the line to a level. The line must have been opened as an output.
+
+        :param level: The level to drive.
+        :raises PamojaError: If the kernel refuses the write, or the line is closed.
+        """
+        self._native.drive(Level(level).value)
+
+    def read(self) -> Level:
+        """Read the level on the line now.
+
+        :returns: The level.
+        :raises PamojaError: If the kernel refuses the read, or the line is closed.
+        """
+        return Level(self._native.read())
+
+    def close(self) -> None:
+        """Hand the line back to the kernel. Calls after this raise ``PamojaError``."""
+        self._native.close()
+
+    def __enter__(self) -> GpioLine:
+        """Return the line, so it can be opened in a ``with`` block."""
+        return self
+
+    def __exit__(self, *exception: object) -> None:
+        """Close the line at the end of a ``with`` block, letting any exception through."""
+        self.close()
+
+
+class PinScript:
+    """A line for running with nothing plugged in: it answers the reads it was given,
+    in order, and records every level it is driven to. It is what the examples and
+    tests put under a :class:`Switch` or a :class:`Contact`, and the one thing a real
+    node replaces with its board's pin library. It behaves as
+    ``pamoja_hal::script::PinScript`` does in Rust: it starts released, high, and once
+    its reads run out a read answers the level it was last driven to.
+
+    >>> line = PinScript([Level.LOW])
+    >>> line.read(), line.read()
+    (<Level.LOW: 'Low'>, <Level.HIGH: 'High'>)
+    """
+
+    __slots__ = ("_driven", "_inputs", "_level")
+
+    def __init__(self, inputs: Iterable[Level] = ()) -> None:
+        """Create a released line.
+
+        :param inputs: The levels to answer reads with, in order.
+        """
+        self._inputs: deque[Level] = deque(Level(level) for level in inputs)
+        self._driven: list[Level] = []
+        self._level = Level.HIGH
+
+    @property
+    def driven(self) -> list[Level]:
+        """Every level the line was driven to, oldest first."""
+        return list(self._driven)
+
+    @property
+    def level(self) -> Level:
+        """The level the line was last driven to, high while it has never been
+        driven."""
+        return self._level
+
+    @property
+    def remaining(self) -> int:
+        """How many scripted reads are left."""
+        return len(self._inputs)
+
+    def drive(self, level: Level) -> None:
+        """Record a driven level.
+
+        :param level: The level driven.
+        """
+        self._level = Level(level)
+        self._driven.append(self._level)
+
+    def read(self) -> Level:
+        """Answer the next scripted level, or the driven level once the script runs
+        out.
+
+        :returns: The level.
+        """
+        return self._inputs.popleft() if self._inputs else self._level

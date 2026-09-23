@@ -9,10 +9,10 @@ energizes a relay, which address byte reaches the bus, and which clock mode a
 part expects.
 
 pamoja carries that logic and none of the wiring. A relay is a `Switch` and a
-float switch is a `Contact`, both over whatever output and input line the board
-gives you, so the same code runs on a Raspberry Pi through the kernel's GPIO
-character device, on a microcontroller through its own pins, and in a test
-against a scripted line with nothing plugged in.
+float switch is a `Contact`, in all four languages, over whatever line the board
+gives you: a scripted line in a test, a `GpioLine` on a Raspberry Pi or any Linux
+board, or a microcontroller's own pin. The code between those two lines never
+changes.
 
 ## What the example does
 
@@ -50,7 +50,20 @@ It proves:
 </div>
 <!-- end -->
 
+Each program runs with nothing plugged in. On a Raspberry Pi wired as
+[On a board](#on-a-board) shows, set `PAMOJA_GPIO_CHIP=/dev/gpiochip0` before the same
+command and it runs the real pump as well.
+
 ## Rust
+
+`pamoja-gpio` carries the pin model and the two parts, `Switch` and `Contact`, which
+take any `embedded-hal` output or input line; `pamoja-hal` carries `PinScript`, the
+line a test gives them. `Switch` implements the core `Actuator` and `Contact` the core
+`Sensor`, which is why the example drives the pump with `apply` and reads the float with
+`read`: a profile or a rule drives the same pump without knowing it is a pin. The direct
+calls are `set` and `is_asserted`, used in [On a board](#on-a-board). A line that fails
+returns its own error through the `Result`; a scripted line never fails, so the example
+`expect`s.
 
 <!-- snippet: examples/guides/gpio.rs#example -->
 From [`examples/guides/gpio.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/gpio.rs):
@@ -58,7 +71,7 @@ From [`examples/guides/gpio.rs`](https://github.com/molexxxx/pamoja/blob/main/ex
 ```rust
 use pamoja_core::{Actuator, Sensor};
 use pamoja_gpio::i2c::{Address, Direction, RESERVED_FROM};
-use pamoja_gpio::pin::{Edge, Level, Polarity};
+use pamoja_gpio::pin::{Edge, Level};
 use pamoja_gpio::spi::Mode;
 use pamoja_gpio::switch::{Contact, Switch};
 use pamoja_hal::digital::PinState;
@@ -67,19 +80,14 @@ use pamoja_hal::script::PinScript;
 // Most relay boards energize when their input is pulled low, and a float switch wired
 // to ground closes the same way. Saying "active low" once, here, is what keeps the
 // inversion out of every line below it.
-let mut pump = Switch::new(PinScript::new([]), Polarity::ActiveLow);
-let mut float = Contact::new(
-    PinScript::new([PinState::High, PinState::Low]),
-    Polarity::ActiveLow,
-);
-println!(
-    "a pump on an active-low relay runs when its line is {:?}",
-    Polarity::ActiveLow.level(true)
-);
+let mut pump = Switch::active_low(PinScript::new([]));
+let mut float = Contact::active_low(PinScript::new([PinState::High, PinState::Low]));
+let runs_on = pump.polarity().level(true);
+println!("a pump on an active-low relay runs when its line is {runs_on:?}");
 
 // The pump runs while the tank fills. The scripted line answers open and then closed,
 // so this is the real loop with nothing plugged in; on a board the same two lines take
-// a pin from the host's GPIO library instead.
+// a pin from the board's GPIO library instead.
 pump.apply(true).await.expect("the relay takes it");
 let while_filling = float.read().await.expect("the line reads");
 let once_filled = float.read().await.expect("the line reads");
@@ -117,64 +125,35 @@ println!("SPI mode 3 idles high: {idles_high}, samples on the trailing edge: {tr
 ```
 <!-- end -->
 
-`Switch` and `Contact` take any `embedded-hal` output and input line, so the two
-lines that build them are the only ones that change between a board and a test.
-`PinScript` is the test line: it answers the reads it was given and records every
-level it was driven to, which is why this runs in CI. On a Raspberry Pi those two
-arguments come from `pamoja-hal`'s Linux backend instead, and on a
-microcontroller from the chip's own HAL. `Switch` implements `Actuator` and
-`Contact` implements `Sensor`, so a profile or a rule drives the pump without
-knowing it is a pin.
-
 ## TypeScript
 
-There is no trait to implement here. The board's own GPIO library drives the
-line, and pamoja carries the polarity, the edge, and the addressing. The stand-in
-below is what a real node replaces with `onoff`, `rpio`, or a vendor SDK:
-
-<!-- snippet: bindings/node/guides/gpio.ts#parts -->
-From [`bindings/node/guides/gpio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gpio.ts):
-
-```typescript
-import { PinEdge, PinLevel, PinPolarity, i2c, pin, spi } from '@pamoja/gpio'
-
-// The board's own library drives the line: `onoff` or `rpio` on a Raspberry Pi, a vendor
-// SDK on a microcontroller. This stands in for one so the example runs with nothing
-// plugged in, and it is the only part a real node replaces.
-class Line {
-  driven: PinLevel[] = []
-
-  constructor(private readings: PinLevel[] = []) {}
-
-  drive(level: PinLevel): void {
-    this.driven.push(level)
-  }
-
-  read(): PinLevel {
-    return this.readings.shift()!
-  }
-}
-```
-<!-- end -->
+`@pamoja/gpio` has the same three types, `Switch`, `Contact`, and `PinScript`, and the
+same pure functions under `pin`, `i2c`, and `spi`. The calls are synchronous. A level is
+`PinLevel.High` or `PinLevel.Low`, and anything with a `drive(level)` method goes under a
+`Switch` and anything with `read()` under a `Contact`, so a `GpioLine` on Linux, a
+`PinScript` in a test, or a two-line adapter over another pin library all fit. A refusal
+throws an `Error` whose message names the cause.
 
 <!-- snippet: bindings/node/guides/gpio.ts#example -->
 From [`bindings/node/guides/gpio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gpio.ts):
 
 ```typescript
+import { Contact, GpioLine, PinEdge, PinLevel, PinScript, Switch, i2c, pin, spi } from '@pamoja/gpio'
+
 // Most relay boards energize when their input is pulled low, and a float switch wired to
 // ground closes the same way. Saying "active low" once, here, is what keeps the inversion
 // out of every line below it.
-const RELAY = PinPolarity.ActiveLow
-const FLOAT = PinPolarity.ActiveLow
-const pump = new Line()
-const float = new Line([PinLevel.High, PinLevel.Low])
-console.log(`a pump on an active-low relay runs when its line is ${pin.levelFor(RELAY, true)}`)
+const pump = Switch.activeLow(new PinScript())
+const float = Contact.activeLow(new PinScript([PinLevel.High, PinLevel.Low]))
+const runsOn = pin.levelFor(pump.polarity, true)
+console.log(`a pump on an active-low relay runs when its line is ${runsOn}`)
 
-// The pump runs while the tank fills. The stand-in line answers open and then closed, so
-// this is the real loop with nothing plugged in.
-pump.drive(pin.levelFor(RELAY, true))
-const whileFilling = pin.isAsserted(FLOAT, float.read())
-const onceFilled = pin.isAsserted(FLOAT, float.read())
+// The pump runs while the tank fills. The scripted line answers open and then closed, so
+// this is the real loop with nothing plugged in; on a board the same two lines take a pin
+// from the board's GPIO library instead.
+pump.set(true)
+const whileFilling = float.isAsserted()
+const onceFilled = float.isAsserted()
 console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
 
 // The moment the float closes is that line going low, which is a falling edge. A watch
@@ -182,10 +161,10 @@ console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
 const closing = pin.triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low)
 console.log(`the float closing is a falling edge on that line: ${closing}`)
 
-// Full, so the pump stops, and the levels the line was driven to are the whole
-// conversation the board saw.
-pump.drive(pin.levelFor(RELAY, false))
-const [ran, stopped] = pump.driven
+// Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
+// driven to are the whole conversation the board saw.
+pump.set(false)
+const [ran, stopped] = pump.release().driven
 console.log(`running drove the line ${ran} and stopping drove it ${stopped}`)
 
 // A part on a shared bus answers to an address, and the byte on the wire is not the
@@ -208,48 +187,32 @@ console.log(`SPI mode 3 idles high: ${clock.cpol}, samples on the trailing edge:
 
 ## Python
 
-<!-- snippet: bindings/python/guides/gpio.py#parts -->
-From [`bindings/python/guides/gpio.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gpio.py):
-
-```python
-from pamoja.gpio import Edge, Level, Polarity, i2c, pin, spi
-
-
-class Line:
-    """The board's own library drives the line: `gpiozero` or `lgpio` on a Raspberry
-    Pi, a vendor SDK on a microcontroller. This stands in for one so the example runs
-    with nothing plugged in, and it is the only part a real node replaces."""
-
-    def __init__(self, readings: list[Level] | None = None) -> None:
-        self.driven: list[Level] = []
-        self._readings = list(readings or [])
-
-    def drive(self, level: Level) -> None:
-        self.driven.append(level)
-
-    def read(self) -> Level:
-        return self._readings.pop(0)
-```
-<!-- end -->
+`pamoja.gpio` has the same types in Python's spelling: `Switch.active_low`,
+`is_asserted`, `PinScript`. A level is `Level.HIGH` or `Level.LOW`, and a line is any
+object with `drive(level)` or `read()`, which the `OutputLine` and `InputLine` protocols
+describe for a type checker. A refusal raises `PamojaError`, except a value that means
+nothing at all, such as SPI mode 4, which raises `ValueError`.
 
 <!-- snippet: bindings/python/guides/gpio.py#example -->
 From [`bindings/python/guides/gpio.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gpio.py):
 
 ```python
+from pamoja.gpio import Contact, Edge, GpioLine, Level, PinScript, Switch, i2c, pin, spi
+
 # Most relay boards energize when their input is pulled low, and a float switch wired to
 # ground closes the same way. Saying "active low" once, here, is what keeps the inversion
 # out of every line below it.
-RELAY = Polarity.ACTIVE_LOW
-FLOAT = Polarity.ACTIVE_LOW
-pump = Line()
-float_switch = Line([Level.HIGH, Level.LOW])
-print(f"a pump on an active-low relay runs when its line is {pin.level_for(RELAY, True).value}")
+pump = Switch.active_low(PinScript())
+float_switch = Contact.active_low(PinScript([Level.HIGH, Level.LOW]))
+runs_on = pin.level_for(pump.polarity, True)
+print(f"a pump on an active-low relay runs when its line is {runs_on.value}")
 
-# The pump runs while the tank fills. The stand-in line answers open and then closed, so
-# this is the real loop with nothing plugged in.
-pump.drive(pin.level_for(RELAY, True))
-while_filling = pin.is_asserted(FLOAT, float_switch.read())
-once_filled = pin.is_asserted(FLOAT, float_switch.read())
+# The pump runs while the tank fills. The scripted line answers open and then closed, so
+# this is the real loop with nothing plugged in; on a board the same two lines take a pin
+# from the board's GPIO library instead.
+pump.set(True)
+while_filling = float_switch.is_asserted()
+once_filled = float_switch.is_asserted()
 print(f"the float reads full: {while_filling}, then {once_filled}")
 
 # The moment the float closes is that line going low, which is a falling edge. A watch
@@ -257,10 +220,10 @@ print(f"the float reads full: {while_filling}, then {once_filled}")
 closing = pin.triggers(Edge.FALLING, Level.HIGH, Level.LOW)
 print(f"the float closing is a falling edge on that line: {closing}")
 
-# Full, so the pump stops, and the levels the line was driven to are the whole
-# conversation the board saw.
-pump.drive(pin.level_for(RELAY, False))
-ran, stopped = pump.driven
+# Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
+# driven to are the whole conversation the board saw.
+pump.set(False)
+ran, stopped = pump.release().driven
 print(f"running drove the line {ran.value} and stopping drove it {stopped.value}")
 
 # A part on a shared bus answers to an address, and the byte on the wire is not the
@@ -282,29 +245,12 @@ print(f"SPI mode 3 idles high: {clock.cpol}, samples on the trailing edge: {cloc
 
 ## C#
 
-<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs#parts -->
-From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs):
-
-```csharp
-/// <summary>
-/// The board's own library drives the line: <c>System.Device.Gpio</c> on a Raspberry
-/// Pi, a vendor SDK on a microcontroller. This stands in for one so the example runs
-/// with nothing plugged in, and it is the only part a real node replaces.
-/// </summary>
-private sealed class Line
-{
-    private readonly Queue<PinLevel> _readings;
-
-    public Line(params PinLevel[] readings) => _readings = new Queue<PinLevel>(readings);
-
-    public List<PinLevel> Driven { get; } = new();
-
-    public void Drive(PinLevel level) => Driven.Add(level);
-
-    public PinLevel Read() => _readings.Dequeue();
-}
-```
-<!-- end -->
+`Pamoja.Gpio` has the same types. `Switch.ActiveLow(line)` and `Contact.ActiveLow(line)`
+infer the line's type, and a line is anything that implements `IOutputLine` or
+`IInputLine`: a `GpioLine`, a `PinScript`, or a class of your own over another library. A
+refusal throws `PamojaException`; opening a `GpioLine` anywhere but Linux throws
+`PlatformNotSupportedException`. A `GpioLine` is `IDisposable`, and disposing it hands the
+line back to the kernel.
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs):
@@ -313,18 +259,17 @@ From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/m
 // Most relay boards energize when their input is pulled low, and a float switch
 // wired to ground closes the same way. Saying "active low" once, here, is what
 // keeps the inversion out of every line below it.
-const PinPolarity Relay = PinPolarity.ActiveLow;
-const PinPolarity Float = PinPolarity.ActiveLow;
-var pump = new Line();
-var floatSwitch = new Line(PinLevel.High, PinLevel.Low);
-Console.WriteLine(
-    $"a pump on an active-low relay runs when its line is {Pin.LevelFor(Relay, true)}");
+var pump = Switch.ActiveLow(new PinScript());
+var floatSwitch = Contact.ActiveLow(new PinScript(PinLevel.High, PinLevel.Low));
+PinLevel runsOn = Pin.LevelFor(pump.Polarity, true);
+Console.WriteLine($"a pump on an active-low relay runs when its line is {runsOn}");
 
-// The pump runs while the tank fills. The stand-in line answers open and then
-// closed, so this is the real loop with nothing plugged in.
-pump.Drive(Pin.LevelFor(Relay, true));
-bool whileFilling = Pin.IsAsserted(Float, floatSwitch.Read());
-bool onceFilled = Pin.IsAsserted(Float, floatSwitch.Read());
+// The pump runs while the tank fills. The scripted line answers open and then
+// closed, so this is the real loop with nothing plugged in; on a board the same two
+// lines take a pin from the board's GPIO library instead.
+pump.Set(true);
+bool whileFilling = floatSwitch.IsAsserted();
+bool onceFilled = floatSwitch.IsAsserted();
 Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
 
 // The moment the float closes is that line going low, which is a falling edge. A
@@ -332,10 +277,11 @@ Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
 bool closing = Pin.Triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low);
 Console.WriteLine($"the float closing is a falling edge on that line: {closing}");
 
-// Full, so the pump stops, and the levels the line was driven to are the whole
-// conversation the board saw.
-pump.Drive(Pin.LevelFor(Relay, false));
-(PinLevel ran, PinLevel stopped) = (pump.Driven[0], pump.Driven[1]);
+// Full, so the pump stops. Releasing the switch hands the line back, and the levels
+// it was driven to are the whole conversation the board saw.
+pump.Set(false);
+IReadOnlyList<PinLevel> driven = pump.Release().Driven;
+(PinLevel ran, PinLevel stopped) = (driven[0], driven[1]);
 Console.WriteLine($"running drove the line {ran} and stopping drove it {stopped}");
 
 // A part on a shared bus answers to an address, and the byte on the wire is not
@@ -358,6 +304,294 @@ Console.WriteLine(
     $"SPI mode 3 idles high: {clock.Cpol}, samples on the trailing edge: {clock.Cpha}");
 ```
 <!-- end -->
+
+## On a board
+
+On a Raspberry Pi, or any Linux board, a pin is a line on a GPIO chip, the device file
+`/dev/gpiochip0` on most boards, and a line's number is the GPIO number a pinout gives,
+not the physical pin number. The program is the one above with its two scripted lines
+swapped for real ones:
+
+| Part | Line | Header pin | Wiring | Polarity |
+| --- | --- | --- | --- | --- |
+| Relay board input | GPIO17 | 11 | the board's input to the pin, its ground to a ground pin | active low |
+| Float switch | GPIO27 | 13 | between the pin and ground, with a pull-up to 3.3 V | active low |
+
+The relay line is opened high, so the pump stays off from the moment the program takes
+the line until it asks for it. The float needs a pull-up because a switch to ground only
+ever pulls the line down: a 10 kΩ resistor from the pin to 3.3 V, or `gpio=27=ip,pu` in
+`config.txt`, which sets the pull at boot. The pump stops whatever happens, including a
+float that never closes, since a pump left running is the fault the program exists to
+prevent.
+
+### Rust
+
+<!-- snippet: examples/guides/gpio.rs#board -->
+From [`examples/guides/gpio.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/gpio.rs):
+
+```rust
+/// The same pump and float on a Raspberry Pi: the relay board's input on GPIO17 and the
+/// float switch between GPIO27 and ground. Only the two lines change.
+fn on_a_board(chip: &str) -> std::result::Result<(), Box<dyn Error>> {
+    use std::time::{Duration, Instant};
+
+    use pamoja_gpio::linux;
+    use pamoja_gpio::pin::Level;
+    use pamoja_gpio::switch::{Contact, Switch};
+
+    // The relay energizes on a low input, so its line is taken high and the pump stays off
+    // until it is asked to run. The float closes to ground against a pull-up.
+    let mut pump = Switch::active_low(linux::output(chip, 17, Level::High)?);
+    let mut float = Contact::active_low(linux::input(chip, 27)?);
+
+    // Run the pump until the float closes, and stop it whatever happens: a pump left
+    // running on a failed float is the fault this whole program exists to prevent.
+    pump.set(true)?;
+    let deadline = Instant::now() + Duration::from_secs(600);
+    let filled = (|| -> std::result::Result<(), Box<dyn Error>> {
+        while !float.is_asserted()? {
+            if Instant::now() >= deadline {
+                return Err(
+                    "the tank did not fill in ten minutes; check the float and the supply".into(),
+                );
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    })();
+    pump.set(false)?;
+    filled?;
+    println!("the tank is full and the pump is off");
+    Ok(())
+}
+```
+<!-- end -->
+
+### TypeScript
+
+<!-- snippet: bindings/node/guides/gpio.ts#board -->
+From [`bindings/node/guides/gpio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/gpio.ts):
+
+```typescript
+// The same pump and float on a Raspberry Pi: the relay board's input on GPIO17 and the
+// float switch between GPIO27 and ground. Only the two lines change.
+async function onABoard(chip: string): Promise<void> {
+  // The relay energizes on a low input, so its line is taken high and the pump stays off
+  // until it is asked to run. The float closes to ground against a pull-up.
+  const relay = GpioLine.openOutput(chip, 17, PinLevel.High)
+  const floatLine = GpioLine.openInput(chip, 27)
+  const pump = Switch.activeLow(relay)
+  const float = Contact.activeLow(floatLine)
+
+  // Run the pump until the float closes, and stop it whatever happens: a pump left running
+  // on a failed float is the fault this whole program exists to prevent.
+  const deadline = Date.now() + 10 * 60_000
+  pump.set(true)
+  try {
+    while (!float.isAsserted()) {
+      if (Date.now() >= deadline) {
+        throw new Error('the tank did not fill in ten minutes; check the float and the supply')
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+  } finally {
+    pump.set(false)
+    relay.close()
+    floatLine.close()
+  }
+  console.log('the tank is full and the pump is off')
+}
+```
+<!-- end -->
+
+### Python
+
+<!-- snippet: bindings/python/guides/gpio.py#board -->
+From [`bindings/python/guides/gpio.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gpio.py):
+
+```python
+def on_a_board(chip: str) -> None:
+    """The same pump and float on a Raspberry Pi: the relay board's input on GPIO17 and
+    the float switch between GPIO27 and ground. Only the two lines change."""
+    # The relay energizes on a low input, so its line is taken high and the pump stays
+    # off until it is asked to run. The float closes to ground against a pull-up.
+    with (
+        GpioLine.open_output(chip, 17, Level.HIGH) as relay,
+        GpioLine.open_input(chip, 27) as float_line,
+    ):
+        pump = Switch.active_low(relay)
+        float_switch = Contact.active_low(float_line)
+
+        # Run the pump until the float closes, and stop it whatever happens: a pump left
+        # running on a failed float is the fault this whole program exists to prevent.
+        deadline = time.monotonic() + 10 * 60
+        pump.set(True)
+        try:
+            while not float_switch.is_asserted():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        "the tank did not fill in ten minutes; check the float and the supply"
+                    )
+                time.sleep(0.1)
+        finally:
+            pump.set(False)
+    print("the tank is full and the pump is off")
+```
+<!-- end -->
+
+### C#
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs#board -->
+From [`bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/GpioGuide.cs):
+
+```csharp
+/// <summary>
+/// The same pump and float on a Raspberry Pi: the relay board's input on GPIO17 and the
+/// float switch between GPIO27 and ground. Only the two lines change.
+/// </summary>
+/// <param name="chip">The GPIO chip's device file.</param>
+public static void OnABoard(string chip)
+{
+    // The relay energizes on a low input, so its line is taken high and the pump stays
+    // off until it is asked to run. The float closes to ground against a pull-up.
+    using GpioLine relay = GpioLine.OpenOutput(chip, 17, PinLevel.High);
+    using GpioLine floatLine = GpioLine.OpenInput(chip, 27);
+    var pump = Switch.ActiveLow(relay);
+    var floatSwitch = Contact.ActiveLow(floatLine);
+
+    // Run the pump until the float closes, and stop it whatever happens: a pump left
+    // running on a failed float is the fault this whole program exists to prevent.
+    DateTime deadline = DateTime.UtcNow.AddMinutes(10);
+    pump.Set(true);
+    try
+    {
+        while (!floatSwitch.IsAsserted())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException(
+                    "the tank did not fill in ten minutes; check the float and the supply");
+            }
+
+            Thread.Sleep(100);
+        }
+    }
+    finally
+    {
+        pump.Set(false);
+    }
+
+    Console.WriteLine("the tank is full and the pump is off");
+}
+```
+<!-- end -->
+
+A line is held by one program at a time, and the kernel records which, so `gpioinfo`
+shows every line with its holder; one opened here shows `pamoja`. On Raspberry Pi OS a
+user in the `gpio` group opens lines without root.
+
+## Values at a glance
+
+**Polarity** is the one fact that keeps an inversion out of every call site. Name it once,
+where the part is made:
+
+| Polarity | Asserted by | Turning it on drives | A switch is wired | Typical parts |
+| --- | --- | --- | --- | --- |
+| Active high | a high level | high | to the supply, with a pull-down | an LED from the pin to ground |
+| Active low | a low level | low | to ground, with a pull-up | most relay boards, a button to ground |
+
+**Edges** name which change a watch fires on:
+
+| Edge | Fires on | Fits |
+| --- | --- | --- |
+| Rising | low to high | a button to the supply being pressed |
+| Falling | high to low | a switch to ground closing, such as the float filling |
+| Both | either change | a door that reports opening and closing |
+
+**SPI modes** are the clock polarity (CPOL, the level the clock idles at) and the clock
+phase (CPHA, which edge data is sampled on), quoted by a datasheet as one number. The LoRa
+radios on the [hardware page](../hardware.md) take mode 0.
+
+| Mode | CPOL | CPHA | Clock idles | Data sampled on |
+| --- | --- | --- | --- | --- |
+| 0 | 0 | 0 | low | the rising edge, the first |
+| 1 | 0 | 1 | low | the falling edge, the second |
+| 2 | 1 | 0 | high | the falling edge, the first |
+| 3 | 1 | 1 | high | the rising edge, the second |
+
+**I2C addresses** are seven bits, and the I2C-bus specification (NXP UM10204, Rev. 7.0,
+Table 4) keeps sixteen of them. `is_reserved` answers for the whole of both blocks, and
+`is_general_call` for `0x00`:
+
+| 7-bit address | What the specification uses it for |
+| --- | --- |
+| `0x00` | the general call when writing, the START byte when reading |
+| `0x01` | the CBUS address |
+| `0x02` | reserved for a different bus format |
+| `0x03` | reserved for future purposes |
+| `0x04` to `0x07` | the Hs-mode controller code |
+| `0x08` to `0x77` | devices |
+| `0x78` to `0x7B` | the first byte of a 10-bit address |
+| `0x7C` to `0x7F` | the device ID |
+
+On the wire a 7-bit address becomes one byte, the address shifted up one with the read
+bit at the bottom. A 10-bit address, `0x000` to `0x3FF`, becomes two: `11110`, the top two
+address bits and the read bit, then the low eight bits. The specification allows a
+reserved address to be given to a device on a bus that will never use it for its purpose,
+which is why the functions report reserved addresses rather than refusing them.
+
+**The same calls in each language:**
+
+| To | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- |
+| drive a part on a line | `Switch::active_low(line)`, `set(on)` | `Switch.activeLow(line)`, `set(on)` | `Switch.active_low(line)`, `set(on)` | `Switch.ActiveLow(line)`, `Set(on)` |
+| read a part on a line | `Contact::active_low(line)`, `is_asserted()` | `Contact.activeLow(line)`, `isAsserted()` | `Contact.active_low(line)`, `is_asserted()` | `Contact.ActiveLow(line)`, `IsAsserted()` |
+| give a test a line | `PinScript::new(reads)` | `new PinScript(reads)` | `PinScript(reads)` | `new PinScript(reads)` |
+| open a line on Linux | `linux::output(chip, n, level)`, `linux::input(chip, n)` | `GpioLine.openOutput(chip, n, level)`, `GpioLine.openInput(chip, n)` | `GpioLine.open_output(chip, n, level)`, `GpioLine.open_input(chip, n)` | `GpioLine.OpenOutput(chip, n, level)`, `GpioLine.OpenInput(chip, n)` |
+| find the level for a state | `polarity.level(on)` | `pin.levelFor(polarity, on)` | `pin.level_for(polarity, on)` | `Pin.LevelFor(polarity, on)` |
+| find the state from a level | `polarity.is_asserted(level)` | `pin.isAsserted(polarity, level)` | `pin.is_asserted(polarity, level)` | `Pin.IsAsserted(polarity, level)` |
+| ask whether an edge fires | `edge.triggered_by(from, to)` | `pin.triggers(edge, from, to)` | `pin.triggers(edge, from, to)` | `Pin.Triggers(edge, from, to)` |
+| frame an I2C address | `Address::seven_bit(a)?.frame(direction)` | `i2c.addressFrame(a, { read })` | `i2c.address_frame(a, read=read)` | `I2c.AddressFrame(a, read)` |
+| check an I2C address | `address.is_reserved()` | `i2c.isReserved(a)` | `i2c.is_reserved(a)` | `I2c.IsReserved(a)` |
+| read an SPI mode | `Mode::Mode3.cpol_cpha()` | `spi.clockFor(3)` | `spi.clock_for(3)` | `Spi.ClockFor(3)` |
+| name an SPI mode | `Mode::from_cpol_cpha(cpol, cpha)` | `spi.modeFor(cpol, cpha)` | `spi.mode_for(cpol, cpha)` | `Spi.ModeFor(cpol, cpha)` |
+
+## When it goes wrong
+
+What each call refuses, and how each language says so:
+
+| Call | Refused when | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- | --- |
+| an I2C address | a 7-bit address above `0x7F`, a 10-bit one above `0x3FF` | `Err(GpioError::AddressOutOfRange)` | throws `Error` | raises `PamojaError` | throws `PamojaException` |
+| an SPI mode number | above 3 | `Mode::from_number` returns `None` | throws `Error` | raises `ValueError` | throws `PamojaException` |
+| opening a line | the platform is not Linux | `Err(OpenError::Unsupported)` | throws `Error` | raises `PamojaError` | throws `PlatformNotSupportedException` |
+| opening a line | the chip or the line cannot be opened | `Err(OpenError::Gpio { .. })` | throws `Error` | raises `PamojaError` | throws `PamojaException` |
+| driving or reading a line | the kernel refuses, as it does a drive on an input | `Err(LineError)` | throws `Error` | raises `PamojaError` | throws `PamojaException` |
+
+Every message from opening, driving, or reading a line starts with the chip and the line,
+as `/dev/gpiochip0 line 17: `, then says what the kernel reported.
+
+The mistakes that cost an afternoon:
+
+- **The relay clicks on when the program starts.** It is active low and its line started
+  low. Open it high, as the examples do, and to hold it off while the board boots, before
+  any program runs, add `gpio=17=op,dh` to `config.txt`.
+- **A switch reads at random, or never changes.** The line has no pull, so an open switch
+  floats. A switch to ground needs a pull-up: a resistor to 3.3 V, or `gpio=27=ip,pu` in
+  `config.txt`.
+- **Opening a line says permission denied.** The user is not in the `gpio` group. Add it
+  with `sudo usermod -aG gpio $USER`, then log out and back in.
+- **Opening a line says it is busy.** Another program or a kernel driver holds it;
+  `gpioinfo` names the holder.
+- **Opening says the chip does not exist, or the line is out of range.** `gpiodetect`
+  lists the chips, and `gpioinfo` names each line: the chip whose lines are named `GPIO17`
+  and `GPIO27` is the header.
+- **An I2C part does not answer at the address its datasheet prints.** Some datasheets
+  print the address already shifted, the way it appears on the wire: `0xEC` and `0xED`
+  are the part at `0x76`. `i2cdetect -y 1` lists the 7-bit addresses that answer on a
+  Raspberry Pi's user bus.
+- **An SPI part answers `0x00`, `0xFF`, or noise.** Check the mode against the datasheet's
+  CPOL and CPHA, then the chip select.
 
 ## Where next
 

@@ -216,6 +216,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "gpio")]
     {
         m.add_class::<gpio::SpiClock>()?;
+        m.add_class::<gpio::GpioLine>()?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_frame_len, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::i2c_address_is_reserved, m)?)?;

@@ -1,6 +1,6 @@
 # pamoja-gpio
 
-I2C address frames with reserved-range checks, the four SPI clock modes, and active-high or active-low pins. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/gpio.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -25,20 +25,22 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/gpio.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/gpio.py):
 
 ```python
+from pamoja.gpio import Contact, Edge, GpioLine, Level, PinScript, Switch, i2c, pin, spi
+
 # Most relay boards energize when their input is pulled low, and a float switch wired to
 # ground closes the same way. Saying "active low" once, here, is what keeps the inversion
 # out of every line below it.
-RELAY = Polarity.ACTIVE_LOW
-FLOAT = Polarity.ACTIVE_LOW
-pump = Line()
-float_switch = Line([Level.HIGH, Level.LOW])
-print(f"a pump on an active-low relay runs when its line is {pin.level_for(RELAY, True).value}")
+pump = Switch.active_low(PinScript())
+float_switch = Contact.active_low(PinScript([Level.HIGH, Level.LOW]))
+runs_on = pin.level_for(pump.polarity, True)
+print(f"a pump on an active-low relay runs when its line is {runs_on.value}")
 
-# The pump runs while the tank fills. The stand-in line answers open and then closed, so
-# this is the real loop with nothing plugged in.
-pump.drive(pin.level_for(RELAY, True))
-while_filling = pin.is_asserted(FLOAT, float_switch.read())
-once_filled = pin.is_asserted(FLOAT, float_switch.read())
+# The pump runs while the tank fills. The scripted line answers open and then closed, so
+# this is the real loop with nothing plugged in; on a board the same two lines take a pin
+# from the board's GPIO library instead.
+pump.set(True)
+while_filling = float_switch.is_asserted()
+once_filled = float_switch.is_asserted()
 print(f"the float reads full: {while_filling}, then {once_filled}")
 
 # The moment the float closes is that line going low, which is a falling edge. A watch
@@ -46,10 +48,10 @@ print(f"the float reads full: {while_filling}, then {once_filled}")
 closing = pin.triggers(Edge.FALLING, Level.HIGH, Level.LOW)
 print(f"the float closing is a falling edge on that line: {closing}")
 
-# Full, so the pump stops, and the levels the line was driven to are the whole
-# conversation the board saw.
-pump.drive(pin.level_for(RELAY, False))
-ran, stopped = pump.driven
+# Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
+# driven to are the whole conversation the board saw.
+pump.set(False)
+ran, stopped = pump.release().driven
 print(f"running drove the line {ran.value} and stopping drove it {stopped.value}")
 
 # A part on a shared bus answers to an address, and the byte on the wire is not the
