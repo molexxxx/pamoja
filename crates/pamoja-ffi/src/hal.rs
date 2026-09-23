@@ -1419,8 +1419,12 @@ mod tests {
             let held = pamoja_i2c_bus_part(bus, 0x44);
             assert_eq!(pamoja_i2c_part_received_count(held), 1);
             let write = pamoja_i2c_part_received(held, 0);
-            assert_eq!(crate::pamoja_buffer_len(write), 2);
-            assert_eq!(*crate::pamoja_buffer_data(write), 0xF3);
+            let received = std::slice::from_raw_parts(
+                crate::pamoja_buffer_data(write),
+                crate::pamoja_buffer_len(write),
+            )
+            .to_vec();
+            assert_eq!(received, [0xF3, 0x2D]);
             crate::pamoja_buffer_free(write);
             assert!(pamoja_i2c_part_received(held, 1).is_null());
             pamoja_i2c_part_free(held);
