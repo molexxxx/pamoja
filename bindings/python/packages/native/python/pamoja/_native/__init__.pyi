@@ -54,6 +54,7 @@ __all__ = [
     "DutyCycle",
     "ElementSpec",
     "EventBus",
+    "EventPublisher",
     "ForwardDecision",
     "GatewayNetwork",
     "GatewayNetworkEvent",
@@ -2642,37 +2643,93 @@ class EventBus:
     r"""
     One endpoint on an event bus.
     
-    An endpoint both publishes and receives. Each subscriber needs its own, taken
-    with `subscribe`, because an endpoint only sees events published after it
-    existed.
+    An endpoint both publishes and receives, and it receives what it publishes
+    itself. Each subscriber needs its own, taken with `subscribe`, because an
+    endpoint only sees events published after it existed. Only `next_event` and
+    `next_text` wait: publishing and subscribing return at once, even while a
+    wait on the same endpoint is open.
     """
+    @property
+    def missed(self) -> builtins.int:
+        r"""
+        How many events this endpoint lost by falling behind, as of its last
+        completed wait.
+        """
     def __new__(cls, capacity: builtins.int = 64) -> EventBus:
         r"""
         Creates an event bus.
         
         `capacity` is how many events a slow subscriber may fall behind before it
-        starts missing them.
+        starts missing them, rounded up to the next power of two and at most
+        1048576.
         """
-    def subscribe(self) -> typing.Any:
+    def subscribe(self) -> EventBus:
         r"""
         Takes another endpoint on the same bus.
         
         The new endpoint sees events published from now on, not those already
         sent, so subscribe before publishing anything it needs to see.
         """
-    def publish(self, event: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
+    def publisher(self) -> EventPublisher:
         r"""
-        Publishes an event to every subscriber.
+        Takes a publish-only handle on the same bus, for a part that announces and
+        never reads.
+        """
+    def publish(self, event: builtins.str | typing.Sequence[builtins.int]) -> None:
+        r"""
+        Publishes an event to every subscriber, this endpoint included: bytes, or
+        text such as an event name.
+        
+        It never waits: a subscriber that has fallen behind loses its oldest event
+        rather than holding up the publisher.
         """
     def next_event(self) -> typing.Any:
         r"""
-        Waits for the next event on this endpoint, or `None` once the bus closes.
+        Waits for the next event on this endpoint.
+        
+        The wait lasts until an event arrives. `asyncio.wait_for` gives up sooner,
+        and the wait it cancels takes no event.
         """
     def next_text(self) -> typing.Any:
         r"""
-        Waits for the next event as text, or `None` once the bus closes.
+        Waits for the next event as text.
         
         Raises `ValueError` if the event is not UTF-8 text.
+        """
+
+@typing.final
+class EventPublisher:
+    r"""
+    A publish-only handle to an event bus.
+    
+    It has no queue of its own, so a part that only announces never fills a
+    buffer it does not read. Publishing never waits, so a callback on another
+    thread can call it without an event loop.
+    """
+    def __new__(cls, capacity: builtins.int = 64) -> EventPublisher:
+        r"""
+        Creates a bus with no subscribers yet, and a publisher on it.
+        
+        `capacity` is how many events a slow subscriber may fall behind before it
+        starts missing them, rounded up to the next power of two and at most
+        1048576.
+        """
+    def publish(self, event: builtins.str | typing.Sequence[builtins.int]) -> builtins.int:
+        r"""
+        Hands an event to every current subscriber: bytes, or text such as an
+        event name.
+        
+        Returns how many subscribers the event was handed to. An event published
+        while no one is subscribed is dropped, and the count is 0.
+        """
+    def subscribe(self) -> EventBus:
+        r"""
+        Subscribes to the bus, returning an endpoint that sees events published
+        from now on.
+        """
+    def publisher(self) -> EventPublisher:
+        r"""
+        Takes another publisher on the same bus, for another part that announces.
         """
 
 @typing.final
@@ -9076,9 +9133,11 @@ class PyTransport:
         
         `handlers` needs `connect()`, `send(topic, payload)`, and `subscribe(topic)`,
         each a coroutine function or a plain one. A `recv()` that returns a
-        `Message`, a `(topic, payload)` pair, or `None` once the link has ended makes
-        it a link that delivers: it is called again as soon as it returns, from the
-        moment the transport connects. Without `recv` the transport only sends, and
+        `Message`, a `(topic, payload)` pair with the payload as text or bytes, or
+        `None` once the link has ended makes it a link that delivers: it is called
+        again as soon as it returns, from the moment the transport connects. A
+        `recv` that raises ends the link until the next connect, and the next
+        receive raises what it raised. Without `recv` the transport only sends, and
         a ladder never listens on it.
         """
     def connect(self) -> typing.Any:

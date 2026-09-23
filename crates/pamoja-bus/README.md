@@ -25,19 +25,41 @@ over a bounded broadcast channel: every event published is delivered to every
 current subscriber. Producers such as sensors and transports publish events,
 and consumers await them, all statically typed to one event type per bus.
 
+`EventPublisher` is the handle for a part that only announces. It has no
+queue of its own, it clones into every task and callback that publishes, and
+publishing from it never waits, so it can announce while a subscriber on the
+same bus is waiting for its next event.
+
 The bus is bounded, so a subscriber that falls far enough behind drops the
-events it missed and resumes from the most recent ones. This keeps a slow
-consumer from holding memory without bound, which matters on constrained
-devices.
+events it missed and resumes from the most recent ones, and
+`BroadcastBus::missed` counts what it lost. This keeps a slow consumer from
+holding memory without bound, which matters on constrained devices.
+
+## const `MAX_CAPACITY`
+
+The largest buffer a bus sets aside; a larger capacity is lowered to it.
+
+The buffer is allocated in full when the bus is made, so a mistaken capacity
+would otherwise cost its memory at once, or fail the allocation outright.
+
+```rust
+const MAX_CAPACITY: usize
+```
 
 ## struct `BroadcastBus`
 
 A typed publish/subscribe bus that broadcasts each event to all subscribers.
 
-Every handle can both publish and receive. Use `subscribe`
-to add an independent consumer; an event published after a handle subscribes
-is delivered to it. A subscriber only sees events published after it
-subscribed, mirroring a live pub/sub channel.
+Every handle can both publish and receive, and it receives what it publishes
+itself. Use `subscribe` to add an independent
+consumer; an event published after a handle subscribes is delivered to it. A
+subscriber only sees events published after it subscribed, mirroring a live
+pub/sub channel.
+
+Each handle holds a publisher of its own, so the bus stays open while any
+handle exists and `next_event` on a `BroadcastBus`
+never returns `None`: it waits until an event arrives. A wait given up, by a
+timeout or a `select!`, takes no event.
 
 **Examples**
 
@@ -53,12 +75,14 @@ assert_eq!(subscriber.next_event().await?, Some("reading"));
 
 ### `BroadcastBus <E>::new`
 
-Creates a bus buffering up to `capacity` unread events per subscriber.
+Creates a bus buffering unread events for each subscriber.
 
 **Arguments**
 
-* `capacity` - the per-subscriber buffer depth; a subscriber further behind
-  than this drops the events it missed. Values below one are raised to one.
+* `capacity` - the per-subscriber buffer depth, rounded up to the next
+  power of two; a subscriber further behind than the buffer holds drops
+  the events it missed. Values below one are raised to one, and values
+  above `MAX_CAPACITY` are lowered to it.
 
 **Returns**
 
@@ -78,6 +102,114 @@ A handle that receives events published after this call and can also publish.
 
 ```rust
 fn subscribe(&self) -> Self
+```
+
+### `BroadcastBus <E>::publisher`
+
+Creates a publish-only handle to the same bus.
+
+**Returns**
+
+A handle that publishes without borrowing this one, so it can announce from
+another task while this handle waits in `next_event`.
+
+```rust
+fn publisher(&self) -> EventPublisher <E>
+```
+
+### `BroadcastBus <E>::missed`
+
+Counts the events this handle lost by falling behind.
+
+**Returns**
+
+How many events were dropped from this handle's buffer before it read
+them, since it subscribed.
+
+```rust
+fn missed(&self) -> u64
+```
+
+## struct `EventPublisher`
+
+A publish-only handle to a bus.
+
+A publisher has no buffer to fill, so a part that only announces holds one
+rather than a `BroadcastBus`. Cloning it is cheap, and publishing never
+waits: a subscriber that falls behind loses events rather than holding up the
+publisher.
+
+**Examples**
+
+```rust
+use pamoja_core::EventBus;
+use pamoja_bus::EventPublisher;
+
+let power = EventPublisher::new(8);
+let mut control = power.subscribe();
+let mut logger = power.subscribe();
+assert_eq!(power.publish("battery.low"), 2);
+assert_eq!(control.next_event().await?, Some("battery.low"));
+assert_eq!(logger.next_event().await?, Some("battery.low"));
+```
+
+### `EventPublisher <E>::new`
+
+Creates a bus with no subscribers yet, and a publisher on it.
+
+**Arguments**
+
+* `capacity` - the per-subscriber buffer depth, rounded up to the next
+  power of two. Values below one are raised to one, and values above
+  `MAX_CAPACITY` are lowered to it.
+
+**Returns**
+
+A publisher to take subscribers from and publish to them.
+
+```rust
+fn new(capacity: usize) -> Self
+```
+
+### `EventPublisher <E>::publish`
+
+Hands an event to every current subscriber.
+
+**Arguments**
+
+* `event` - the event to broadcast.
+
+**Returns**
+
+How many subscribers the event was handed to. An event published while no
+one is subscribed is dropped, and the count is 0.
+
+```rust
+fn publish(&self, event: E) -> usize
+```
+
+### `EventPublisher <E>::subscribe`
+
+Subscribes to the bus.
+
+**Returns**
+
+A handle that receives events published after this call and can also publish.
+
+```rust
+fn subscribe(&self) -> BroadcastBus <E>
+```
+
+### `EventPublisher <E>::publisher`
+
+Takes another publisher on the same bus, for another part that announces.
+
+**Returns**
+
+A publisher with a lifetime of its own, the same as a clone of this one.
+
+```rust
+fn publisher(&self) -> EventPublisher <E>
 ```
 
 ## License

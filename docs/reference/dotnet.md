@@ -449,7 +449,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-bus">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">Pamoja.Bus</code><p>An in-memory typed publish and subscribe event bus</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">Pamoja.Bus</code><p>An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Bus</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Bus" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

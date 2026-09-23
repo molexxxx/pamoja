@@ -11,4 +11,9 @@
 
 export { version } from '@pamoja/native'
 
-export { Transport, type TransportHandlers, type TransportMessage } from './transport'
+export {
+  Transport,
+  type DeliveredMessage,
+  type TransportHandlers,
+  type TransportMessage,
+} from './transport'

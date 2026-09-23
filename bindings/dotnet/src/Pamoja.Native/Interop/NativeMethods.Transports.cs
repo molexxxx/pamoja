@@ -357,7 +357,11 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_event_bus_subscribe(IntPtr bus);
 
-    /// <summary>Publishes an event to every subscriber.</summary>
+    /// <summary>Takes a publish-only handle on the bus an endpoint is on.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_event_bus_publisher(IntPtr bus);
+
+    /// <summary>Publishes an event to every subscriber, the endpoint included.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_event_bus_publish(
         IntPtr bus,
@@ -368,9 +372,45 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_event_bus_next(IntPtr bus, out IntPtr outEvent);
 
+    /// <summary>Waits a limited time for the next event on an endpoint.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_event_bus_next_within(
+        IntPtr bus,
+        ulong timeoutMs,
+        out IntPtr outEvent,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
+
+    /// <summary>Counts the events an endpoint lost by falling behind.</summary>
+    [LibraryImport(Library)]
+    public static partial ulong pamoja_event_bus_missed(IntPtr bus);
+
     /// <summary>Releases an event bus endpoint.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_event_bus_free(IntPtr bus);
+
+    /// <summary>Creates a bus with no subscribers yet, and a publisher on it.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_event_publisher_new(nuint capacity);
+
+    /// <summary>Hands an event to every current subscriber.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_event_publisher_publish(
+        IntPtr publisher,
+        ReadOnlySpan<byte> payload,
+        nuint payloadLen,
+        out nuint outReached);
+
+    /// <summary>Subscribes to the bus a publisher publishes on.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_event_publisher_subscribe(IntPtr publisher);
+
+    /// <summary>Takes another publisher on the same bus.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_event_publisher_clone(IntPtr publisher);
+
+    /// <summary>Releases a publisher.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_event_publisher_free(IntPtr publisher);
 
     /// <summary>Creates a sensor that reads around a baseline.</summary>
     [LibraryImport(Library)]

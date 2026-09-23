@@ -11,7 +11,7 @@ namespace Pamoja.Core;
 /// </remarks>
 public interface ITransportHandlers
 {
-    /// <summary>Establishes the link.</summary>
+    /// <summary>Establishes the link. Called again on every reconnect.</summary>
     /// <returns>A task that completes once the link carries traffic.</returns>
     Task ConnectAsync();
 
@@ -22,6 +22,7 @@ public interface ITransportHandlers
     Task SendAsync(string topic, ReadOnlyMemory<byte> payload);
 
     /// <summary>Subscribes to a topic filter.</summary>
+    /// <remarks>A ladder places its filters again each time the link reconnects.</remarks>
     /// <param name="topic">The filter, in the syntax the link understands.</param>
     /// <returns>A task that completes once the subscription is registered.</returns>
     Task SubscribeAsync(string topic);
@@ -33,6 +34,12 @@ public interface ITransportHandlers
 /// <see cref="ReceiveAsync"/> is awaited again as soon as it returns, from a thread
 /// pamoja owns, and what it delivers is queued for the receiving side. Return
 /// <c>null</c> once the link has ended and no further messages will arrive.
+///
+/// An exception from <see cref="ReceiveAsync"/> ends the link until the next
+/// connect: the next receive throws with its message, and the one after reports the
+/// link ended. <see cref="ReceiveAsync"/> runs on a thread of its own, beside the
+/// other three methods, so state it shares with them must be safe to use from two
+/// threads at once.
 /// </remarks>
 public interface IReceivingTransportHandlers : ITransportHandlers
 {

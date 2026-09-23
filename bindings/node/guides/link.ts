@@ -3,68 +3,122 @@
 import assert from 'node:assert/strict'
 
 // ANCHOR: example
-import { Transport, type TransportHandlers, type TransportMessage } from '@pamoja/core'
+import { Transport, type DeliveredMessage, type TransportHandlers } from '@pamoja/core'
 import { Ladder } from '@pamoja/ladder'
 import { Store } from '@pamoja/sync'
 
-// A link over two queues, standing in for a radio or cloud SDK. Nothing about it
-// names a broker: it needs only the operations the contract asks for, and `recv` is
-// what makes it a link that delivers rather than an uplink.
-class QueueLink implements TransportHandlers {
+// A cellular modem reached through its vendor's SDK, which this class stands in for.
+// Nothing in it names a broker or a protocol: it needs only the operations the
+// contract asks for, and `recv` is what makes it a link that delivers.
+class Modem implements TransportHandlers {
   sent: { topic: string; text: string }[] = []
   filters: string[] = []
-  private inbox: TransportMessage[] = []
-  private waiting: ((message: TransportMessage) => void)[] = []
+  noSignal = false
+  private inbox: (DeliveredMessage | Error)[] = []
+  private waiting: ((next: DeliveredMessage | Error) => void)[] = []
 
-  async connect(): Promise<void> {}
+  connect(): void {}
 
-  async send(topic: string, payload: Buffer): Promise<void> {
+  send(topic: string, payload: Buffer): void {
+    if (this.noSignal) throw new Error('no signal')
     this.sent.push({ topic, text: payload.toString() })
   }
 
-  async subscribe(topic: string): Promise<void> {
+  subscribe(topic: string): void {
     this.filters.push(topic)
   }
 
-  recv(): Promise<TransportMessage> {
-    const next = this.inbox.shift()
-    return next ? Promise.resolve(next) : new Promise((resolve) => this.waiting.push(resolve))
+  async recv(): Promise<DeliveredMessage> {
+    const next =
+      this.inbox.shift() ?? (await new Promise<DeliveredMessage | Error>((hand) => this.waiting.push(hand)))
+    if (next instanceof Error) throw next
+    return next
   }
 
-  // The vendor side: a message arriving from the radio, which the link hands on in
-  // the shape the contract asks for.
-  deliver(topic: string, text: string): void {
-    const message: TransportMessage = { topic, payload: Buffer.from(text) }
+  // The vendor's side: a message from the network, or the loss of the session,
+  // handed to the wait that is open or kept for the next one.
+  handOver(next: DeliveredMessage | Error): void {
     const waiter = this.waiting.shift()
-    if (waiter) waiter(message)
-    else this.inbox.push(message)
+    if (waiter) waiter(next)
+    else this.inbox.push(next)
+  }
+}
+
+// A satellite messenger sends and never receives. With no `recv` it is an uplink,
+// which a ladder never listens on or subscribes.
+class Satellite implements TransportHandlers {
+  sent: { topic: string; text: string }[] = []
+
+  connect(): void {}
+
+  send(topic: string, payload: Buffer): void {
+    this.sent.push({ topic, text: payload.toString() })
+  }
+
+  subscribe(): void {
+    throw new Error('a satellite messenger only sends')
   }
 }
 
 async function main() {
-  // The link is a rung like any shipped transport, and the ladder is the link a node
-  // is written against.
-  const link = new QueueLink()
+  // The modem is the cheaper link and goes first. The messenger has no `recv`, so it
+  // goes on as an uplink.
+  const modem = new Modem()
+  const satellite = new Satellite()
   const ladder = new Ladder(Store.memory())
-  await ladder.rung(Transport.fromHandlers(link))
+  await ladder.rung(Transport.fromHandlers(modem))
+  await ladder.rung(Transport.fromHandlers(satellite))
   await ladder.connect()
 
-  // A reading out through the ladder lands in the link, topic and bytes intact.
-  await ladder.send('sensors/1', '21.5')
-  const carried = link.sent[0]
-  console.log(`link carried: ${carried.topic} ${carried.text}`)
+  // A reading goes out over the first link that takes it.
+  await ladder.send('waves/height', '1.8')
+  const carried = modem.sent[0]
+  console.log(`modem     carried ${carried.topic} ${carried.text}`)
 
-  // A subscription placed on the ladder reaches the link.
+  // A subscription reaches every link that listens, and only those: the messenger,
+  // whose subscribe would throw, is never asked.
   await ladder.subscribe('commands/#')
-  const filter = link.filters[0]
-  console.log(`link subscribed to: ${filter}`)
+  const filter = modem.filters[0]
+  console.log(`modem     listens on ${filter}, and the satellite was never asked`)
 
-  // What the link delivers comes back through the ladder.
-  link.deliver('commands/1', 'open')
+  // What the modem hands over comes back through the ladder.
+  modem.handOver({ topic: 'commands/interval', payload: '600' })
   const command = (await ladder.recv())!
-  console.log(`command over the ladder: ${command.topic} ${command.text!}`)
+  console.log(`buoy      took ${command.topic} ${command.text!}`)
 
-  return { carried, filter, command }
+  // A link that refuses a send passes the reading down to the next link.
+  modem.noSignal = true
+  await ladder.send('waves/height', '2.4')
+  const relayed = satellite.sent[0]
+  console.log(`satellite carried ${relayed.topic} ${relayed.text} while the modem had no signal`)
+
+  // A link that fails while listening says why, once, and has ended after that. With
+  // no other link listening, the ladder then has nothing to wait on.
+  modem.handOver(new Error('the modem lost its session'))
+  let lost = ''
+  try {
+    await ladder.recv()
+  } catch (error) {
+    lost = (error as Error).message
+  }
+  console.log(`buoy      lost the modem: ${lost}`)
+  let idle = ''
+  try {
+    await ladder.recv()
+  } catch (error) {
+    idle = (error as Error).message
+  }
+  console.log(`buoy      has no link left to listen on: ${idle}`)
+
+  // Connecting again brings the modem back, and the ladder places its filter on it
+  // again, so a link's subscribe runs once for every connect.
+  await ladder.connect()
+  console.log(`modem     reconnected, and the ladder placed ${modem.filters[1]} on it again`)
+  modem.handOver({ topic: 'commands/interval', payload: '900' })
+  const later = (await ladder.recv())!
+  console.log(`buoy      took ${later.topic} ${later.text!}`)
+
+  return { carried, filters: modem.filters, command, relayed, lost, idle, later }
 }
 
 main()
@@ -73,12 +127,18 @@ main()
 
 function check(seen: {
   carried: { topic: string; text: string }
-  filter: string
-  command: TransportMessage
+  filters: string[]
+  command: { topic: string; text?: string }
+  relayed: { topic: string; text: string }
+  lost: string
+  idle: string
+  later: { topic: string; text?: string }
 }): void {
-  assert.equal(seen.carried.topic, 'sensors/1')
-  assert.equal(seen.carried.text, '21.5')
-  assert.equal(seen.filter, 'commands/#')
-  assert.equal(seen.command.topic, 'commands/1')
-  assert.equal(seen.command.text!, 'open')
+  assert.deepEqual(seen.carried, { topic: 'waves/height', text: '1.8' })
+  assert.deepEqual(seen.filters, ['commands/#', 'commands/#'])
+  assert.equal(seen.command.text, '600')
+  assert.deepEqual(seen.relayed, { topic: 'waves/height', text: '2.4' })
+  assert.equal(seen.lost, 'transport error: the modem lost its session')
+  assert.equal(seen.idle, 'resource is closed')
+  assert.equal(seen.later.text, '900')
 }

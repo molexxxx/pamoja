@@ -226,12 +226,13 @@ impl Receive for Kind {
 /// returned an awaitable, awaits it on the event loop the ladder was driven from.
 /// A host with a `recv` method is asked for messages from a task that starts at
 /// `connect` and calls it again as soon as it returns, queueing what it delivers,
-/// so a receive through pamoja is cancel-safe whatever the method does.
+/// so a receive through pamoja is cancel-safe whatever the method does. A `recv`
+/// that raises ends the task, and the next receive reports what it raised.
 pub(crate) struct HostTransport {
     handlers: Py<PyAny>,
     listens: bool,
     connected: bool,
-    inbox: Option<mpsc::UnboundedReceiver<CoreMessage>>,
+    inbox: Option<mpsc::UnboundedReceiver<Result<CoreMessage>>>,
     pump: Option<JoinHandle<()>>,
 }
 
@@ -254,7 +255,8 @@ impl HostTransport {
         })
     }
 
-    /// Starts the task that asks the host for messages until it answers `None`.
+    /// Starts the task that asks the host for messages until it answers `None` or
+    /// raises, queueing a raise as the last thing it delivers.
     fn start_pump(&mut self, locals: TaskLocals) {
         if !self.listens {
             return;
@@ -267,10 +269,13 @@ impl HostTransport {
         self.inbox = Some(receiver);
         self.pump = Some(tokio::spawn(async move {
             loop {
-                let Ok(Some(message)) = receive(&handlers, &locals).await else {
-                    break;
+                let delivered = match receive(&handlers, &locals).await {
+                    Ok(Some(message)) => Ok(message),
+                    Ok(None) => break,
+                    Err(error) => Err(host_error(error)),
                 };
-                if sender.send(message).is_err() {
+                let failed = delivered.is_err();
+                if sender.send(delivered).is_err() || failed {
                     break;
                 }
             }
@@ -316,7 +321,8 @@ async fn call(
 }
 
 /// Asks the host for its next message and reads the answer: a [`Message`], a
-/// `(topic, payload)` pair, or `None` once the link has ended.
+/// `(topic, payload)` pair with the payload as text or bytes, or `None` once the
+/// link has ended.
 async fn receive(handlers: &Py<PyAny>, locals: &TaskLocals) -> PyResult<Option<CoreMessage>> {
     let value = call(handlers, locals, "recv", |py| Ok(PyTuple::empty(py))).await?;
     Python::attach(|py| {
@@ -330,16 +336,26 @@ async fn receive(handlers: &Py<PyAny>, locals: &TaskLocals) -> PyResult<Option<C
                 message.payload.clone(),
             )));
         }
-        let (topic, payload): (String, Vec<u8>) = value.extract().map_err(|_| {
+        let (topic, payload): (String, Payload) = value.extract().map_err(|_| {
             PamojaError::new_err("recv must return a Message, a (topic, payload) pair, or None")
         })?;
-        Ok(Some(CoreMessage::new(topic, payload)))
+        Ok(Some(CoreMessage::new(topic, payload.into_bytes())))
     })
 }
 
-/// Maps a Python exception onto the shared transport error.
+/// Maps a Python exception onto the shared transport error, carrying what it says,
+/// or naming its type when it says nothing.
 fn host_error(error: PyErr) -> Error {
-    Error::Transport(error.to_string())
+    Error::Transport(Python::attach(|py| {
+        let said = error.value(py).to_string();
+        if !said.is_empty() {
+            return said;
+        }
+        match error.get_type(py).name() {
+            Ok(kind) => format!("the handler raised {kind}"),
+            Err(_) => "the handler raised an exception".to_owned(),
+        }
+    }))
 }
 
 impl Transport for HostTransport {
@@ -397,7 +413,7 @@ impl Receive for HostTransport {
             return Err(Error::Closed);
         }
         match self.inbox.as_mut() {
-            Some(inbox) => Ok(inbox.recv().await),
+            Some(inbox) => inbox.recv().await.transpose(),
             None => Ok(None),
         }
     }
@@ -622,9 +638,11 @@ impl PyTransport {
     ///
     /// `handlers` needs `connect()`, `send(topic, payload)`, and `subscribe(topic)`,
     /// each a coroutine function or a plain one. A `recv()` that returns a
-    /// `Message`, a `(topic, payload)` pair, or `None` once the link has ended makes
-    /// it a link that delivers: it is called again as soon as it returns, from the
-    /// moment the transport connects. Without `recv` the transport only sends, and
+    /// `Message`, a `(topic, payload)` pair with the payload as text or bytes, or
+    /// `None` once the link has ended makes it a link that delivers: it is called
+    /// again as soon as it returns, from the moment the transport connects. A
+    /// `recv` that raises ends the link until the next connect, and the next
+    /// receive raises what it raised. Without `recv` the transport only sends, and
     /// a ladder never listens on it.
     #[staticmethod]
     fn from_handlers(handlers: &Bound<'_, PyAny>) -> PyResult<Self> {

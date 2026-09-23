@@ -99,7 +99,7 @@ impl LoopbackTransport {
     /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
     /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<f64>) -> napi::Result<Option<TransportMessage>> {
         let inner = Arc::clone(&self.inner);
         within(timeout_ms, async move {
             let mut transport = inner.lock().await;

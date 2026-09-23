@@ -395,6 +395,31 @@ static async Task AsyncTransports()
         Assert(error.Message.Contains("out of range"), $"the reason is the handler's: {error.Message}");
     }
 
+    // A receive that throws is reported once, the link has ended after it, and the
+    // next connect listens again.
+    var flaky = new SessionLink();
+    using var session = Transport.FromHandlers(flaky);
+    await session.ConnectAsync();
+    flaky.HandOver(new IOException("the modem lost its session"));
+    try
+    {
+        await session.ReceiveAsync(TimeSpan.FromSeconds(5));
+        Fail("a lost session must fail the receive");
+    }
+    catch (PamojaException error)
+    {
+        Assert(
+            error.Message == "transport error: the modem lost its session",
+            $"the receive reports what the handler threw: {error.Message}");
+    }
+
+    Assert(await session.ReceiveAsync(TimeSpan.FromSeconds(5)) is null, "and the link has ended");
+    await session.ConnectAsync();
+    flaky.HandOver(new TransportMessage("commands/1", "open"));
+    Assert(
+        (await session.ReceiveAsync(TimeSpan.FromSeconds(5)))?.Text == "open",
+        "a reconnected link delivers again, and a message is made from text");
+
     // A transport handed to a ladder is spent.
     Transport spent = broker.Rung();
     Assert(spent.IsAvailable, "a fresh transport is holdable");
@@ -511,13 +536,44 @@ static async Task AsyncTransports()
     using var hub = new EventBus(8);
     using EventBus firstSeat = hub.Subscribe();
     using EventBus secondSeat = hub.Subscribe();
-    await hub.PublishAsync("battery.low"u8.ToArray());
+    hub.Publish("battery.low"u8.ToArray());
     Assert(
-        (await firstSeat.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
+        (await firstSeat.NextAsync()).AsSpan().SequenceEqual("battery.low"u8),
         "the first subscriber saw it");
     Assert(
-        (await secondSeat.NextAsync())!.AsSpan().SequenceEqual("battery.low"u8),
+        (await secondSeat.NextAsync()).AsSpan().SequenceEqual("battery.low"u8),
         "and so did the second");
+
+    Task<string> ownWait = firstSeat.NextTextAsync();
+    await Task.Delay(50);
+    firstSeat.Publish("heater.off");
+    Assert(
+        await ownWait.WaitAsync(TimeSpan.FromSeconds(5)) == "heater.off",
+        "an endpoint publishes while its own wait is open, and hears itself");
+
+    using var power = new EventPublisher(2);
+    Assert(power.Publish("0") == 0, "an event with no subscriber reaches no one");
+    using EventBus lagging = power.Subscribe();
+    for (int sample = 1; sample <= 5; sample++)
+    {
+        Assert(power.Publish(sample.ToString()) == 1, "a publisher counts its subscribers");
+    }
+
+    Assert(await lagging.NextTextAsync() == "4", "a reader two behind resumes at the fourth");
+    Assert(lagging.Missed == 3, $"and counts the three it missed: {lagging.Missed}");
+    Assert(await lagging.NextTextAsync() == "5", "the fifth is still queued");
+    try
+    {
+        await lagging.NextTextAsync(TimeSpan.FromMilliseconds(30));
+        Fail("a quiet endpoint must time out");
+    }
+    catch (TimeoutException error)
+    {
+        Assert(error.Message == "no event arrived within 30 ms", error.Message);
+    }
+
+    power.Publish("6");
+    Assert(await lagging.NextTextAsync() == "6", "a wait that ran out took nothing");
 
     // Devices that need no hardware.
     using var seeded = new SimulatedSensor(20.0f, 0.5f, 1.0f, 42);
@@ -7522,6 +7578,28 @@ sealed class SendOnlyLink : ITransportHandlers
 
     public Task SubscribeAsync(string topic) =>
         throw new InvalidOperationException("an uplink is never subscribed");
+}
+
+/// <summary>A link whose receive hands over messages or the loss of its session.</summary>
+sealed class SessionLink : IReceivingTransportHandlers
+{
+    private readonly System.Threading.Channels.Channel<object> _inbox =
+        System.Threading.Channels.Channel.CreateUnbounded<object>();
+
+    public Task ConnectAsync() => Task.CompletedTask;
+
+    public Task SendAsync(string topic, ReadOnlyMemory<byte> payload) => Task.CompletedTask;
+
+    public Task SubscribeAsync(string topic) => Task.CompletedTask;
+
+    public async Task<TransportMessage?> ReceiveAsync() =>
+        await _inbox.Reader.ReadAsync() switch
+        {
+            Exception lost => throw lost,
+            var arrived => (TransportMessage)arrived,
+        };
+
+    public void HandOver(object arrived) => _inbox.Writer.TryWrite(arrived);
 }
 
 /// <summary>A link whose sends fail with a reason.</summary>

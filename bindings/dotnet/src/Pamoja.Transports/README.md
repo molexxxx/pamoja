@@ -19,7 +19,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | [Loopback](https://pamoja.molex.cloud/docs/guides/loopback.html) | `Pamoja.Loopback` | An in-process transport with topic matching and a fault injector, for testing with no broker |
 | [Store and forward](https://pamoja.molex.cloud/docs/guides/sync.html) | `Pamoja.Sync` | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | [Transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | `Pamoja.Ladder` | Cheapest reachable link first, buffering to a store when every link is down |
-| [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `Pamoja.Bus` | An in-memory typed publish and subscribe event bus |
+| [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `Pamoja.Bus` | An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss |
 | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | `Pamoja.Core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | [Your own link](https://pamoja.molex.cloud/docs/guides/link.html) | `Pamoja.Core` | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
 | [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `Pamoja.Sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |

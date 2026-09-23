@@ -449,7 +449,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="python-bus">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">pamoja.bus</code><p>An in-memory typed publish and subscribe event bus</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/bus.html">Event bus</a><code class="pkg-import">pamoja.bus</code><p>An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss</p></div>
 <div class="pkg-get"><code class="cmd">pip install pamoja-bus</code><button class="copy" type="button" data-copy="pip install pamoja-bus" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

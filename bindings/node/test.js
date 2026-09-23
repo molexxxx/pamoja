@@ -2090,6 +2090,34 @@ async function asyncTransports() {
     "a handler set without send is refused",
   );
 
+  // A handler that throws before returning fails the call rather than the process,
+  // and a recv that throws is reported once, after which the link has ended until
+  // it connects again. A delivered payload may be text.
+  let lostSession = false;
+  const flaky = transport.Transport.fromHandlers({
+    connect() {},
+    send() {
+      throw new Error("no signal");
+    },
+    subscribe() {},
+    recv() {
+      if (lostSession) throw new Error("the modem lost its session");
+      return new Promise((resolve) => setTimeout(() => resolve({ topic: "commands/1", payload: "open" }), 20));
+    },
+  });
+  await flaky.connect();
+  await assert.rejects(() => flaky.send("sensors/1", "21.5"), /transport error: no signal/);
+  assert.strictEqual((await flaky.recv(5000)).text, "open", "a text payload is delivered");
+  lostSession = true;
+  await assert.rejects(
+    async () => {
+      for (;;) await flaky.recv(5000);
+    },
+    /transport error: the modem lost its session/,
+    "a recv that throws is reported",
+  );
+  assert.strictEqual(await flaky.recv(5000), null, "and the link has ended after it");
+
   // A transport handed to a ladder is spent.
   const spent = broker.rung();
   assert.ok(spent.isAvailable, "a fresh transport is holdable");
@@ -2164,11 +2192,31 @@ async function asyncTransports() {
 
   // One publisher, many subscribers, in one process.
   const hub = new bus.EventBus(8);
-  const first = await hub.subscribe();
-  const second = await hub.subscribe();
-  await hub.publish(Buffer.from("battery.low"));
+  const first = hub.subscribe();
+  const second = hub.subscribe();
+  hub.publish(Buffer.from("battery.low"));
   assert.strictEqual((await first.next()).toString(), "battery.low");
   assert.strictEqual((await second.next()).toString(), "battery.low");
+
+  // An endpoint publishes while its own wait is open, and hears itself.
+  const ownWait = first.nextText();
+  first.publish("heater.off");
+  assert.strictEqual(await ownWait, "heater.off");
+
+  // A publisher counts who it reached; a reader that falls behind counts what it lost.
+  const power = new bus.EventPublisher(2);
+  assert.strictEqual(power.publish("0"), 0);
+  const lagging = power.subscribe();
+  const sampler = power.publisher();
+  for (let sample = 1; sample <= 5; sample += 1) {
+    assert.strictEqual(sampler.publish(String(sample)), 1);
+  }
+  assert.strictEqual(await lagging.nextText(), "4");
+  assert.strictEqual(lagging.missed, 3);
+  assert.strictEqual(await lagging.nextText(), "5");
+  await assert.rejects(lagging.nextText(30), /no event arrived within 30 ms/);
+  power.publish("6");
+  assert.strictEqual(await lagging.nextText(), "6");
 
   // Devices that need no hardware.
   const seeded = new sim.SimulatedSensor(20.0, 0.5, 1.0, 42);
