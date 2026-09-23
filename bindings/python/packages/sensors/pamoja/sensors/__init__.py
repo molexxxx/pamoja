@@ -2,15 +2,43 @@
 
 These are the decode half of eleven parts a field node is likely to have wired to
 it, turning the register bytes a bus driver read into the physical reading the
-manufacturer's datasheet says they mean. Driving the bus is the caller's job;
-getting the arithmetic right is this layer's.
+manufacturer's datasheet says they mean. The BME280 also has a driver, which runs
+the datasheet's whole conversation over an `I2cBus` from :mod:`pamoja.hal`, and a
+simulated part that answers it with nothing plugged in.
 """
 
 from __future__ import annotations
 
 import enum
 
+from pamoja.hal import I2cBus, I2cPart
+
 from pamoja._native import Ads1115Config, Bme280Calibration, Bme280Measurement, Ds18b20Reading
+from pamoja._native import Bme280 as _NativeBme280
+from pamoja._native import Bme280Config, Bme280CtrlMeas
+from pamoja._native import bme280_config_bits as _bme280_config_bits
+from pamoja._native import bme280_config_from_bits as _bme280_config_from_bits
+from pamoja._native import bme280_ctrl_hum_bits as _bme280_ctrl_hum_bits
+from pamoja._native import bme280_ctrl_hum_from_bits as _bme280_ctrl_hum_from_bits
+from pamoja._native import bme280_ctrl_meas_bits as _bme280_ctrl_meas_bits
+from pamoja._native import bme280_ctrl_meas_from_bits as _bme280_ctrl_meas_from_bits
+from pamoja._native import bme280_filter_coefficient as _bme280_filter_coefficient
+from pamoja._native import bme280_image_updating as _bme280_image_updating
+from pamoja._native import bme280_max_measurement_micros as _bme280_max_measurement_micros
+from pamoja._native import bme280_measuring as _bme280_measuring
+from pamoja._native import bme280_oversampling_factor as _bme280_oversampling_factor
+from pamoja._native import bme280_sim_burst as _bme280_sim_burst
+from pamoja._native import bme280_sim_burst_for as _bme280_sim_burst_for
+from pamoja._native import bme280_sim_calibration as _bme280_sim_calibration
+from pamoja._native import (
+    bme280_sim_calibration_humidity as _bme280_sim_calibration_humidity,
+)
+from pamoja._native import bme280_sim_part as _bme280_sim_part
+from pamoja._native import bme280_sim_reporting as _bme280_sim_reporting
+from pamoja._native import bme280_standby_micros as _bme280_standby_micros
+from pamoja._native import (
+    bme280_typical_measurement_micros as _bme280_typical_measurement_micros,
+)
 from pamoja._native import ads1115_config_bits as _ads1115_config_bits
 from pamoja._native import ads1115_config_from_bits as _ads1115_config_from_bits
 from pamoja._native import ads1115_full_scale_microvolts as _ads1115_full_scale_microvolts
@@ -231,8 +259,15 @@ from pamoja._native import tmp117_temperature_from_bytes as _tmp117_temperature_
 
 __all__ = [
     "Ads1115Config",
+    "Bme280",
     "Bme280Calibration",
+    "Bme280Config",
+    "Bme280CtrlMeas",
+    "Bme280Filter",
     "Bme280Measurement",
+    "Bme280Mode",
+    "Bme280Oversampling",
+    "Bme280Standby",
     "Bmp280Calibration",
     "Bmp280Coefficients",
     "Bmp280Config",
@@ -267,6 +302,193 @@ __all__ = [
 ]
 
 
+class Bme280Oversampling(enum.IntEnum):
+    """How many samples a BME280 measurement averages, as its register code."""
+
+    #: The measurement is skipped.
+    SKIPPED = 0
+    #: One sample.
+    X1 = 1
+    #: Two samples.
+    X2 = 2
+    #: Four samples.
+    X4 = 3
+    #: Eight samples.
+    X8 = 4
+    #: Sixteen samples.
+    X16 = 5
+
+
+class Bme280Mode(enum.IntEnum):
+    """A BME280 power mode, as its register code."""
+
+    #: No measurements; the power-on default.
+    SLEEP = 0
+    #: One measurement, then back to sleep.
+    FORCED = 1
+    #: Measurements on a cycle, a standby period apart.
+    NORMAL = 3
+
+
+class Bme280Filter(enum.IntEnum):
+    """The IIR filter that smooths a BME280's pressure and temperature, as its code."""
+
+    #: No filtering.
+    OFF = 0
+    #: Coefficient 2.
+    X2 = 1
+    #: Coefficient 4.
+    X4 = 2
+    #: Coefficient 8.
+    X8 = 3
+    #: Coefficient 16.
+    X16 = 4
+
+
+class Bme280Standby(enum.IntEnum):
+    """The period a BME280 in normal mode rests between measurements, as its code."""
+
+    #: 0.5 ms.
+    MS_0_5 = 0
+    #: 62.5 ms.
+    MS_62_5 = 1
+    #: 125 ms.
+    MS_125 = 2
+    #: 250 ms.
+    MS_250 = 3
+    #: 500 ms.
+    MS_500 = 4
+    #: 1000 ms.
+    MS_1000 = 5
+    #: 10 ms.
+    MS_10 = 6
+    #: 20 ms.
+    MS_20 = 7
+
+
+class Bme280:
+    """A Bosch BME280 driven over an :class:`~pamoja.hal.I2cBus`, measuring on demand in
+    forced mode.
+
+    Nothing is sent until :meth:`init` or the first :meth:`measure`. The driver holds its
+    own share of the bus, and releases the interpreter while the part answers.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([bme280.sim.part(bme280.ADDRESS_PRIMARY)])
+    >>> sensor = Bme280(bus, bme280.ADDRESS_PRIMARY)
+    >>> f"{sensor.measure().celsius:.2f}"
+    '20.44'
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        temperature: Bme280Oversampling = Bme280Oversampling.X1,
+        pressure: Bme280Oversampling = Bme280Oversampling.X1,
+        humidity: Bme280Oversampling = Bme280Oversampling.X1,
+        filter: Bme280Filter = Bme280Filter.OFF,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: ``bme280.ADDRESS_PRIMARY`` with SDO low, or
+            ``bme280.ADDRESS_SECONDARY`` with SDO high.
+        :param temperature: The temperature oversampling.
+        :param pressure: The pressure oversampling.
+        :param humidity: The humidity oversampling.
+        :param filter: The IIR filter.
+        """
+        self._native = _NativeBme280(
+            bus._native,
+            address,
+            int(temperature),
+            int(pressure),
+            int(humidity),
+            int(filter),
+        )
+
+    def init(self) -> None:
+        """Reset the part, check it is a BME280, read its calibration, and write the
+        settings in the order the datasheet requires, leaving the part asleep.
+
+        :raises PamojaError: If nothing answers at the address, another part does, or
+            the calibration never finishes loading.
+        """
+        self._native.init()
+
+    def measure(self) -> Bme280Measurement:
+        """Run one forced measurement and compensate it, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The reading.
+        :raises PamojaError: As :meth:`init`, and when the part is still measuring after
+            the datasheet's time.
+        """
+        return self._native.measure()
+
+
+class _Bme280Sim:
+    """A BME280 that is not there, for a bus with nothing plugged in."""
+
+    __slots__ = ()
+
+    #: The status a simulated part reports when it is neither measuring nor loading.
+    STATUS_IDLE = 0x00
+
+    def part(self, address: int) -> I2cPart:
+        """Make a part holding a real BME280's calibration and one measurement it took,
+        which compensate to 20.44 C, 848.05 hPa, and 44.65 %.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return I2cPart._wrap(_bme280_sim_part(address))
+
+    def reporting(
+        self, address: int, celsius: float, hectopascals: float, relative_humidity: float
+    ) -> I2cPart:
+        """Make a part that reads what it is asked to, to within what its converter can
+        represent.
+
+        :param address: The address it answers to.
+        :param celsius: The temperature it reports.
+        :param hectopascals: The pressure it reports.
+        :param relative_humidity: The humidity it reports, as a percentage.
+        :returns: The part, to put on a simulated bus.
+        """
+        return I2cPart._wrap(
+            _bme280_sim_reporting(address, celsius, hectopascals, relative_humidity)
+        )
+
+    def calibration(self) -> bytes:
+        """The 26-byte temperature and pressure calibration block a simulated part holds."""
+        return bytes(_bme280_sim_calibration())
+
+    def calibration_humidity(self) -> bytes:
+        """The 7-byte humidity calibration block a simulated part holds."""
+        return bytes(_bme280_sim_calibration_humidity())
+
+    def burst(self) -> bytes:
+        """The eight data registers a simulated part holds: one measurement a real part
+        took."""
+        return bytes(_bme280_sim_burst())
+
+    def burst_for(self, celsius: float, hectopascals: float, relative_humidity: float) -> bytes:
+        """Build the eight data registers that compensate to a reading against the
+        simulated calibration.
+
+        :param celsius: The temperature.
+        :param hectopascals: The pressure.
+        :param relative_humidity: The humidity, as a percentage.
+        :returns: The bytes a burst read would return.
+        """
+        return bytes(_bme280_sim_burst_for(celsius, hectopascals, relative_humidity))
+
+
 class _Bme280:
     """A Bosch BME280 temperature, pressure, and humidity sensor."""
 
@@ -276,8 +498,48 @@ class _Bme280:
     ADDRESS_PRIMARY = 0x76
     #: The address it answers on with SDO high.
     ADDRESS_SECONDARY = 0x77
-    #: The value its chip-ID register reads, which confirms the part.
+    #: The value its chip-ID register reads, which tells it from a BMP280.
     CHIP_ID = 0x60
+    #: The word written to the reset register to restart the part.
+    RESET_WORD = 0xB6
+    #: How long the part takes to start after a reset, in microseconds.
+    STARTUP_MICROS = 2_000
+    #: How many bytes the temperature and pressure calibration block holds.
+    CALIBRATION_TEMP_PRESS_LENGTH = 26
+    #: How many bytes the humidity calibration block holds.
+    CALIBRATION_HUMIDITY_LENGTH = 7
+    #: How many bytes one measurement burst holds.
+    DATA_LENGTH = 8
+    #: The chip-ID register.
+    REGISTER_CHIP_ID = 0xD0
+    #: The reset register.
+    REGISTER_RESET = 0xE0
+    #: The first of the 26 temperature and pressure calibration bytes.
+    REGISTER_CALIB_TEMP_PRESS = 0x88
+    #: The first of the 7 humidity calibration bytes.
+    REGISTER_CALIB_HUMIDITY = 0xE1
+    #: The humidity control register, ``ctrl_hum``.
+    REGISTER_CTRL_HUM = 0xF2
+    #: The status register.
+    REGISTER_STATUS = 0xF3
+    #: The measurement control register, ``ctrl_meas``.
+    REGISTER_CTRL_MEAS = 0xF4
+    #: The configuration register, ``config``.
+    REGISTER_CONFIG = 0xF5
+    #: The first of the 8 data bytes a burst read covers.
+    REGISTER_DATA = 0xF7
+
+    #: The oversampling codes.
+    Oversampling = Bme280Oversampling
+    #: The power mode codes.
+    Mode = Bme280Mode
+    #: The IIR filter codes.
+    Filter = Bme280Filter
+    #: The normal-mode standby codes.
+    Standby = Bme280Standby
+
+    #: A BME280 that is not there, for a bus with nothing plugged in.
+    sim = _Bme280Sim()
 
     def calibration(self, temp_press: bytes, humidity: bytes) -> Bme280Calibration:
         """Read the factory calibration out of the registers, once at start-up.
@@ -288,6 +550,118 @@ class _Bme280:
         :raises ValueError: If either block is the wrong length.
         """
         return Bme280Calibration(bytes(temp_press), bytes(humidity))
+
+    def measuring(self, status: int) -> bool:
+        """Report whether a status register says a conversion is running.
+
+        :param status: The status register.
+        :returns: Whether a measurement is in progress.
+        """
+        return _bme280_measuring(status)
+
+    def image_updating(self, status: int) -> bool:
+        """Report whether a status register says the calibration image is loading.
+
+        :param status: The status register.
+        :returns: Whether the calibration is still being copied.
+        """
+        return _bme280_image_updating(status)
+
+    def ctrl_meas_bits(self, ctrl: Bme280CtrlMeas) -> int:
+        """Pack a ``ctrl_meas`` register value.
+
+        :param ctrl: The oversampling codes and the power mode.
+        :returns: The register value to write.
+        """
+        return _bme280_ctrl_meas_bits(ctrl)
+
+    def ctrl_meas_from_bits(self, bits: int) -> Bme280CtrlMeas:
+        """Parse a ``ctrl_meas`` register value.
+
+        :param bits: The register value, as read from the part.
+        :returns: The oversampling codes and the power mode.
+        """
+        return _bme280_ctrl_meas_from_bits(bits)
+
+    def ctrl_hum_bits(self, humidity: int) -> int:
+        """Pack a ``ctrl_hum`` register value, which takes effect only after the next
+        ``ctrl_meas`` write.
+
+        :param humidity: The humidity oversampling code.
+        :returns: The register value to write.
+        """
+        return _bme280_ctrl_hum_bits(int(humidity))
+
+    def ctrl_hum_from_bits(self, bits: int) -> Bme280Oversampling:
+        """Parse a ``ctrl_hum`` register value.
+
+        :param bits: The register value, as read from the part.
+        :returns: The humidity oversampling.
+        """
+        return Bme280Oversampling(_bme280_ctrl_hum_from_bits(bits))
+
+    def config_bits(self, config: Bme280Config) -> int:
+        """Pack a ``config`` register value.
+
+        :param config: The standby period, filter, and interface settings.
+        :returns: The register value to write.
+        """
+        return _bme280_config_bits(config)
+
+    def config_from_bits(self, bits: int) -> Bme280Config:
+        """Parse a ``config`` register value.
+
+        :param bits: The register value, as read from the part.
+        :returns: The standby period, filter, and interface settings.
+        """
+        return _bme280_config_from_bits(bits)
+
+    def oversampling_factor(self, code: int) -> int:
+        """Return how many samples an oversampling code averages.
+
+        :param code: The oversampling code.
+        :returns: The factor, or 0 when the code skips the measurement.
+        """
+        return _bme280_oversampling_factor(int(code))
+
+    def standby_micros(self, code: int) -> int:
+        """Return the standby period a code selects in normal mode.
+
+        :param code: The standby code.
+        :returns: The period in microseconds.
+        """
+        return _bme280_standby_micros(int(code))
+
+    def filter_coefficient(self, code: int) -> int:
+        """Return the IIR coefficient a filter code selects.
+
+        :param code: The filter code.
+        :returns: The coefficient, or 0 when the filter is off.
+        """
+        return _bme280_filter_coefficient(int(code))
+
+    def max_measurement_micros(self, temperature: int, pressure: int, humidity: int) -> int:
+        """Return the longest one measurement can take, which is how long a driver waits
+        after forcing one.
+
+        :param temperature: The temperature oversampling code.
+        :param pressure: The pressure oversampling code.
+        :param humidity: The humidity oversampling code.
+        :returns: The datasheet's maximum in microseconds.
+        """
+        return _bme280_max_measurement_micros(int(temperature), int(pressure), int(humidity))
+
+    def typical_measurement_micros(self, temperature: int, pressure: int, humidity: int) -> int:
+        """Return the typical time one measurement takes.
+
+        :param temperature: The temperature oversampling code.
+        :param pressure: The pressure oversampling code.
+        :param humidity: The humidity oversampling code.
+        :returns: The datasheet's typical time in microseconds.
+        """
+        return _bme280_typical_measurement_micros(
+            int(temperature), int(pressure), int(humidity)
+        )
 
 
 class _Ds18b20:
@@ -500,7 +874,7 @@ class _Ina219:
 
 
 class _Ads1115:
-    """A TI ADS1115 16-bit analogue-to-digital converter."""
+    """A TI ADS1115 16-bit analog-to-digital converter."""
 
     __slots__ = ()
 
@@ -2209,7 +2583,7 @@ ds18b20 = _Ds18b20()
 #: A TI INA219 current, voltage, and power monitor.
 ina219 = _Ina219()
 
-#: A TI ADS1115 16-bit analogue-to-digital converter.
+#: A TI ADS1115 16-bit analog-to-digital converter.
 ads1115 = _Ads1115()
 
 #: A Bosch BMP280 pressure and temperature sensor.

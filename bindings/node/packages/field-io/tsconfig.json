@@ -13,10 +13,10 @@
       "path": "../can"
     },
     {
-      "path": "../core"
+      "path": "../gpio"
     },
     {
-      "path": "../gpio"
+      "path": "../hal"
     },
     {
       "path": "../modbus"

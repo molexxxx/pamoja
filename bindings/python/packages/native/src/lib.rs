@@ -32,6 +32,8 @@ mod gateway_network;
 mod gateway_station;
 #[cfg(feature = "gpio")]
 mod gpio;
+#[cfg(feature = "hal")]
+mod hal;
 #[cfg(feature = "kit")]
 mod kit;
 #[cfg(feature = "ladder")]
@@ -82,6 +84,8 @@ mod routing;
 mod security;
 #[cfg(feature = "sensors")]
 mod sensors;
+#[cfg(feature = "sensors")]
+mod sensors_driver;
 #[cfg(feature = "serial")]
 mod serial;
 #[cfg(feature = "session")]
@@ -231,6 +235,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(gpio::pin_polarity_level, m)?)?;
         m.add_function(wrap_pyfunction!(gpio::pin_polarity_is_asserted, m)?)?;
     }
+    #[cfg(feature = "hal")]
+    {
+        m.add_class::<hal::I2cPart>()?;
+        m.add_class::<hal::I2cStep>()?;
+        m.add_class::<hal::I2cBus>()?;
+    }
     #[cfg(feature = "sensors")]
     {
         m.add_class::<sensors::Bme280Calibration>()?;
@@ -295,6 +305,34 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(sensors::bmp280_config_from_bits, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::bmp280_oversampling_factor, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::bmp280_standby_micros, m)?)?;
+        m.add_class::<sensors::Bme280CtrlMeas>()?;
+        m.add_class::<sensors::Bme280Config>()?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_measuring, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_image_updating, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_ctrl_meas_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_ctrl_meas_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_ctrl_hum_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_ctrl_hum_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_config_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_config_from_bits, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_oversampling_factor, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_standby_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_filter_coefficient, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::bme280_max_measurement_micros, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors::bme280_typical_measurement_micros,
+            m
+        )?)?;
+        m.add_class::<sensors_driver::Bme280>()?;
+        m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_part, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_reporting, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_calibration, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            sensors_driver::bme280_sim_calibration_humidity,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_burst, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_burst_for, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::sht3x_crc, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::sht3x_word, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::sht3x_word_bytes, m)?)?;

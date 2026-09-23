@@ -16,7 +16,7 @@ dotnet add package Pamoja.Sensors
 using Pamoja.Sensors;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Hal`. `dotnet add package Pamoja` is the whole framework in one package.
 
 ## Example
 

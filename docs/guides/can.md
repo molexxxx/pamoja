@@ -335,7 +335,7 @@ Console.WriteLine($"an 11-bit identifier is J1939: {Can.DecodeJ1939(291, false) 
 ## Where next
 
 <!-- table: next can -->
-- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device.
+- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share.
 - [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
 - [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
 - Beside it: [Buses and links](../buses.md).

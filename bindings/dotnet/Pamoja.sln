@@ -24,6 +24,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Gateway", "src\Pamoj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Gpio", "src\Pamoja.Gpio\Pamoja.Gpio.csproj", "{9EFAD1BA-CE18-5FF4-9FE1-1857D019BADA}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Hal", "src\Pamoja.Hal\Pamoja.Hal.csproj", "{8094D064-7660-435D-9A22-4E277DCBC077}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Kit", "src\Pamoja.Kit\Pamoja.Kit.csproj", "{F6644780-07F4-59CC-A5A0-1BDA808153E8}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pamoja.Ladder", "src\Pamoja.Ladder\Pamoja.Ladder.csproj", "{C176710E-7551-52AF-BE2B-2083D527BC9C}"
@@ -134,6 +136,10 @@ Global
 		{9EFAD1BA-CE18-5FF4-9FE1-1857D019BADA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9EFAD1BA-CE18-5FF4-9FE1-1857D019BADA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9EFAD1BA-CE18-5FF4-9FE1-1857D019BADA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8094D064-7660-435D-9A22-4E277DCBC077}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8094D064-7660-435D-9A22-4E277DCBC077}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8094D064-7660-435D-9A22-4E277DCBC077}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8094D064-7660-435D-9A22-4E277DCBC077}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F6644780-07F4-59CC-A5A0-1BDA808153E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F6644780-07F4-59CC-A5A0-1BDA808153E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F6644780-07F4-59CC-A5A0-1BDA808153E8}.Release|Any CPU.ActiveCfg = Release|Any CPU

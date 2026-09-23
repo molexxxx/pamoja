@@ -35,8 +35,8 @@
   },
   "dependencies": {
     "@pamoja/can": "0.1.18",
-    "@pamoja/core": "0.1.18",
     "@pamoja/gpio": "0.1.18",
+    "@pamoja/hal": "0.1.18",
     "@pamoja/modbus": "0.1.18",
     "@pamoja/serial": "0.1.18"
   }

@@ -28,6 +28,7 @@ default = [
     "modbus",
     "can",
     "gpio",
+    "hal",
     "sensors",
     "actuators",
     "lora",
@@ -73,7 +74,10 @@ serial = ["dep:pamoja-serial"]
 modbus = ["dep:pamoja-modbus"]
 can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio", "pamoja-gpio/linux"]
-sensors = ["dep:pamoja-sensors"]
+# One I2C bus over the kernel's adapter, simulated parts, or a script.
+hal = ["dep:pamoja-hal", "pamoja-hal/linux"]
+# The decoders, and the drivers that run over a bus.
+sensors = ["dep:pamoja-sensors", "hal"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora", "pamoja-lora/alloc"]
 # The channel plans, mirroring how pamoja-lora selects them. A slim build takes
@@ -90,8 +94,8 @@ kr920 = ["pamoja-lora?/kr920"]
 in865 = ["pamoja-lora?/in865"]
 ru864 = ["pamoja-lora?/ru864"]
 lorawan = ["dep:pamoja-lorawan"]
-# The SX126x command set and decoders, and the duty-cycle guard; the embedded-hal driver
-# stays Rust-only.
+# The SX126x and SX127x command sets and decoders, the duty-cycle guard, and a radio opened
+# on a Linux board.
 radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
 gateway = ["dep:pamoja-gateway", "lora"]
 # The MAVLink wire layer; the vehicle model and its live drivers stay Rust-only.
@@ -119,6 +123,7 @@ pamoja-serial = { path = "../pamoja-serial", version = "0.1.18", optional = true
 pamoja-modbus = { path = "../pamoja-modbus", version = "0.1.18", optional = true }
 pamoja-can = { path = "../pamoja-can", version = "0.1.18", optional = true }
 pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.18", optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", optional = true }
 pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.18", optional = true }
 pamoja-actuators = { path = "../pamoja-actuators", version = "0.1.18", optional = true }
 # Regions are selected through this crate's own features, so the default set is

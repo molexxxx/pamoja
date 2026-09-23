@@ -22,6 +22,7 @@ default = [
     "modbus",
     "can",
     "gpio",
+    "hal",
     "sensors",
     "actuators",
     "lora",
@@ -69,12 +70,15 @@ serial = ["dep:pamoja-serial"]
 modbus = ["dep:pamoja-modbus"]
 can = ["dep:pamoja-can"]
 gpio = ["dep:pamoja-gpio", "pamoja-gpio/linux"]
-sensors = ["dep:pamoja-sensors"]
+# One I2C bus over the kernel's adapter, simulated parts, or a script.
+hal = ["dep:pamoja-hal", "pamoja-hal/linux"]
+# The decoders, and the drivers that run over a bus.
+sensors = ["dep:pamoja-sensors", "hal"]
 actuators = ["dep:pamoja-actuators"]
 lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
-# The SX126x command set and decoders, and the duty-cycle guard; the embedded-hal driver
-# stays Rust-only.
+# The SX126x and SX127x command sets and decoders, the duty-cycle guard, and a radio opened
+# on a Linux board.
 radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
 gateway = ["dep:pamoja-gateway", "lora"]
 mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
@@ -98,6 +102,7 @@ pamoja-serial = { path = "../../crates/pamoja-serial", optional = true }
 pamoja-modbus = { path = "../../crates/pamoja-modbus", optional = true }
 pamoja-can = { path = "../../crates/pamoja-can", optional = true }
 pamoja-gpio = { path = "../../crates/pamoja-gpio", optional = true }
+pamoja-hal = { path = "../../crates/pamoja-hal", optional = true }
 pamoja-sensors = { path = "../../crates/pamoja-sensors", optional = true }
 pamoja-actuators = { path = "../../crates/pamoja-actuators", optional = true }
 pamoja-lora = { path = "../../crates/pamoja-lora", features = ["alloc"], optional = true }

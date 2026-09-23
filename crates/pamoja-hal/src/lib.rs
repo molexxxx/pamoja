@@ -22,9 +22,15 @@
 //!   pin that records what it was driven to, and a delay that records how long it was
 //!   asked to wait. A driver is tested against the datasheet's own sequence with
 //!   nothing plugged in.
+//! - [`sim`] is a part that is not there, answering from a register map in whatever
+//!   order a driver reads and writes it, so a driver runs before the hardware arrives.
 //! - `linux` (feature `linux`, Linux only) opens the kernel's `/dev/i2c-*`,
 //!   `/dev/spidev*`, and GPIO character devices as those same traits, so a gateway
 //!   reads a sensor with one call and no glue.
+//! - `bus` (feature `std`) is one I2C bus that a program and every driver on it share,
+//!   over the kernel's adapter, simulated parts, or a script, with a delay that sleeps
+//!   only when real parts are on the other end. It is what a language binding hands a
+//!   driver.
 //!
 //! # Examples
 //!
@@ -49,6 +55,8 @@ extern crate alloc;
 pub use embedded_hal;
 pub use embedded_hal::{delay, digital, i2c, spi};
 
+#[cfg(feature = "std")]
+pub mod bus;
 #[cfg(all(feature = "linux", target_os = "linux"))]
 pub mod linux;
 pub mod onewire;

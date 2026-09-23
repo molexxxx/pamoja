@@ -3,11 +3,14 @@
  *
  * These are the decode half of eleven parts a field node is likely to have wired
  * to it, turning the register bytes a bus driver read into the physical reading
- * the manufacturer's datasheet says they mean. Driving the bus is the caller's
- * job; getting the arithmetic right is this layer's.
+ * the manufacturer's datasheet says they mean. The BME280 also has a driver, which
+ * runs the datasheet's whole conversation over an `I2cBus` from `@pamoja/hal`, and a
+ * simulated part that answers it with nothing plugged in.
  *
  * @packageDocumentation
  */
+
+import type { I2cBus, I2cPart } from '@pamoja/hal'
 
 import {
   ads1115ConfigBits,
@@ -17,8 +20,31 @@ import {
   ads1115ToNanovolts,
   ads1115ToVolts,
   type Ads1115Config,
+  Bme280,
   Bme280Calibration,
+  bme280ConfigBits,
+  bme280ConfigFromBits,
+  bme280CtrlHumBits,
+  bme280CtrlHumFromBits,
+  bme280CtrlMeasBits,
+  bme280CtrlMeasFromBits,
+  bme280FilterCoefficient,
+  bme280ImageUpdating,
+  bme280MaxMeasurementMicros,
+  bme280Measuring,
+  bme280OversamplingFactor,
+  bme280SimBurst,
+  bme280SimBurstFor,
+  bme280SimCalibration,
+  bme280SimCalibrationHumidity,
+  bme280SimPart,
+  bme280SimReporting,
+  bme280StandbyMicros,
+  bme280TypicalMeasurementMicros,
+  type Bme280Config,
+  type Bme280CtrlMeas,
   type Bme280Measurement,
+  type Bme280Settings,
   ds18b20BuildScratchpad,
   ds18b20Celsius,
   ds18b20ConfigByte,
@@ -203,7 +229,10 @@ export {
   Bme280Calibration,
   Bmp280Calibration,
   type Ads1115Config,
+  type Bme280Config,
+  type Bme280CtrlMeas,
   type Bme280Measurement,
+  type Bme280Settings,
   type Bmp280Config,
   type Bmp280CtrlMeas,
   type Bmp280RawMeasurement,
@@ -221,14 +250,113 @@ export {
   type Tmp117Config,
 }
 
+/**
+ * A Bosch BME280 driven over an {@link I2cBus}, measuring on demand in forced mode.
+ *
+ * `new Bme280(bus, address, settings?)` sends nothing. `init()` resets the part, checks it is
+ * a BME280, reads its calibration, and writes the settings in the order the datasheet
+ * requires, leaving the part asleep; `measure()` runs one forced measurement, waits the
+ * datasheet's maximum time for the settings in use, and resolves with the compensated
+ * reading, initializing first if `init()` has not run. Both run on a worker thread and reject
+ * when nothing answers at the address, another part does, or the part never finishes.
+ */
+export { Bme280 }
+
 /** A Bosch BME280 temperature, pressure, and humidity sensor. */
 export const bme280 = {
   /** The address a BME280 answers on with its SDO pin low. */
   addressPrimary: 0x76,
   /** The address it answers on with SDO high. */
   addressSecondary: 0x77,
-  /** The value its chip-ID register reads, which confirms the part. */
+  /** The value its chip-ID register reads, which tells it from a BMP280. */
   chipId: 0x60,
+  /** The word written to the reset register to restart the part. */
+  resetWord: 0xb6,
+  /** How long the part takes to start after a reset, in microseconds. */
+  startupMicros: 2_000,
+  /** How many bytes the temperature and pressure calibration block holds. */
+  calibrationTempPressLength: 26,
+  /** How many bytes the humidity calibration block holds. */
+  calibrationHumidityLength: 7,
+  /** How many bytes one measurement burst holds. */
+  dataLength: 8,
+  /** The registers a driver reads and writes. */
+  register: {
+    /** The chip-ID register. */
+    chipId: 0xd0,
+    /** The reset register. */
+    reset: 0xe0,
+    /** The first of the 26 temperature and pressure calibration bytes. */
+    calibTempPress: 0x88,
+    /** The first of the 7 humidity calibration bytes. */
+    calibHumidity: 0xe1,
+    /** The humidity control register, `ctrl_hum`. */
+    ctrlHum: 0xf2,
+    /** The status register. */
+    status: 0xf3,
+    /** The measurement control register, `ctrl_meas`. */
+    ctrlMeas: 0xf4,
+    /** The configuration register, `config`. */
+    config: 0xf5,
+    /** The first of the 8 data bytes a burst read covers. */
+    data: 0xf7,
+  },
+  /** The oversampling codes: how many samples each measurement averages. */
+  oversampling: {
+    /** The measurement is skipped. */
+    skipped: 0,
+    /** One sample. */
+    x1: 1,
+    /** Two samples. */
+    x2: 2,
+    /** Four samples. */
+    x4: 3,
+    /** Eight samples. */
+    x8: 4,
+    /** Sixteen samples. */
+    x16: 5,
+  },
+  /** The power mode codes. */
+  mode: {
+    /** No measurements; the power-on default. */
+    sleep: 0,
+    /** One measurement, then back to sleep. */
+    forced: 1,
+    /** Measurements on a cycle, a standby period apart. */
+    normal: 3,
+  },
+  /** The IIR filter codes, which smooth pressure and temperature across measurements. */
+  filter: {
+    /** No filtering. */
+    off: 0,
+    /** Coefficient 2. */
+    x2: 1,
+    /** Coefficient 4. */
+    x4: 2,
+    /** Coefficient 8. */
+    x8: 3,
+    /** Coefficient 16. */
+    x16: 4,
+  },
+  /** The normal-mode standby codes, by the period each selects. */
+  standby: {
+    /** 0.5 ms. */
+    ms0_5: 0,
+    /** 62.5 ms. */
+    ms62_5: 1,
+    /** 125 ms. */
+    ms125: 2,
+    /** 250 ms. */
+    ms250: 3,
+    /** 500 ms. */
+    ms500: 4,
+    /** 1000 ms. */
+    ms1000: 5,
+    /** 10 ms. */
+    ms10: 6,
+    /** 20 ms. */
+    ms20: 7,
+  },
 
   /**
    * Reads the factory calibration out of the registers, once at start-up.
@@ -240,6 +368,205 @@ export const bme280 = {
    */
   calibration(tempPress: Uint8Array, humidity: Uint8Array): Bme280Calibration {
     return new Bme280Calibration(Buffer.from(tempPress), Buffer.from(humidity))
+  },
+
+  /**
+   * Reports whether a status register says a conversion is running.
+   *
+   * @param status - The status register.
+   * @returns Whether a measurement is in progress.
+   */
+  measuring(status: number): boolean {
+    return bme280Measuring(status)
+  },
+
+  /**
+   * Reports whether a status register says the calibration is being copied.
+   *
+   * @param status - The status register.
+   * @returns Whether the calibration image is still loading.
+   */
+  imageUpdating(status: number): boolean {
+    return bme280ImageUpdating(status)
+  },
+
+  /**
+   * Assembles the `ctrl_meas` register value.
+   *
+   * @param ctrl - The oversampling codes and the power mode.
+   * @returns The register value to write.
+   */
+  ctrlMeasBits(ctrl: Bme280CtrlMeas): number {
+    return bme280CtrlMeasBits(ctrl)
+  },
+
+  /**
+   * Parses a `ctrl_meas` register value.
+   *
+   * @param bits - The register value, as read from the part.
+   * @returns The oversampling codes and the power mode.
+   */
+  ctrlMeasFromBits(bits: number): Bme280CtrlMeas {
+    return bme280CtrlMeasFromBits(bits)
+  },
+
+  /**
+   * Assembles the `ctrl_hum` register value, which takes effect only after the next
+   * `ctrl_meas` write.
+   *
+   * @param humidity - The humidity oversampling code.
+   * @returns The register value to write.
+   */
+  ctrlHumBits(humidity: number): number {
+    return bme280CtrlHumBits(humidity)
+  },
+
+  /**
+   * Parses a `ctrl_hum` register value.
+   *
+   * @param bits - The register value, as read from the part.
+   * @returns The humidity oversampling code.
+   */
+  ctrlHumFromBits(bits: number): number {
+    return bme280CtrlHumFromBits(bits)
+  },
+
+  /**
+   * Assembles the `config` register value.
+   *
+   * @param config - The standby period, filter, and interface settings.
+   * @returns The register value to write.
+   */
+  configBits(config: Bme280Config): number {
+    return bme280ConfigBits(config)
+  },
+
+  /**
+   * Parses a `config` register value.
+   *
+   * @param bits - The register value, as read from the part.
+   * @returns The standby period, filter, and interface settings.
+   */
+  configFromBits(bits: number): Bme280Config {
+    return bme280ConfigFromBits(bits)
+  },
+
+  /**
+   * Returns how many samples an oversampling code averages.
+   *
+   * @param code - The oversampling code.
+   * @returns The factor, or 0 when the code skips the measurement.
+   */
+  oversamplingFactor(code: number): number {
+    return bme280OversamplingFactor(code)
+  },
+
+  /**
+   * Returns the standby period a standby code selects in normal mode.
+   *
+   * @param code - The standby code.
+   * @returns The period in microseconds.
+   */
+  standbyMicros(code: number): number {
+    return bme280StandbyMicros(code)
+  },
+
+  /**
+   * Returns the IIR coefficient a filter code selects.
+   *
+   * @param code - The filter code.
+   * @returns The coefficient, or 0 when the filter is off.
+   */
+  filterCoefficient(code: number): number {
+    return bme280FilterCoefficient(code)
+  },
+
+  /**
+   * Returns the longest one measurement can take, which is how long a driver waits after
+   * forcing one.
+   *
+   * @param temperature - The temperature oversampling code.
+   * @param pressure - The pressure oversampling code.
+   * @param humidity - The humidity oversampling code.
+   * @returns The datasheet's maximum in microseconds.
+   */
+  maxMeasurementMicros(temperature: number, pressure: number, humidity: number): number {
+    return bme280MaxMeasurementMicros(temperature, pressure, humidity)
+  },
+
+  /**
+   * Returns the typical time one measurement takes.
+   *
+   * @param temperature - The temperature oversampling code.
+   * @param pressure - The pressure oversampling code.
+   * @param humidity - The humidity oversampling code.
+   * @returns The datasheet's typical time in microseconds.
+   */
+  typicalMeasurementMicros(temperature: number, pressure: number, humidity: number): number {
+    return bme280TypicalMeasurementMicros(temperature, pressure, humidity)
+  },
+
+  /** A BME280 that is not there, for a bus with nothing plugged in. */
+  sim: {
+    /** The status a simulated part reports when it is neither measuring nor loading. */
+    statusIdle: 0x00,
+
+    /**
+     * A part holding a real BME280's calibration and one measurement it took, which
+     * compensate to 20.44 C, 848.05 hPa, and 44.65 %.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): I2cPart {
+      return bme280SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, to within what its converter can represent.
+     *
+     * @param address - The address it answers to.
+     * @param celsius - The temperature it reports.
+     * @param hectopascals - The pressure it reports.
+     * @param relativeHumidity - The humidity it reports, as a percentage.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(
+      address: number,
+      celsius: number,
+      hectopascals: number,
+      relativeHumidity: number,
+    ): I2cPart {
+      return bme280SimReporting(address, celsius, hectopascals, relativeHumidity)
+    },
+
+    /** The 26-byte temperature and pressure calibration block a simulated part holds. */
+    calibration(): Buffer {
+      return bme280SimCalibration()
+    },
+
+    /** The 7-byte humidity calibration block a simulated part holds. */
+    calibrationHumidity(): Buffer {
+      return bme280SimCalibrationHumidity()
+    },
+
+    /** The eight data registers a simulated part holds: one measurement a real part took. */
+    burst(): Buffer {
+      return bme280SimBurst()
+    },
+
+    /**
+     * The eight data registers that compensate to a reading against the simulated
+     * calibration.
+     *
+     * @param celsius - The temperature.
+     * @param hectopascals - The pressure.
+     * @param relativeHumidity - The humidity, as a percentage.
+     * @returns The bytes a burst read would return.
+     */
+    burstFor(celsius: number, hectopascals: number, relativeHumidity: number): Buffer {
+      return bme280SimBurstFor(celsius, hectopascals, relativeHumidity)
+    },
   },
 }
 

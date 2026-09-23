@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Pamoja.Hal/Pamoja.Hal.csproj" />
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
   </ItemGroup>
 

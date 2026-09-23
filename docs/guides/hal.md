@@ -545,7 +545,7 @@ Console.WriteLine($"bus          {bus.Transfers} transfers, unexpected: {(!bus.D
 
 <!-- table: reference hal -->
 - Rust: [`pamoja-hal`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_hal/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-hal)
-- TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal)
-- Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal)
-- C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal)
+- TypeScript: [`@pamoja/hal`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_hal.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal)
+- Python: [`pamoja.hal`](https://pamoja.molex.cloud/docs/reference/python/pamoja/hal.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal)
+- C#: [`Pamoja.Hal`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Hal.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal)
 <!-- end -->

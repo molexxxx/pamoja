@@ -14,9 +14,9 @@ The bus layer for pamoja: the embedded-hal 1.0 I2C, SPI, GPIO, and delay traits 
 | Language | Package | Reference |
 | --- | --- | --- |
 | Rust | [`pamoja-hal`](https://crates.io/crates/pamoja-hal) | [reference](https://pamoja.molex.cloud/docs/reference/rust/pamoja_hal/index.html), [docs.rs](https://docs.rs/pamoja-hal), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-hal) |
-| TypeScript | [`@pamoja/core`](https://www.npmjs.com/package/@pamoja/core) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal) |
-| Python | [`pamoja-core`](https://pypi.org/project/pamoja-core/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal) |
-| C# | [`Pamoja.Core`](https://www.nuget.org/packages/Pamoja.Core) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal) |
+| TypeScript | [`@pamoja/hal`](https://www.npmjs.com/package/@pamoja/hal) | [reference](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_hal.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal) |
+| Python | [`pamoja-hal`](https://pypi.org/project/pamoja-hal/) | [reference](https://pamoja.molex.cloud/docs/reference/python/pamoja/hal.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal) |
+| C# | [`Pamoja.Hal`](https://www.nuget.org/packages/Pamoja.Hal) | [reference](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Hal.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal) |
 
 The bus layer for the pamoja SDK.
 
@@ -40,9 +40,15 @@ where the buses that implement them live:
   pin that records what it was driven to, and a delay that records how long it was
   asked to wait. A driver is tested against the datasheet's own sequence with
   nothing plugged in.
+- `sim` is a part that is not there, answering from a register map in whatever
+  order a driver reads and writes it, so a driver runs before the hardware arrives.
 - `linux` (feature `linux`, Linux only) opens the kernel's `/dev/i2c-*`,
   `/dev/spidev*`, and GPIO character devices as those same traits, so a gateway
   reads a sensor with one call and no glue.
+- `bus` (feature `std`) is one I2C bus that a program and every driver on it share,
+  over the kernel's adapter, simulated parts, or a script, with a delay that sleeps
+  only when real parts are on the other end. It is what a language binding hands a
+  driver.
 
 **Examples**
 

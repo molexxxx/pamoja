@@ -183,6 +183,36 @@
 // The first 7-bit address above the reserved block at the bottom of the range.
 #define PAMOJA_I2C_RESERVED_BELOW 8
 
+// A bus kind: the kernel's adapter, with real parts on real wires.
+#define PAMOJA_I2C_BUS_ADAPTER 0
+
+// A bus kind: simulated parts answering from their registers.
+#define PAMOJA_I2C_BUS_SIMULATED 1
+
+// A bus kind: a script of the transfers a driver is expected to make.
+#define PAMOJA_I2C_BUS_SCRIPTED 2
+
+// A scripted failure: nothing acknowledged the address.
+#define PAMOJA_I2C_FAULT_NO_ACKNOWLEDGE_ADDRESS 0
+
+// A scripted failure: the part did not acknowledge a data byte.
+#define PAMOJA_I2C_FAULT_NO_ACKNOWLEDGE_DATA 1
+
+// A scripted failure: a missing acknowledge, with no telling whether of the address or data.
+#define PAMOJA_I2C_FAULT_NO_ACKNOWLEDGE 2
+
+// A scripted failure: a bus error, such as a misplaced start or stop condition.
+#define PAMOJA_I2C_FAULT_BUS 3
+
+// A scripted failure: another controller won the bus.
+#define PAMOJA_I2C_FAULT_ARBITRATION_LOSS 4
+
+// A scripted failure: data arrived faster than it was taken.
+#define PAMOJA_I2C_FAULT_OVERRUN 5
+
+// A scripted failure of no more particular kind.
+#define PAMOJA_I2C_FAULT_OTHER 6
+
 // The number of readings a windowed helper keeps.
 //
 // The Rust helpers are generic over their capacity, which cannot cross a C ABI,
@@ -1102,6 +1132,48 @@
 // The number of bytes in a DS18B20 scratchpad, the ninth being its CRC.
 #define PAMOJA_DS18B20_SCRATCHPAD_LEN 9
 
+// The address a BME280 answers on with its SDO pin low.
+#define PAMOJA_BME280_I2C_ADDRESS_PRIMARY 118
+
+// The address it answers on with SDO high.
+#define PAMOJA_BME280_I2C_ADDRESS_SECONDARY 119
+
+// The value a BME280's chip id register reads, which tells it from a BMP280.
+#define PAMOJA_BME280_CHIP_ID 96
+
+// The word written to the reset register to restart the part.
+#define PAMOJA_BME280_RESET_WORD 182
+
+// How long the part takes to start after a reset, in microseconds.
+#define PAMOJA_BME280_STARTUP_MICROS 2000
+
+// The chip id register.
+#define PAMOJA_BME280_REGISTER_CHIP_ID 208
+
+// The reset register.
+#define PAMOJA_BME280_REGISTER_RESET 224
+
+// The first of the 26 temperature and pressure calibration registers.
+#define PAMOJA_BME280_REGISTER_CALIB_TEMP_PRESS 136
+
+// The first of the 7 humidity calibration registers.
+#define PAMOJA_BME280_REGISTER_CALIB_HUMIDITY 225
+
+// The first of the 8 data registers a burst read covers.
+#define PAMOJA_BME280_REGISTER_DATA 247
+
+// The humidity control register, `ctrl_hum`.
+#define PAMOJA_BME280_REGISTER_CTRL_HUM 242
+
+// The status register.
+#define PAMOJA_BME280_REGISTER_STATUS 243
+
+// The measurement control register, `ctrl_meas`.
+#define PAMOJA_BME280_REGISTER_CTRL_MEAS 244
+
+// The configuration register, `config`.
+#define PAMOJA_BME280_REGISTER_CONFIG 245
+
 // The number of calibration bytes a BMP280 reports.
 #define PAMOJA_BMP280_CALIBRATION_LEN 24
 
@@ -1567,6 +1639,10 @@
 // The INA226 die-ID register.
 #define PAMOJA_INA226_REGISTER_DIE_ID 255
 
+// The status a simulated BME280 reports when it is neither measuring nor loading its
+// calibration.
+#define PAMOJA_BME280_SIM_STATUS_IDLE 0
+
 // The largest payload, in bytes, that a streaming decoder will reassemble.
 //
 // The Rust decoders are generic over their capacity, which cannot cross a C
@@ -1975,6 +2051,9 @@ typedef struct PamojaAuditLog PamojaAuditLog;
 // [`pamoja_audit_verifier_free`].
 typedef struct PamojaAuditVerifier PamojaAuditVerifier;
 
+// A BME280 driven over an I2C bus. Opaque; release it with [`pamoja_bme280_free`].
+typedef struct PamojaBme280 PamojaBme280;
+
 // An opaque handle to a BME280's factory calibration.
 //
 // Read the calibration registers once at start-up, build one of these, and reuse
@@ -2076,6 +2155,18 @@ typedef struct PamojaGeofence PamojaGeofence;
 // A GPIO line opened on a Linux board. Opaque; let it go with [`pamoja_gpio_line_free`],
 // which hands the line back to the kernel.
 typedef struct PamojaGpioLine PamojaGpioLine;
+
+// One I2C bus, shared with every driver built on it. Opaque; release it with
+// [`pamoja_i2c_bus_free`].
+typedef struct PamojaI2cBus PamojaI2cBus;
+
+// A part that is not there, answering from 256 registers. Opaque; release it with
+// [`pamoja_i2c_part_free`].
+typedef struct PamojaI2cPart PamojaI2cPart;
+
+// The transfers a driver is expected to make, in order, and the replies. Opaque; release it
+// with [`pamoja_i2c_script_free`].
+typedef struct PamojaI2cScript PamojaI2cScript;
 
 // An opaque handle that hashes an image as it arrives.
 //
@@ -4145,6 +4236,26 @@ typedef struct {
   float relative_humidity_percent;
 } PamojaBme280Measurement;
 
+// A BME280 `ctrl_meas` register, field by field.
+typedef struct {
+  // The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t temperature;
+  // The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t pressure;
+  // The power mode code: `0` sleep, `1` forced, `3` normal.
+  uint8_t mode;
+} PamojaBme280CtrlMeas;
+
+// A BME280 `config` register, field by field.
+typedef struct {
+  // The normal-mode standby code, `0..=7`.
+  uint8_t standby;
+  // The IIR filter code, `0..=4`, where `0` is off.
+  uint8_t filter;
+  // `1` enables the 3-wire SPI interface.
+  uint8_t spi_3wire;
+} PamojaBme280Config;
+
 // A decoded DS18B20 scratchpad.
 typedef struct {
   // The raw temperature register, 1/16 degree Celsius per count.
@@ -4444,6 +4555,18 @@ typedef struct {
   // The 4-bit die revision.
   uint8_t revision;
 } PamojaIna226DieId;
+
+// How a BME280 driver measures: the oversampling of each measurement and the IIR filter.
+typedef struct {
+  // The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t temperature;
+  // The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t pressure;
+  // The humidity oversampling code, `0..=5`, where `0` skips the measurement.
+  uint8_t humidity;
+  // The IIR filter code, `0..=4`, where `0` is off.
+  uint8_t filter;
+} PamojaBme280Settings;
 
 // The header that travels beside a sealed message.
 //
@@ -7011,6 +7134,451 @@ PamojaStatus pamoja_gpio_line_read(PamojaGpioLine *line, PamojaPinLevel *out_lev
 //
 // `line` must be a handle from one of the open functions that has not been freed, or null.
 void pamoja_gpio_line_free(PamojaGpioLine *line);
+
+// Creates a part answering at one address, with every register reading zero.
+//
+// # Arguments
+//
+// * `address` - the 7-bit address it answers to.
+//
+// # Returns
+//
+// The part, which the caller releases with [`pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_i2c_part_new(uint8_t address);
+
+// Puts bytes in a part, from a register on. Past the last register they wrap to the first.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `first` - the register the bytes start at.
+// * `bytes` - what to put there.
+// * `len` - how many bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null part or a null
+// `bytes` with a nonzero length.
+//
+// # Safety
+//
+// `part` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_i2c_part_load(PamojaI2cPart *part,
+                                  uint8_t first,
+                                  const uint8_t *bytes,
+                                  uintptr_t len);
+
+// Reads what one of a part's registers holds.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `register` - which register.
+//
+// # Returns
+//
+// Its value, which is what a driver wrote if it wrote one, or 0 for a null part.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uint8_t pamoja_i2c_part_register(const PamojaI2cPart *part, uint8_t register_);
+
+// Reads consecutive registers of a part, from one register on.
+//
+// # Arguments
+//
+// * `part` - the part.
+// * `first` - the first register.
+// * `out` - receives one byte per register. Past the last register it wraps to the first.
+// * `len` - how many registers to read.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `part` must be a live handle or null, and `out` must point to `len` writable bytes.
+PamojaStatus pamoja_i2c_part_read(const PamojaI2cPart *part,
+                                  uint8_t first,
+                                  uint8_t *out,
+                                  uintptr_t len);
+
+// Returns the address a part answers to.
+//
+// # Arguments
+//
+// * `part` - the part.
+//
+// # Returns
+//
+// The 7-bit address, or 0 for a null part.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uint8_t pamoja_i2c_part_address(const PamojaI2cPart *part);
+
+// Returns how many transfers a part has served.
+//
+// # Arguments
+//
+// * `part` - the part.
+//
+// # Returns
+//
+// The count, or 0 for a null part.
+//
+// # Safety
+//
+// `part` must be a live handle or null.
+uintptr_t pamoja_i2c_part_transfers(const PamojaI2cPart *part);
+
+// Releases a part. A null pointer is ignored.
+//
+// # Safety
+//
+// `part` must be a handle that has not been freed, or null.
+void pamoja_i2c_part_free(PamojaI2cPart *part);
+
+// Creates an empty script.
+//
+// # Returns
+//
+// The script, which the caller fills with the step functions and releases with
+// [`pamoja_i2c_script_free`].
+PamojaI2cScript *pamoja_i2c_script_new(void);
+
+// Adds a step: the driver writes exactly these bytes to the address.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `address` - the 7-bit address the write must go to.
+// * `bytes` - the bytes the driver must send.
+// * `len` - how many.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `script` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_i2c_script_write(PamojaI2cScript *script,
+                                     uint8_t address,
+                                     const uint8_t *bytes,
+                                     uintptr_t len);
+
+// Adds a step: the driver reads from the address and receives the reply, whose length is
+// the length it must ask for.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `address` - the 7-bit address the read must come from.
+// * `reply` - the bytes the part answers with.
+// * `len` - how many.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `script` must be a live handle or null, and `reply` must point to `len` readable bytes.
+PamojaStatus pamoja_i2c_script_read(PamojaI2cScript *script,
+                                    uint8_t address,
+                                    const uint8_t *reply,
+                                    uintptr_t len);
+
+// Adds a step: the driver writes these bytes and then reads the reply in one transaction,
+// the shape of a register read.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `address` - the 7-bit address of the part.
+// * `bytes` - the bytes the driver must send first, usually a register address.
+// * `len` - how many.
+// * `reply` - the bytes the part answers with.
+// * `reply_len` - how many.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `script` must be a live handle or null, `bytes` must point to `len` readable bytes, and
+// `reply` to `reply_len`.
+PamojaStatus pamoja_i2c_script_write_read(PamojaI2cScript *script,
+                                          uint8_t address,
+                                          const uint8_t *bytes,
+                                          uintptr_t len,
+                                          const uint8_t *reply,
+                                          uintptr_t reply_len);
+
+// Adds a step: the next transfer to the address fails, the way a missing or busy part does.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `address` - the 7-bit address the failing transfer must go to.
+// * `fault` - one of the `PAMOJA_I2C_FAULT_` codes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null script or a code
+// that names no fault.
+//
+// # Safety
+//
+// `script` must be a live handle or null.
+PamojaStatus pamoja_i2c_script_fault(PamojaI2cScript *script, uint8_t address, uint8_t fault);
+
+// Returns how many steps a script holds.
+//
+// # Arguments
+//
+// * `script` - the script.
+//
+// # Returns
+//
+// The count, or 0 for a null script.
+//
+// # Safety
+//
+// `script` must be a live handle or null.
+uintptr_t pamoja_i2c_script_len(const PamojaI2cScript *script);
+
+// Releases a script. A null pointer is ignored.
+//
+// # Safety
+//
+// `script` must be a handle that has not been freed, or null.
+void pamoja_i2c_script_free(PamojaI2cScript *script);
+
+// Opens the kernel's I2C adapter, such as `/dev/i2c-1` on a Raspberry Pi.
+//
+// # Arguments
+//
+// * `path` - the adapter's device file.
+// * `out_bus` - receives the bus, or null when opening fails.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the bus in `out_bus`; [`PamojaStatus::Unsupported`] on any
+// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument; or
+// [`PamojaStatus::Io`] when the file cannot be opened as an adapter, with a last error
+// message that names it.
+//
+// # Safety
+//
+// `path` must be a null-terminated string or null, and `out_bus` a writable pointer or null.
+PamojaStatus pamoja_i2c_bus_open(const char *path, PamojaI2cBus **out_bus);
+
+// Creates a simulated bus with no parts on it yet; [`pamoja_i2c_bus_attach`] puts them on.
+//
+// # Returns
+//
+// The bus, which the caller releases with [`pamoja_i2c_bus_free`]. Until a part is attached
+// every transfer finds nothing at its address.
+PamojaI2cBus *pamoja_i2c_bus_simulated(void);
+
+// Puts a copy of a part on a simulated bus, in place of any part already at its address.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `part` - the part to copy onto it; the caller still owns the handle.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a bus
+// that is not simulated.
+//
+// # Safety
+//
+// `bus` and `part` must be live handles or null.
+PamojaStatus pamoja_i2c_bus_attach(const PamojaI2cBus *bus, const PamojaI2cPart *part);
+
+// Creates a bus that plays a script and refuses any transfer that is not its next step.
+//
+// # Arguments
+//
+// * `script` - the steps to copy; the caller still owns the handle.
+//
+// # Returns
+//
+// The bus, which the caller releases with [`pamoja_i2c_bus_free`], or null for a null
+// script.
+//
+// # Safety
+//
+// `script` must be a live handle or null.
+PamojaI2cBus *pamoja_i2c_bus_scripted(const PamojaI2cScript *script);
+
+// Returns what answers on a bus.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+//
+// # Returns
+//
+// [`PAMOJA_I2C_BUS_ADAPTER`], [`PAMOJA_I2C_BUS_SIMULATED`], or [`PAMOJA_I2C_BUS_SCRIPTED`];
+// the simulated code for a null bus.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uint8_t pamoja_i2c_bus_kind(const PamojaI2cBus *bus);
+
+// Writes bytes to a part, in one transaction.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `address` - the part's 7-bit address.
+// * `bytes` - what to write, usually a register address and then its value.
+// * `len` - how many bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument; or
+// [`PamojaStatus::Io`] when the transfer fails, with the reason in the last error message.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_i2c_bus_write(const PamojaI2cBus *bus,
+                                  uint8_t address,
+                                  const uint8_t *bytes,
+                                  uintptr_t len);
+
+// Reads bytes from a part, in one transaction.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `address` - the part's 7-bit address.
+// * `out` - receives the bytes.
+// * `len` - how many bytes to read.
+//
+// # Returns
+//
+// As [`pamoja_i2c_bus_write`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out` must point to `len` writable bytes.
+PamojaStatus pamoja_i2c_bus_read(const PamojaI2cBus *bus,
+                                 uint8_t address,
+                                 uint8_t *out,
+                                 uintptr_t len);
+
+// Writes bytes to a part and reads its reply in one transaction, with a repeated start
+// between them, which is how a register is read.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `address` - the part's 7-bit address.
+// * `bytes` - what to write first, usually the register address.
+// * `len` - how many bytes to write.
+// * `out` - receives the reply.
+// * `out_len` - how many bytes to read.
+//
+// # Returns
+//
+// As [`pamoja_i2c_bus_write`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null, `bytes` must point to `len` readable bytes, and `out`
+// to `out_len` writable bytes.
+PamojaStatus pamoja_i2c_bus_write_read(const PamojaI2cBus *bus,
+                                       uint8_t address,
+                                       const uint8_t *bytes,
+                                       uintptr_t len,
+                                       uint8_t *out,
+                                       uintptr_t out_len);
+
+// Returns how many transfers have been made on a bus, by the caller and every driver on it,
+// including any that failed.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+//
+// # Returns
+//
+// The count, or 0 for a null bus.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uintptr_t pamoja_i2c_bus_transfers(const PamojaI2cBus *bus);
+
+// Reports how many steps a scripted bus has left.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `out_remaining` - receives the steps not yet reached.
+//
+// # Returns
+//
+// `true` with the count in `out_remaining` for a scripted bus; `false` for any other bus, a
+// null bus, or a null `out_remaining`.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_remaining` a writable pointer or null.
+bool pamoja_i2c_bus_remaining(const PamojaI2cBus *bus, uintptr_t *out_remaining);
+
+// Returns how long the drivers on a bus have asked to wait.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+//
+// # Returns
+//
+// The total in microseconds, counted whether or not the process slept through it, or 0 for a
+// null bus.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uint64_t pamoja_i2c_bus_waited_micros(const PamojaI2cBus *bus);
+
+// Copies what a simulated part holds now, with whatever drivers have written to it.
+//
+// # Arguments
+//
+// * `bus` - the bus.
+// * `address` - the part's address.
+//
+// # Returns
+//
+// A new part, which the caller releases with [`pamoja_i2c_part_free`], or null when the bus
+// is not simulated, holds no part at the address, or is null.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+PamojaI2cPart *pamoja_i2c_bus_part(const PamojaI2cBus *bus, uint8_t address);
+
+// Releases the caller's share of a bus. The bus closes when no driver holds it either. A
+// null pointer is ignored.
+//
+// # Safety
+//
+// `bus` must be a handle that has not been freed, or null.
+void pamoja_i2c_bus_free(PamojaI2cBus *bus);
 
 // Wraps host callbacks in a transport.
 //
@@ -18187,6 +18755,170 @@ PamojaStatus pamoja_bme280_compensate(const PamojaBme280Calibration *calibration
 // not already been freed, or null. After this call it must not be used again.
 void pamoja_bme280_calibration_free(PamojaBme280Calibration *calibration);
 
+// Reports whether a BME280 status byte says a conversion is running.
+//
+// # Arguments
+//
+// * `status` - the status register.
+//
+// # Returns
+//
+// `true` while the part is measuring.
+bool pamoja_bme280_measuring(uint8_t status);
+
+// Reports whether a BME280 status byte says the calibration image is loading.
+//
+// # Arguments
+//
+// * `status` - the status register.
+//
+// # Returns
+//
+// `true` while the coefficients are being copied out of non-volatile memory.
+bool pamoja_bme280_image_updating(uint8_t status);
+
+// Assembles a BME280 `ctrl_meas` register value.
+//
+// # Arguments
+//
+// * `config` - the oversampling codes and the power mode.
+//
+// # Returns
+//
+// The register value to write.
+uint8_t pamoja_bme280_ctrl_meas_bits(PamojaBme280CtrlMeas config);
+
+// Parses a BME280 `ctrl_meas` register value.
+//
+// # Arguments
+//
+// * `bits` - the register value.
+// * `out_config` - receives the fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value decodes, so this
+// fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaBme280CtrlMeas`.
+PamojaStatus pamoja_bme280_ctrl_meas_from_bits(uint8_t bits, PamojaBme280CtrlMeas *out_config);
+
+// Assembles a BME280 `ctrl_hum` register value.
+//
+// # Arguments
+//
+// * `humidity` - the humidity oversampling code, `0..=5`, where `0` skips it.
+//
+// # Returns
+//
+// The register value to write. It takes effect only after the next `ctrl_meas` write.
+uint8_t pamoja_bme280_ctrl_hum_bits(uint8_t humidity);
+
+// Parses a BME280 `ctrl_hum` register value.
+//
+// # Arguments
+//
+// * `bits` - the register value.
+//
+// # Returns
+//
+// The humidity oversampling code it holds.
+uint8_t pamoja_bme280_ctrl_hum_from_bits(uint8_t bits);
+
+// Assembles a BME280 `config` register value.
+//
+// # Arguments
+//
+// * `config` - the standby period, filter, and interface settings.
+//
+// # Returns
+//
+// The register value to write.
+uint8_t pamoja_bme280_config_bits(PamojaBme280Config config);
+
+// Parses a BME280 `config` register value.
+//
+// # Arguments
+//
+// * `bits` - the register value.
+// * `out_config` - receives the fields.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value decodes, so this
+// fails only on a null pointer.
+//
+// # Safety
+//
+// `out_config` must point to a writable `PamojaBme280Config`.
+PamojaStatus pamoja_bme280_config_from_bits(uint8_t bits, PamojaBme280Config *out_config);
+
+// Returns how many samples a BME280 oversampling code averages.
+//
+// # Arguments
+//
+// * `code` - the oversampling code.
+//
+// # Returns
+//
+// The factor, `1` to `16`, or `0` when the code skips the measurement.
+uint8_t pamoja_bme280_oversampling_factor(uint8_t code);
+
+// Returns the normal-mode standby period a BME280 code selects.
+//
+// # Arguments
+//
+// * `code` - the standby code.
+//
+// # Returns
+//
+// The period in microseconds.
+uint32_t pamoja_bme280_standby_micros(uint8_t code);
+
+// Returns the IIR filter coefficient a BME280 code selects.
+//
+// # Arguments
+//
+// * `code` - the filter code.
+//
+// # Returns
+//
+// The coefficient, `2` to `16`, or `0` when the filter is off.
+uint8_t pamoja_bme280_filter_coefficient(uint8_t code);
+
+// Returns the longest one BME280 measurement can take, which is how long a driver waits
+// after forcing one.
+//
+// # Arguments
+//
+// * `temperature` - the temperature oversampling code.
+// * `pressure` - the pressure oversampling code.
+// * `humidity` - the humidity oversampling code.
+//
+// # Returns
+//
+// The datasheet's maximum measurement time in microseconds.
+uint32_t pamoja_bme280_max_measurement_micros(uint8_t temperature,
+                                              uint8_t pressure,
+                                              uint8_t humidity);
+
+// Returns the typical time one BME280 measurement takes.
+//
+// # Arguments
+//
+// * `temperature` - the temperature oversampling code.
+// * `pressure` - the pressure oversampling code.
+// * `humidity` - the humidity oversampling code.
+//
+// # Returns
+//
+// The datasheet's typical measurement time in microseconds.
+uint32_t pamoja_bme280_typical_measurement_micros(uint8_t temperature,
+                                                  uint8_t pressure,
+                                                  uint8_t humidity);
+
 // Parses and CRC-checks a nine-byte DS18B20 scratchpad.
 //
 // # Returns
@@ -19795,6 +20527,150 @@ int16_t pamoja_ina226_current_register_from_shunt(int16_t shunt, uint16_t calibr
 //
 // The power register the part's own arithmetic produces.
 uint16_t pamoja_ina226_power_register_from_current(int16_t current, uint16_t bus);
+
+// Returns the settings a BME280 driver starts with: every measurement at oversampling x1 and
+// the filter off.
+//
+// # Returns
+//
+// The settings.
+PamojaBme280Settings pamoja_bme280_settings_default(void);
+
+// Creates a BME280 driver on a bus. Nothing is sent until [`pamoja_bme280_init`] or the first
+// [`pamoja_bme280_measure`].
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - [`crate::sensors::PAMOJA_BME280_I2C_ADDRESS_PRIMARY`] with SDO low, or
+//   [`crate::sensors::PAMOJA_BME280_I2C_ADDRESS_SECONDARY`] with SDO high.
+// * `settings` - the oversampling and the filter.
+// * `out_sensor` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_sensor`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_sensor` a writable pointer or null.
+PamojaStatus pamoja_bme280_new(const PamojaI2cBus *bus,
+                               uint8_t address,
+                               PamojaBme280Settings settings,
+                               PamojaBme280 **out_sensor);
+
+// Resets the part, checks it is a BME280, reads its calibration, and writes the settings, in
+// the order the datasheet requires, leaving the part asleep.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null driver;
+// [`PamojaStatus::Io`] when the bus fails or the calibration never finishes loading; or
+// [`PamojaStatus::Codec`] when the part at the address is not a BME280.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null.
+PamojaStatus pamoja_bme280_init(PamojaBme280 *sensor);
+
+// Runs one forced measurement and compensates it, initializing the part first if
+// [`pamoja_bme280_init`] has not run.
+//
+// # Arguments
+//
+// * `sensor` - the driver.
+// * `out_measurement` - receives the reading.
+//
+// # Returns
+//
+// As [`pamoja_bme280_init`], with [`PamojaStatus::Io`] also when the part is still measuring
+// after the datasheet's time.
+//
+// # Safety
+//
+// `sensor` must be a live handle or null, and `out_measurement` a writable pointer or null.
+PamojaStatus pamoja_bme280_measure(PamojaBme280 *sensor, PamojaBme280Measurement *out_measurement);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `sensor` must be a handle from [`pamoja_bme280_new`] that has not been freed, or null.
+void pamoja_bme280_free(PamojaBme280 *sensor);
+
+// Creates a simulated BME280 holding a real part's calibration and one measurement it took,
+// which compensate to 20.44 C, 848.05 hPa, and 44.65 %.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// The part, which the caller puts on a simulated bus and releases with
+// [`crate::hal::pamoja_i2c_part_free`].
+PamojaI2cPart *pamoja_bme280_sim_part(uint8_t address);
+
+// Creates a simulated BME280 that reads what it is asked to.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+// * `celsius` - the temperature it reports.
+// * `hectopascals` - the pressure it reports.
+// * `relative_humidity` - the humidity it reports, as a percentage.
+//
+// # Returns
+//
+// The part, which the caller releases with [`crate::hal::pamoja_i2c_part_free`]. Its readings
+// land within a hundredth of a degree, a hundredth of a hectopascal, and a thousandth of a
+// percent of what was asked for, the nearest its converter can represent.
+PamojaI2cPart *pamoja_bme280_sim_reporting(uint8_t address,
+                                           float celsius,
+                                           float hectopascals,
+                                           float relative_humidity);
+
+// Copies the calibration a simulated BME280 holds: the two blocks a driver reads at start-up.
+//
+// # Arguments
+//
+// * `out_temp_press` - receives the 26-byte temperature and pressure block.
+// * `out_humidity` - receives the 7-byte humidity block.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_temp_press` must point to 26 writable bytes and `out_humidity` to 7.
+PamojaStatus pamoja_bme280_sim_calibration(uint8_t *out_temp_press, uint8_t *out_humidity);
+
+// Builds the eight data registers a simulated BME280 holds when it reports a reading.
+//
+// # Arguments
+//
+// * `celsius` - the temperature.
+// * `hectopascals` - the pressure.
+// * `relative_humidity` - the humidity, as a percentage.
+// * `out_burst` - receives the eight bytes a burst read returns.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer.
+//
+// # Safety
+//
+// `out_burst` must point to 8 writable bytes.
+PamojaStatus pamoja_bme280_sim_burst(float celsius,
+                                     float hectopascals,
+                                     float relative_humidity,
+                                     uint8_t *out_burst);
 
 // Frames a payload as a SLIP packet (RFC 1055).
 //

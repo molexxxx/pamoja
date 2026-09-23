@@ -3116,6 +3116,7 @@ dependencies = [
  "pamoja-core",
  "pamoja-gateway",
  "pamoja-gpio",
+ "pamoja-hal",
  "pamoja-kit",
  "pamoja-ladder",
  "pamoja-loopback",

@@ -113,6 +113,117 @@ impl Bme280Calibration {
     }
 }
 
+/// A BME280 `ctrl_meas` register, field by field.
+#[napi(object)]
+pub struct Bme280CtrlMeas {
+    /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+    pub temperature: u8,
+    /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+    pub pressure: u8,
+    /// The power mode code: `0` sleep, `1` forced, `3` normal.
+    pub mode: u8,
+}
+
+/// A BME280 `config` register, field by field.
+#[napi(object)]
+pub struct Bme280Config {
+    /// The normal-mode standby code, `0..=7`.
+    pub standby: u8,
+    /// The IIR filter code, `0..=4`, where `0` is off.
+    pub filter: u8,
+    /// Whether the 3-wire SPI interface is enabled.
+    pub spi3wire: bool,
+}
+
+/// Reports whether a BME280 status byte says a conversion is running.
+#[napi]
+pub fn bme280_measuring(status: u8) -> bool {
+    bme280::measuring(status)
+}
+
+/// Reports whether a BME280 status byte says the calibration image is loading.
+#[napi]
+pub fn bme280_image_updating(status: u8) -> bool {
+    bme280::image_updating(status)
+}
+
+/// Packs a BME280 `ctrl_meas` register value.
+#[napi]
+pub fn bme280_ctrl_meas_bits(config: Bme280CtrlMeas) -> u8 {
+    bme280::CtrlMeas::from(config).bits()
+}
+
+/// Parses a BME280 `ctrl_meas` register value.
+#[napi]
+pub fn bme280_ctrl_meas_from_bits(bits: u8) -> Bme280CtrlMeas {
+    bme280::CtrlMeas::from_bits(bits).into()
+}
+
+/// Packs a BME280 `ctrl_hum` register value from a humidity oversampling code.
+#[napi]
+pub fn bme280_ctrl_hum_bits(humidity: u8) -> u8 {
+    bme280::CtrlHum {
+        humidity: bme280::Oversampling::from_code(humidity),
+    }
+    .bits()
+}
+
+/// Parses a BME280 `ctrl_hum` register value into its humidity oversampling code.
+#[napi]
+pub fn bme280_ctrl_hum_from_bits(bits: u8) -> u8 {
+    bme280::CtrlHum::from_bits(bits).humidity.code()
+}
+
+/// Packs a BME280 `config` register value.
+#[napi]
+pub fn bme280_config_bits(config: Bme280Config) -> u8 {
+    bme280::Config::from(config).bits()
+}
+
+/// Parses a BME280 `config` register value.
+#[napi]
+pub fn bme280_config_from_bits(bits: u8) -> Bme280Config {
+    bme280::Config::from_bits(bits).into()
+}
+
+/// Returns how many samples a BME280 oversampling code averages, or 0 when it skips.
+#[napi]
+pub fn bme280_oversampling_factor(code: u8) -> u8 {
+    bme280::Oversampling::from_code(code).factor()
+}
+
+/// Returns the normal-mode standby period a BME280 code selects, in microseconds.
+#[napi]
+pub fn bme280_standby_micros(code: u8) -> u32 {
+    bme280::Standby::from_code(code).microseconds()
+}
+
+/// Returns the IIR filter coefficient a BME280 code selects, or 0 when it is off.
+#[napi]
+pub fn bme280_filter_coefficient(code: u8) -> u8 {
+    bme280::Filter::from_code(code).coefficient()
+}
+
+/// Returns the longest one BME280 measurement can take, in microseconds.
+#[napi]
+pub fn bme280_max_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+    bme280::max_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
+/// Returns the typical time one BME280 measurement takes, in microseconds.
+#[napi]
+pub fn bme280_typical_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+    bme280::typical_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
 /// Parses and CRC-checks a nine-byte DS18B20 scratchpad.
 #[napi(js_name = "ds18b20ParseScratchpad")]
 pub fn ds18b20_parse_scratchpad(bytes: Buffer) -> napi::Result<Ds18b20Reading> {
@@ -1679,6 +1790,46 @@ impl From<bmp280::Measurement> for Bmp280Measurement {
             temperature: value.temperature,
             pressure_skipped: value.pressure_skipped(),
             temperature_skipped: value.temperature_skipped(),
+        }
+    }
+}
+
+impl From<Bme280CtrlMeas> for bme280::CtrlMeas {
+    fn from(value: Bme280CtrlMeas) -> Self {
+        bme280::CtrlMeas {
+            temperature: bme280::Oversampling::from_code(value.temperature),
+            pressure: bme280::Oversampling::from_code(value.pressure),
+            mode: bme280::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<bme280::CtrlMeas> for Bme280CtrlMeas {
+    fn from(value: bme280::CtrlMeas) -> Self {
+        Bme280CtrlMeas {
+            temperature: value.temperature.code(),
+            pressure: value.pressure.code(),
+            mode: value.mode.code(),
+        }
+    }
+}
+
+impl From<Bme280Config> for bme280::Config {
+    fn from(value: Bme280Config) -> Self {
+        bme280::Config {
+            standby: bme280::Standby::from_code(value.standby),
+            filter: bme280::Filter::from_code(value.filter),
+            spi_3wire: value.spi3wire,
+        }
+    }
+}
+
+impl From<bme280::Config> for Bme280Config {
+    fn from(value: bme280::Config) -> Self {
+        Bme280Config {
+            standby: value.standby.code(),
+            filter: value.filter.code(),
+            spi3wire: value.spi_3wire,
         }
     }
 }

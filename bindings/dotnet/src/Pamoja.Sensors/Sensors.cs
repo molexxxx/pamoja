@@ -186,19 +186,6 @@ public sealed class Bme280Calibration : IDisposable
     public void Dispose() => _handle.Dispose();
 }
 
-/// <summary>A Bosch BME280 temperature, pressure, and humidity sensor.</summary>
-public static class Bme280
-{
-    /// <summary>The address a BME280 answers on with its SDO pin low.</summary>
-    public const byte AddressPrimary = 0x76;
-
-    /// <summary>The address it answers on with SDO high.</summary>
-    public const byte AddressSecondary = 0x77;
-
-    /// <summary>The value its chip-ID register reads, which confirms the part.</summary>
-    public const byte ChipId = 0x60;
-}
-
 /// <summary>A Maxim DS18B20 1-Wire thermometer.</summary>
 public static class Ds18b20
 {

@@ -16,7 +16,7 @@ pip install pamoja-sensors
 from pamoja import sensors
 ```
 
-This pulls in `pamoja-native`, the compiled engine. `pip install pamoja` is the whole framework in one package.
+This pulls in `pamoja-native`, the compiled engine, and `pamoja-hal`. `pip install pamoja` is the whole framework in one package.
 
 ## Example
 

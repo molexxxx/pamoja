@@ -39,6 +39,8 @@ pub mod gateway_network;
 pub mod gateway_station;
 #[cfg(feature = "gpio")]
 pub mod gpio;
+#[cfg(feature = "hal")]
+pub mod hal;
 #[cfg(feature = "kit")]
 pub mod kit;
 #[cfg(feature = "ladder")]
@@ -87,6 +89,8 @@ pub mod routing;
 pub mod security;
 #[cfg(feature = "sensors")]
 pub mod sensors;
+#[cfg(feature = "sensors")]
+pub mod sensors_driver;
 #[cfg(feature = "serial")]
 pub mod serial;
 #[cfg(feature = "session")]

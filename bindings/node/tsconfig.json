@@ -26,6 +26,9 @@
       "path": "packages/gpio"
     },
     {
+      "path": "packages/hal"
+    },
+    {
       "path": "packages/sensors"
     },
     {

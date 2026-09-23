@@ -20,7 +20,7 @@
     <ProjectReference Include="../Pamoja.Modbus/Pamoja.Modbus.csproj" />
     <ProjectReference Include="../Pamoja.Can/Pamoja.Can.csproj" />
     <ProjectReference Include="../Pamoja.Gpio/Pamoja.Gpio.csproj" />
-    <ProjectReference Include="../Pamoja.Core/Pamoja.Core.csproj" />
+    <ProjectReference Include="../Pamoja.Hal/Pamoja.Hal.csproj" />
   </ItemGroup>
 
 </Project>
