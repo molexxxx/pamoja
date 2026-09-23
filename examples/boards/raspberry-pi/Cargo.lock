@@ -54,6 +54,7 @@ dependencies = [
 name = "board-raspberry-pi"
 version = "0.0.0"
 dependencies = [
+ "pamoja-actuators",
  "pamoja-codec",
  "pamoja-core",
  "pamoja-dashboard",
@@ -527,6 +528,15 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "pamoja-actuators"
+version = "0.1.18"
+dependencies = [
+ "embedded-hal",
+ "pamoja-core",
+ "pamoja-hal",
 ]
 
 [[package]]

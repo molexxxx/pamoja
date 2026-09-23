@@ -15,7 +15,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | Capability | Package | What it covers |
 | --- | --- | --- |
 | [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `Pamoja.Sensors` | Datasheet-anchored drivers for eleven parts, from every language: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
-| [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | `Pamoja.Actuators` | A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing |
+| [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | `Pamoja.Actuators` | A PCA9685 driver for servos, LEDs, and valves, and stepper drivers for four coil lines or a step and direction chip, in every language |
 | [Your own device](https://pamoja.molex.cloud/docs/guides/device.html) | `Pamoja.Core` | A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in |
 
 The guides, with a worked C# example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

@@ -11,7 +11,8 @@ with nothing plugged in and then pointed at ``/dev/i2c-1``.
 from __future__ import annotations
 
 import enum
-from typing import Iterable, List, Optional, Union
+import time
+from typing import Iterable, List, Optional, Protocol, Union
 
 from pamoja._native import CommandPart as _NativeCommandPart
 from pamoja._native import I2cBus as _NativeBus
@@ -21,12 +22,15 @@ from pamoja._native import WordPart as _NativeWordPart
 
 __all__ = [
     "CommandPart",
+    "Delay",
+    "DelayLog",
     "I2cBus",
     "I2cBusKind",
     "I2cFault",
     "I2cPart",
     "I2cStep",
     "SimulatedPart",
+    "SleepDelay",
     "WordPart",
 ]
 
@@ -458,3 +462,84 @@ class I2cBus:
         """How long the drivers on the bus have asked to wait, in microseconds, whether
         or not the process slept through it."""
         return self._native.waited_micros
+
+
+class Delay(Protocol):
+    """What paces a driver that has to wait between pin changes, such as a stepper
+    between steps. :class:`SleepDelay` really waits; :class:`DelayLog` counts every wait
+    and waits for none, for a program run with nothing plugged in."""
+
+    def delay_micros(self, micros: int) -> None:
+        """Wait, or count the wait.
+
+        :param micros: How long, in microseconds.
+        """
+        ...
+
+
+class DelayLog:
+    """A delay that records every wait it is asked for and sleeps through none of them,
+    as ``pamoja_hal::script::DelayLog`` does in Rust.
+
+    >>> delay = DelayLog()
+    >>> delay.delay_micros(480)
+    >>> delay.delay_micros(10_000)
+    >>> delay.total_micros, delay.total_millis
+    (10480, 10)
+    """
+
+    __slots__ = ("_total", "_waits")
+
+    def __init__(self) -> None:
+        """Create a log with nothing waited yet."""
+        self._waits: List[int] = []
+        self._total = 0
+
+    @property
+    def waits_micros(self) -> List[int]:
+        """Every wait asked for, in microseconds, oldest first."""
+        return list(self._waits)
+
+    @property
+    def total_micros(self) -> int:
+        """The waits added up, in microseconds."""
+        return self._total
+
+    @property
+    def total_millis(self) -> int:
+        """The waits added up, in whole milliseconds, rounded down."""
+        return self._total // 1_000
+
+    def delay_micros(self, micros: int) -> None:
+        """Record a wait.
+
+        :param micros: How long, in microseconds.
+        """
+        self._waits.append(micros)
+        self._total += micros
+
+    def clear(self) -> None:
+        """Forget every recorded wait."""
+        self._waits.clear()
+        self._total = 0
+
+
+class SleepDelay:
+    """A delay that really waits: :func:`time.sleep` for a millisecond or more, and a
+    spin on :func:`time.perf_counter_ns` for a shorter wait, which the scheduler cannot
+    keep. A sleep lasts at least what was asked and may run over by the scheduler's own
+    latency."""
+
+    __slots__ = ()
+
+    def delay_micros(self, micros: int) -> None:
+        """Wait.
+
+        :param micros: How long, in microseconds.
+        """
+        if micros >= 1_000:
+            time.sleep(micros / 1_000_000)
+            return
+        until = time.perf_counter_ns() + micros * 1_000
+        while time.perf_counter_ns() < until:
+            pass

@@ -40,6 +40,10 @@ public static class Pwm
         Bytes(NativeMethods.pamoja_pwm_from_counts(on, off));
 
     /// <summary>Builds a setting with no phase delay: on at count 0, off at <paramref name="off"/>.</summary>
+    /// <remarks>
+    /// The datasheet rules out the same count in on and off, so 0 is the full-off setting and
+    /// 4096 or more the full-on one.
+    /// </remarks>
     /// <param name="off">The count at which the output goes low, which sets the duty.</param>
     /// <returns>The four register bytes.</returns>
     public static byte[] Duty(ushort off) => Bytes(NativeMethods.pamoja_pwm_duty(off));
@@ -58,10 +62,8 @@ public static class Pwm
     public static byte[] FullOn() => Bytes(NativeMethods.pamoja_pwm_full_on());
 
     /// <summary>The setting that holds a channel continuously low, the power-on state.</summary>
-    /// <returns>
-    /// The four register bytes. This is not the same as a zero duty, which still
-    /// glitches high for one count.
-    /// </returns>
+    /// <remarks>Its flag takes precedence over the full-on flag when both are set.</remarks>
+    /// <returns>The four register bytes.</returns>
     public static byte[] FullOff() => Bytes(NativeMethods.pamoja_pwm_full_off());
 
     /// <summary>Reads a setting back from the four register bytes a channel holds.</summary>
@@ -101,7 +103,7 @@ public static class Pwm
     /// <summary>Lays a native setting out in register order.</summary>
     /// <param name="pwm">The setting the native call produced.</param>
     /// <returns>The four bytes.</returns>
-    private static byte[] Bytes(PamojaPwm pwm) =>
+    internal static byte[] Bytes(PamojaPwm pwm) =>
         [pwm.OnLow, pwm.OnHigh, pwm.OffLow, pwm.OffHigh];
 }
 
@@ -114,6 +116,15 @@ public static class Pwm
 /// </example>
 public sealed class Stepper : IDisposable
 {
+    /// <summary>The pause a stepper driver takes after each step unless given another, in microseconds.</summary>
+    public const uint DefaultStepMicros = NativeMethods.StepperDefaultStepMicros;
+
+    /// <summary>
+    /// How long a step and direction driver holds the direction before a step pulse, and the
+    /// pulse itself, unless given another, in microseconds.
+    /// </summary>
+    public const uint DefaultPulseMicros = NativeMethods.StepperDefaultPulseMicros;
+
     private readonly NativeHandle _handle;
 
     /// <summary>Creates a stepper at the start of a pattern, with its position at zero.</summary>

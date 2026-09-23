@@ -386,6 +386,26 @@ mod tests {
     }
 
     #[test]
+    fn a_channel_reads_back_whatever_mode1_holds() {
+        let mut fresh = Pca9685::new(part(PART), PART, DelayLog::new());
+        assert_eq!(
+            fresh.channel(7).unwrap(),
+            Pwm::full_off(),
+            "every channel powers up full off, and auto-increment is off until init"
+        );
+        let (part, _) = fresh.release();
+        assert_eq!(
+            part.register(register::MODE1),
+            MODE1_RESET,
+            "a read changes nothing"
+        );
+
+        let mut pwm = Pca9685::new(part, PART, DelayLog::new()).with_frequency(50);
+        pwm.set_channel(7, Pwm::duty(1024)).unwrap();
+        assert_eq!(pwm.channel(7).unwrap(), Pwm::duty(1024));
+    }
+
+    #[test]
     fn a_driver_that_writes_the_prescale_awake_leaves_the_part_at_200_hz() {
         let mut part = part(PART);
         part.write(PART, &[register::MODE1, mode1::AUTO_INCREMENT])

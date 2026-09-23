@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">56 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">57 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -345,7 +345,7 @@ The buses and framings that reach a part on the end of a wire.
 
 Parts decoded byte for byte, each from the manufacturer's own datasheet.
 
-<nav class="hw-index" aria-label="Sensors and actuators index"><a href="#crc-8-sensirion">Sensirion CRC-8</a><a href="#sensor-datasheets">Twelve manufacturer datasheets</a><a href="#w1-therm">w1_therm sysfs interface</a></nav>
+<nav class="hw-index" aria-label="Sensors and actuators index"><a href="#crc-8-sensirion">Sensirion CRC-8</a><a href="#sensor-datasheets">Twelve manufacturer datasheets</a><a href="#step-dir-timing">A4988 Rev. 8 and DRV8825 SLVSA73F</a><a href="#w1-therm">w1_therm sysfs interface</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="crc-8-sensirion">
 <header class="hw-head">
@@ -371,6 +371,19 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 <p class="hw-summary">Each driver asserts its datasheet's own worked compensation example. Every document is linked from the hardware page, part by part.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://pamoja.molex.cloud/docs/hardware.html"><span class="hw-main"><b>The document</b><small>Twelve manufacturer datasheets</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs#L983"><span class="hw-main"><b>The test</b><small><code>bme280.rs</code> line 983</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="step-dir-timing">
+<header class="hw-head">
+
+### A4988 Rev. 8 and DRV8825 SLVSA73F {#step-dir-timing}
+
+<p class="hw-by">Allegro MicroSystems, Texas Instruments</p>
+<p class="hw-summary">Step and direction timing: the direction settled before the step line rises, and the pulse's minimum width</p>
+</header>
+<p class="hw-summary">Figure 1 of the A4988 datasheet and the DRV8825's timing requirements: 200 ns and 650 ns of setup before the rising edge, 1 and 1.9 microseconds high. The driver holds each for its pulse width, 10 microseconds unless told otherwise.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf"><span class="hw-main"><b>The document</b><small>A4988 Rev. 8 and DRV8825 SLVSA73F</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-actuators/src/stepper/driver.rs#L479"><span class="hw-main"><b>The test</b><small><code>driver.rs</code> line 479</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="w1-therm">

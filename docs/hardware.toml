@@ -24,7 +24,7 @@ explains_what = "what the interface line means, and how to wire it"
 [[group]]
 key = "actuators"
 title = "Actuators"
-intent = "Parts pamoja drives: a PWM generator for servos, and the step-and-direction carriers a stepper sequence walks."
+intent = "Parts pamoja drives: a PWM generator for servos and LEDs, the transistor array a four-wire stepper runs through, and the step and direction chips a bipolar stepper sits behind."
 explains = "buses.md"
 explains_title = "Buses and links"
 explains_what = "what the interface line means, and how to wire it"

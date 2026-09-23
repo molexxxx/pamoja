@@ -112,3 +112,82 @@ export const I2cFault = {
 
 /** How a scripted step fails the transfer that reaches it. */
 export type I2cFault = I2cFaultName
+
+/**
+ * What paces a driver that has to wait between pin changes, such as a stepper between
+ * steps. {@link SleepDelay} really waits; {@link DelayLog} counts every wait and waits for
+ * none, for a program run with nothing plugged in.
+ */
+export interface Delay {
+  /**
+   * Waits, or counts the wait.
+   *
+   * @param micros - How long, in microseconds.
+   */
+  delayMicros(micros: number): void | Promise<void>
+}
+
+/**
+ * A delay that records every wait it is asked for and sleeps through none of them, as
+ * `pamoja_hal::script::DelayLog` does in Rust.
+ */
+export class DelayLog implements Delay {
+  #waits: number[] = []
+  #total = 0
+
+  /** Every wait asked for, in microseconds, oldest first. */
+  get waitsMicros(): readonly number[] {
+    return this.#waits
+  }
+
+  /** The waits added up, in microseconds. */
+  get totalMicros(): number {
+    return this.#total
+  }
+
+  /** The waits added up, in whole milliseconds, rounded down. */
+  get totalMillis(): number {
+    return Math.floor(this.#total / 1_000)
+  }
+
+  /**
+   * Records a wait.
+   *
+   * @param micros - How long, in microseconds.
+   */
+  delayMicros(micros: number): void {
+    this.#waits.push(micros)
+    this.#total += micros
+  }
+
+  /** Forgets every recorded wait. */
+  clear(): void {
+    this.#waits = []
+    this.#total = 0
+  }
+}
+
+/**
+ * A delay that really waits: on a timer, rounded up to whole milliseconds, for a millisecond
+ * or more, and by spinning for a shorter wait, which a timer cannot keep. A timer can run over
+ * by the event loop's own latency, so a program that needs exact step timing drives its
+ * motor from a microcontroller rather than from Node.
+ */
+export class SleepDelay implements Delay {
+  /**
+   * Waits.
+   *
+   * @param micros - How long, in microseconds.
+   */
+  async delayMicros(micros: number): Promise<void> {
+    if (micros >= 1_000) {
+      await new Promise((resolve) => setTimeout(resolve, Math.ceil(micros / 1_000)))
+      return
+    }
+    const until = performance.now() + micros / 1_000
+    let now = performance.now()
+    while (now < until) {
+      now = performance.now()
+    }
+  }
+}

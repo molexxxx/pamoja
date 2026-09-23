@@ -44,6 +44,15 @@ pub const PCA9685_CHANNELS: u8 = pca9685::CHANNELS;
 #[napi]
 pub const PCA9685_COUNTS: u16 = pca9685::COUNTS;
 
+/// The pause a stepper driver takes after each step unless given another, in microseconds.
+#[napi]
+pub const STEPPER_DEFAULT_STEP_MICROS: u32 = stepper::DEFAULT_STEP_MICROS;
+
+/// How long a step and direction driver holds the direction before a step pulse, and
+/// the pulse itself, unless given another, in microseconds.
+#[napi]
+pub const STEPPER_DEFAULT_PULSE_MICROS: u32 = stepper::DEFAULT_PULSE_MICROS;
+
 /// Returns the first of a PCA9685 channel's four consecutive registers.
 #[napi]
 pub fn pca9685_channel_register(channel: u8) -> napi::Result<u8> {
@@ -75,6 +84,9 @@ pub fn pwm_from_counts(on: u16, off: u16) -> Buffer {
 }
 
 /// Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
+///
+/// The datasheet rules out the same count in on and off, so 0 is the full-off setting
+/// and 4096 or more the full-on one.
 #[napi]
 pub fn pwm_duty(off: u16) -> Buffer {
     pca9685::Pwm::duty(off).bytes().to_vec().into()

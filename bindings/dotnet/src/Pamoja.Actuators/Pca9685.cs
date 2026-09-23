@@ -98,6 +98,23 @@ public sealed class Pca9685 : IDisposable
             NativeMethods.pamoja_pca9685_set_channel(driver, channel, setting)));
     }
 
+    /// <summary>Reads one channel's four register bytes back from the part.</summary>
+    /// <remarks>
+    /// The registers are read one at a time, so the read works whether or not MODE1's
+    /// auto-increment bit is set, and it changes nothing on the part: a program that restarts
+    /// can ask a running part what it holds. <see cref="Pwm.Counts"/> names the counts.
+    /// </remarks>
+    /// <param name="channel">The output, 0 to 15.</param>
+    /// <returns>The four register bytes the channel holds.</returns>
+    /// <exception cref="PamojaException">The channel is past 15, or the bus failed.</exception>
+    public byte[] Channel(byte channel)
+    {
+        PamojaPwm held = default;
+        Status.ThrowIfError(_handle.Use(driver =>
+            NativeMethods.pamoja_pca9685_channel(driver, channel, out held)));
+        return Pwm.Bytes(held);
+    }
+
     /// <summary>Loads every channel with the same four bytes in one transfer.</summary>
     /// <param name="pwm">The four register bytes the <see cref="Pwm"/> builders make.</param>
     /// <exception cref="PamojaException">The setting is not four bytes, or the bus failed.</exception>

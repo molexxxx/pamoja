@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/actuators",
   "version": "0.1.18",
-  "description": "A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing.",
+  "description": "A PCA9685 driver for servos, LEDs, and valves, and stepper drivers for four coil lines or a step and direction chip, in every language.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -34,6 +34,7 @@
     "node": ">= 16"
   },
   "dependencies": {
+    "@pamoja/gpio": "0.1.18",
     "@pamoja/hal": "0.1.18",
     "@pamoja/native": "0.1.18"
   }

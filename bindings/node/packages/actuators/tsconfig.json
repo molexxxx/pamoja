@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../gpio"
+    },
+    {
       "path": "../hal"
     }
   ]

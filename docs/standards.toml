@@ -367,6 +367,18 @@ anchor = "vector"
 note = "Each driver asserts its datasheet's own worked compensation example. Every document is linked from the hardware page, part by part."
 
 [[entry]]
+key = "step-dir-timing"
+chapter = "sensing"
+designation = "A4988 Rev. 8 and DRV8825 SLVSA73F"
+body = "Allegro MicroSystems, Texas Instruments"
+subject = "Step and direction timing: the direction settled before the step line rises, and the pulse's minimum width"
+url = "https://www.allegromicro.com/-/media/files/datasheets/a4988-datasheet.pdf"
+evidence = "crates/pamoja-actuators/src/stepper/driver.rs"
+at = "fn step_dir_settles_the_direction_before_the_rising_edge_as_the_timing_diagram_asks"
+anchor = "rule"
+note = "Figure 1 of the A4988 datasheet and the DRV8825's timing requirements: 200 ns and 650 ns of setup before the rising edge, 1 and 1.9 microseconds high. The driver holds each for its pulse width, 10 microseconds unless told otherwise."
+
+[[entry]]
 key = "w1-therm"
 chapter = "sensing"
 designation = "w1_therm sysfs interface"

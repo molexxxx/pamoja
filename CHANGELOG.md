@@ -75,6 +75,24 @@ released together, so one entry covers all of them.
   to the ALL_LED registers loads every channel while they read back zero, RESTART clears on
   a written 1 and sets when the part sleeps with a channel running, and EXTCLK stays set. A
   driver that writes the prescale awake leaves the part at 200 Hz, as the part would.
+- The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
+  through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
+  the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
+  `PinScript` in a test, and walking the same native coil sequence as the Rust drivers.
+  They wait on a delay from each language's `hal` package: `SleepDelay`, which sleeps,
+  or `DelayLog`, which counts every wait and sleeps through none, as
+  `pamoja_hal::script::DelayLog` does in Rust. The pause after a step and the pulse width
+  default to the Rust drivers' 2000 and 10 microseconds, named in every language.
+- `Pca9685::channel` reads a channel's setting back from the part, one register a
+  transfer, so it works whatever MODE1 holds and changes nothing on the part, in every
+  language.
+- The actuator drivers guide rewritten around a motion-control time-lapse rig: a tilt servo
+  and a status LED on a PCA9685, a slider behind an A4988, and a 28BYJ-48 pan head,
+  printing the same thirteen lines in all four languages, with a Raspberry Pi pan and tilt
+  head in each. Its tables cover the PCA9685's registers, what each frequency comes out
+  as, servo pulse counts, a channel's settings, the coil patterns, step and direction
+  timing and microstep pins for the A4988 and DRV8825, every setting in each language,
+  and what each error means.
 - Rules for a simulated part with byte-wide registers: `pamoja_hal::sim::Rules`, three
   plain functions for what a write does, what a read returns, and where the pointer moves,
   given to a part with `I2cPart::following`. `Rules::MEMORY`, every part's default, is
@@ -688,6 +706,18 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A step and direction driver raised STEP straight after setting DIR, while the A4988
+  reads the direction on STEP's rising edge and needs it settled 200 ns before, the
+  DRV8825 650 ns. On a fast microcontroller the two writes land nanoseconds apart and a
+  step after a change of direction could go the old way. The driver now holds DIR for
+  the pulse width before the edge, in every language.
+- `Pwm::duty(0)` loaded the same count into a channel's on and off registers, which the
+  PCA9685 datasheet says never to do, and `duty(4096)` wrapped to the same. A zero duty is
+  now the full-off setting and 4096 or more the full-on one, in every language, and the
+  bindings no longer claim a zero duty glitches high for one count.
+- Building the dashboard crate without its extra locales, as the examples package does,
+  warned about an unused variable and unreachable code, so every guide's `cargo run`
+  printed both.
 - The Raspberry Pi page said `pullup=1` turns on the `w1-gpio` overlay's internal
   pull-up. The overlay turns it on by default and ignores the parameter, as its README
   says, and a DS18B20 still wants the 4.7 kilohm resistor its datasheet shows.

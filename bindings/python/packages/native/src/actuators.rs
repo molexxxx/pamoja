@@ -72,6 +72,16 @@ pub fn pca9685_limits() -> (u32, u8, u16) {
     (INTERNAL_OSC_HZ, pca9685::CHANNELS, pca9685::COUNTS)
 }
 
+/// Returns the timing a stepper driver starts with, in microseconds.
+///
+/// The tuple is the pause after each step, then how long a step and direction
+/// driver holds the direction before a step pulse, and the pulse itself.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn stepper_timing() -> (u32, u32) {
+    (stepper::DEFAULT_STEP_MICROS, stepper::DEFAULT_PULSE_MICROS)
+}
+
 /// Returns the first of a PCA9685 channel's four consecutive registers.
 #[gen_stub_pyfunction]
 #[pyfunction]
@@ -107,6 +117,9 @@ pub fn pwm_from_counts<'py>(py: Python<'py>, on: u16, off: u16) -> Bound<'py, Py
 }
 
 /// Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
+///
+/// The datasheet rules out the same count in on and off, so 0 is the full-off setting
+/// and 4096 or more the full-on one.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn pwm_duty<'py>(py: Python<'py>, off: u16) -> Bound<'py, PyBytes> {

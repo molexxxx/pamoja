@@ -63,6 +63,14 @@
 // The smallest value the part loads into PRE_SCALE, about 1526 Hz.
 #define PAMOJA_PCA9685_PRE_SCALE_MIN 3
 
+// The pause a stepper driver takes after each step unless given another, in microseconds:
+// two milliseconds, a rate common geared hobby motors follow without stalling.
+#define PAMOJA_STEPPER_DEFAULT_STEP_MICROS 2000
+
+// How long a step and direction driver holds the direction before a step pulse, and the
+// pulse itself, unless given another, in microseconds.
+#define PAMOJA_STEPPER_DEFAULT_PULSE_MICROS 10
+
 // The frequency a PCA9685 driver runs at unless given another, in hertz: the part's own
 // power-on 200 Hz.
 #define PAMOJA_PCA9685_DEFAULT_FREQUENCY_HZ 200
@@ -5233,6 +5241,9 @@ PamojaPwm pamoja_pwm_from_counts(uint16_t on, uint16_t off);
 
 // Builds a PWM setting with no phase delay: on at count 0, off at `off`.
 //
+// The datasheet rules out the same count in on and off, so 0 is the full-off setting and
+// 4096 or more the full-on one.
+//
 // # Returns
 //
 // The four register bytes.
@@ -5400,6 +5411,25 @@ PamojaStatus pamoja_pca9685_init(PamojaPca9685 *driver);
 //
 // `driver` must be a live handle or null.
 PamojaStatus pamoja_pca9685_set_channel(PamojaPca9685 *driver, uint8_t channel, PamojaPwm pwm);
+
+// Reads one channel's counts back from the part, one register a transfer, so the read works
+// whatever MODE1 holds and changes nothing on the part.
+//
+// # Arguments
+//
+// * `driver` - the driver.
+// * `channel` - the output, 0 to 15.
+// * `out_pwm` - receives the four register bytes the channel holds.
+//
+// # Returns
+//
+// As [`pamoja_pca9685_set_channel`], and [`PamojaStatus::InvalidArgument`] for a null
+// `out_pwm`.
+//
+// # Safety
+//
+// `driver` must be a live handle or null, and `out_pwm` a writable pointer or null.
+PamojaStatus pamoja_pca9685_channel(PamojaPca9685 *driver, uint8_t channel, PamojaPwm *out_pwm);
 
 // Loads every channel with the same counts in one transfer, through the ALL_LED registers.
 //

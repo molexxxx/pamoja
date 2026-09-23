@@ -100,6 +100,7 @@ async function main() {
   await buses();
   await sensorDrivers();
   await actuatorDrivers();
+  await stepperDrivers();
   radioAndReach();
   relayedReach();
   broadcastUpdates();
@@ -494,11 +495,71 @@ async function actuatorDrivers() {
   const first = pca9685.channelRegister(0);
   const loaded = [0, 1, 2, 3].map((offset) => part.register(first + offset));
   assert.deepStrictEqual(Buffer.from(loaded), pwm.servo(1500), "the servo channel reads back");
+  assert.deepStrictEqual(await board.channel(0), pwm.servo(1500), "the driver reads it back too");
+  await assert.rejects(board.channel(16), /sixteen channels/);
   await board.setAll(pwm.fullOff());
   part = bus.part(address);
   assert.strictEqual(part.register(pca9685.channelRegister(15) + 3), 0x10, "every channel off");
   await assert.rejects(board.setChannel(16, pwm.fullOn()), /sixteen channels/);
   await assert.rejects(board.softwareReset(), /nothing answered at 0x00/);
+}
+
+// The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
+// drivers' own tests, with every wait counted rather than slept.
+async function stepperDrivers() {
+  const { DelayLog } = hal;
+  const { PinScript, PinLevel } = gpio;
+  const { FourWire, StepDir, StepDrive, stepper } = actuators;
+  const { High, Low } = PinLevel;
+  const lines = () => [new PinScript(), new PinScript(), new PinScript(), new PinScript()];
+
+  const delay = new DelayLog();
+  const motor = new FourWire(lines(), StepDrive.FullStep, { stepMicros: 1_500, delay });
+  await motor.steps(4);
+  assert.strictEqual(motor.position, 4);
+  assert.strictEqual(motor.drive, StepDrive.FullStep);
+  const [a, b, c, d] = motor.release();
+  assert.deepStrictEqual(a.driven, [Low, Low, High, High]);
+  assert.deepStrictEqual(b.driven, [High, Low, Low, High]);
+  assert.deepStrictEqual(c.driven, [High, High, Low, Low]);
+  assert.deepStrictEqual(d.driven, [Low, High, High, Low]);
+  assert.deepStrictEqual(delay.waitsMicros, [1_500, 1_500, 1_500, 1_500]);
+  assert.strictEqual(delay.totalMillis, 6);
+
+  const wave = new FourWire(lines(), StepDrive.Wave, { delay: new DelayLog() });
+  await wave.steps(-2);
+  assert.strictEqual(wave.position, -2);
+  wave.idle();
+  const [waveA, , , waveD] = wave.release();
+  assert.deepStrictEqual(waveA.driven, [Low, Low, Low]);
+  assert.deepStrictEqual(waveD.driven, [High, Low, Low], "wave drive backward starts at coil D");
+
+  const pulses = new DelayLog();
+  const carriage = new StepDir(new PinScript(), new PinScript(), {
+    pulseMicros: 5,
+    stepMicros: 1_000,
+    delay: pulses,
+  });
+  await carriage.steps(2);
+  await carriage.steps(-1);
+  assert.strictEqual(carriage.position, 1);
+  const [step, direction] = carriage.release();
+  assert.deepStrictEqual(direction.driven, [High, High, Low]);
+  assert.deepStrictEqual(step.driven, [High, Low, High, Low, High, Low]);
+  assert.deepStrictEqual(pulses.waitsMicros.slice(0, 3), [5, 5, 1_000]);
+
+  const defaults = new StepDir(new PinScript(), new PinScript(), { delay: new DelayLog() });
+  assert.strictEqual(defaults.pulseMicros, stepper.defaultPulseMicros);
+  assert.strictEqual(defaults.stepMicros, stepper.defaultStepMicros);
+  assert.strictEqual(stepper.defaultStepMicros, 2_000);
+  assert.strictEqual(stepper.defaultPulseMicros, 10);
+
+  const failing = { drive: () => { throw new Error("line unplugged"); } };
+  const stuck = new FourWire([failing, failing, failing, failing], StepDrive.Wave, {
+    delay: new DelayLog(),
+  });
+  await assert.rejects(stuck.step("Forward"), /line unplugged/);
+  assert.strictEqual(stuck.position, 0, "a step that could not be driven is not counted");
 }
 
 // The seven parts added after the first four: a datasheet figure each, and the
@@ -614,7 +675,12 @@ function sensingAndActuation() {
   assert.strictEqual(
     actuators.pwm.fullOff()[3],
     0x10,
-    "fully off is its own encoding, not a zero duty",
+    "fully off is its own flag in LEDn_OFF_H",
+  );
+  assert.deepStrictEqual(
+    actuators.pwm.duty(0),
+    actuators.pwm.fullOff(),
+    "the datasheet rules out the same count in on and off",
   );
   assert.strictEqual(actuators.pca9685.channelRegister(0), 0x06, "the first channel block");
 

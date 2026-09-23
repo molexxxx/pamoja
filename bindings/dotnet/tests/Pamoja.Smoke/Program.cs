@@ -78,6 +78,7 @@ LaterSensors();
 Buses();
 SensorDrivers();
 ActuatorDrivers();
+StepperDrivers();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -741,7 +742,8 @@ static void SensingAndActuation()
     Assert(Ads1115.ConfigBits(reset) == Ads1115.ConfigReset, "the config round-trips");
     Assert(Ads1115.FullScaleMicrovolts(1) == 4_096_000, "gain code 1 is plus or minus 4.096 V");
 
-    Assert(Pwm.FullOff()[3] == 0x10, "fully off is its own encoding, not a zero duty");
+    Assert(Pwm.FullOff()[3] == 0x10, "fully off is its own flag in LEDn_OFF_H");
+    Assert(Pwm.Duty(0).SequenceEqual(Pwm.FullOff()), "the datasheet rules out the same count in on and off");
     Assert(Pca9685.ChannelRegister(0) == 0x06, "the first channel's register block");
 
     using var motor = new Stepper(StepDrive.HalfStep);
@@ -1348,6 +1350,9 @@ static void ActuatorDrivers()
         Assert(loaded.SequenceEqual(center), "the servo channel reads back");
     }
 
+    Assert(board.Channel(0).SequenceEqual(center), "the driver reads it back too");
+    Refuses(() => board.Channel(16), "a channel the part does not have");
+
     board.SetAll(Pwm.FullOff());
     using (I2cPart held = bus.Part<I2cPart>(Address)!)
     {
@@ -1356,6 +1361,59 @@ static void ActuatorDrivers()
 
     Refuses(() => board.SetChannel(16, Pwm.FullOn()), "a channel the part does not have");
     Refuses(() => board.SoftwareReset(), "nothing on a simulated bus answers the general call");
+}
+
+// The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
+// drivers' own tests, with every wait counted rather than slept.
+static void StepperDrivers()
+{
+    const PinLevel High = PinLevel.High;
+    const PinLevel Low = PinLevel.Low;
+    static (PinScript, PinScript, PinScript, PinScript) Lines() =>
+        (new PinScript(), new PinScript(), new PinScript(), new PinScript());
+
+    var delay = new DelayLog();
+    using (var motor = new FourWire<PinScript>(Lines(), StepDrive.FullStep, stepMicros: 1_500, delay: delay))
+    {
+        motor.Steps(4);
+        Assert(motor.Position == 4, "four full steps forward");
+        Assert(motor.Drive == StepDrive.FullStep, "the drive pattern");
+        var (a, b, c, d) = motor.Release();
+        Assert(a.Driven.SequenceEqual([Low, Low, High, High]), "coil A walks the datasheet pairs");
+        Assert(b.Driven.SequenceEqual([High, Low, Low, High]), "coil B walks the datasheet pairs");
+        Assert(c.Driven.SequenceEqual([High, High, Low, Low]), "coil C walks the datasheet pairs");
+        Assert(d.Driven.SequenceEqual([Low, High, High, Low]), "coil D walks the datasheet pairs");
+        Assert(delay.WaitsMicros.SequenceEqual([1_500u, 1_500u, 1_500u, 1_500u]), "a wait after every step");
+        Assert(delay.TotalMillis == 6, "six milliseconds of steps");
+    }
+
+    using (var wave = new FourWire<PinScript>(Lines(), StepDrive.Wave, delay: new DelayLog()))
+    {
+        wave.Steps(-2);
+        Assert(wave.Position == -2, "two wave steps backward");
+        wave.Idle();
+        var (a, _, _, d) = wave.Release();
+        Assert(a.Driven.SequenceEqual([Low, Low, Low]), "coil A stays off");
+        Assert(d.Driven.SequenceEqual([High, Low, Low]), "wave drive backward starts at coil D");
+    }
+
+    var pulses = new DelayLog();
+    var carriage = new StepDir<PinScript>(new PinScript(), new PinScript(), pulseMicros: 5, stepMicros: 1_000, delay: pulses);
+    carriage.Steps(2);
+    carriage.Steps(-1);
+    Assert(carriage.Position == 1, "two forward and one back");
+    var (step, direction) = carriage.Release();
+    Assert(direction.Driven.SequenceEqual([High, High, Low]), "the direction is set before each pulse");
+    Assert(step.Driven.SequenceEqual([High, Low, High, Low, High, Low]), "one pulse a step");
+    Assert(pulses.WaitsMicros.Take(3).SequenceEqual([5u, 5u, 1_000u]), "pulse, pulse, then the step wait");
+
+    var defaults = new StepDir<PinScript>(new PinScript(), new PinScript(), delay: new DelayLog());
+    Assert(defaults.PulseMicros == Stepper.DefaultPulseMicros && Stepper.DefaultPulseMicros == 10, "the default pulse");
+    Assert(defaults.StepMicros == Stepper.DefaultStepMicros && Stepper.DefaultStepMicros == 2_000, "the default step wait");
+
+    using var stuck = new FourWire<Unplugged>((new(), new(), new(), new()), StepDrive.Wave, delay: new DelayLog());
+    AssertThrows(() => stuck.Step(StepDirection.Forward), "a coil line that cannot be driven");
+    Assert(stuck.Position == 0, "a step that could not be driven is not counted");
 }
 
 // Every I2C part's driver against its simulated twin, all on one bus at the addresses a
@@ -7202,4 +7260,10 @@ sealed class RefusingLink : ITransportHandlers
         throw new InvalidOperationException("the radio is out of range");
 
     public Task SubscribeAsync(string topic) => Task.CompletedTask;
+}
+
+/// <summary>A coil line whose driver has come unplugged.</summary>
+sealed class Unplugged : IOutputLine
+{
+    public void Drive(PinLevel level) => throw new InvalidOperationException("line unplugged");
 }
