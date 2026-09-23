@@ -1184,6 +1184,36 @@ def test_a_spent_transport_cannot_be_added_twice():
     asyncio.run(run())
 
 
+def test_a_transport_is_driven_directly_one_call_at_a_time():
+    from pamoja import ladder, loopback, sync
+
+    async def run():
+        broker = loopback.LoopbackBroker()
+        upstream = broker.link()
+        await upstream.connect()
+        listening = broker.rung()
+        await listening.connect()
+        await listening.subscribe("alarms/1")
+
+        # A transport with a call running is not handed on.
+        waiting = asyncio.ensure_future(listening.recv())
+        await asyncio.sleep(0.05)
+        rungs = ladder.Ladder(sync.Store.memory())
+        with pytest.raises(PamojaError, match="busy with a call"):
+            await rungs.rung(listening)
+        assert listening.is_available is True
+        await upstream.send("alarms/1", "smoke")
+        assert (await waiting).text == "smoke"
+
+        # A receive that stops waiting leaves the next message for the next one.
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(listening.recv(), 0.02)
+        await upstream.send("alarms/1", "heat")
+        assert (await asyncio.wait_for(listening.recv(), 5)).text == "heat"
+
+    asyncio.run(run())
+
+
 def test_every_subscriber_sees_a_published_event():
     from pamoja import bus
 

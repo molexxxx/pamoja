@@ -49,6 +49,17 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_mqtt_client_recv(IntPtr client, out IntPtr outMessage);
 
+    /// <summary>
+    /// Waits a limited time for the next message; <paramref name="outTimedOut"/> says whether
+    /// the time ran out.
+    /// </summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_mqtt_client_recv_within(
+        IntPtr client,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
+
     /// <summary>Reports whether the client currently holds an active connection.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]

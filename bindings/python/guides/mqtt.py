@@ -12,6 +12,10 @@ BROKER = "127.0.0.1"
 PORT = 1883
 
 
+def connection(connected: bool) -> str:
+    return "still connected" if connected else "not connected"
+
+
 async def main() -> None:
     # The gateway takes every temperature on the site. A `+` stands for exactly one level,
     # so this matches every node's temperature and nothing deeper.
@@ -22,8 +26,8 @@ async def main() -> None:
     await gateway.subscribe("sensors/+/temperature")
     print("gateway   subscribed to sensors/+/temperature")
 
-    # A node publishes under that pattern. At-least-once means the broker acknowledges the
-    # message, so a node knows its reading was taken rather than hoping.
+    # A node publishes under that pattern. At least once has the broker acknowledge each
+    # message, where at most once would send it and forget it.
     node = MqttClient(client_id="node-1", host=BROKER, port=PORT, qos=Qos.AT_LEAST_ONCE)
     await node.connect()
     await node.publish("sensors/1/temperature", "21.5")
@@ -34,10 +38,24 @@ async def main() -> None:
     received = await gateway.recv()
     print(f"gateway   got {received.text} on {received.topic}")
 
+    # Two days of readings saved at one a minute, sent as one message, make a packet over
+    # the connection's 10 KiB limit. The send is refused before anything leaves and the
+    # connection stays up; a node that must send it raises the limit on every client that
+    # shares the topic, or splits it.
+    backlog = ",".join(["21.5"] * (2 * 24 * 60))
+    try:
+        await node.publish("sensors/1/backlog", backlog)
+        print("node      sent an oversized backlog, which should never happen")
+    except PamojaError as error:
+        print(f"node      backlog refused: {error}")
+    after_refusal = await node.is_connected()
+    print(f"node      {connection(after_refusal)}")
+
     # Disconnecting leaves the client reusable, so a node that loses its link can
     # reconnect the same object when the broker comes back.
     await node.disconnect()
-    print(f"node      disconnected, still connected: {await node.is_connected()}")
+    after_disconnect = await node.is_connected()
+    print(f"node      {connection(after_disconnect)} after disconnecting")
     await gateway.disconnect()
 
     # A broker that is not there is reported rather than leaving a client that looks
@@ -49,11 +67,13 @@ async def main() -> None:
     except PamojaError as error:
         print(f"unreachable broker refused: {error}")
 
-    return received
+    return received, after_refusal, after_disconnect
 
 
-received = asyncio.run(main())
+received, after_refusal, after_disconnect = asyncio.run(main())
 # ANCHOR_END: example
 
 assert received.topic == "sensors/1/temperature"
 assert received.payload == b"21.5"
+assert after_refusal, "a refused send leaves the connection up"
+assert not after_disconnect, "a disconnected client says so"

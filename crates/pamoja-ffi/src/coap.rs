@@ -20,7 +20,7 @@ use pamoja_coap::{CoapConfig, CoapTransport, Reliability};
 use pamoja_core::{Receive, Transport};
 use tokio::sync::Mutex;
 
-use crate::transport::{status, Kind, PamojaMessage, PamojaTransport};
+use crate::transport::{receive_within, status, Kind, PamojaMessage, PamojaTransport};
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};
 
 /// Whether a CoAP request is acknowledged and retried.
@@ -223,6 +223,44 @@ pub unsafe extern "C" fn pamoja_coap_client_recv(
             code
         }
     }
+}
+
+/// Waits a limited time for the next message on an observed path.
+///
+/// Running out of time loses nothing: a message that arrives afterwards waits for
+/// the next receive.
+///
+/// # Arguments
+///
+/// * `client` - the endpoint.
+/// * `timeout_ms` - how long to wait, in milliseconds.
+/// * `out_message` - receives a message handle, or null when the time ran out or
+///   the endpoint is closed.
+/// * `out_timed_out` - receives whether the time ran out before a message arrived.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+/// the endpoint has closed.
+///
+/// # Safety
+///
+/// `client` must be a live handle, and `out_message` and `out_timed_out` must be
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_coap_client_recv_within(
+    client: *mut PamojaCoapClient,
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMessage,
+    out_timed_out: *mut bool,
+) -> PamojaStatus {
+    let Some(client) = client_handle(client) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    let inner = Arc::clone(&client.inner);
+    receive_within(timeout_ms, out_message, out_timed_out, || async move {
+        inner.lock().await.recv().await
+    })
 }
 
 /// Reports whether the endpoint is bound.

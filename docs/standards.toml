@@ -770,6 +770,18 @@ anchor = "rule"
 note = "Sections 4.7.1 and 4.7.2. The client itself speaks 3.1.1, whose topic rules are the same."
 
 [[entry]]
+key = "mqtt-3-1-1"
+chapter = "transports"
+designation = "MQTT Version 3.1.1"
+body = "OASIS"
+subject = "The client: packet framing and size, topic and filter rules, clean sessions, and the three delivery guarantees"
+url = "https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html"
+evidence = "crates/pamoja-mqtt/src/lib.rs"
+at = "fn filters_follow_the_examples_in_section_4_7_1"
+anchor = "vector"
+note = "The valid and invalid filters of sections 4.7.1.2 and 4.7.1.3, and the remaining-length boundaries of Table 2.4."
+
+[[entry]]
 key = "rfc-7252"
 chapter = "transports"
 designation = "RFC 7252"

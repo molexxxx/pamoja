@@ -72,7 +72,9 @@ impl LoopbackTransport {
 
     /// Disconnects the transport from the broker.
     ///
-    /// Its registration is pruned from the broker on the next publish.
+    /// Messages already queued for it are dropped, and its registration is pruned
+    /// from the broker on the next publish. Its filters are kept, so a later
+    /// [`connect`](Transport::connect) hears the same topics again.
     pub fn disconnect(&mut self) {
         self.incoming = None;
     }
@@ -109,10 +111,13 @@ impl Transport for LoopbackTransport {
 impl Receive for LoopbackTransport {
     /// Awaits the next message from any subscribed topic.
     ///
+    /// A link holds its broker, so a connected link never ends on its own: this
+    /// waits until a message arrives, however long that takes. Dropping the future
+    /// before then leaves the next message queued.
+    ///
     /// # Returns
     ///
-    /// `Some(message)` for the next message, or `None` once the broker and all
-    /// other transports have been dropped.
+    /// `Some(message)` for the next message.
     ///
     /// # Errors
     ///
@@ -173,6 +178,89 @@ mod tests {
 
         let message = subscriber.recv().await.expect("recv").expect("a message");
         assert_eq!(message.topic, "sensors/1/humidity");
+    }
+
+    #[tokio::test]
+    async fn a_connected_link_waits_for_a_message_rather_than_ending() {
+        use std::future::Future;
+        use std::task::{Context, Waker};
+
+        let mut link = LoopbackTransport::new(LoopbackBroker::new());
+        link.connect().await.expect("connect");
+        link.subscribe("t").await.expect("subscribe");
+        {
+            let mut waiting = std::pin::pin!(link.recv());
+            let mut context = Context::from_waker(Waker::noop());
+            assert!(waiting.as_mut().poll(&mut context).is_pending());
+        }
+
+        link.send("t", b"1").await.expect("send");
+        let message = link.recv().await.expect("recv").expect("a message");
+        assert_eq!(message.payload, b"1", "a link hears its own publishes");
+    }
+
+    #[tokio::test]
+    async fn a_message_matching_two_filters_arrives_once() {
+        let broker = LoopbackBroker::new();
+        let mut subscriber = LoopbackTransport::new(broker.clone());
+        let mut publisher = LoopbackTransport::new(broker);
+        subscriber.connect().await.expect("connect");
+        publisher.connect().await.expect("connect");
+        subscriber.subscribe("a/+").await.expect("subscribe");
+        subscriber.subscribe("a/#").await.expect("subscribe");
+
+        publisher.send("a/b", b"1").await.expect("send");
+        publisher.send("a/c", b"2").await.expect("send");
+        let first = subscriber.recv().await.expect("recv").expect("a message");
+        let second = subscriber.recv().await.expect("recv").expect("a message");
+        assert_eq!(first.topic, "a/b");
+        assert_eq!(second.topic, "a/c");
+    }
+
+    #[tokio::test]
+    async fn a_subscription_hears_only_what_is_published_after_it() {
+        let broker = LoopbackBroker::new();
+        let mut subscriber = LoopbackTransport::new(broker.clone());
+        let mut publisher = LoopbackTransport::new(broker);
+        subscriber.connect().await.expect("connect");
+        publisher.connect().await.expect("connect");
+
+        publisher.send("t", b"before").await.expect("send");
+        subscriber.subscribe("t").await.expect("subscribe");
+        publisher.send("t", b"after").await.expect("send");
+        let message = subscriber.recv().await.expect("recv").expect("a message");
+        assert_eq!(message.payload, b"after");
+    }
+
+    #[tokio::test]
+    async fn a_reconnected_link_keeps_its_filters_and_drops_what_was_queued() {
+        let broker = LoopbackBroker::new();
+        let mut subscriber = LoopbackTransport::new(broker.clone());
+        let mut publisher = LoopbackTransport::new(broker);
+        subscriber.connect().await.expect("connect");
+        publisher.connect().await.expect("connect");
+        subscriber.subscribe("t").await.expect("subscribe");
+
+        publisher.send("t", b"queued").await.expect("send");
+        subscriber.disconnect();
+        publisher.send("t", b"missed").await.expect("send");
+        subscriber.connect().await.expect("reconnect");
+        publisher.send("t", b"heard").await.expect("send");
+        let message = subscriber.recv().await.expect("recv").expect("a message");
+        assert_eq!(message.payload, b"heard");
+    }
+
+    #[tokio::test]
+    async fn links_on_separate_brokers_never_hear_each_other() {
+        let mut subscriber = LoopbackTransport::new(LoopbackBroker::new());
+        let mut publisher = LoopbackTransport::new(LoopbackBroker::new());
+        subscriber.connect().await.expect("connect");
+        publisher.connect().await.expect("connect");
+        subscriber.subscribe("t").await.expect("subscribe");
+        publisher.send("t", b"elsewhere").await.expect("send");
+        subscriber.send("t", b"here").await.expect("send");
+        let message = subscriber.recv().await.expect("recv").expect("a message");
+        assert_eq!(message.payload, b"here");
     }
 
     #[tokio::test]

@@ -73,8 +73,12 @@ pub struct MqttClient {
 #[pymethods]
 impl MqttClient {
     /// Creates a disconnected client from the given options.
+    ///
+    /// `max_packet_size` is the largest packet the connection sends or accepts, in
+    /// bytes, 10,240 when omitted. A publish that would be larger is refused and the
+    /// connection stays up, but a larger packet arriving from the broker ends it.
     #[new]
-    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None))]
+    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None, max_packet_size=None))]
     fn new(
         client_id: String,
         host: String,
@@ -82,8 +86,17 @@ impl MqttClient {
         keep_alive_secs: Option<u32>,
         capacity: Option<u32>,
         qos: Option<String>,
+        max_packet_size: Option<u32>,
     ) -> PyResult<Self> {
-        let config = settings(client_id, host, port, keep_alive_secs, capacity, qos)?;
+        let config = settings(
+            client_id,
+            host,
+            port,
+            keep_alive_secs,
+            capacity,
+            qos,
+            max_packet_size,
+        )?;
         Ok(Self {
             inner: Arc::new(Mutex::new(MqttTransport::new(config))),
         })
@@ -125,7 +138,8 @@ impl MqttClient {
     }
 
     /// Awaits the next message from any subscribed topic, or `None` once the
-    /// connection has ended.
+    /// connection has ended. A connection that ends on its own raises `PamojaError`
+    /// once, saying why.
     fn recv<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
@@ -185,6 +199,7 @@ pub(crate) fn settings(
     keep_alive_secs: Option<u32>,
     capacity: Option<u32>,
     qos: Option<String>,
+    max_packet_size: Option<u32>,
 ) -> PyResult<MqttConfig> {
     let mut config = MqttConfig::new(client_id, host, port);
     if let Some(secs) = keep_alive_secs {
@@ -195,6 +210,9 @@ pub(crate) fn settings(
     }
     if let Some(qos) = qos {
         config = config.qos(parse_qos(&qos)?);
+    }
+    if let Some(bytes) = max_packet_size {
+        config = config.max_packet_size(bytes as usize);
     }
     Ok(config)
 }

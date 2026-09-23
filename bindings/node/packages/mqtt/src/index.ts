@@ -50,6 +50,13 @@ export interface MqttClientOptions {
   capacity?: number
   /** Default quality of service. Defaults to `AtLeastOnce` when omitted. */
   qos?: Qos
+  /**
+   * The largest packet the connection sends or accepts, in bytes. Defaults to 10,240 when
+   * omitted. A publish that would be larger is refused and the connection stays up, but a
+   * larger packet arriving from the broker ends the connection, so every client that shares
+   * a topic needs a limit that fits it.
+   */
+  maxPacketSize?: number
 }
 
 /**
@@ -116,10 +123,16 @@ export class MqttClient {
   /**
    * Awaits the next message from any subscribed topic.
    *
+   * A connection that ends on its own, because the broker went away or another client
+   * connected with the same id, rejects one receive with the reason; after that the
+   * receive resolves to `null`.
+   *
+   * @param timeoutMs - How long to wait before rejecting. A message that arrives later
+   * waits for the next receive. Without it the receive waits as long as it takes.
    * @returns The next message, or `null` once the connection has ended.
    */
-  recv(): Promise<MqttMessage | null> {
-    return this.#native.recv()
+  recv(timeoutMs?: number): Promise<MqttMessage | null> {
+    return this.#native.recv(timeoutMs)
   }
 
   /**
@@ -141,7 +154,8 @@ export class MqttClient {
   }
 
   /**
-   * Yields messages from subscribed topics until the connection ends.
+   * Yields messages from subscribed topics until the connection ends. A connection that
+   * ends on its own throws its reason out of the loop.
    *
    * @returns An async generator over incoming messages.
    */

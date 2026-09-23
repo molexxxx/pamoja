@@ -15,7 +15,7 @@ use pamoja_coap::{CoapConfig, CoapTransport, Reliability as CoreReliability};
 use pamoja_core::{Receive, Transport as CoreTransport};
 use tokio::sync::Mutex;
 
-use crate::transport::{bytes_of, message_of, TransportMessage};
+use crate::transport::{bytes_of, message_of, within, TransportMessage};
 
 /// Whether a CoAP request is acknowledged and retried.
 #[napi(string_enum)]
@@ -87,12 +87,18 @@ impl CoapClient {
 
     /// Waits for the next message on an observed path, or `null` once the
     /// endpoint is closed.
+    ///
+    /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
+    /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self) -> napi::Result<Option<TransportMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
         let inner = Arc::clone(&self.inner);
-        let mut transport = inner.lock().await;
-        let received = transport.recv().await.map_err(to_napi)?;
-        Ok(received.map(message_of))
+        within(timeout_ms, async move {
+            let mut transport = inner.lock().await;
+            let received = transport.recv().await.map_err(to_napi)?;
+            Ok(received.map(message_of))
+        })
+        .await
     }
 
     /// Whether the local socket is bound.

@@ -8,8 +8,9 @@ namespace Pamoja.Native.Interop;
 /// </summary>
 /// <remarks>
 /// <see cref="ClientId"/> and <see cref="Host"/> are pointers to null-terminated
-/// UTF-8 strings borrowed for the duration of the call. A <see cref="KeepAliveSecs"/>
-/// or <see cref="Capacity"/> of <c>0</c> selects the core default.
+/// UTF-8 strings borrowed for the duration of the call. A <see cref="KeepAliveSecs"/>,
+/// <see cref="Capacity"/>, or <see cref="MaxPacketSize"/> of <c>0</c> selects the
+/// core default.
 /// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct PamojaMqttConfig
@@ -31,4 +32,10 @@ public struct PamojaMqttConfig
 
     /// <summary>Default quality of service for publishes and subscriptions.</summary>
     public PamojaQos Qos;
+
+    /// <summary>
+    /// The largest packet the connection sends or accepts, in bytes, or 0 for the
+    /// default of 10,240.
+    /// </summary>
+    public uint MaxPacketSize;
 }

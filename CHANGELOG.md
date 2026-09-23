@@ -134,6 +134,27 @@ released together, so one entry covers all of them.
   listens to a real bus through an MCP2515. Its tables cover the kinds of frame, the data
   length code, the fields inside a J1939 identifier, filters, what a SocketCAN socket does by
   default, the kinds of bus, the calls in each language, and what each error means.
+- A `Transport` in TypeScript and Python is driven directly, as in C#: `connect`, `send`,
+  `subscribe`, and `recv`, so a link from `Transport.mqtt`, `Transport.coap`, or a
+  broker's `rung()` works without a ladder around it. A transport with a call running
+  refuses to be handed to a ladder or a wrapper, with `this transport is busy with a call`.
+- A receive with a time limit in TypeScript and C#, which gives up without taking the next
+  message: `recv(timeoutMs)` on `Transport`, `LoopbackTransport`, `Ladder`, `MqttClient`,
+  and `CoapClient`, and `ReceiveAsync(limit)` in C#, `RecvAsync(limit)` on `MqttClient`. A
+  receive raced against a timer kept running after the race and took the next message
+  itself. The C ABI gains `pamoja_transport_recv_within` and its counterparts for the
+  loopback link, the ladder, and the MQTT and CoAP clients. Rust and Python already stop
+  waiting without a loss, through `tokio::time::timeout` and `asyncio.wait_for`.
+- An MQTT packet limit: `MqttConfig::max_packet_size`, `maxPacketSize`, `max_packet_size`,
+  and `MaxPacketSize`, 10,240 bytes each way unless set, as before. A send whose packet would
+  be larger is refused before anything leaves, with the size it would have been.
+- The transport, loopback, and MQTT guides give each language its own account of the calls,
+  tables of the calls, settings, delivery guarantees, and topic rules, and what each error
+  means, citing the sections of MQTT 3.1.1 behind them. The loopback example proves a
+  reading did not arrive with a receive that runs out of time, and the MQTT example has a
+  node's two-day backlog refused for its size while the node stays connected, each printing
+  the same lines in all four languages. The standards register adds MQTT 3.1.1, anchored to
+  its own filter examples.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -637,6 +658,18 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- An MQTT client checks a topic to publish to and a filter against the rules of MQTT 3.1.1
+  section 4.7 before anything is sent, and says what is wrong, where a wildcard in a topic
+  used to fail with `Failed to send mqtt requests to eventloop`.
+- An MQTT connection that ends on its own, because the broker went away, another client
+  connected with the same id, or a packet over the limit arrived, reports why from one
+  receive, as `the connection to the broker ended: ...`, and a receive after that gives
+  none. `connect` on a client that holds a connection closes it first.
+- In C#, calls on one `Transport`, `Store`, `Ladder`, `LoopbackTransport`, `MqttClient`,
+  `CoapClient`, or simulated device run one at a time, and one waiting for its turn holds no
+  thread. `Transport.Borrow` is replaced by `LendAsync`, which waits for a call already
+  running. `MqttClient` holds a `NativeHandle`, and iterating it stops within a quarter of a
+  second of being canceled.
 - The install page's build table printed `--features modbus` and its siblings for builds it
   measured with the `std` feature on; each command now names `std`. The page no longer says
   the narrow builds carry no third-party code, since `embedded-hal` is in each.
@@ -773,6 +806,18 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The C# binding could reach one native transport, store, ladder, or simulated device from
+  two thread-pool calls at once, such as a receive still waiting while a send ran, or a
+  ladder taking a transport another call was using, which the native side does not allow.
+  Calls on one object now run one at a time, a transport or store with a call running is
+  not handed on, and one disposed while a call runs is freed once the call returns.
+- An MQTT client whose connection had ended still reported itself connected, a send then
+  failed with `Failed to send mqtt requests to eventloop`, and a publish over 10 KiB was
+  taken and then ended the connection. It reports itself not connected, a send answers
+  `resource is closed`, and an oversized publish is refused with the connection left up.
+- The loopback link's documentation promised a receive would end once the broker was
+  dropped, which cannot happen while the link holds it. A receive on a connected link waits
+  for a message, and a reconnected link keeps its subscriptions, both pinned by tests.
 - `Pdu::read_holding_registers_reply` and `read_input_registers_reply` refused more than 123
   registers, the most a write carries, while a read asks for up to 125, which fill a reply's
   250 data bytes.

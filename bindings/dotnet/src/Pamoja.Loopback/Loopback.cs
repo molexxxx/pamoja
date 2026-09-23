@@ -43,6 +43,10 @@ public sealed class LoopbackBroker : IDisposable
 }
 
 /// <summary>One in-process link to a broker.</summary>
+/// <remarks>
+/// Calls on one link run one at a time, so a send made while a receive is waiting
+/// runs once the receive returns. A task that listens should have a link of its own.
+/// </remarks>
 public sealed class LoopbackTransport : IDisposable
 {
     private readonly NativeHandle _handle;
@@ -52,13 +56,14 @@ public sealed class LoopbackTransport : IDisposable
     internal LoopbackTransport(IntPtr handle)
     {
         _handle = NativeHandle.Create(
-            handle, NativeMethods.pamoja_loopback_transport_free, "loopback link");
+            handle, NativeMethods.pamoja_loopback_transport_free, "loopback link", serialized: true);
     }
 
     /// <summary>Marks this link connected so it will carry traffic.</summary>
+    /// <remarks>A link that was disconnected keeps its subscriptions when it connects again.</remarks>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
-        _handle.Use(NativeMethods.pamoja_loopback_transport_connect)));
+    public Task ConnectAsync() => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_loopback_transport_connect(handle)));
 
     /// <summary>Publishes text to a topic on the broker: words, or a number written out.</summary>
     /// <param name="topic">The destination topic.</param>
@@ -74,14 +79,13 @@ public sealed class LoopbackTransport : IDisposable
     public Task SendAsync(string topic, ReadOnlyMemory<byte> payload)
     {
         byte[] bytes = payload.ToArray();
-        return Task.Run(() =>
+        return _handle.UseAsync(handle =>
         {
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                Status.ThrowIfError(_handle.Use(handle =>
-                    NativeMethods.pamoja_loopback_transport_send(
-                        handle, topicPtr, bytes, (nuint)bytes.Length)));
+                Status.ThrowIfError(NativeMethods.pamoja_loopback_transport_send(
+                    handle, topicPtr, bytes, (nuint)bytes.Length));
             }
             finally
             {
@@ -92,14 +96,14 @@ public sealed class LoopbackTransport : IDisposable
 
     /// <summary>Subscribes this link to a topic.</summary>
     /// <param name="topic">The topic to subscribe to.</param>
-    /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task SubscribeAsync(string topic) => Task.Run(() =>
+    /// <exception cref="PamojaException">The link is not connected.</exception>
+    public Task SubscribeAsync(string topic) => _handle.UseAsync(handle =>
     {
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            Status.ThrowIfError(_handle.Use(handle =>
-                NativeMethods.pamoja_loopback_transport_subscribe(handle, topicPtr)));
+            Status.ThrowIfError(
+                NativeMethods.pamoja_loopback_transport_subscribe(handle, topicPtr));
         }
         finally
         {
@@ -108,27 +112,48 @@ public sealed class LoopbackTransport : IDisposable
     });
 
     /// <summary>Waits for the next message on a subscribed topic.</summary>
-    /// <returns>The message, or <c>null</c> once the link is closed.</returns>
-    /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
+    /// <remarks>
+    /// A connected link never ends on its own, so this waits until a message arrives.
+    /// Use <see cref="ReceiveAsync(TimeSpan)"/> to stop waiting.
+    /// </remarks>
+    /// <returns>The message.</returns>
+    /// <exception cref="PamojaException">The link is not connected.</exception>
+    public Task<TransportMessage?> ReceiveAsync() => _handle.UseAsync(handle =>
     {
-        IntPtr message = IntPtr.Zero;
-        Status.ThrowIfError(_handle.Use(handle =>
-            NativeMethods.pamoja_loopback_transport_recv(handle, out message)));
+        Status.ThrowIfError(
+            NativeMethods.pamoja_loopback_transport_recv(handle, out IntPtr message));
         return Messages.Take(message);
     });
 
+    /// <summary>Waits a limited time for the next message on a subscribed topic.</summary>
+    /// <remarks>
+    /// When the time runs out nothing is lost: a message arriving afterwards waits
+    /// for the next receive.
+    /// </remarks>
+    /// <param name="timeout">How long to wait.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="TimeoutException">No message arrived in time.</exception>
+    /// <exception cref="PamojaException">The link is not connected.</exception>
+    public Task<TransportMessage?> ReceiveAsync(TimeSpan timeout)
+    {
+        ulong milliseconds = Messages.Milliseconds(timeout);
+        return _handle.UseAsync(handle =>
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_loopback_transport_recv_within(
+                handle, milliseconds, out IntPtr message, out bool timedOut));
+            return timedOut ? throw Messages.TimedOut(timeout) : Messages.Take(message);
+        });
+    }
+
     /// <summary>Reports whether this link is connected.</summary>
     /// <returns><c>true</c> when connected.</returns>
-    public Task<bool> IsConnectedAsync() => Task.Run(() =>
-        _handle.Use(NativeMethods.pamoja_loopback_transport_is_connected));
+    public Task<bool> IsConnectedAsync() =>
+        _handle.UseAsync(NativeMethods.pamoja_loopback_transport_is_connected);
 
     /// <summary>Marks this link disconnected, so sends over it fail.</summary>
-    public Task DisconnectAsync() => Task.Run(() => _handle.Use(handle =>
-    {
-        NativeMethods.pamoja_loopback_transport_disconnect(handle);
-        return 0;
-    }));
+    /// <remarks>Messages queued for it are dropped; its subscriptions are kept.</remarks>
+    public Task DisconnectAsync() =>
+        _handle.UseAsync(NativeMethods.pamoja_loopback_transport_disconnect);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

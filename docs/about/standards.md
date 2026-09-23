@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">59 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">60 standards registered, 35 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -819,7 +819,7 @@ Naming, typing and carrying messages the way ROS 2 and Zenoh do.
 
 The protocols a node speaks to a broker or a server.
 
-<nav class="hw-index" aria-label="Messaging index"><a href="#mqtt-5">MQTT Version 5.0</a><a href="#rfc-7252">RFC 7252</a><a href="#rfc-7641">RFC 7641</a></nav>
+<nav class="hw-index" aria-label="Messaging index"><a href="#mqtt-5">MQTT Version 5.0</a><a href="#mqtt-3-1-1">MQTT Version 3.1.1</a><a href="#rfc-7252">RFC 7252</a><a href="#rfc-7641">RFC 7641</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="mqtt-5">
 <header class="hw-head">
@@ -832,6 +832,19 @@ The protocols a node speaks to a broker or a server.
 <p class="hw-summary">Sections 4.7.1 and 4.7.2. The client itself speaks 3.1.1, whose topic rules are the same.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901241"><span class="hw-main"><b>The document</b><small>MQTT Version 5.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-core/src/transport.rs#L289"><span class="hw-main"><b>The test</b><small><code>transport.rs</code> line 289</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="mqtt-3-1-1">
+<header class="hw-head">
+
+### MQTT Version 3.1.1 {#mqtt-3-1-1}
+
+<p class="hw-by">OASIS</p>
+<p class="hw-summary">The client: packet framing and size, topic and filter rules, clean sessions, and the three delivery guarantees</p>
+</header>
+<p class="hw-summary">The valid and invalid filters of sections 4.7.1.2 and 4.7.1.3, and the remaining-length boundaries of Table 2.4.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html"><span class="hw-main"><b>The document</b><small>MQTT Version 3.1.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mqtt/src/lib.rs#L525"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 525</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-7252">

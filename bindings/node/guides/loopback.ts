@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 // ANCHOR: example
 import { LoopbackBroker, type TransportMessage } from '@pamoja/loopback'
 
+const QUIET_MS = 50
+
 async function main() {
   // One broker and two links off it, all in this process. Nothing binds a port and nothing
   // has to be running for the traffic below to flow, which is what makes this the link to
@@ -23,6 +25,16 @@ async function main() {
 
   const message = (await subscriber.recv())!
   console.log(`line/+/temp took ${message.text!} from ${message.topic}`)
+
+  // The raw reading went out first and never arrived, which a test proves by waiting a
+  // set time for anything more rather than forever. Giving up loses nothing: a message
+  // that came later would wait for the next receive.
+  try {
+    await subscriber.recv(QUIET_MS)
+    console.log('line/+/temp took a second reading, which should never happen')
+  } catch {
+    console.log(`line/+/temp heard nothing more within ${QUIET_MS} ms`)
+  }
 
   // A `#` covers every level that remains, so a second link takes the whole subtree,
   // including the reading the single-level filter passed over.

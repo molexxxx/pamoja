@@ -9,6 +9,8 @@ use std::error::Error;
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
+    use std::time::Duration;
+
     use pamoja_core::{Receive, Transport};
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
@@ -30,6 +32,18 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let message = subscriber.recv().await?.expect("a message");
     let reading = message.text().expect("text");
     println!("line/+/temp took {reading} from {}", message.topic);
+
+    // The raw reading went out first and never arrived, which a test proves by waiting a
+    // set time for anything more rather than forever. Giving up loses nothing: a message
+    // that came later would wait for the next receive.
+    let quiet = Duration::from_millis(50);
+    match tokio::time::timeout(quiet, subscriber.recv()).await {
+        Ok(_) => println!("line/+/temp took a second reading, which should never happen"),
+        Err(_) => println!(
+            "line/+/temp heard nothing more within {} ms",
+            quiet.as_millis()
+        ),
+    }
 
     // A `#` covers every level that remains, so a second link takes the whole subtree,
     // including the reading the single-level filter passed over.

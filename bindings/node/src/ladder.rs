@@ -19,7 +19,7 @@ use pamoja_ladder::{Delivery as CoreDelivery, TransportLadder};
 use tokio::sync::Mutex;
 
 use crate::sync::{SharedStore, Store};
-use crate::transport::{bytes_of, message_of, Transport, TransportMessage};
+use crate::transport::{bytes_of, message_of, within, Transport, TransportMessage};
 
 /// What became of a message handed to a ladder.
 #[napi(string_enum)]
@@ -149,16 +149,22 @@ impl Ladder {
     /// Throws if no connected rung listens: none was added, the ladder is not
     /// connected, or every listening link has ended. The ladder is held while
     /// waiting, so a send from elsewhere waits behind the receive.
+    ///
+    /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
+    /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self) -> napi::Result<Option<TransportMessage>> {
-        let mut slot = self.inner.lock().await;
-        let received = slot
-            .as_mut()
-            .ok_or_else(unusable)?
-            .recv()
-            .await
-            .map_err(to_napi)?;
-        Ok(received.map(message_of))
+    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
+        within(timeout_ms, async {
+            let mut slot = self.inner.lock().await;
+            let received = slot
+                .as_mut()
+                .ok_or_else(unusable)?
+                .recv()
+                .await
+                .map_err(to_napi)?;
+            Ok(received.map(message_of))
+        })
+        .await
     }
 }
 

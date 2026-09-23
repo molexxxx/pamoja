@@ -20,6 +20,14 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     use pamoja_core::{Receive, Transport};
     use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 
+    let connection = |connected: bool| {
+        if connected {
+            "still connected"
+        } else {
+            "not connected"
+        }
+    };
+
     // The gateway takes every temperature on the site. A `+` stands for exactly one level,
     // so this matches every node's temperature and nothing deeper.
     let gateway_config = MqttConfig::new("site-gateway", "127.0.0.1", port)
@@ -32,8 +40,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         .expect("the broker accepts the subscription");
     println!("gateway   subscribed to sensors/+/temperature");
 
-    // A node publishes under that pattern. At-least-once means the broker acknowledges
-    // the message, so a node knows its reading was taken rather than hoping.
+    // A node publishes under that pattern. At least once has the broker acknowledge each
+    // message, where at most once would send it and forget it.
     let node_config = MqttConfig::new("node-1", "127.0.0.1", port)
         .keep_alive(Duration::from_secs(5))
         .qos(QualityOfService::AtLeastOnce);
@@ -54,11 +62,26 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let topic = &received.topic;
     println!("gateway   got {reading} on {topic}");
 
+    // Two days of readings saved at one a minute, sent as one message, make a packet over
+    // the connection's 10 KiB limit. The send is refused before anything leaves and the
+    // connection stays up; a node that must send it raises the limit on every client that
+    // shares the topic, or splits it.
+    let backlog = vec!["21.5"; 2 * 24 * 60].join(",");
+    match node.send_text("sensors/1/backlog", &backlog).await {
+        Ok(()) => println!("node      sent an oversized backlog, which should never happen"),
+        Err(error) => println!("node      backlog refused: {error}"),
+    }
+    let after_refusal = node.is_connected();
+    println!("node      {}", connection(after_refusal));
+
     // Disconnecting leaves the transport reusable, so a node that loses its link can
     // reconnect the same object when the broker comes back.
     node.disconnect().await.expect("a clean disconnect");
-    let still_up = node.is_connected();
-    println!("node      disconnected, still connected: {still_up}");
+    let after_disconnect = node.is_connected();
+    println!(
+        "node      {} after disconnecting",
+        connection(after_disconnect)
+    );
 
     // A broker that is not there is reported rather than leaving a client that looks
     // connected, so a retry loop has something to test. Nothing listens on port 1.
@@ -75,7 +98,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     assert_eq!(received.topic, "sensors/1/temperature");
     assert_eq!(received.payload, b"21.5");
-    assert!(!node.is_connected());
+    assert!(after_refusal);
+    assert!(!after_disconnect);
     assert!(!nowhere.is_connected());
 
     Ok(())

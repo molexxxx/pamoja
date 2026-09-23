@@ -75,6 +75,14 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_transport_recv(IntPtr transport, out IntPtr outMessage);
 
+    /// <summary>Waits a limited time for the next message a transport delivers.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_transport_recv_within(
+        IntPtr transport,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
+
     /// <summary>Wraps host callbacks in a transport.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_transport_from_callbacks(
@@ -121,6 +129,14 @@ public static partial class NativeMethods
     public static partial PamojaStatus pamoja_coap_client_recv(
         IntPtr client,
         out IntPtr outMessage);
+
+    /// <summary>Waits a limited time for the next message on an observed CoAP path.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_coap_client_recv_within(
+        IntPtr client,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
 
     /// <summary>Reports whether a CoAP endpoint is bound.</summary>
     [LibraryImport(Library)]
@@ -170,6 +186,14 @@ public static partial class NativeMethods
     public static partial PamojaStatus pamoja_loopback_transport_recv(
         IntPtr transport,
         out IntPtr outMessage);
+
+    /// <summary>Waits a limited time for the next message on a loopback link.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_loopback_transport_recv_within(
+        IntPtr transport,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
 
     /// <summary>Reports whether a loopback link is connected.</summary>
     [LibraryImport(Library)]
@@ -259,6 +283,14 @@ public static partial class NativeMethods
     /// <summary>Waits for the next message from any listening rung of a ladder.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_ladder_recv(IntPtr ladder, out IntPtr outMessage);
+
+    /// <summary>Waits a limited time for the next message from any listening rung of a ladder.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ladder_recv_within(
+        IntPtr ladder,
+        ulong timeoutMs,
+        out IntPtr outMessage,
+        [MarshalAs(UnmanagedType.U1)] out bool outTimedOut);
 
     /// <summary>Releases a ladder handle.</summary>
     [LibraryImport(Library)]

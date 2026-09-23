@@ -27,6 +27,7 @@ public static class MqttTransport
                 KeepAliveSecs = options.KeepAliveSecs ?? 0,
                 Capacity = options.Capacity ?? 0,
                 Qos = (PamojaQos)(options.Qos ?? Qos.AtLeastOnce),
+                MaxPacketSize = options.MaxPacketSize ?? 0,
             };
             return new Transport(NativeMethods.pamoja_transport_mqtt(ref config), "MQTT transport");
         }
