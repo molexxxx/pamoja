@@ -16,8 +16,8 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pyme
 use pamoja_update::{
     Boot, Delegation as CoreDelegation, Device, Envelope, ImageVerifier as CoreVerifier,
     Manifest as CoreManifest, MemoryStore, PayloadFormat, Refusal, SlotState, SlotStore,
-    Updater as CoreUpdater, DELEGATION_MAX, DIGEST_LEN, ENVELOPE_MAX, ID_LEN, MANIFEST_MAX,
-    STRUCTURE_VERSION,
+    Staging as CoreStaging, Transfer, Updater as CoreUpdater, DELEGATION_MAX, DIGEST_LEN,
+    ENVELOPE_MAX, ID_LEN, MANIFEST_MAX, STRUCTURE_VERSION,
 };
 
 use crate::security::DeviceIdentity;
@@ -112,7 +112,7 @@ impl Manifest {
 #[pyclass]
 pub struct Delegation {
     /// Rises with every rotation, so a retired key cannot be reinstated by
-    /// replaying the statement that once authorised it.
+    /// replaying the statement that once authorized it.
     #[pyo3(get)]
     epoch: u64,
     /// The public key that may sign manifests while this delegation stands.
@@ -358,12 +358,40 @@ impl ImageVerifier {
     }
 }
 
-/// A device slots, and the rules applied to what is offered for them.
+/// A device's slots, and the rules applied to what is offered for them.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Updater {
     inner: CoreUpdater<MemoryStore>,
-    staging: Option<(Vec<u8>, Option<u64>)>,
+    staging: Option<Staging>,
+}
+
+/// The transfer an updater is part-way through, remembered between calls.
+///
+/// The detached transfer carries the hash of what has arrived, so each piece costs
+/// only its own bytes. It is dropped when a piece is refused, and the next call reads
+/// back what the slot holds instead.
+struct Staging {
+    envelope: Vec<u8>,
+    now: Option<u64>,
+    transfer: Option<Transfer>,
+}
+
+/// Takes up an open transfer, carrying its hash when the slot still holds it.
+fn resume<'a>(
+    inner: &'a mut CoreUpdater<MemoryStore>,
+    open: &mut Staging,
+) -> PyResult<CoreStaging<'a, MemoryStore>> {
+    match open.transfer.take() {
+        Some(transfer) => inner.resume_from(&open.envelope, open.now, transfer),
+        None => inner.resume_at(&open.envelope, open.now),
+    }
+    .map_err(refusal)
+}
+
+/// The error for a piece, a progress report, or a finish with no transfer open.
+fn nothing_open() -> PyErr {
+    PamojaError::new_err("no transfer is open; call begin() first")
 }
 
 #[gen_stub_pymethods]
@@ -456,43 +484,46 @@ impl Updater {
     /// Every check that can be made without the image runs here, so a release
     /// that is not for this device, would roll it back, or does not fit is
     /// refused before a byte of it is accepted. The envelope is remembered until
-    /// `finish`, and each call after this one reopens the transfer from what the
-    /// slot records, which is the same path a device takes after a reset.
+    /// `finish`, and every call after this one checks it again, so a release
+    /// overtaken or expired while it arrives stops arriving. The hash of what has
+    /// arrived is carried from one call to the next, so an image taken in many
+    /// small pieces costs no more than one taken whole.
     #[pyo3(signature = (envelope, now = None))]
     fn begin(&mut self, envelope: Vec<u8>, now: Option<u64>) -> PyResult<u8> {
-        let slot = self
-            .inner
-            .begin_at(&envelope, now)
-            .map(|staging| staging.manifest().storage)
-            .map_err(refusal)?;
-        self.staging = Some((envelope, now));
+        let staging = self.inner.begin_at(&envelope, now).map_err(refusal)?;
+        let slot = staging.manifest().storage;
+        let transfer = Some(staging.detach());
+        self.staging = Some(Staging {
+            envelope,
+            now,
+            transfer,
+        });
         Ok(slot)
     }
 
     /// Takes the next piece of an image opened with `begin`.
     fn write(&mut self, chunk: Vec<u8>) -> PyResult<()> {
-        let (envelope, now) = self.open_transfer()?;
-        let mut staging = self.inner.resume_at(&envelope, now).map_err(refusal)?;
-        staging.write(&chunk).map_err(refusal)
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let mut staging = resume(&mut self.inner, open)?;
+        staging.write(&chunk).map_err(refusal)?;
+        open.transfer = Some(staging.detach());
+        Ok(())
     }
 
     /// Reports how much of an opened image has arrived.
     fn progress(&mut self) -> PyResult<Progress> {
-        let (envelope, now) = self.open_transfer()?;
-        let staging = self.inner.resume_at(&envelope, now).map_err(refusal)?;
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let staging = resume(&mut self.inner, open)?;
         let (written, total) = staging.progress();
+        open.transfer = Some(staging.detach());
         Ok(Progress { written, total })
     }
 
     /// Finishes an opened image and marks the slot bootable if it matched,
     /// returning the slot now holding it.
     fn finish(&mut self) -> PyResult<u8> {
-        let (envelope, now) = self.open_transfer()?;
-        let slot = self
-            .inner
-            .resume_at(&envelope, now)
-            .and_then(|staging| staging.finish())
-            .map_err(refusal)?;
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let slot = resume(&mut self.inner, open)?.finish().map_err(refusal)?;
         self.staging = None;
         Ok(slot)
     }
@@ -514,15 +545,6 @@ impl Updater {
     /// Fails the pending image and goes back to the confirmed one.
     fn revert(&mut self) -> PyResult<u8> {
         self.inner.revert().map_err(refusal)
-    }
-}
-
-impl Updater {
-    /// Borrows the open transfer, refusing when none has been opened.
-    fn open_transfer(&self) -> PyResult<(Vec<u8>, Option<u64>)> {
-        self.staging
-            .clone()
-            .ok_or_else(|| PamojaError::new_err("no transfer is open; call begin() first"))
     }
 }
 

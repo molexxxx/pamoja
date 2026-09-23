@@ -2145,7 +2145,7 @@ class _Scd4x:
     COMMAND_PERFORM_SELF_TEST = 0x3639
     #: Restore the factory settings.
     COMMAND_PERFORM_FACTORY_RESET = 0x3632
-    #: Reinitialise from the stored settings.
+    #: Reinitialize from the stored settings.
     COMMAND_REINIT = 0x3646
     #: Take one measurement and return to idle.
     COMMAND_MEASURE_SINGLE_SHOT = 0x219D

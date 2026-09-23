@@ -115,7 +115,7 @@ function tSpark(spec)
   };
 }
 
-// Live acoustic monitor: a bar equaliser that spikes on an alert event.
+// Live acoustic monitor: a bar equalizer that spikes on an alert event.
 function tWave(spec)
 {
   const node = el('div', 'tile t-wave wide');

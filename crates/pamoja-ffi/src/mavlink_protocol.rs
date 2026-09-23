@@ -1026,7 +1026,7 @@ mod tests {
     }
 
     #[test]
-    fn a_command_is_matched_to_its_acknowledgement_and_retried() {
+    fn a_command_is_matched_to_its_acknowledgment_and_retried() {
         unsafe {
             let arm = pamoja_mavlink_command_new(mav_cmd::COMPONENT_ARM_DISARM, 2);
             assert_eq!(

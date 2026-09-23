@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn the_checksum_is_the_iso_hdlc_crc_32() {
-        // The check value the RevEng CRC catalogue publishes for CRC-32/ISO-HDLC.
+        // The check value CRC RevEng publishes for CRC-32/ISO-HDLC.
         assert_eq!(crc32(&[b"123456789"]), 0xCBF4_3926);
         assert_eq!(crc32(&[b"1234", b"56789"]), 0xCBF4_3926);
         assert_eq!(crc32(&[]), 0);

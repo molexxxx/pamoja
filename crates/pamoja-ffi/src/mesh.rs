@@ -692,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    fn the_cache_recognises_a_packet_it_has_already_seen() {
+    fn the_cache_recognizes_a_packet_it_has_already_seen() {
         let cache = pamoja_mesh_seen_new(PAMOJA_MESH_SEEN_DEFAULT_CAPACITY);
         // Safety: the cache handle was just created.
         unsafe {

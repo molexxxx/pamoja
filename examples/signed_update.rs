@@ -25,7 +25,7 @@ const VENDOR: [u8; 16] = [0x70; 16];
 const CLASS: [u8; 16] = [0x77; 16];
 
 fn main() {
-    // The anchor authorises who may release, and otherwise stays in a safe. The
+    // The anchor authorizes who may release, and otherwise stays in a safe. The
     // release key is the one that actually signs, and the one that will eventually
     // need replacing.
     let author = DeviceIdentity::from_seed(&[0x21; 32]);
@@ -49,7 +49,7 @@ fn main() {
     println!("device: running version 1 from slot 0\n");
 
     // The anchor hands day-to-day signing to a release key, then goes back in the
-    // safe. It is needed again only to authorise a rotation.
+    // safe. It is needed again only to authorize a rotation.
     let mut grant = [0u8; DELEGATION_MAX];
     let granted = Delegation {
         epoch: 1,

@@ -2469,7 +2469,7 @@ class Delegation:
     def epoch(self) -> builtins.int:
         r"""
         Rises with every rotation, so a retired key cannot be reinstated by
-        replaying the statement that once authorised it.
+        replaying the statement that once authorized it.
         """
     @property
     def release_key(self) -> builtins.list[builtins.int]:
@@ -11432,7 +11432,7 @@ class TwoLinkArm:
 @typing.final
 class Updater:
     r"""
-    A device slots, and the rules applied to what is offered for them.
+    A device's slots, and the rules applied to what is offered for them.
     """
     @property
     def slot_count(self) -> builtins.int:
@@ -11483,8 +11483,10 @@ class Updater:
         Every check that can be made without the image runs here, so a release
         that is not for this device, would roll it back, or does not fit is
         refused before a byte of it is accepted. The envelope is remembered until
-        `finish`, and each call after this one reopens the transfer from what the
-        slot records, which is the same path a device takes after a reset.
+        `finish`, and every call after this one checks it again, so a release
+        overtaken or expired while it arrives stops arriving. The hash of what has
+        arrived is carried from one call to the next, so an image taken in many
+        small pieces costs no more than one taken whole.
         """
     def write(self, chunk: typing.Sequence[builtins.int]) -> None:
         r"""

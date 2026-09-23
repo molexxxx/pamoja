@@ -4,10 +4,12 @@
 //! are the argument that an image reaching a device over any carrier at all is
 //! still safe to run, and that a device which takes a bad one comes back.
 
+use std::cell::Cell;
+
 use pamoja_security::DeviceIdentity;
 use pamoja_update::{
-    Boot, Delegation, Device, Envelope, Manifest, MemoryStore, PayloadFormat, Refusal, SlotState,
-    SlotStore, Updater, DELEGATION_MAX, ENVELOPE_MAX, STRUCTURE_VERSION,
+    Boot, Delegation, Device, Envelope, Manifest, MemoryStore, PayloadFormat, Refusal, SlotRecord,
+    SlotState, SlotStore, Updater, DELEGATION_MAX, ENVELOPE_MAX, STRUCTURE_VERSION,
 };
 use sha2::{Digest, Sha256};
 
@@ -573,6 +575,141 @@ fn a_partial_transfer_does_not_block_its_own_resume() {
     assert!(updater.resume_at(&envelope[..len], None).is_ok());
 }
 
+/// A store that counts how often image bytes are read back out of it.
+struct Counting {
+    inner: MemoryStore,
+    reads: Cell<usize>,
+}
+
+impl SlotStore for Counting {
+    fn slot_count(&self) -> u8 {
+        self.inner.slot_count()
+    }
+
+    fn capacity(&self, slot: u8) -> pamoja_update::Result<u32> {
+        self.inner.capacity(slot)
+    }
+
+    fn record(&self, slot: u8) -> pamoja_update::Result<SlotRecord> {
+        self.inner.record(slot)
+    }
+
+    fn set_record(&mut self, slot: u8, record: SlotRecord) -> pamoja_update::Result<()> {
+        self.inner.set_record(slot, record)
+    }
+
+    fn erase(&mut self, slot: u8) -> pamoja_update::Result<()> {
+        self.inner.erase(slot)
+    }
+
+    fn write(&mut self, slot: u8, offset: u32, bytes: &[u8]) -> pamoja_update::Result<()> {
+        self.inner.write(slot, offset, bytes)
+    }
+
+    fn read(&self, slot: u8, offset: u32, buf: &mut [u8]) -> pamoja_update::Result<usize> {
+        self.reads.set(self.reads.get() + 1);
+        self.inner.read(slot, offset, buf)
+    }
+}
+
+#[test]
+fn a_detached_transfer_goes_on_without_reading_the_slot_back() {
+    let device = Device {
+        vendor_id: VENDOR,
+        class_id: CLASS,
+        anchor: author().public(),
+    };
+    let store = Counting {
+        inner: MemoryStore::new(2, 4096),
+        reads: Cell::new(0),
+    };
+    let mut updater = Updater::new(device, store);
+    updater.provision(0, 1).expect("provision");
+    let image = b"version two, taken one small piece per call";
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
+
+    let mut transfer = updater.begin(&envelope[..len]).expect("begin").detach();
+    for piece in image.chunks(4) {
+        let mut staging = updater
+            .resume_from(&envelope[..len], None, transfer)
+            .expect("resume");
+        staging.write(piece).expect("write");
+        transfer = staging.detach();
+    }
+    assert_eq!(
+        transfer.progress(),
+        (image.len() as u32, image.len() as u32)
+    );
+    let staging = updater
+        .resume_from(&envelope[..len], None, transfer)
+        .expect("resume");
+    assert_eq!(staging.finish().expect("finish"), 1);
+
+    assert_eq!(
+        updater.store().reads.get(),
+        0,
+        "a transfer that carries its hash has nothing to read back"
+    );
+    assert_eq!(updater.on_boot().expect("boot"), Boot::Trying(1));
+}
+
+#[test]
+fn a_transfer_whose_slot_was_opened_again_is_read_back_rather_than_trusted() {
+    let mut updater = device_running_version_one();
+    let image = b"version two, arriving over a slow radio that keeps dropping";
+    let (envelope, len) = release_manifest(&manifest(image, 2, 1), &author());
+    let mut staging = updater.begin(&envelope[..len]).expect("begin");
+    staging.write(&image[..20]).expect("write");
+    let transfer = staging.detach();
+
+    // The same release is staged whole in between, from twenty bytes that are not the
+    // image's. It fails, and leaves the slot's record looking exactly as the transfer
+    // left it, with other bytes behind it.
+    let other: Vec<u8> = image[..20].iter().map(|byte| !byte).collect();
+    assert_eq!(updater.stage(&envelope[..len], &other), Err(Refusal::Size));
+
+    let mut staging = updater
+        .resume_from(&envelope[..len], None, transfer)
+        .expect("resume");
+    assert_eq!(staging.progress(), (20, image.len() as u32));
+    staging.write(&image[20..]).expect("write");
+    assert_eq!(
+        staging.finish(),
+        Err(Refusal::Digest),
+        "the hash a transfer carried must not vouch for bytes it never saw"
+    );
+    assert_eq!(updater.on_boot().expect("boot"), Boot::Confirmed(0));
+}
+
+#[test]
+fn a_detached_transfer_is_still_held_to_the_rules() {
+    let device = Device {
+        vendor_id: VENDOR,
+        class_id: CLASS,
+        anchor: author().public(),
+    };
+    let mut updater = Updater::new(device, MemoryStore::new(3, 4096));
+    updater.provision(0, 1).expect("provision");
+
+    let older = b"version two, still arriving";
+    let (envelope, len) = release_manifest(&manifest(older, 2, 1), &author());
+    let mut staging = updater.begin(&envelope[..len]).expect("begin");
+    staging.write(&older[..8]).expect("write");
+    let transfer = staging.detach();
+
+    let newer = b"version three, staged whole";
+    let (newer_envelope, newer_len) = release_manifest(&manifest(newer, 3, 2), &author());
+    updater
+        .stage(&newer_envelope[..newer_len], newer)
+        .expect("stage");
+
+    assert_eq!(
+        updater.resume_from(&envelope[..len], None, transfer).err(),
+        Some(Refusal::Rollback),
+        "a release overtaken while it arrives stops arriving"
+    );
+}
+
 /// Signs a delegation naming the release key derived from `seed`.
 fn delegate(epoch: u64, seed: u8, by: &DeviceIdentity) -> ([u8; DELEGATION_MAX], usize) {
     let delegation = Delegation {
@@ -643,7 +780,7 @@ fn a_replayed_older_delegation_cannot_reinstate_a_retired_key() {
     assert_eq!(
         updater.adopt(&old[..old_len], None),
         Err(Refusal::Rollback),
-        "a retired key must not come back by replaying the statement that authorised it"
+        "a retired key must not come back by replaying the statement that authorized it"
     );
     assert_eq!(updater.delegation().expect("delegation").epoch, 2);
 }

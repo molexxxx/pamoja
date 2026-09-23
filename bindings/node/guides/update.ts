@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 // ANCHOR: example
 import { DeviceIdentity } from '@pamoja/security'
 import {
+  type Boot,
   BootAction,
   SlotState,
   Updater,
@@ -52,22 +53,80 @@ console.log(`written   to slot ${slot}, leaving the running image alone`)
 
 // The first boot into a new image is a trial. It reverts on the next boot unless the device
 // confirms that it came up, which is what makes a bad release survivable.
-console.log(`booting   ${fleet.onBoot().action}`)
+const said = (decision: Boot): string => {
+  switch (decision.action) {
+    case BootAction.Trying:
+      return `slot ${decision.slot} on trial`
+    case BootAction.Confirmed:
+      return `slot ${decision.slot}, already confirmed`
+    default:
+      return `slot ${decision.slot} never confirmed, so the device runs slot ${decision.fallback} again`
+  }
+}
+const decision = fleet.onBoot()
+console.log(`booting   ${said(decision)}`)
 fleet.confirm()
 console.log(`confirmed slot ${slot} is now ${fleet.slotRecord(slot).state}`)
+
+// The same release offered again would take the device nowhere new, so it is refused as a
+// rollback, and so would any older one.
+try {
+  fleet.stage(envelope, image)
+  console.log('an old release was accepted, which should never happen')
+} catch (error) {
+  console.log(`old       refused: ${(error as Error).message}`)
+}
+
+// The next release goes to the slot the device is not running, slot 0 now. An image damaged
+// on the way still arrives in full, but it does not hash to what was signed.
+const upgrade = Buffer.from('firmware for a flow meter, version three')
+const third = { ...manifest, sequence: 3, storage: 0, digest: imageDigest(upgrade), size: upgrade.length }
+const release = signManifest(third, publisher)
+const damaged = Buffer.from(upgrade)
+damaged[0] ^= 0xff
+try {
+  fleet.stage(release, damaged)
+  console.log('a damaged image was accepted, which should never happen')
+} catch (error) {
+  console.log(`corrupt   refused: ${(error as Error).message}`)
+}
 
 // The same release signed by a key this device is not anchored to gets nowhere.
 const impostor = DeviceIdentity.fromSeed(Buffer.alloc(32, 90))
 try {
-  fleet.stage(signManifest(manifest, impostor), image)
+  fleet.stage(signManifest(third, impostor), upgrade)
   console.log('a forged release was accepted, which should never happen')
 } catch (error) {
   console.log(`forged    refused: ${(error as Error).message}`)
+}
+
+// The genuine release stages and boots on trial, but never confirms: the next boot fails it
+// and goes back to the image that worked.
+fleet.stage(release, upgrade)
+const trial = fleet.onBoot()
+console.log(`booting   ${said(trial)}, running sequence ${third.sequence}`)
+const after = fleet.onBoot()
+console.log(`reverted  ${said(after)}`)
+
+// A release that failed cannot be offered again, or a captured image could be replayed; the
+// fix goes out as sequence 4.
+try {
+  fleet.stage(release, upgrade)
+  console.log('a failed release was accepted again, which should never happen')
+} catch (error) {
+  console.log(`again     refused: ${(error as Error).message}`)
 }
 // ANCHOR_END: example
 
 assert.deepEqual(manifest.digest, imageDigest(image))
 assert.deepEqual(opened.digest, manifest.digest)
 assert.equal(slot, 1)
+assert.equal(decision.action, BootAction.Trying)
 assert.equal(fleet.slotRecord(1).state, SlotState.Confirmed)
-assert.notEqual(fleet.onBoot().action, BootAction.Trying)
+assert.equal(trial.action, BootAction.Trying)
+assert.equal(trial.slot, 0)
+assert.equal(after.action, BootAction.Reverted)
+assert.equal(after.slot, 0)
+assert.equal(after.fallback, 1)
+assert.equal(fleet.slotRecord(0).state, SlotState.Failed)
+assert.equal(fleet.installedSequence, 3)

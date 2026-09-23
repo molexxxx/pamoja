@@ -56,7 +56,7 @@ const KEY_EXPIRES: u64 = 3;
 pub struct Delegation {
     /// Rises with every rotation. A device refuses a delegation not above the one
     /// it holds, so a retired key cannot be reinstated by replaying the statement
-    /// that once authorised it.
+    /// that once authorized it.
     pub epoch: u64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: [u8; KEY_LEN],
