@@ -76,6 +76,7 @@ FieldIo();
 SensingAndActuation();
 LaterSensors();
 Buses();
+SensorDrivers();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1311,6 +1312,155 @@ static void Buses()
         Assert(refused.Message.StartsWith("/dev/i2c-pamoja-absent: ", StringComparison.Ordinal), "the refusal names the file");
     }
 }
+
+// Every I2C part's driver against its simulated twin, all on one bus at the addresses a
+// board would give them, and the three kinds of simulated part the bus hands back.
+static void SensorDrivers()
+{
+    const byte Tmp117At = Tmp117.AddressAdd0Vplus;
+    const byte Ads1115At = Ads1115.AddressSda;
+    const byte Opt3001At = Opt3001.AddressScl;
+    const byte Ina219At = Ina219.BaseAddress + 1;
+    const byte Ina226At = 0x45;
+
+    SimulatedPart[] parts =
+    [
+        Bmp280.Sim.Reporting(Bmp280.AddressSecondary, -7.5f, 1003.0f),
+        Tmp117.Sim.Part(Tmp117At),
+        Opt3001.Sim.Reporting(Opt3001At, 1200.0f),
+        Hdc1080.Sim.Reporting(-20.0f, 12.5f),
+        Ina219.Sim.Part(Ina219At),
+        Ina226.Sim.Reporting(Ina226At, 2, 20_000_000, 3_300_000, -10_000_000),
+        Ads1115.Sim.Reporting(Ads1115At, Ads1115.Pga.Fsr4_096, 3.0f),
+        Sht3x.Sim.Reporting(Sht3x.AddressA, 30.0f, 70.0f),
+        Scd4x.Sim.Part(),
+    ];
+    using I2cBus bus = I2cBus.Simulated(parts);
+    foreach (SimulatedPart part in parts)
+    {
+        part.Dispose();
+    }
+
+    using (var pressure = new Bmp280(bus, Bmp280.AddressSecondary))
+    {
+        Assert(pressure.Coefficients is null, "no trimming before initialization");
+        Bmp280Reading reading = pressure.Measure();
+        Assert(Math.Abs(reading.Celsius + 7.5f) < 0.01f, "the BMP280 reads what its twin reports");
+        Assert(Math.Abs(reading.Hectopascals - 1003.0f) < 0.01f, "and the pressure");
+        Assert(pressure.Coefficients is not null, "the trimming is read at initialization");
+    }
+
+    using (var thermometer = new Tmp117(bus, Tmp117At, Tmp117.Averaging.X8))
+    {
+        Assert(thermometer.SiliconRevision is null, "no revision before initialization");
+        Assert(thermometer.Measure().Celsius == Tmp117.Sim.Celsius, "21.25 C");
+        Assert(thermometer.SiliconRevision is not null, "the revision is read at initialization");
+        thermometer.SetAlertLimits(30.0f, 10.0f);
+        Assert(thermometer.Alerts() == new Tmp117Alerts(false, false), "no alerts");
+    }
+
+    using (var light = new Opt3001(bus, Opt3001At, Opt3001.ConversionTime.Ms100))
+    {
+        Assert(light.Measure().Lux == 1200.0f, "the OPT3001 reads 1200 lux");
+        Assert(light.Configuration.LongConversion == 0, "at the short conversion");
+    }
+
+    using (var climate = new Hdc1080(bus))
+    {
+        PamojaHdc1080Measurement air = climate.Measure();
+        Assert(Math.Abs(air.Celsius + 20.0f) < 0.003f, "the HDC1080 reads -20 C");
+        Assert(Math.Abs(air.RelativeHumidity - 12.5f) < 0.002f, "and 12.5 %");
+    }
+    Refuses(() => new Hdc1080(bus, (Hdc1080.TemperatureResolution)12).Dispose(), "a resolution the part does not have is refused");
+
+    using (var solar = new Ina219(bus, Ina219At))
+    {
+        Ina219Reading panel = solar.Measure();
+        Assert(panel.BusMillivolts == Ina219.Sim.BusMillivolts, "12 V on the bus");
+        Assert(Math.Abs(panel.CurrentMicroamps - Ina219.Sim.Microamps) < panel.CurrentLsbMicroamps, "half an amp through the shunt");
+        Assert(solar.CurrentLsbMicroamps == Ina219.MinimumCurrentLsbMicroamps(3_200_000), "the finest step for 3.2 A");
+    }
+
+    using (var battery = new Ina226(bus, Ina226At, shuntMilliohms: 2, maxMicroamps: 20_000_000))
+    {
+        Assert(battery.Identity is null, "no identity before initialization");
+        Assert(Math.Abs(battery.Measure().CurrentAmps + 10.0f) < 0.001f, "10 A flowing out of the battery");
+        Assert(battery.Identity?.Device == 0x226, "an INA226 answered");
+    }
+
+    using (var adc = new Ads1115(bus, Ads1115At, gain: Ads1115.Pga.Fsr4_096))
+    {
+        Ads1115Sample probe = adc.Sample();
+        Assert(Math.Abs(probe.Volts - 3.0f) < 0.001f, "the ADS1115 reads 3 V");
+        Assert(probe.Gain == Ads1115.Pga.Fsr4_096, "at the range it was built for");
+    }
+
+    using (var humidity = new Sht3x(bus, Sht3x.AddressA, Sht3x.Repeatability.Low))
+    {
+        Assert(Math.Abs(humidity.Measure().Celsius - 30.0f) < 0.003f, "the SHT3x reads 30 C");
+        Assert(humidity.LastStatus?.Bits == 0x8010, "the status after a reset");
+        humidity.HeaterOn();
+    }
+
+    using (var co2 = new Scd4x(bus))
+    {
+        Assert(co2.Measure().Co2Ppm == Scd4x.Sim.Co2Ppm, "the SCD4x reads 800 ppm");
+        Assert(co2.Serial == Scd4x.Sim.Serial, "and its serial");
+        Assert(co2.DataReady(), "a result is always waiting");
+    }
+
+    using (CommandPart? sht = bus.Part<CommandPart>(Sht3x.AddressA))
+    {
+        Assert(sht is not null, "a command part comes back as one");
+        Assert(sht!.Received[0].SequenceEqual(new byte[] { 0x30, 0xA2 }), "the reset went first");
+    }
+    using (WordPart? tmp = bus.Part<WordPart>(Tmp117At))
+    {
+        Assert(tmp?.Word(0x02) == unchecked((ushort)Tmp117.RawFromCelsius(30.0f)), "the high limit the driver wrote");
+    }
+    Assert(bus.Part<WordPart>(Bmp280.AddressSecondary) is null, "a byte part is not a word part");
+    using (SimulatedPart? any = bus.Part(Bmp280.AddressSecondary))
+    {
+        Assert(any is I2cPart, "and comes back as a byte part");
+    }
+
+    using var words = new WordPart(0x48).Holding(0x01, 0x2000).ReadOnly(0x01, 0xF000);
+    using var commands = new CommandPart(0x44).Answering([0xF3, 0x2D], [0x80, 0x10, 0xE1]);
+    using I2cBus handmade = I2cBus.Simulated(words, commands);
+    handmade.Write(0x48, [0x01, 0x00, 0x20]);
+    Assert(handmade.WriteRead(0x48, [0x01], 2).SequenceEqual(new byte[] { 0x20, 0x20 }), "the flag the part keeps survives a write");
+    handmade.Write(0x44, [0xF3, 0x2D]);
+    Assert(handmade.Read(0x44, 3).SequenceEqual(new byte[] { 0x80, 0x10, 0xE1 }), "the command's reply");
+    Refuses(() => handmade.Read(0x44, 3), "the reply was taken");
+
+    byte[] scratchpad = Ds18b20.BuildScratchpad(21.5f, 12, 75, -10);
+    string text = $"{Convert.ToHexString(scratchpad).ToLowerInvariant()} : crc=00 YES\n";
+    string spaced = string.Join(' ', Enumerable.Range(0, scratchpad.Length).Select(index => scratchpad[index].ToString("x2")));
+    Assert(Ds18b20.ParseW1Slave($"{spaced} : crc={scratchpad[8]:x2} YES\n").MicroCelsius == 21_500_000, "the kernel's text decodes");
+    Refuses(() => Ds18b20.ParseW1Slave(text), "one run-together hex word is not the kernel's format");
+    string devices = Path.Combine(Path.GetTempPath(), $"pamoja-dotnet-w1-{Environment.ProcessId}");
+    string device = Path.Combine(devices, "28-000005e2fdc3");
+    Directory.CreateDirectory(device);
+    File.WriteAllText(Path.Combine(device, "w1_slave"), $"{spaced} : crc={scratchpad[8]:x2} YES\n");
+    try
+    {
+        IReadOnlyList<Ds18b20Thermometer> found = Ds18b20Thermometer.Discover(devices);
+        Assert(found.Count == 1, "one probe under the directory");
+        Assert(found[0].Read().MicroCelsius == 21_500_000, "and it reads 21.5 C");
+        Assert(found[0].Path.EndsWith("w1_slave", StringComparison.Ordinal), "from its w1_slave file");
+        foreach (Ds18b20Thermometer probe in found)
+        {
+            probe.Dispose();
+        }
+    }
+    finally
+    {
+        Directory.Delete(devices, recursive: true);
+    }
+    using Ds18b20Thermometer gone = Ds18b20Thermometer.At(Path.Combine(devices, "28-gone", "w1_slave"));
+    Refuses(() => gone.Read(), "a missing file is refused");
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition)

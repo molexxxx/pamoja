@@ -98,6 +98,7 @@ async function main() {
   sensingAndActuation();
   laterSensors();
   await buses();
+await sensorDrivers();
   radioAndReach();
   relayedReach();
   broadcastUpdates();
@@ -359,6 +360,116 @@ async function buses() {
     "opening an adapter off Linux, or a missing one, says why",
   );
 }
+// Every I2C part's driver against its simulated twin, all on one bus at the addresses a
+// board would give them, and the three kinds of simulated part the bus hands back.
+async function sensorDrivers() {
+  const { I2cBus, I2cPart, WordPart, CommandPart } = hal;
+  const s = sensors;
+  const tmp117At = s.tmp117.address.add0Vplus;
+  const ads1115At = s.ads1115.addressSda;
+  const opt3001At = s.opt3001.addressScl;
+  const ina219At = s.ina219.baseAddress + 1;
+  const ina226At = 0x45;
+
+  const bus = I2cBus.simulated([
+    s.bmp280.sim.reporting(s.bmp280.addressSecondary, -7.5, 1003.0),
+    s.tmp117.sim.part(tmp117At),
+    s.opt3001.sim.reporting(opt3001At, 1200),
+    s.hdc1080.sim.reporting(-20.0, 12.5),
+    s.ina219.sim.part(ina219At),
+    s.ina226.sim.reporting(ina226At, 2, 20_000_000, 3_300_000, -10_000_000),
+    s.ads1115.sim.reporting(ads1115At, s.ads1115.pga.fsr4_096, 3.0),
+    s.sht3x.sim.reporting(s.sht3x.addressA, 30.0, 70.0),
+    s.scd4x.sim.part(),
+  ]);
+
+  const pressure = await new s.Bmp280(bus, s.bmp280.addressSecondary).measure();
+  assert.ok(Math.abs(pressure.celsius + 7.5) < 0.01, "the BMP280 reads what its twin reports");
+  assert.ok(Math.abs(pressure.hectopascals - 1003.0) < 0.01, "and the pressure");
+
+  const thermometer = new s.Tmp117(bus, tmp117At, { averaging: s.tmp117.averaging.x8 });
+  assert.strictEqual(thermometer.siliconRevision, null, "no revision before initialization");
+  assert.strictEqual((await thermometer.measure()).celsius, s.tmp117.sim.celsius, "21.25 C");
+  assert.notStrictEqual(thermometer.siliconRevision, null, "the revision is read at init");
+  await thermometer.setAlertLimits(30, 10);
+  assert.deepStrictEqual(await thermometer.alerts(), { high: false, low: false }, "no alerts");
+
+  const light = new s.Opt3001(bus, opt3001At, { longConversion: false });
+  assert.strictEqual((await light.measure()).lux, 1200, "the OPT3001 reads 1200 lux");
+  assert.strictEqual(light.configuration.longConversion, false, "at the short conversion");
+
+  const climate = new s.Hdc1080(bus);
+  const air = await climate.measure();
+  assert.ok(Math.abs(air.celsius + 20) < 0.003, "the HDC1080 reads -20 C");
+  assert.ok(Math.abs(air.relativeHumidity - 12.5) < 0.002, "and 12.5 %");
+  assert.throws(
+    () => new s.Hdc1080(bus, { temperatureResolutionBits: 12 }),
+    /14 or 11 bits/,
+    "a resolution the part does not have is refused",
+  );
+
+  const solar = new s.Ina219(bus, ina219At);
+  const panel = await solar.measure();
+  assert.strictEqual(panel.busMillivolts, s.ina219.sim.busMillivolts, "12 V on the bus");
+  assert.ok(Math.abs(panel.currentMicroamps - s.ina219.sim.microamps) < panel.currentLsbMicroamps);
+  assert.strictEqual(solar.currentLsbMicroamps, s.ina219.minimumCurrentLsbMicroamps(3_200_000));
+
+  const battery = new s.Ina226(bus, ina226At, { shuntMilliohms: 2, maxMicroamps: 20_000_000 });
+  assert.strictEqual(battery.identity, null, "no identity before initialization");
+  const cell = await battery.measure();
+  assert.ok(Math.abs(cell.currentAmps + 10) < 0.001, "10 A flowing out of the battery");
+  assert.strictEqual(battery.identity.device, s.ina226.deviceId, "an INA226 answered");
+
+  const adc = new s.Ads1115(bus, ads1115At, { pga: s.ads1115.pga.fsr4_096 });
+  const probe = await adc.sample();
+  assert.ok(Math.abs(probe.volts - 3.0) < 0.001, "the ADS1115 reads 3 V");
+  assert.strictEqual(probe.pga, s.ads1115.pga.fsr4_096, "at the range it was built for");
+
+  const humidity = new s.Sht3x(bus, s.sht3x.addressA, { repeatability: s.Sht3xRepeatability.Low });
+  assert.ok(Math.abs((await humidity.measure()).celsius - 30) < 0.003, "the SHT3x reads 30 C");
+  assert.strictEqual(humidity.lastStatus.bits, s.sht3x.statusDefault, "the status after reset");
+  await humidity.heaterOn();
+
+  const co2 = new s.Scd4x(bus);
+  assert.strictEqual((await co2.measure()).co2Ppm, s.scd4x.sim.co2Ppm, "the SCD4x reads 800 ppm");
+  assert.strictEqual(co2.serial, s.scd4x.sim.serial, "and its serial");
+  assert.strictEqual(await co2.dataReady(), true, "a result is always waiting");
+
+  const sht = bus.part(s.sht3x.addressA);
+  assert.ok(sht instanceof CommandPart, "a command part comes back as one");
+  assert.deepStrictEqual(sht.received[0], Buffer.from([0x30, 0xa2]), "the reset went first");
+  const tmp = bus.part(tmp117At);
+  assert.ok(tmp instanceof WordPart, "a word part comes back as one");
+  assert.strictEqual(tmp.word(s.tmp117.register.thighLimit), s.tmp117.rawFromCelsius(30) & 0xffff);
+  assert.ok(bus.part(s.bmp280.addressSecondary) instanceof I2cPart, "and a byte part as one");
+
+  const words = new WordPart(0x48);
+  words.set(0x01, 0x2000);
+  words.readOnly(0x01, 0xf000);
+  const commands = new CommandPart(0x44);
+  commands.answer(Buffer.from([0xf3, 0x2d]), Buffer.from([0x80, 0x10, 0xe1]));
+  const handmade = I2cBus.simulated([words, commands]);
+  handmade.write(0x48, Buffer.from([0x01, 0x00, 0x20]));
+  assert.deepStrictEqual(
+    handmade.writeRead(0x48, Buffer.from([0x01]), 2),
+    Buffer.from([0x20, 0x20]),
+    "the flag the part keeps survives a write",
+  );
+  handmade.write(0x44, Buffer.from([0xf3, 0x2d]));
+  assert.deepStrictEqual(handmade.read(0x44, 3), Buffer.from([0x80, 0x10, 0xe1]));
+  assert.throws(() => handmade.read(0x44, 3), /no command had left a reply/, "the reply was taken");
+
+  const text = s.ds18b20.parseW1Slave(
+    `${[...s.ds18b20.buildScratchpad(21.5, 12, 75, -10)].map((byte) => byte.toString(16).padStart(2, "0")).join(" ")} : crc=00 YES\n`,
+  );
+  assert.strictEqual(text.microCelsius, 21_500_000, "the kernel's text decodes");
+  assert.throws(
+    () => s.Ds18b20Thermometer.discover("/pamoja-absent-w1"),
+    /pamoja-absent-w1/,
+    "a missing device directory is named",
+  );
+}
+
 // The seven parts added after the first four: a datasheet figure each, and the
 // input each one is meant to refuse.
 function laterSensors() {

@@ -11,13 +11,24 @@ with nothing plugged in and then pointed at ``/dev/i2c-1``.
 from __future__ import annotations
 
 import enum
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional, Union
 
+from pamoja._native import CommandPart as _NativeCommandPart
 from pamoja._native import I2cBus as _NativeBus
 from pamoja._native import I2cPart as _NativePart
 from pamoja._native import I2cStep as _NativeStep
+from pamoja._native import WordPart as _NativeWordPart
 
-__all__ = ["I2cBus", "I2cBusKind", "I2cFault", "I2cPart", "I2cStep"]
+__all__ = [
+    "CommandPart",
+    "I2cBus",
+    "I2cBusKind",
+    "I2cFault",
+    "I2cPart",
+    "I2cStep",
+    "SimulatedPart",
+    "WordPart",
+]
 
 
 class I2cBusKind(str, enum.Enum):
@@ -115,6 +126,159 @@ class I2cPart:
         return self._native.transfers
 
 
+class WordPart:
+    """A part that is not there, answering from 256 registers sixteen bits wide.
+
+    This is how Texas Instruments lays out parts such as the TMP117, the INA219 and
+    INA226, the OPT3001, the ADS1115, and the HDC1080. A pointer byte names a register and
+    a register travels most significant byte first. Bits the part sets for itself, such as
+    a conversion-ready flag, are marked with :meth:`read_only` and keep the part's value
+    whatever a driver writes.
+
+    >>> part = WordPart(0x48).holding(0x0F, 0x0117)
+    >>> hex(part.word(0x0F))
+    '0x117'
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, address: int) -> None:
+        """Make a part answering at one address, with every register reading zero.
+
+        :param address: The 7-bit address it answers to.
+        """
+        self._native = _NativeWordPart(address)
+
+    @classmethod
+    def _wrap(cls, native: _NativeWordPart) -> WordPart:
+        part = cls.__new__(cls)
+        part._native = native
+        return part
+
+    def holding(self, register: int, value: int) -> WordPart:
+        """Put a value in one register, and return the part.
+
+        :param register: The register.
+        :param value: What it holds, read-only bits included.
+        :returns: This part, so calls chain.
+        """
+        self._native.set(register, value)
+        return self
+
+    def read_only(self, register: int, mask: int) -> WordPart:
+        """Mark bits of one register as the part's to set, and return the part.
+
+        :param register: The register.
+        :param mask: The bits a driver's write leaves as the part holds them.
+        :returns: This part, so calls chain.
+        """
+        self._native.read_only(register, mask)
+        return self
+
+    def set(self, register: int, value: int) -> None:
+        """Put a value in one register, read-only bits included, as the part itself would.
+
+        :param register: The register.
+        :param value: What it holds.
+        """
+        self._native.set(register, value)
+
+    def word(self, register: int) -> int:
+        """Read what one register holds now.
+
+        :param register: Which register.
+        :returns: Its value, which is what a driver wrote apart from the read-only bits.
+        """
+        return self._native.word(register)
+
+    @property
+    def address(self) -> int:
+        """The address the part answers to."""
+        return self._native.address
+
+    @property
+    def transfers(self) -> int:
+        """How many transfers the part has served."""
+        return self._native.transfers
+
+
+class CommandPart:
+    """A part that is not there, answering commands with the replies it was given.
+
+    This is how Sensirion lays out parts such as the SHT3x and the SCD4x. A write sends a
+    command and any arguments after it; a read takes the reply that command left, once,
+    padded with ``0xFF`` the way an idle bus reads. A command given no reply leaves none,
+    and a read then is not acknowledged, which is what a real part does when asked for data
+    it does not have.
+
+    >>> part = CommandPart(0x44).answering(bytes([0xF3, 0x2D]), bytes([0x80, 0x10, 0xE1]))
+    >>> part.address
+    68
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, address: int, width: int = 2) -> None:
+        """Make a part answering at one address that has been given no replies yet.
+
+        :param address: The 7-bit address it answers to.
+        :param width: How many bytes a command takes: two for Sensirion's commands.
+        """
+        self._native = _NativeCommandPart(address, width)
+
+    @classmethod
+    def _wrap(cls, native: _NativeCommandPart) -> CommandPart:
+        part = cls.__new__(cls)
+        part._native = native
+        return part
+
+    def answering(self, command: bytes, reply: bytes) -> CommandPart:
+        """Answer one command with a reply from now on, and return the part.
+
+        :param command: The command's bytes.
+        :param reply: What a read after it returns, in place of any reply given before.
+        :returns: This part, so calls chain.
+        """
+        self.answer(command, reply)
+        return self
+
+    def answer(self, command: bytes, reply: bytes) -> None:
+        """Answer one command with a reply from now on.
+
+        :param command: The command's bytes.
+        :param reply: What a read after it returns, in place of any reply given before.
+        """
+        self._native.answer(bytes(command), bytes(reply))
+
+    @property
+    def received(self) -> List[bytes]:
+        """Every write the part has received, oldest first: a command and any arguments."""
+        return [bytes(write) for write in self._native.received]
+
+    @property
+    def address(self) -> int:
+        """The address the part answers to."""
+        return self._native.address
+
+    @property
+    def transfers(self) -> int:
+        """How many transfers the part has served."""
+        return self._native.transfers
+
+
+#: Any simulated part: a bus takes each kind and gives each back as its own class.
+SimulatedPart = Union[I2cPart, WordPart, CommandPart]
+
+
+def _part_of(native: object) -> SimulatedPart:
+    """Wrap a native part as the class of part it is."""
+    if isinstance(native, _NativeWordPart):
+        return WordPart._wrap(native)
+    if isinstance(native, _NativeCommandPart):
+        return CommandPart._wrap(native)
+    return I2cPart._wrap(native)
+
+
 class I2cStep:
     """One transfer a script expects, and what the part answers."""
 
@@ -173,10 +337,10 @@ class I2cBus:
     """One I2C bus, shared by the program and every driver built on it.
 
     :meth:`open` opens the kernel's adapter on a Linux board; :meth:`simulated` puts
-    :class:`I2cPart` s on a bus, each answering at its own address; :meth:`scripted`
-    plays :class:`I2cStep` s in order and refuses any other transfer. A failed transfer
-    raises ``PamojaError`` with the reason: nothing answered at the address, the script
-    expected something else, or the kernel's own words.
+    simulated parts of any kind on a bus, each answering at its own address;
+    :meth:`scripted` plays :class:`I2cStep` s in order and refuses any other transfer. A
+    failed transfer raises ``PamojaError`` with the reason: nothing answered at the address,
+    the script expected something else, or the kernel's own words.
 
     >>> bus = I2cBus.simulated([I2cPart(0x76).holding(0xD0, bytes([0x60]))])
     >>> bus.write_read(0x76, bytes([0xD0]), 1).hex()
@@ -203,11 +367,11 @@ class I2cBus:
         return cls(_NativeBus.open(path))
 
     @classmethod
-    def simulated(cls, parts: Iterable[I2cPart] = ()) -> I2cBus:
+    def simulated(cls, parts: Iterable[SimulatedPart] = ()) -> I2cBus:
         """Make a bus of simulated parts, each answering at its own address.
 
-        :param parts: The parts on the bus. A later part at an address an earlier one
-            holds takes its place.
+        :param parts: The parts on the bus, of any kind. A later part at an address an
+            earlier one holds takes its place.
         :returns: The bus. A transfer to an address no part holds raises
             ``PamojaError``, as nothing acknowledges it.
         """
@@ -222,12 +386,12 @@ class I2cBus:
         """
         return cls(_NativeBus.scripted([step._native for step in steps]))
 
-    def attach(self, part: I2cPart) -> None:
+    def attach(self, part: SimulatedPart) -> None:
         """Put a copy of a part on a simulated bus, in place of any part at its address.
 
         A driver keeps working across the change, which is how a test moves a reading on.
 
-        :param part: The part.
+        :param part: The part, of any kind.
         :raises PamojaError: If the bus is not simulated.
         """
         self._native.attach(part._native)
@@ -268,15 +432,15 @@ class I2cBus:
         """
         return bytes(self._native.write_read(address, bytes(data), length))
 
-    def part(self, address: int) -> Optional[I2cPart]:
+    def part(self, address: int) -> Optional[SimulatedPart]:
         """Copy what a simulated part holds now, with whatever drivers wrote to it.
 
         :param address: The part's address.
-        :returns: The copy, or ``None`` when the bus is not simulated or no part holds
-            the address.
+        :returns: The copy, as the class of part it is, or ``None`` when the bus is not
+            simulated or no part holds the address.
         """
         native = self._native.part(address)
-        return None if native is None else I2cPart._wrap(native)
+        return None if native is None else _part_of(native)
 
     @property
     def transfers(self) -> int:

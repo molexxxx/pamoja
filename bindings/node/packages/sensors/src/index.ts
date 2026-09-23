@@ -1,16 +1,73 @@
 /**
  * Ergonomic facade over the generated sensor-driver binding.
  *
- * These are the decode half of eleven parts a field node is likely to have wired
- * to it, turning the register bytes a bus driver read into the physical reading
- * the manufacturer's datasheet says they mean. The BME280 also has a driver, which
+ * These are eleven parts a field node is likely to have wired to it. Each has its
+ * decode half, turning the register bytes a bus driver read into the physical reading
+ * the manufacturer's datasheet says they mean, and each I2C part has a driver, which
  * runs the datasheet's whole conversation over an `I2cBus` from `@pamoja/hal`, and a
- * simulated part that answers it with nothing plugged in.
+ * simulated part that answers it with nothing plugged in. The DS18B20 is read through
+ * the files the Linux kernel's 1-Wire driver serves.
  *
  * @packageDocumentation
  */
 
-import type { I2cBus, I2cPart } from '@pamoja/hal'
+import type { CommandPart, I2cBus, I2cPart, WordPart } from '@pamoja/hal'
+
+import {
+  Ads1115,
+  ads1115ConversionMicros,
+  ads1115SimPart,
+  ads1115SimReporting,
+  type Ads1115Sample,
+  type Ads1115Settings,
+  Bmp280,
+  bmp280SimBurst,
+  bmp280SimBurstFor,
+  bmp280SimCalibration,
+  bmp280SimPart,
+  bmp280SimReporting,
+  type Bmp280Settings,
+  Ds18b20Thermometer,
+  ds18b20ParseW1Slave,
+  Hdc1080,
+  hdc1080SimPart,
+  hdc1080SimReporting,
+  type Hdc1080Settings,
+  Ina219,
+  ina219AdcConversionMicros,
+  ina219ConfigBits,
+  ina219ConfigFromBits,
+  ina219ConversionMicros,
+  ina219GainRangeMillivolts,
+  ina219SimPart,
+  ina219SimReporting,
+  type Ina219Configuration as Ina219Config,
+  type Ina219Reading,
+  type Ina219Settings,
+  Ina226,
+  ina226SimPart,
+  ina226SimReporting,
+  type Ina226Reading,
+  type Ina226Settings,
+  Opt3001,
+  opt3001SimPart,
+  opt3001SimReporting,
+  type Opt3001Reading,
+  type Opt3001Settings,
+  Scd4x,
+  scd4xSimPart,
+  scd4xSimReporting,
+  Sht3x,
+  sht3xSimPart,
+  sht3xSimReporting,
+  type Sht3xSettings,
+  Tmp117,
+  tmp117SimPart,
+  tmp117SimReporting,
+  type Tmp117Alerts,
+  type Tmp117Reading,
+  type Tmp117Settings,
+} from '@pamoja/native'
 
 import {
   ads1115ConfigBits,
@@ -229,6 +286,8 @@ export {
   Bme280Calibration,
   Bmp280Calibration,
   type Ads1115Config,
+  type Ads1115Sample,
+  type Ads1115Settings,
   type Bme280Config,
   type Bme280CtrlMeas,
   type Bme280Measurement,
@@ -237,18 +296,133 @@ export {
   type Bmp280CtrlMeas,
   type Bmp280RawMeasurement,
   type Bmp280Reading,
+  type Bmp280Settings,
   type Ds18b20Reading,
   type Hdc1080Config,
   type Hdc1080Measurement,
+  type Hdc1080Settings,
+  type Ina219Config,
+  type Ina219Reading,
+  type Ina219Settings,
   type Ina226Config,
   type Ina226DieIdFields,
   type Ina226MaskEnable,
+  type Ina226Reading,
+  type Ina226Settings,
   type Opt3001Config,
+  type Opt3001Reading,
+  type Opt3001Settings,
   type Scd4xMeasurement,
   type Sht3xMeasurement,
+  type Sht3xSettings,
   type Sht3xStatus,
+  type Tmp117Alerts,
   type Tmp117Config,
+  type Tmp117Reading,
+  type Tmp117Settings,
 }
+
+/**
+ * A Bosch BMP280 driven over an {@link I2cBus}, measuring on demand in forced mode.
+ *
+ * `new Bmp280(bus, address, settings?)` sends nothing. `init()` resets the part, checks it is
+ * a BMP280, reads its trimming, and writes the settings, leaving it asleep; `measure()` runs
+ * one forced measurement and resolves with the compensated reading. `coefficients` is the
+ * trimming read at initialization, or `null` before it.
+ */
+export { Bmp280 }
+
+/**
+ * A Texas Instruments TMP117 driven over an {@link I2cBus}, converting on demand in one-shot
+ * mode and powered down between conversions.
+ *
+ * `init()` checks the device id, waits for the EEPROM, and writes the averaging;
+ * `measure()` runs one conversion and resolves with the temperature. `setAlertLimits(high,
+ * low)` writes the limits and `alerts()` resolves with the flags, including any the driver's
+ * own reads consumed. `siliconRevision` is read at initialization.
+ */
+export { Tmp117 }
+
+/**
+ * A Texas Instruments OPT3001 driven over an {@link I2cBus}, measuring illuminance on demand
+ * in single-shot mode.
+ *
+ * `init()` checks both id registers and writes the settings; `measure()` runs one conversion,
+ * 100 or 800 ms long, and resolves with the lux. `setLimits(low, high)` programs the
+ * interrupt window in millilux.
+ */
+export { Opt3001 }
+
+/**
+ * A Texas Instruments HDC1080 driven over an {@link I2cBus}, measuring temperature then
+ * humidity from one trigger at its one address.
+ *
+ * `init()` checks both id registers and writes the resolutions; `measure()` triggers an
+ * acquisition, waits both conversion times, and resolves with both channels. `heater(on)`
+ * switches the on-die heater, which runs only during acquisitions.
+ */
+export { Hdc1080 }
+
+/**
+ * A Texas Instruments INA219 driven over an {@link I2cBus}: shunt and bus voltage, current,
+ * and power on demand.
+ *
+ * `init()` resets the part, writes the configuration and the calibration for the shunt and
+ * the largest current, and reads the calibration back, the identity check a part with no id
+ * register allows. `measure()` triggers one conversion of each and resolves with every
+ * register and what it means.
+ */
+export { Ina219 }
+
+/**
+ * A Texas Instruments INA226 driven over an {@link I2cBus}: shunt and bus voltage, current,
+ * and power on demand.
+ *
+ * `init()` resets the part, checks its id registers, and programs the configuration and
+ * calibration; `measure()` triggers one conversion and resolves with every result.
+ * `setAlert(mask, limit)` programs the alert pin, and `identity` is the die id read at
+ * initialization.
+ */
+export { Ina226 }
+
+/**
+ * A Texas Instruments ADS1115 driven over an {@link I2cBus}, converting one input on demand.
+ *
+ * `init()` writes the input, range, and data rate and reads them back; `sample()` runs one
+ * conversion and resolves with the count, the range it ran at, and the voltage.
+ * `sampleInput(mux)` converts another input once and leaves the configured one as it was.
+ */
+export { Ads1115 }
+
+/**
+ * A Sensirion SHT3x driven over an {@link I2cBus}, measuring on demand in single-shot mode.
+ *
+ * `init()` soft-resets the part and reads its status, whose checksum is what confirms an
+ * SHT3x answers; `measure()` resolves with a checksum-checked reading. `readStatus()`,
+ * `heaterOn()`, and `heaterOff()` do what they say, and `lastStatus` keeps the last status
+ * read.
+ */
+export { Sht3x }
+
+/**
+ * A Sensirion SCD40 or SCD41 driven over an {@link I2cBus} in periodic measurement.
+ *
+ * `init()` stops any measurement a previous run left going, reads the serial number, and
+ * starts periodic measurement; `measure()` waits for the next result, one every five seconds.
+ * `measureSingleShot()` runs one on-demand measurement on an SCD41, and `dataReady()`,
+ * `stop()`, `start()`, `setTemperatureOffset()`, and `setSensorAltitude()` are the part's
+ * own commands.
+ */
+export { Scd4x }
+
+/**
+ * A DS18B20 the Linux kernel serves as a `w1_slave` file.
+ *
+ * `Ds18b20Thermometer.discover()` lists every probe under `/sys/bus/w1/devices` once the
+ * `w1-gpio` overlay is on; `forSerial(serial)` and `at(path)` name one. `read()` makes the
+ * kernel run a conversion and resolves with the checksum-checked reading.
+ */
+export { Ds18b20Thermometer }
 
 /**
  * A Bosch BME280 driven over an {@link I2cBus}, measuring on demand in forced mode.
@@ -681,10 +855,156 @@ export const ds18b20 = {
   maxConversionMicros(bits: number): number {
     return ds18b20MaxConversionMicros(bits)
   },
+
+  /**
+   * Decodes the text the Linux kernel's `w1_therm` driver serves for a thermometer: the
+   * scratchpad in hex with the kernel's checksum verdict, then the temperature.
+   *
+   * @param text - The `w1_slave` file's contents.
+   * @returns The reading, its CRC checked here as well.
+   * @throws If the kernel or this decoder rejects the CRC, or the text is not in the driver's
+   *   format.
+   */
+  parseW1Slave(text: string): Ds18b20Reading {
+    return ds18b20ParseW1Slave(text)
+  },
 }
 
 /** A TI INA219 current, voltage, and power monitor. */
 export const ina219 = {
+  /** The address with A1 and A0 tied to ground; the pins add to it. */
+  baseAddress: 0x40,
+  /** The configuration register's power-on value. */
+  configReset: 0x399f,
+  /** The registers a driver reads and writes. */
+  register: {
+    /** Range, gain, converter settings, and mode. */
+    configuration: 0x00,
+    /** The shunt voltage, 10 uV per count. */
+    shuntVoltage: 0x01,
+    /** The bus voltage in bits 15:3, 4 mV per count, with two flags below. */
+    busVoltage: 0x02,
+    /** The power, scaled by the calibration. */
+    power: 0x03,
+    /** The current, scaled by the calibration. */
+    current: 0x04,
+    /** The calibration, which sets the current and power scale. */
+    calibration: 0x05,
+  },
+  /** The bus-voltage range codes. */
+  busRange: {
+    /** 0 to 16 V. */
+    v16: 0,
+    /** 0 to 32 V, the reset setting. */
+    v32: 1,
+  },
+  /** The shunt gain codes, by the shunt-voltage range each gives. */
+  gain: {
+    /** Gain 1, 40 mV either side of zero. */
+    div1: 0,
+    /** Gain 1/2, 80 mV. */
+    div2: 1,
+    /** Gain 1/4, 160 mV. */
+    div4: 2,
+    /** Gain 1/8, 320 mV, the reset setting. */
+    div8: 3,
+  },
+  /** The converter codes: a resolution, or samples averaged at 12 bits. */
+  adc: {
+    /** 9 bits, 84 us. */
+    bits9: 0b0000,
+    /** 10 bits, 148 us. */
+    bits10: 0b0001,
+    /** 11 bits, 276 us. */
+    bits11: 0b0010,
+    /** 12 bits, 532 us, the reset setting. */
+    bits12: 0b0011,
+    /** 2 samples averaged, 1.06 ms. */
+    samples2: 0b1001,
+    /** 4 samples averaged, 2.13 ms. */
+    samples4: 0b1010,
+    /** 8 samples averaged, 4.26 ms. */
+    samples8: 0b1011,
+    /** 16 samples averaged, 8.51 ms. */
+    samples16: 0b1100,
+    /** 32 samples averaged, 17.02 ms. */
+    samples32: 0b1101,
+    /** 64 samples averaged, 34.05 ms. */
+    samples64: 0b1110,
+    /** 128 samples averaged, 68.10 ms. */
+    samples128: 0b1111,
+  },
+  /** The operating-mode codes. */
+  mode: {
+    /** No conversions, lowest power. */
+    powerDown: 0,
+    /** One shunt conversion. */
+    shuntTriggered: 1,
+    /** One bus conversion. */
+    busTriggered: 2,
+    /** One shunt and one bus conversion. */
+    shuntAndBusTriggered: 3,
+    /** The converter disabled. */
+    adcOff: 4,
+    /** Shunt conversions back to back. */
+    shuntContinuous: 5,
+    /** Bus conversions back to back. */
+    busContinuous: 6,
+    /** Shunt and bus conversions back to back, the reset setting. */
+    shuntAndBusContinuous: 7,
+  },
+
+  /**
+   * Assembles the configuration register value.
+   *
+   * @param config - The range, gain, converter, and mode codes.
+   * @returns The register value to write.
+   */
+  configBits(config: Ina219Config): number {
+    return ina219ConfigBits(config)
+  },
+
+  /**
+   * Parses a configuration register value.
+   *
+   * @param bits - The register value, as read from the part.
+   * @returns The settings. Every value decodes.
+   */
+  configFromBits(bits: number): Ina219Config {
+    return ina219ConfigFromBits(bits)
+  },
+
+  /**
+   * Returns how long one conversion cycle takes: the shunt and bus conversions the mode runs,
+   * one after the other.
+   *
+   * @param config - The settings.
+   * @returns The time in microseconds.
+   */
+  conversionMicros(config: Ina219Config): number {
+    return ina219ConversionMicros(config)
+  },
+
+  /**
+   * Returns how long one conversion takes at a converter code.
+   *
+   * @param code - One of the {@link ina219.adc} codes.
+   * @returns The time in microseconds, from the datasheet's table.
+   */
+  adcConversionMicros(code: number): number {
+    return ina219AdcConversionMicros(code)
+  },
+
+  /**
+   * Returns the shunt-voltage range a gain code selects.
+   *
+   * @param code - One of the {@link ina219.gain} codes.
+   * @returns The range in millivolts either side of zero.
+   */
+  gainRangeMillivolts(code: number): number {
+    return ina219GainRangeMillivolts(code)
+  },
+
   /**
    * Computes the calibration register for a shunt and current resolution.
    *
@@ -814,12 +1134,142 @@ export const ina219 = {
   powerMicrowatts(raw: number, currentLsbMicroamps: number): number {
     return ina219PowerMicrowatts(raw, currentLsbMicroamps)
   },
+
+  /**
+   * An INA219 that is not there, for a bus with nothing plugged in. A monitor's current and
+   * power registers count in steps the calibration sets, so `reporting` takes the same shunt
+   * and largest current a driver is given.
+   */
+  sim: {
+    /** The shunt `part` sits across, in milliohms: the common breakout's. */
+    shuntMilliohms: 100,
+    /** The largest current `part` is sized for, in microamps. */
+    maxMicroamps: 3_200_000,
+    /** The bus voltage `part` reports, in millivolts. */
+    busMillivolts: 12_000,
+    /** The current `part` reports, in microamps. */
+    microamps: 500_000,
+
+    /**
+     * A part carrying 500 mA at 12 V through the shunt a driver starts with.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): WordPart {
+      return ina219SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, on the steps its registers count in: 4 mV of
+     * bus, 10 uV of shunt, and the calibration's current step.
+     *
+     * @param address - The address it answers to.
+     * @param shuntMilliohms - The shunt, as the driver is given it.
+     * @param maxMicroamps - The largest current, as the driver is given it.
+     * @param busMillivolts - The bus voltage it reports.
+     * @param microamps - The current it reports; negative flows the other way.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(
+      address: number,
+      shuntMilliohms: number,
+      maxMicroamps: number,
+      busMillivolts: number,
+      microamps: number,
+    ): WordPart {
+      return ina219SimReporting(address, shuntMilliohms, maxMicroamps, busMillivolts, microamps)
+    },
+  },
 }
 
 /** A TI ADS1115 16-bit analog-to-digital converter. */
 export const ads1115 = {
+  /** The address with ADDR tied to ground. */
+  addressGnd: 0x48,
+  /** The address with ADDR tied to VDD. */
+  addressVdd: 0x49,
+  /** The address with ADDR tied to SDA. */
+  addressSda: 0x4a,
+  /** The address with ADDR tied to SCL. */
+  addressScl: 0x4b,
   /** The value the configuration register reads after a reset. */
   configReset: 0x8583,
+  /** The registers the pointer selects. */
+  register: {
+    /** The last conversion, two's complement. */
+    conversion: 0x00,
+    /** Input, gain, mode, data rate, and comparator settings. */
+    config: 0x01,
+    /** The comparator's low threshold. */
+    loThresh: 0x02,
+    /** The comparator's high threshold. */
+    hiThresh: 0x03,
+  },
+  /** The input multiplexer codes. */
+  mux: {
+    /** AIN0 against AIN1, the reset setting. */
+    ain0Ain1: 0,
+    /** AIN0 against AIN3. */
+    ain0Ain3: 1,
+    /** AIN1 against AIN3. */
+    ain1Ain3: 2,
+    /** AIN2 against AIN3. */
+    ain2Ain3: 3,
+    /** AIN0 against ground. */
+    ain0Gnd: 4,
+    /** AIN1 against ground. */
+    ain1Gnd: 5,
+    /** AIN2 against ground. */
+    ain2Gnd: 6,
+    /** AIN3 against ground. */
+    ain3Gnd: 7,
+  },
+  /** The gain codes, by the full-scale range each selects. */
+  pga: {
+    /** 6.144 V either side of zero. */
+    fsr6_144: 0,
+    /** 4.096 V. */
+    fsr4_096: 1,
+    /** 2.048 V, the reset setting. */
+    fsr2_048: 2,
+    /** 1.024 V. */
+    fsr1_024: 3,
+    /** 0.512 V. */
+    fsr0_512: 4,
+    /** 0.256 V. */
+    fsr0_256: 5,
+  },
+  /** The data-rate codes, in samples per second. */
+  dataRate: {
+    /** 8 per second. */
+    sps8: 0,
+    /** 16 per second. */
+    sps16: 1,
+    /** 32 per second. */
+    sps32: 2,
+    /** 64 per second. */
+    sps64: 3,
+    /** 128 per second, the reset setting. */
+    sps128: 4,
+    /** 250 per second. */
+    sps250: 5,
+    /** 475 per second. */
+    sps475: 6,
+    /** 860 per second. */
+    sps860: 7,
+  },
+
+  /**
+   * Returns how long a conversion takes at a data rate: one period plus the datasheet's ten
+   * percent rate variation.
+   *
+   * @param dataRate - One of the {@link ads1115.dataRate} codes.
+   * @returns The time in microseconds.
+   */
+  conversionMicros(dataRate: number): number {
+    return ads1115ConversionMicros(dataRate)
+  },
 
   /**
    * Assembles the 16-bit configuration register value.
@@ -881,6 +1331,39 @@ export const ads1115 = {
    */
   toVolts(pga: number, raw: number): number {
     return ads1115ToVolts(pga, raw)
+  },
+
+  /**
+   * An ADS1115 that is not there, for a bus with nothing plugged in. A conversion comes back
+   * as a count of the range the gain selects, so `reporting` takes the same gain a driver is
+   * given.
+   */
+  sim: {
+    /** The voltage `part` reports: half a 3.3 V supply. */
+    volts: 1.65,
+
+    /**
+     * A part reading 1.65 V at the range a driver starts with.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): WordPart {
+      return ads1115SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, on the nearest of the 32768 steps either side of
+     * zero the range divides into.
+     *
+     * @param address - The address it answers to.
+     * @param pga - The gain code the driver converts at.
+     * @param volts - The voltage it reports, held to the range.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(address: number, pga: number, volts: number): WordPart {
+      return ads1115SimReporting(address, pga, volts)
+    },
   },
 }
 
@@ -963,6 +1446,75 @@ export const bmp280 = {
     config: 0xf5,
     /** The first of the six data bytes. */
     data: 0xf7,
+  },
+  /** The oversampling codes: how many samples each measurement averages. */
+  oversampling: {
+    /** The measurement is skipped. */
+    skipped: 0,
+    /** One sample. */
+    x1: 1,
+    /** Two samples. */
+    x2: 2,
+    /** Four samples. */
+    x4: 3,
+    /** Eight samples. */
+    x8: 4,
+    /** Sixteen samples. */
+    x16: 5,
+  },
+
+  /**
+   * A BMP280 that is not there, for a bus with nothing plugged in. A BMP280 is a BME280
+   * without humidity, so `part` holds the temperature and pressure half of a real part and
+   * reads 20.44 C and 848.05 hPa.
+   */
+  sim: {
+    /** The status a simulated part reports when it is neither measuring nor loading. */
+    statusIdle: 0x00,
+
+    /**
+     * A part holding a real part's trimming and one measurement it took.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): I2cPart {
+      return bmp280SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, within a hundredth of a degree and of a
+     * hectopascal.
+     *
+     * @param address - The address it answers to.
+     * @param celsius - The temperature it reports.
+     * @param hectopascals - The pressure it reports.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(address: number, celsius: number, hectopascals: number): I2cPart {
+      return bmp280SimReporting(address, celsius, hectopascals)
+    },
+
+    /** The 24 trimming bytes a simulated part holds. */
+    calibration(): Buffer {
+      return bmp280SimCalibration()
+    },
+
+    /** The six data registers a simulated part holds: one measurement a real part took. */
+    burst(): Buffer {
+      return bmp280SimBurst()
+    },
+
+    /**
+     * The six data registers that compensate to a reading against the simulated trimming.
+     *
+     * @param celsius - The temperature.
+     * @param hectopascals - The pressure.
+     * @returns The bytes a burst read would return.
+     */
+    burstFor(celsius: number, hectopascals: number): Buffer {
+      return bmp280SimBurstFor(celsius, hectopascals)
+    },
   },
 
   /**
@@ -1425,6 +1977,41 @@ export const sht3x = {
   intervalMicros(rate: Sht3xRate): number {
     return sht3xIntervalMicros(rate)
   },
+
+  /**
+   * An SHT3x that is not there, for a bus with nothing plugged in. It answers every
+   * single-shot command and a periodic fetch with the reading and its checksums, and the
+   * status command with the status a part reports after a reset.
+   */
+  sim: {
+    /** The temperature `part` reports. */
+    celsius: 22.5,
+    /** The relative humidity `part` reports, as a percentage. */
+    relativeHumidity: 45.0,
+
+    /**
+     * A part reading 22.5 C and 45 %.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): CommandPart {
+      return sht3xSimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, within three thousandths of a degree and two
+     * thousandths of a percent.
+     *
+     * @param address - The address it answers to.
+     * @param celsius - The temperature it reports.
+     * @param relativeHumidity - The humidity it reports, as a percentage.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(address: number, celsius: number, relativeHumidity: number): CommandPart {
+      return sht3xSimReporting(address, celsius, relativeHumidity)
+    },
+  },
 }
 
 /** A Sensirion SCD40 or SCD41 photoacoustic CO2, humidity, and temperature sensor. */
@@ -1786,6 +2373,43 @@ export const scd4x = {
   serialNumberFrame(serial: number): Buffer {
     return scd4xSerialNumberFrame(serial)
   },
+
+  /**
+   * An SCD4x that is not there, for a bus with nothing plugged in. It answers the serial
+   * number, data-ready, and measurement commands, each word with its checksum, and always has
+   * a result waiting.
+   */
+  sim: {
+    /** The carbon dioxide `part` reports, in parts per million. */
+    co2Ppm: 800,
+    /** The temperature `part` reports. */
+    celsius: 22.5,
+    /** The relative humidity `part` reports, as a percentage. */
+    relativeHumidity: 45.0,
+    /** The serial number every simulated part reports. */
+    serial: 0x0000_5a4d_0c1e_2b3f,
+
+    /**
+     * A part reading 800 ppm, 22.5 C, and 45 %.
+     *
+     * @returns The part, to put on a simulated bus.
+     */
+    part(): CommandPart {
+      return scd4xSimPart()
+    },
+
+    /**
+     * A part that reads what it is asked to.
+     *
+     * @param co2Ppm - The carbon dioxide it reports, in parts per million.
+     * @param celsius - The temperature it reports.
+     * @param relativeHumidity - The humidity it reports, as a percentage.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(co2Ppm: number, celsius: number, relativeHumidity: number): CommandPart {
+      return scd4xSimReporting(co2Ppm, celsius, relativeHumidity)
+    },
+  },
 }
 
 /** A TI TMP117 high-accuracy digital temperature sensor. */
@@ -2040,6 +2664,49 @@ export const tmp117 = {
   cycleMicros(cycle: number, averaging: number): number {
     return tmp117CycleMicros(cycle, averaging)
   },
+
+  /** The averaging codes: how many conversions are averaged into one result. */
+  averaging: {
+    /** No averaging: each result is one 15.5 ms conversion. */
+    none: 0,
+    /** Eight conversions, the factory setting. */
+    x8: 1,
+    /** Thirty-two conversions. */
+    x32: 2,
+    /** Sixty-four conversions. */
+    x64: 3,
+  },
+
+  /**
+   * A TMP117 that is not there, for a bus with nothing plugged in. Its configuration register
+   * keeps the flags the part sets for itself whatever a driver writes, with the data-ready
+   * flag set, so every conversion reads as finished.
+   */
+  sim: {
+    /** The temperature `part` reports. */
+    celsius: 21.25,
+
+    /**
+     * A part reading 21.25 C.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): WordPart {
+      return tmp117SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, to the nearest 7.8125 millidegrees.
+     *
+     * @param address - The address it answers to.
+     * @param celsius - The temperature it reports.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(address: number, celsius: number): WordPart {
+      return tmp117SimReporting(address, celsius)
+    },
+  },
 }
 
 /** A TI HDC1080 low-power humidity and temperature sensor. */
@@ -2227,6 +2894,35 @@ export const hdc1080 = {
   conversionTimeMicros(config: Hdc1080Config): number {
     return hdc1080ConversionTimeMicros(config)
   },
+
+  /** An HDC1080 that is not there, for a bus with nothing plugged in. */
+  sim: {
+    /** The temperature `part` reports. */
+    celsius: 22.5,
+    /** The relative humidity `part` reports, as a percentage. */
+    relativeHumidity: 45.0,
+
+    /**
+     * A part reading 22.5 C and 45 %, at the one address an HDC1080 has.
+     *
+     * @returns The part, to put on a simulated bus.
+     */
+    part(): WordPart {
+      return hdc1080SimPart()
+    },
+
+    /**
+     * A part that reads what it is asked to, within three thousandths of a degree and two
+     * thousandths of a percent.
+     *
+     * @param celsius - The temperature it reports.
+     * @param relativeHumidity - The humidity it reports, as a percentage.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(celsius: number, relativeHumidity: number): WordPart {
+      return hdc1080SimReporting(celsius, relativeHumidity)
+    },
+  },
 }
 
 /** A TI OPT3001 ambient light sensor with a human-eye response. */
@@ -2376,6 +3072,38 @@ export const opt3001 = {
    */
   isAutomaticRange(rangeNumber: number): boolean {
     return opt3001IsAutomaticRange(rangeNumber)
+  },
+
+  /**
+   * An OPT3001 that is not there, for a bus with nothing plugged in. Its configuration
+   * register keeps the flags the part sets for itself whatever a driver writes, with the
+   * conversion-ready flag set, so every conversion reads as finished.
+   */
+  sim: {
+    /** The illuminance `part` reports. */
+    lux: 380.0,
+
+    /**
+     * A part reading 380 lux.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): WordPart {
+      return opt3001SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, to the nearest step its exponent and mantissa
+     * represent.
+     *
+     * @param address - The address it answers to.
+     * @param lux - The illuminance it reports.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(address: number, lux: number): WordPart {
+      return opt3001SimReporting(address, lux)
+    },
   },
 }
 
@@ -2751,5 +3479,52 @@ export const ina226 = {
    */
   powerRegisterFromCurrent(current: number, bus: number): number {
     return ina226PowerRegisterFromCurrent(current, bus)
+  },
+
+  /**
+   * An INA226 that is not there, for a bus with nothing plugged in. It carries TI's
+   * manufacturer id and the INA226 die id, its conversion-ready flag is set, and `reporting`
+   * takes the same shunt and largest current a driver is given.
+   */
+  sim: {
+    /** The shunt `part` sits across, in milliohms. */
+    shuntMilliohms: 100,
+    /** The largest current `part` is sized for, in microamps. */
+    maxMicroamps: 3_200_000,
+    /** The bus voltage `part` reports, in microvolts. */
+    busMicrovolts: 12_000_000,
+    /** The current `part` reports, in microamps. */
+    microamps: 500_000,
+
+    /**
+     * A part carrying 500 mA at 12 V through the shunt a driver starts with.
+     *
+     * @param address - The address it answers to.
+     * @returns The part, to put on a simulated bus.
+     */
+    part(address: number): WordPart {
+      return ina226SimPart(address)
+    },
+
+    /**
+     * A part that reads what it is asked to, on the steps its registers count in: 1.25 mV of
+     * bus, 2.5 uV of shunt, and the calibration's current step.
+     *
+     * @param address - The address it answers to.
+     * @param shuntMilliohms - The shunt, as the driver is given it.
+     * @param maxMicroamps - The largest current, as the driver is given it.
+     * @param busMicrovolts - The bus voltage it reports.
+     * @param microamps - The current it reports; negative flows the other way.
+     * @returns The part, to put on a simulated bus.
+     */
+    reporting(
+      address: number,
+      shuntMilliohms: number,
+      maxMicroamps: number,
+      busMicrovolts: number,
+      microamps: number,
+    ): WordPart {
+      return ina226SimReporting(address, shuntMilliohms, maxMicroamps, busMicrovolts, microamps)
+    },
   },
 }

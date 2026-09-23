@@ -5,13 +5,19 @@
 //! driver is expected to make. A part and a step are values built here and copied onto a bus,
 //! so the program keeps its own and reads a simulated part back off the bus after a driver
 //! has written to it.
+//!
+//! A simulated part is one of three classes, as in Rust: `I2cPart` with registers a byte wide,
+//! `WordPart` with registers sixteen bits wide, and `CommandPart` with commands that leave
+//! replies. A bus takes any of them and gives each back as its own class.
 
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{Buffer, Either3};
 use napi_derive::napi;
 use pamoja_hal::bus::{BusError, BusKind, I2cBus as Bus};
 use pamoja_hal::i2c::{ErrorKind, I2c, NoAcknowledgeSource};
 use pamoja_hal::script::{I2cScript, I2cStep as Step};
-use pamoja_hal::sim::I2cPart as Part;
+use pamoja_hal::sim::{
+    CommandPart as Commands, I2cPart as Part, Part as AnyPart, WordPart as Words,
+};
 
 /// What answers on a bus.
 #[napi(string_enum, js_name = "I2cBusKind")]
@@ -101,6 +107,112 @@ impl I2cPart {
     }
 }
 
+/// A part that is not there, answering from 256 registers sixteen bits wide.
+///
+/// A pointer byte names a register and a register travels most significant byte first. A
+/// write of the pointer alone aims the next read; a write of the pointer and a word stores the
+/// word; a read takes words from the pointer on. Bits the part sets for itself, such as a
+/// conversion-ready flag, are marked with `readOnly` and keep the part's value whatever a
+/// driver writes.
+#[napi(js_name = "WordPart")]
+pub struct WordPart {
+    pub(crate) inner: Words,
+}
+
+#[napi]
+impl WordPart {
+    /// A part answering at one address, with every register reading zero.
+    #[napi(constructor)]
+    pub fn new(address: u8) -> Self {
+        WordPart {
+            inner: Words::new(address),
+        }
+    }
+
+    /// Puts a value in one register, read-only bits included, the way the part itself would.
+    #[napi]
+    pub fn set(&mut self, register: u8, value: u16) {
+        self.inner.set(register, value);
+    }
+
+    /// Marks bits of one register as the part's to set: a driver's write leaves them as the
+    /// part holds them.
+    #[napi(js_name = "readOnly")]
+    pub fn read_only(&mut self, register: u8, mask: u16) {
+        self.inner = self.inner.clone().read_only(register, mask);
+    }
+
+    /// What one register holds now, which is what a driver wrote there apart from the
+    /// read-only bits.
+    #[napi]
+    pub fn word(&self, register: u8) -> u16 {
+        self.inner.word(register)
+    }
+
+    /// The address the part answers to.
+    #[napi(getter)]
+    pub fn address(&self) -> u8 {
+        self.inner.address()
+    }
+
+    /// How many transfers the part has served.
+    #[napi(getter)]
+    pub fn transfers(&self) -> u32 {
+        count(self.inner.transfers())
+    }
+}
+
+/// A part that is not there, answering commands with the replies it was given.
+///
+/// A write sends a command and any arguments after it; a read then takes the reply that
+/// command left, once, padded with `0xFF` the way an idle bus reads. A command given no reply
+/// leaves none, and a read then is not acknowledged, which is what a real part does when asked
+/// for data it does not have.
+#[napi(js_name = "CommandPart")]
+pub struct CommandPart {
+    pub(crate) inner: Commands,
+}
+
+#[napi]
+impl CommandPart {
+    /// A part answering at one address that has been given no replies yet; a command takes
+    /// `width` bytes, two unless given.
+    #[napi(constructor)]
+    pub fn new(address: u8, width: Option<u32>) -> Self {
+        CommandPart {
+            inner: Commands::new(address, width.unwrap_or(2) as usize),
+        }
+    }
+
+    /// Answers one command with a reply from now on, in place of any reply given before.
+    #[napi]
+    pub fn answer(&mut self, command: Buffer, reply: Buffer) {
+        self.inner.answer(&command, &reply);
+    }
+
+    /// Every write the part has received, oldest first: a command and any arguments after it.
+    #[napi(getter)]
+    pub fn received(&self) -> Vec<Buffer> {
+        self.inner
+            .received()
+            .iter()
+            .map(|write| Buffer::from(write.clone()))
+            .collect()
+    }
+
+    /// The address the part answers to.
+    #[napi(getter)]
+    pub fn address(&self) -> u8 {
+        self.inner.address()
+    }
+
+    /// How many transfers the part has served.
+    #[napi(getter)]
+    pub fn transfers(&self) -> u32 {
+        count(self.inner.transfers())
+    }
+}
+
 /// One transfer a script expects, and what the part answers.
 #[napi(js_name = "I2cStep")]
 pub struct I2cStep {
@@ -167,13 +279,13 @@ impl I2cBus {
             .map_err(|error| napi::Error::from_reason(error.to_string()))
     }
 
-    /// A bus of simulated parts, each answering at its own address. A later part at an
-    /// address an earlier one holds takes its place.
+    /// A bus of simulated parts of any kind, each answering at its own address. A later part
+    /// at an address an earlier one holds takes its place.
     #[napi(factory)]
-    pub fn simulated(parts: Option<Vec<&I2cPart>>) -> Self {
+    pub fn simulated(parts: Option<Vec<Either3<&I2cPart, &WordPart, &CommandPart>>>) -> Self {
         let parts = parts.unwrap_or_default();
         I2cBus {
-            inner: Bus::simulated(parts.into_iter().map(|part| part.inner.clone())),
+            inner: Bus::simulated(parts.into_iter().map(any_part)),
         }
     }
 
@@ -186,12 +298,12 @@ impl I2cBus {
         }
     }
 
-    /// Puts a copy of a part on a simulated bus, in place of any part at its address. Throws
-    /// for a bus that is not simulated.
+    /// Puts a copy of a part of any kind on a simulated bus, in place of any part at its
+    /// address. Throws for a bus that is not simulated.
     #[napi]
-    pub fn attach(&self, part: &I2cPart) -> napi::Result<()> {
+    pub fn attach(&self, part: Either3<&I2cPart, &WordPart, &CommandPart>) -> napi::Result<()> {
         self.inner
-            .attach(part.inner.clone())
+            .attach(any_part(part))
             .map(drop)
             .map_err(|error| napi::Error::from_reason(error.to_string()))
     }
@@ -234,10 +346,15 @@ impl I2cBus {
     }
 
     /// A copy of what a simulated part holds now, with whatever drivers have written to it,
-    /// or `null` when the bus is not simulated or no part holds the address.
+    /// as the class of part it is, or `null` when the bus is not simulated or no part holds
+    /// the address.
     #[napi]
-    pub fn part(&self, address: u8) -> Option<I2cPart> {
-        self.inner.part(address).map(|inner| I2cPart { inner })
+    pub fn part(&self, address: u8) -> Option<Either3<I2cPart, WordPart, CommandPart>> {
+        self.inner.part::<AnyPart>(address).map(|part| match part {
+            AnyPart::Bytes(inner) => Either3::A(I2cPart { inner }),
+            AnyPart::Words(inner) => Either3::B(WordPart { inner }),
+            AnyPart::Commands(inner) => Either3::C(CommandPart { inner }),
+        })
     }
 
     /// How many transfers have been made on the bus, by the program and every driver on it,
@@ -274,6 +391,15 @@ impl From<I2cFault> for ErrorKind {
             I2cFault::Overrun => ErrorKind::Overrun,
             I2cFault::Other => ErrorKind::Other,
         }
+    }
+}
+
+/// A copy of any simulated part as the bus holds it.
+fn any_part(part: Either3<&I2cPart, &WordPart, &CommandPart>) -> AnyPart {
+    match part {
+        Either3::A(part) => part.inner.clone().into(),
+        Either3::B(part) => part.inner.clone().into(),
+        Either3::C(part) => part.inner.clone().into(),
     }
 }
 

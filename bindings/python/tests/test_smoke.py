@@ -300,6 +300,109 @@ def test_one_bus_carries_a_driver_over_parts_a_script_or_an_adapter():
         I2cBus.open("/dev/i2c-pamoja-absent")
 
 
+def test_every_i2c_sensor_reads_its_simulated_twin_on_one_bus(tmp_path):
+    from pamoja.hal import CommandPart, I2cBus, I2cPart, WordPart
+    from pamoja import sensors as s
+
+    tmp117_at = s.tmp117.ADDRESS_ADD0_VPLUS
+    ads1115_at = s.ads1115.ADDRESS_SDA
+    opt3001_at = s.opt3001.ADDRESS_SCL
+    ina219_at = s.ina219.BASE_ADDRESS + 1
+    ina226_at = 0x45
+
+    bus = I2cBus.simulated([
+        s.bmp280.sim.reporting(s.bmp280.ADDRESS_SECONDARY, -7.5, 1003.0),
+        s.tmp117.sim.part(tmp117_at),
+        s.opt3001.sim.reporting(opt3001_at, 1200.0),
+        s.hdc1080.sim.reporting(-20.0, 12.5),
+        s.ina219.sim.part(ina219_at),
+        s.ina226.sim.reporting(ina226_at, 2, 20_000_000, 3_300_000, -10_000_000),
+        s.ads1115.sim.reporting(ads1115_at, s.Ads1115Pga.FSR_4_096, 3.0),
+        s.sht3x.sim.reporting(s.sht3x.ADDRESS_A, 30.0, 70.0),
+        s.scd4x.sim.part(),
+    ])
+
+    pressure = s.Bmp280(bus, s.bmp280.ADDRESS_SECONDARY).measure()
+    assert abs(pressure.celsius + 7.5) < 0.01
+    assert abs(pressure.hectopascals - 1003.0) < 0.01
+
+    thermometer = s.Tmp117(bus, tmp117_at, averaging=s.Tmp117Averaging.X8)
+    assert thermometer.silicon_revision is None
+    assert thermometer.measure().celsius == s.tmp117.sim.CELSIUS
+    assert thermometer.silicon_revision is not None
+    thermometer.set_alert_limits(30.0, 10.0)
+    alerts = thermometer.alerts()
+    assert (alerts.high, alerts.low) == (False, False)
+
+    light = s.Opt3001(bus, opt3001_at, conversion_time=s.Opt3001ConversionTime.MS_100)
+    assert light.measure().lux == 1200.0
+    assert light.configuration.long_conversion is False
+
+    climate = s.Hdc1080(bus)
+    air = climate.measure()
+    assert abs(air.celsius + 20.0) < 0.003
+    assert abs(air.relative_humidity - 12.5) < 0.002
+    with pytest.raises(ValueError, match="14 or 11 bits"):
+        s.Hdc1080(bus, temperature_resolution=12)
+
+    solar = s.Ina219(bus, ina219_at)
+    panel = solar.measure()
+    assert panel.bus_millivolts == s.ina219.sim.BUS_MILLIVOLTS
+    assert abs(panel.current_microamps - s.ina219.sim.MICROAMPS) < panel.current_lsb_microamps
+    assert solar.current_lsb_microamps == s.ina219.minimum_current_lsb_microamps(3_200_000)
+
+    battery = s.Ina226(bus, ina226_at, shunt_milliohms=2, max_microamps=20_000_000)
+    assert battery.identity is None
+    assert abs(battery.measure().current_amps + 10.0) < 0.001
+    assert battery.identity.device == s.ina226.DEVICE_ID
+
+    adc = s.Ads1115(bus, ads1115_at, pga=s.Ads1115Pga.FSR_4_096)
+    probe = adc.sample()
+    assert abs(probe.volts - 3.0) < 0.001
+    assert probe.pga == s.Ads1115Pga.FSR_4_096
+
+    humidity = s.Sht3x(bus, s.sht3x.ADDRESS_A, repeatability=s.Sht3xRepeatability.LOW)
+    assert abs(humidity.measure().celsius - 30.0) < 0.003
+    assert humidity.last_status.bits == s.sht3x.STATUS_DEFAULT
+    humidity.heater_on()
+
+    co2 = s.Scd4x(bus)
+    assert co2.measure().co2_ppm == s.scd4x.sim.CO2_PPM
+    assert co2.serial == s.scd4x.sim.SERIAL
+    assert co2.data_ready()
+
+    sht = bus.part(s.sht3x.ADDRESS_A)
+    assert isinstance(sht, CommandPart)
+    assert sht.received[0] == bytes([0x30, 0xA2])
+    tmp = bus.part(tmp117_at)
+    assert isinstance(tmp, WordPart)
+    assert tmp.word(s.tmp117.REGISTER_THIGH_LIMIT) == s.tmp117.raw_from_celsius(30.0) & 0xFFFF
+    assert isinstance(bus.part(s.bmp280.ADDRESS_SECONDARY), I2cPart)
+
+    words = WordPart(0x48).holding(0x01, 0x2000).read_only(0x01, 0xF000)
+    commands = CommandPart(0x44).answering(bytes([0xF3, 0x2D]), bytes([0x80, 0x10, 0xE1]))
+    handmade = I2cBus.simulated([words, commands])
+    handmade.write(0x48, bytes([0x01, 0x00, 0x20]))
+    assert handmade.write_read(0x48, bytes([0x01]), 2) == bytes([0x20, 0x20])
+    handmade.write(0x44, bytes([0xF3, 0x2D]))
+    assert handmade.read(0x44, 3) == bytes([0x80, 0x10, 0xE1])
+    with pytest.raises(PamojaError, match="no command had left a reply"):
+        handmade.read(0x44, 3)
+
+    scratchpad = s.ds18b20.build_scratchpad(21.5, 12, 75, -10)
+    text = f"{scratchpad.hex(' ')} : crc={scratchpad[8]:02x} YES\n"
+    device = tmp_path / "28-000005e2fdc3"
+    device.mkdir()
+    (device / "w1_slave").write_text(text)
+    (tmp_path / "w1_bus_master1").mkdir()
+    found = s.Ds18b20Thermometer.discover(str(tmp_path))
+    assert [probe.path.endswith("w1_slave") for probe in found] == [True]
+    assert found[0].read().micro_celsius == 21_500_000
+    assert s.ds18b20.parse_w1_slave(text).micro_celsius == 21_500_000
+    with pytest.raises(PamojaError, match="w1_slave"):
+        s.Ds18b20Thermometer.at(str(tmp_path / "28-gone" / "w1_slave")).read()
+
+
 def test_a_sensor_reading_decodes_and_checks_itself():
     from pamoja import sensors
 
