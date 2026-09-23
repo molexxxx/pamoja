@@ -8,7 +8,7 @@
 //! may move. The gate fails safe: when stopped it commands zero, and it eases back up through the
 //! limits rather than jumping.
 
-use crate::motion::{clamp, magnitude, Twist};
+use crate::motion::{cap, clamp, finite_or_zero, magnitude, Twist};
 use crate::Ramp;
 use libm::sqrtf;
 
@@ -115,14 +115,15 @@ impl Watchdog {
     ///
     /// # Arguments
     ///
-    /// * `timeout` - the allowed silence before expiry; its magnitude is used.
+    /// * `timeout` - the allowed silence before expiry; its magnitude is used, and one that is
+    ///   not a number is taken as zero, so the watchdog expires rather than never.
     ///
     /// # Returns
     ///
     /// A freshly fed watchdog.
     pub fn new(timeout: f32) -> Self {
         Self {
-            timeout: magnitude(timeout),
+            timeout: cap(timeout),
             elapsed: 0.0,
         }
     }
@@ -136,13 +137,19 @@ impl Watchdog {
     ///
     /// # Arguments
     ///
-    /// * `dt` - the time since the previous update; its magnitude is used.
+    /// * `dt` - the time since the previous update; its magnitude is used. One that is not a
+    ///   finite number means the time is unknown, and the watchdog expires until it is fed,
+    ///   since silence of unknown length is not safe to assume short.
     ///
     /// # Returns
     ///
     /// `true` if the watchdog is now expired.
     pub fn update(&mut self, dt: f32) -> bool {
-        self.elapsed += magnitude(dt);
+        if dt.is_finite() {
+            self.elapsed += magnitude(dt);
+        } else {
+            self.elapsed = f32::INFINITY;
+        }
         self.is_expired()
     }
 
@@ -196,6 +203,8 @@ impl Limits {
     /// * `max_linear_accel` - the largest change in linear speed per second; its magnitude is used.
     /// * `max_angular_accel` - the largest change in yaw rate per second; its magnitude is used.
     ///
+    /// A ceiling that is not a number is taken as zero, so a mistake holds the robot still.
+    ///
     /// # Returns
     ///
     /// Limits starting from rest.
@@ -206,10 +215,10 @@ impl Limits {
         max_angular_accel: f32,
     ) -> Self {
         Self {
-            max_linear: magnitude(max_linear),
-            max_angular: magnitude(max_angular),
-            max_linear_accel: magnitude(max_linear_accel),
-            max_angular_accel: magnitude(max_angular_accel),
+            max_linear: cap(max_linear),
+            max_angular: cap(max_angular),
+            max_linear_accel: cap(max_linear_accel),
+            max_angular_accel: cap(max_angular_accel),
             vx: Ramp::new(0.0, 0.0),
             vy: Ramp::new(0.0, 0.0),
             omega: Ramp::new(0.0, 0.0),
@@ -227,16 +236,24 @@ impl Limits {
     ///
     /// # Arguments
     ///
-    /// * `desired` - the requested body motion.
-    /// * `dt` - the time since the previous call, setting the acceleration step.
+    /// * `desired` - the requested body motion. A component that is not a finite number is
+    ///   taken as zero, so a planner that fails eases the robot to a stop.
+    /// * `dt` - the time since the previous call, setting the acceleration step. One that is
+    ///   not a finite number allows no change this call.
     ///
     /// # Returns
     ///
     /// The command after capping speed and easing toward it within the acceleration limit.
     pub fn apply(&mut self, desired: Twist, dt: f32) -> Twist {
+        let desired = Twist::new(
+            finite_or_zero(desired.vx),
+            finite_or_zero(desired.vy),
+            finite_or_zero(desired.omega),
+        );
+        let dt = if dt.is_finite() { magnitude(dt) } else { 0.0 };
         let bounded = self.clamp_speed(desired);
-        let linear_step = self.max_linear_accel * magnitude(dt);
-        let angular_step = self.max_angular_accel * magnitude(dt);
+        let linear_step = self.max_linear_accel * dt;
+        let angular_step = self.max_angular_accel * dt;
         Twist::new(
             self.vx.update_capped(bounded.vx, linear_step),
             self.vy.update_capped(bounded.vy, linear_step),
@@ -415,5 +432,40 @@ mod tests {
         gate.feed();
         gate.engage_estop();
         assert_eq!(gate.command(Twist::planar(1.0, 0.0), 0.1), Twist::zero());
+    }
+
+    #[test]
+    fn a_time_step_that_is_not_a_number_stops_the_gate_until_fed() {
+        let mut gate = SafetyGate::new(Limits::new(1.0, 2.0, 100.0, 100.0), 0.2);
+        gate.feed();
+        assert!(gate.command(Twist::planar(1.0, 0.0), 0.1).vx > 0.0);
+        assert_eq!(
+            gate.command(Twist::planar(1.0, 0.0), f32::NAN),
+            Twist::zero()
+        );
+        assert_eq!(gate.command(Twist::planar(1.0, 0.0), 0.01), Twist::zero());
+        gate.feed();
+        assert!(gate.command(Twist::planar(1.0, 0.0), 0.1).vx > 0.0);
+    }
+
+    #[test]
+    fn a_watchdog_timeout_that_is_not_a_number_expires() {
+        let mut dog = Watchdog::new(f32::NAN);
+        assert!(dog.update(0.001));
+    }
+
+    #[test]
+    fn a_command_that_is_not_a_number_eases_to_a_stop() {
+        let mut limits = Limits::new(1.0, 2.0, 0.5, 4.0);
+        limits.apply(Twist::planar(1.0, 0.0), 1.0);
+        let easing = limits.apply(Twist::new(f32::NAN, 0.0, f32::INFINITY), 1.0);
+        assert_eq!(easing, Twist::new(0.0, 0.0, 0.0));
+        assert!(limits.apply(Twist::planar(1.0, 0.0), f32::NAN).vx == 0.0);
+    }
+
+    #[test]
+    fn a_ceiling_that_is_not_a_number_holds_the_robot_still() {
+        let mut limits = Limits::new(f32::NAN, f32::NAN, 100.0, 100.0);
+        assert_eq!(limits.apply(Twist::planar(1.0, 1.0), 1.0), Twist::zero());
     }
 }

@@ -904,7 +904,21 @@ static void Helpers()
     Assert(dry.Update(42.0f) is null, "above the line nothing fires");
     Assert(dry.Update(28.0f) == Edge.Set, "crossing it fires once");
     Assert(dry.IsSet, "and the trigger reports the condition holds");
+    Assert(dry.Update(float.NaN) is null && dry.IsSet, "a reading that is not a number changes nothing");
     Assert(dry.Update(36.0f) == Edge.Cleared, "coming back past the band clears it");
+    Assert(dry.Threshold == 30.0f && dry.Hysteresis == 5.0f, "the trigger reports its line and band");
+    Assert(!dry.WatchesAbove, "a below trigger watches a falling reading");
+    using (var hot = Trigger.Above(80.0f, -2.0f))
+    {
+        Assert(hot.WatchesAbove && hot.Hysteresis == 2.0f, "an above trigger keeps its band as a magnitude");
+    }
+
+    using var pid = new Pid(2.0f, 0.5f, 0.0f);
+    float held = pid.Update(10.0f, 7.0f, 1.0f);
+    Assert(pid.Update(10.0f, float.NaN, 1.0f) == held, "a missing reading holds the last output");
+    using var capped = Pid.WithLimits(10.0f, 0.0f, 0.0f, float.NegativeInfinity, 40.0f);
+    Assert(capped.Update(100.0f, 0.0f, 1.0f) == 40.0f, "a lone upper limit clamps");
+    Assert(capped.Update(0.0f, 100.0f, 1.0f) == -1000.0f, "and leaves the low side open");
 
     using var tank = new Depletion(10.0f);
     Assert(tank.Update(100.0f) is null, "the first reading sets no rate");
@@ -1157,6 +1171,52 @@ static void SensingAndActuation()
     }
 
     Assert(anomaly.Check(900f), "a reading far outside the window is flagged");
+    Assert(anomaly.Check(float.NaN), "and so is one that is not a number");
+    Assert(anomaly.Capacity == NativeMethods.WindowCapacity, "a baseline keeps 32 unless told fewer");
+
+    using var small = new Median(3);
+    using var wide = new Median();
+    for (int i = 0; i < 10; i++)
+    {
+        small.Update(10f);
+        wide.Update(10f);
+    }
+
+    small.Update(20f);
+    wide.Update(20f);
+    Assert(small.Update(20f) == 20f, "a small median follows a real change");
+    Assert(wide.Update(20f) == 10f, "a wide one follows it late");
+    Assert(small.Capacity == 3, "and says how many readings it keeps");
+
+    using var lastFew = new Window(2);
+    foreach (float value in new[] { 1f, 2f, 3f })
+    {
+        lastFew.Push(value);
+    }
+
+    Assert(lastFew.IsFull, "a small window fills");
+    Assert(lastFew.Oldest() == 2f && lastFew.Latest() == 3f, "and drops its oldest");
+    lastFew.Push(float.NaN);
+    Assert(lastFew.Mean() == 2.5f, "a reading that is not a number is not kept");
+    Assert(new Trend(4).Capacity == 4 && new Anomaly(3f, 8).Capacity == 8, "each keeps what it is told");
+
+    ExpectCapacityRefused(() => new Median(0), "capacity must be a whole number from 1 to 32, not 0");
+    ExpectCapacityRefused(() => new Window(33), "capacity must be a whole number from 1 to 32, not 33");
+    ExpectCapacityRefused(() => new Trend(1), "capacity must be a whole number from 2 to 32, not 1");
+    ExpectCapacityRefused(() => new Anomaly(3f, 1), "capacity must be a whole number from 2 to 32, not 1");
+
+    static void ExpectCapacityRefused(Func<IDisposable> make, string message)
+    {
+        try
+        {
+            make().Dispose();
+            throw new InvalidOperationException($"expected the refusal \"{message}\"");
+        }
+        catch (ArgumentOutOfRangeException error)
+        {
+            Assert(error.Message.StartsWith(message, StringComparison.Ordinal), $"refused with \"{message}\", got \"{error.Message}\"");
+        }
+    }
 }
 
 

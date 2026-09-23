@@ -163,11 +163,16 @@ def test_helpers_carry_a_reading_through_to_an_action():
 
     dry = Trigger.below(30.0, 5.0)
     assert dry.update(42.0) is None, "above the line nothing fires"
-    assert dry.update(28.0) == Edge.SET, "crossing it fires once"
+    assert dry.update(28.0) is Edge.SET, "crossing it fires once, as the enum"
     assert dry.is_set, "and the trigger reports the condition holds"
+    assert dry.update(float("nan")) is None, "a reading that is not a number fires nothing"
+    assert dry.is_set, "and does not clear it"
     assert dry.update(33.0) is None, "inside the band it holds"
-    assert dry.update(36.0) == Edge.CLEARED, "coming back past the band clears it"
+    assert dry.update(36.0) is Edge.CLEARED, "coming back past the band clears it"
     assert dry.threshold == 30.0
+    assert dry.hysteresis == 5.0
+    assert dry.watches_above is False
+    assert Trigger.above(80.0, 2.0).watches_above is True
 
     fridge = Thermostat.cooling(8.0, 1.0)
     assert fridge.update(7.0) is False
@@ -796,6 +801,76 @@ def test_the_windowed_helpers_summarize_recent_readings():
     for _ in range(8):
         anomaly.check(20.0)
     assert anomaly.check(900.0)
+    assert anomaly.check(float("nan")), "a reading that is not a number is flagged"
+    assert anomaly.capacity == WINDOW_CAPACITY
+
+
+def test_a_windowed_helper_keeps_as_many_readings_as_it_is_told():
+    import math
+
+    from pamoja.kit import Anomaly, Median, Trend, Window
+
+    small = Median(3)
+    wide = Median()
+    for _ in range(10):
+        small.update(10.0)
+        wide.update(10.0)
+    small.update(20.0)
+    wide.update(20.0)
+    assert small.update(20.0) == 20.0, "a small median follows a real change"
+    assert wide.update(20.0) == 10.0, "a wide one follows it late"
+    assert small.capacity == 3
+
+    last_few = Window(2)
+    for value in (1.0, 2.0, 3.0):
+        last_few.push(value)
+    assert last_few.is_full
+    assert last_few.oldest() == 2.0, "a full window drops its oldest"
+    assert last_few.latest() == 3.0
+    last_few.push(math.nan)
+    assert last_few.mean() == 2.5, "a reading that is not a number is not kept"
+    assert Window().latest() is None
+
+    assert Trend(4).capacity == 4
+    assert Anomaly(3.0, 8).capacity == 8
+    with pytest.raises(ValueError, match="capacity must be a whole number from 1 to 32, not 0"):
+        Median(0)
+    with pytest.raises(ValueError, match="from 1 to 32, not 33"):
+        Window(33)
+    with pytest.raises(ValueError, match="from 2 to 32, not 1"):
+        Trend(1)
+    with pytest.raises(ValueError, match="from 2 to 32, not 1"):
+        Anomaly(3.0, 1)
+    with pytest.raises(TypeError):
+        Window(2.5)
+
+
+def test_control_helpers_hold_their_state_through_a_bad_reading():
+    import math
+
+    from pamoja.kit import Debounce, Kalman, Pid, Smoother
+
+    pid = Pid(2.0, 0.5, 0.0)
+    before = pid.update(10.0, 7.0, 1.0)
+    assert pid.update(10.0, math.nan, 1.0) == before, "a missing reading holds the last output"
+    assert math.isfinite(pid.update(10.0, 7.0, 1.0)), "and does not poison the controller"
+
+    capped = Pid(10.0, 0.0, 0.0, max=40.0)
+    assert capped.update(100.0, 0.0, 1.0) == 40.0, "a lone upper limit still clamps"
+    assert capped.update(0.0, 100.0, 1.0) == -1000.0, "and leaves the other side open"
+    floored = Pid(10.0, 0.0, 0.0, min=0.0)
+    assert floored.update(0.0, 100.0, 1.0) == 0.0, "a lone lower limit clamps too"
+
+    smoother = Smoother(0.5)
+    smoother.update(10.0)
+    assert smoother.update(math.nan) == 10.0
+    assert Kalman(0.01, 0.0, 5.0).update(8.0) == 8.0, "a noiseless sensor is trusted outright"
+
+    assert Debounce(3, True).state is True
+    with pytest.raises(ValueError, match="samples must be a whole number from 0 to 65535, not -1"):
+        Debounce(-1, False)
+    with pytest.raises(ValueError, match="not 70000"):
+        Debounce(70000, False)
 
 
 def test_a_signed_chain_records_what_a_node_did():

@@ -28,7 +28,8 @@ impl Depletion {
     ///
     /// # Arguments
     ///
-    /// * `threshold` - the low level to predict reaching, such as an empty tank.
+    /// * `threshold` - the low level to predict reaching, such as an empty tank. One that is
+    ///   not a number never reports.
     ///
     /// # Returns
     ///
@@ -42,6 +43,9 @@ impl Depletion {
 
     /// Records a reading and estimates the samples until the threshold is reached.
     ///
+    /// A level that is not a finite number, such as the NaN a failed sensor reports, is
+    /// ignored and reports nothing.
+    ///
     /// # Arguments
     ///
     /// * `level` - the latest measured level.
@@ -53,6 +57,13 @@ impl Depletion {
     /// fall; or `None` if the level is steady or rising, or if this is the first
     /// reading and no rate is known yet.
     pub fn update(&mut self, level: f32) -> Option<u32> {
+        if !level.is_finite() {
+            return None;
+        }
+        if self.threshold.is_nan() {
+            self.last = Some(level);
+            return None;
+        }
         let estimate = if level <= self.threshold {
             Some(0)
         } else {
@@ -135,5 +146,21 @@ mod tests {
         let mut tank = Depletion::new(-1e10);
         tank.update(2.0);
         assert_eq!(tank.update(1.0), Some(u32::MAX));
+    }
+
+    #[test]
+    fn a_level_that_is_not_a_number_is_ignored() {
+        let mut tank = Depletion::new(0.0);
+        assert_eq!(tank.update(10.0), None);
+        assert_eq!(tank.update(f32::NAN), None);
+        assert_eq!(tank.update(f32::NEG_INFINITY), None);
+        assert_eq!(tank.update(8.0), Some(4));
+    }
+
+    #[test]
+    fn a_threshold_that_is_not_a_number_never_reports() {
+        let mut tank = Depletion::new(f32::NAN);
+        assert_eq!(tank.update(10.0), None);
+        assert_eq!(tank.update(8.0), None);
     }
 }

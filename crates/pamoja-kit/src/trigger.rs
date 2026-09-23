@@ -50,9 +50,10 @@ impl Trigger {
     ///
     /// # Arguments
     ///
-    /// * `threshold` - the line a rising reading crosses.
+    /// * `threshold` - the line a rising reading crosses. One that is not a number never
+    ///   fires.
     /// * `hysteresis` - how far below the line the reading must fall to clear; its
-    ///   magnitude is used.
+    ///   magnitude is used, and one that is not a number is taken as zero.
     ///
     /// # Returns
     ///
@@ -73,9 +74,10 @@ impl Trigger {
     ///
     /// # Arguments
     ///
-    /// * `threshold` - the line a falling reading crosses.
+    /// * `threshold` - the line a falling reading crosses. One that is not a number never
+    ///   fires.
     /// * `hysteresis` - how far above the line the reading must rise to clear; its
-    ///   magnitude is used.
+    ///   magnitude is used, and one that is not a number is taken as zero.
     ///
     /// # Returns
     ///
@@ -91,6 +93,9 @@ impl Trigger {
 
     /// Feeds a reading in and reports whether it changed the trigger's state.
     ///
+    /// A reading that is not a finite number, such as the NaN a failed sensor reports, is
+    /// ignored: it neither sets nor clears the trigger.
+    ///
     /// # Arguments
     ///
     /// * `reading` - the latest measured value.
@@ -100,6 +105,9 @@ impl Trigger {
     /// [`Edge::Set`] the moment the reading crosses the line, [`Edge::Cleared`] the
     /// moment it comes back past the release band, and `None` while nothing changed.
     pub fn update(&mut self, reading: f32) -> Option<Edge> {
+        if !reading.is_finite() {
+            return None;
+        }
         let crossed = if self.above {
             reading > self.threshold
         } else {
@@ -158,9 +166,12 @@ impl Trigger {
     }
 }
 
-// `f32::abs` lives in `std`, so this `no_std` crate takes the magnitude by hand.
+// The magnitude of a hysteresis, taken by hand because `f32::abs` lives in `std`, with one
+// that is not a number read as zero.
 fn magnitude(value: f32) -> f32 {
-    if value < 0.0 {
+    if value.is_nan() {
+        0.0
+    } else if value < 0.0 {
         -value
     } else {
         value
@@ -213,5 +224,24 @@ mod tests {
         assert_eq!(line.update(1.7), None);
         assert_eq!(line.update(1.0), None); // on the line: holds
         assert_eq!(line.update(0.5), Some(Edge::Cleared));
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_neither_sets_nor_clears() {
+        let mut hot = Trigger::above(30.0, 2.0);
+        assert_eq!(hot.update(f32::INFINITY), None);
+        assert!(!hot.is_set());
+        assert_eq!(hot.update(31.0), Some(Edge::Set));
+        assert_eq!(hot.update(f32::NAN), None);
+        assert_eq!(hot.update(f32::NEG_INFINITY), None);
+        assert!(hot.is_set());
+    }
+
+    #[test]
+    fn a_hysteresis_that_is_not_a_number_is_taken_as_zero() {
+        let mut hot = Trigger::above(30.0, f32::NAN);
+        assert_eq!(hot.hysteresis(), 0.0);
+        assert_eq!(hot.update(31.0), Some(Edge::Set));
+        assert_eq!(hot.update(29.0), Some(Edge::Cleared));
     }
 }

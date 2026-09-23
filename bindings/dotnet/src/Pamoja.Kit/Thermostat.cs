@@ -10,7 +10,7 @@ public sealed class Thermostat : IDisposable
 
     private Thermostat(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_thermostat_free, "thermostat");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_thermostat_free, "thermostat", serialized: true);
     }
 
     /// <summary>Creates a cooling thermostat, which switches on when the reading rises.</summary>

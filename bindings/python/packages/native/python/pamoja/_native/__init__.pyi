@@ -933,15 +933,26 @@ class AlertReport:
 @typing.final
 class Anomaly:
     r"""
-    Flags a reading that stands out from the ones around it.
+    Flags a reading that stands out from the ones before it.
     """
-    def __new__(cls, sigmas: builtins.float) -> Anomaly:
+    @property
+    def capacity(self) -> builtins.int:
         r"""
-        Creates a detector that flags a reading `sigmas` deviations from the mean.
+        How many readings the baseline keeps.
+        """
+    def __new__(cls, sigmas: builtins.float, capacity: typing.Optional[builtins.int] = None) -> Anomaly:
+        r"""
+        Creates a detector that flags a reading `sigmas` deviations from the mean of up to
+        `capacity` readings before it, 32 unless told fewer.
+        
+        A spread needs two readings, so `capacity` is at least 2.
         """
     def check(self, reading: builtins.float) -> builtins.bool:
         r"""
         Folds a reading in and reports whether it stands out.
+        
+        Nothing is flagged before two readings are held; from the third on, a reading can
+        be, and one that is not a finite number always is.
         """
 
 @typing.final
@@ -2344,6 +2355,8 @@ class Debounce:
     def __new__(cls, samples: builtins.int, initial: builtins.bool) -> Debounce:
         r"""
         Creates a debouncer needing `samples` agreeing readings to change state.
+        
+        `samples` is a whole number from 0 to 65535; anything else raises `ValueError`.
         """
     def update(self, raw: builtins.bool) -> builtins.bool:
         r"""
@@ -2390,8 +2403,9 @@ class Depletion:
         r"""
         Records a level and returns the samples left before the threshold.
         
-        Returns `None` while the level is steady or rising, and on the first
-        reading, when no rate of fall is known yet.
+        Returns 0 once the level is at or below the threshold, the first reading included,
+        and `None` while the level is steady or rising, or on a first reading above it,
+        when no rate of fall is known yet.
         """
 
 @typing.final
@@ -8117,9 +8131,17 @@ class Median:
         r"""
         The current median, or ``None`` before the first reading.
         """
-    def __new__(cls) -> Median:
+    @property
+    def capacity(self) -> builtins.int:
         r"""
-        Creates an empty median filter.
+        How many readings the filter keeps.
+        """
+    def __new__(cls, capacity: typing.Optional[builtins.int] = None) -> Median:
+        r"""
+        Creates an empty median filter over up to `capacity` readings, 32 unless told fewer.
+        
+        A small odd window, such as 5, follows a real change in a few readings; a window of
+        32 follows it 16 readings late.
         """
     def update(self, reading: builtins.float) -> builtins.float:
         r"""
@@ -8877,6 +8899,8 @@ class Pid:
     def __new__(cls, kp: builtins.float, ki: builtins.float, kd: builtins.float, *, min: typing.Optional[builtins.float] = None, max: typing.Optional[builtins.float] = None) -> Pid:
         r"""
         Creates a controller with the given gains, optionally clamping its output.
+        
+        Either limit may be given alone; the side left out is open.
         """
     def update(self, setpoint: builtins.float, measurement: builtins.float, dt: builtins.float) -> builtins.float:
         r"""
@@ -8884,7 +8908,7 @@ class Pid:
         """
     def reset(self) -> None:
         r"""
-        Clears the accumulated integral and last error.
+        Clears the accumulated integral, the last error, and the last output.
         """
 
 @typing.final
@@ -10232,16 +10256,16 @@ class Surge:
     @staticmethod
     def rising(limit: builtins.float) -> Surge:
         r"""
-        Creates a detector for rises of at least `limit` between readings.
+        Creates a detector for rises of more than `limit` between readings.
         """
     @staticmethod
     def falling(limit: builtins.float) -> Surge:
         r"""
-        Creates a detector for falls of at least `limit` between readings.
+        Creates a detector for falls of more than `limit` between readings.
         """
     def update(self, value: builtins.float) -> typing.Optional[builtins.float]:
         r"""
-        Feeds a value in and returns the size of a qualifying step, or `None`.
+        Feeds a value in and returns the size of a step past the limit, or `None`.
         """
 
 @typing.final
@@ -10544,7 +10568,7 @@ class Thermostat:
     @property
     def is_on(self) -> builtins.bool:
         r"""
-        Whether the load should currently be on.
+        Whether the load is on, as the last reading left it.
         """
     @staticmethod
     def cooling(setpoint: builtins.float, hysteresis: builtins.float) -> Thermostat:
@@ -10762,16 +10786,25 @@ class Tmp117Reading:
 @typing.final
 class Trend:
     r"""
-    Fits a line through recent readings, so a slow drift shows before it matters.
+    Fits a line through recent readings, so a slow drift is visible before it matters.
     """
     @property
     def slope(self) -> typing.Optional[builtins.float]:
         r"""
-        The fitted slope in units per reading, or ``None`` without enough readings.
+        The fitted slope in units per reading, or ``None`` without two readings.
+        
+        A positive slope is a rising signal.
         """
-    def __new__(cls) -> Trend:
+    @property
+    def capacity(self) -> builtins.int:
         r"""
-        Creates an empty trend estimator.
+        How many readings the estimator keeps.
+        """
+    def __new__(cls, capacity: typing.Optional[builtins.int] = None) -> Trend:
+        r"""
+        Creates an empty trend estimator over up to `capacity` readings, 32 unless told fewer.
+        
+        A line needs two readings, so `capacity` is at least 2.
         """
     def push(self, reading: builtins.float) -> None:
         r"""
@@ -10785,8 +10818,8 @@ class Trigger:
     the release band.
     
     `update` answers `"set"` the moment the reading crosses the line, `"cleared"` the
-    moment it comes back past the band, and `None` while nothing changed; the facade's
-    `Edge` enum names the two.
+    moment it comes back past the band, and `None` while nothing changed; the facade
+    wraps the two in its `Edge` enum.
     """
     @property
     def is_set(self) -> builtins.bool:
@@ -10802,6 +10835,11 @@ class Trigger:
     def hysteresis(self) -> builtins.float:
         r"""
         The release band on the far side of the line.
+        """
+    @property
+    def watches_above(self) -> builtins.bool:
+        r"""
+        Whether the trigger watches a rising reading, as `above` makes it.
         """
     @staticmethod
     def above(threshold: builtins.float, hysteresis: builtins.float) -> Trigger:
@@ -10913,13 +10951,18 @@ class Window:
     A rolling window of the most recent readings, with the stats over them.
     """
     @property
+    def is_full(self) -> builtins.bool:
+        r"""
+        Whether the window holds as many readings as it keeps.
+        """
+    @property
     def capacity(self) -> builtins.int:
         r"""
         How many readings the window holds before it starts dropping.
         """
-    def __new__(cls) -> Window:
+    def __new__(cls, capacity: typing.Optional[builtins.int] = None) -> Window:
         r"""
-        Creates an empty window.
+        Creates an empty window that keeps up to `capacity` readings, 32 unless told fewer.
         """
     def push(self, reading: builtins.float) -> None:
         r"""
@@ -10928,6 +10971,14 @@ class Window:
     def __len__(self) -> builtins.int:
         r"""
         How many readings the window holds.
+        """
+    def latest(self) -> typing.Optional[builtins.float]:
+        r"""
+        The most recent reading, or ``None`` while the window is empty.
+        """
+    def oldest(self) -> typing.Optional[builtins.float]:
+        r"""
+        The oldest reading still held, or ``None`` while the window is empty.
         """
     def mean(self) -> typing.Optional[builtins.float]:
         r"""
@@ -10943,11 +10994,11 @@ class Window:
         """
     def range(self) -> typing.Optional[builtins.float]:
         r"""
-        The spread between the smallest and largest readings.
+        The spread between the smallest and largest readings, or ``None`` while empty.
         """
     def variance(self) -> typing.Optional[builtins.float]:
         r"""
-        The variance of the readings, or ``None`` without enough of them.
+        The population variance of the readings, 0 for one reading, or ``None`` while empty.
         """
 
 @typing.final
@@ -11276,7 +11327,8 @@ def cobs_max_encoded_len(payload_len: builtins.int) -> builtins.int:
 
 def deadband(value: builtins.float, center: builtins.float, width: builtins.float) -> builtins.float:
     r"""
-    Suppresses movement within `width` of `center`, so noise does not act.
+    Holds `value` at `center` while it stays within `width` either side, and passes it
+    through unchanged once it is further out.
     """
 
 def decode_delta_samples(bytes: typing.Sequence[builtins.int]) -> builtins.list[builtins.int]:
@@ -13387,6 +13439,6 @@ def version() -> builtins.str:
 
 def window_capacity() -> builtins.int:
     r"""
-    The number of readings a windowed helper keeps.
+    The most readings a windowed helper keeps, and the number it keeps unless told fewer.
     """
 

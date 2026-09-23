@@ -38,9 +38,11 @@ impl Kalman {
     /// # Arguments
     ///
     /// * `process_noise` - how much the true value may change between readings; larger
-    ///   tracks faster, smaller smooths harder. Its magnitude is used.
+    ///   tracks faster, smaller smooths harder. Its magnitude is used, and one that is not a
+    ///   finite number is taken as zero.
     /// * `measurement_noise` - how noisy each reading is; larger trusts readings less. Its
-    ///   magnitude is used.
+    ///   magnitude is used, and one that is not a finite number is taken as zero, which
+    ///   trusts every reading.
     /// * `initial` - the starting estimate, used until the first reading replaces it.
     ///
     /// # Returns
@@ -50,15 +52,17 @@ impl Kalman {
         Self {
             estimate: initial,
             error: 1.0,
-            process: magnitude(process_noise),
-            measurement: magnitude(measurement_noise),
+            process: noise(process_noise),
+            measurement: noise(measurement_noise),
             started: false,
         }
     }
 
     /// Folds in a reading and returns the updated estimate.
     ///
-    /// The first reading seeds the estimate and is returned unchanged.
+    /// The first reading seeds the estimate and is returned unchanged. A reading that is not
+    /// a finite number, such as the NaN a failed sensor reports, is ignored and the estimate
+    /// returned as it stood.
     ///
     /// # Arguments
     ///
@@ -68,13 +72,20 @@ impl Kalman {
     ///
     /// The filtered estimate after this reading.
     pub fn update(&mut self, reading: f32) -> f32 {
+        if !reading.is_finite() {
+            return self.estimate;
+        }
         if !self.started {
             self.estimate = reading;
             self.started = true;
             return self.estimate;
         }
         let predicted_error = self.error + self.process;
-        let gain = predicted_error / (predicted_error + self.measurement);
+        let gain = if self.measurement == 0.0 {
+            1.0
+        } else {
+            predicted_error / (predicted_error + self.measurement)
+        };
         self.estimate += gain * (reading - self.estimate);
         self.error = (1.0 - gain) * predicted_error;
         self.estimate
@@ -86,9 +97,12 @@ impl Kalman {
     }
 }
 
-// `f32::abs` lives in `std`, so this `no_std` crate takes the magnitude by hand.
-fn magnitude(value: f32) -> f32 {
-    if value < 0.0 {
+// The magnitude of a noise, taken by hand because `f32::abs` lives in `std`, with one that
+// is not a finite number read as zero.
+fn noise(value: f32) -> f32 {
+    if !value.is_finite() {
+        0.0
+    } else if value < 0.0 {
         -value
     } else {
         value
@@ -131,5 +145,30 @@ mod tests {
         let mut kalman = Kalman::new(1.0, 0.0, 0.0);
         kalman.update(5.0); // seeds
         assert_eq!(kalman.update(8.0), 8.0); // full trust in the reading
+    }
+
+    #[test]
+    fn no_noise_at_all_still_gives_a_number() {
+        let mut kalman = Kalman::new(0.0, 0.0, 0.0);
+        for reading in [5.0, 6.0, 7.0, 8.0] {
+            assert_eq!(kalman.update(reading), reading);
+        }
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_leaves_the_estimate_where_it_was() {
+        let mut kalman = Kalman::new(0.1, 1.0, 0.0);
+        let settled = kalman.update(10.0);
+        assert_eq!(kalman.update(f32::NAN), settled);
+        assert_eq!(kalman.update(f32::NEG_INFINITY), settled);
+        assert!(kalman.update(11.0).is_finite());
+        assert_eq!(Kalman::new(0.1, 1.0, 3.0).update(f32::NAN), 3.0);
+    }
+
+    #[test]
+    fn a_noise_that_is_not_a_number_is_taken_as_zero() {
+        let mut kalman = Kalman::new(f32::NAN, f32::INFINITY, 0.0);
+        kalman.update(5.0);
+        assert_eq!(kalman.update(8.0), 8.0);
     }
 }

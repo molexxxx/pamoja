@@ -147,6 +147,25 @@ pub(crate) fn magnitude(value: f32) -> f32 {
     }
 }
 
+// The magnitude of a ceiling a robot moves within, with one that is not a number read as zero,
+// which holds the robot still rather than setting no limit.
+pub(crate) fn cap(value: f32) -> f32 {
+    if value.is_nan() {
+        0.0
+    } else {
+        magnitude(value)
+    }
+}
+
+// A commanded component that is not a finite number, read as zero so the robot stops.
+pub(crate) fn finite_or_zero(value: f32) -> f32 {
+    if value.is_finite() {
+        value
+    } else {
+        0.0
+    }
+}
+
 // `f32::clamp` lives in `std`; clamp by hand. Callers pass `low <= high`.
 pub(crate) fn clamp(value: f32, low: f32, high: f32) -> f32 {
     if value < low {

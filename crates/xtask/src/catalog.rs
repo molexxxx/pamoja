@@ -126,7 +126,10 @@ impl Catalog {
                 next: optional_strings(table, "next", &context)?,
                 pages: optional_strings(table, "pages", &context)?,
                 rust_items,
-                rust_crate: table.get("rust_crate").and_then(Item::as_str).map(str::to_owned),
+                rust_crate: table
+                    .get("rust_crate")
+                    .and_then(Item::as_str)
+                    .map(str::to_owned),
                 key,
             });
         }
@@ -1811,7 +1814,10 @@ crate = "pamoja"
     fn a_capability_with_no_crate_names_its_rust_items() {
         let bare = SAMPLE.replace("rust_items = [\"Transport\", \"Receive\"]\n", "");
         let refused = Catalog::parse(&bare).err().unwrap();
-        assert!(refused.contains("capability transport has no crate"), "{refused}");
+        assert!(
+            refused.contains("capability transport has no crate"),
+            "{refused}"
+        );
     }
 
     #[test]

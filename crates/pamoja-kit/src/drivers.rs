@@ -76,8 +76,12 @@ impl ServoMap {
     ///
     /// # Returns
     ///
-    /// The pulse width in microseconds.
+    /// The pulse width in microseconds, or 0, no pulse at all, for an angle that is not a
+    /// number, so a driver that writes it stops commanding the servo rather than moving it.
     pub fn pulse(&self, angle_deg: f32) -> u16 {
+        if angle_deg.is_nan() {
+            return 0;
+        }
         let span_us = self.max_us as f32 - self.min_us as f32;
         let fraction = if self.range_deg == 0.0 {
             0.0
@@ -101,7 +105,12 @@ impl ServoMap {
         if span_us == 0.0 {
             return 0.0;
         }
-        let p = clamp(pulse_us as f32, self.min_us as f32, self.max_us as f32);
+        let (low, high) = if self.min_us <= self.max_us {
+            (self.min_us, self.max_us)
+        } else {
+            (self.max_us, self.min_us)
+        };
+        let p = clamp(pulse_us as f32, low as f32, high as f32);
         (p - self.min_us as f32) / span_us * self.range_deg
     }
 }
@@ -171,9 +180,14 @@ impl Esc {
     ///
     /// # Returns
     ///
-    /// The pulse width in microseconds.
+    /// The pulse width in microseconds, or the neutral one, which stops the motor, for a
+    /// throttle that is not a number.
     pub fn pulse(&self, throttle: f32) -> u16 {
-        let t = clamp(throttle, -1.0, 1.0);
+        let t = if throttle.is_nan() {
+            0.0
+        } else {
+            clamp(throttle, -1.0, 1.0)
+        };
         let span = if t >= 0.0 {
             self.max_us as f32 - self.neutral_us as f32
         } else {
@@ -373,6 +387,24 @@ mod tests {
         assert_eq!(esc.pulse(-1.0), 1000);
         assert_eq!(esc.pulse(0.5), 1750);
         assert_eq!(esc.pulse(-2.0), 1000); // clamped
+    }
+
+    #[test]
+    fn a_throttle_that_is_not_a_number_is_neutral() {
+        assert_eq!(Esc::bidirectional().pulse(f32::NAN), 1500);
+    }
+
+    #[test]
+    fn an_angle_that_is_not_a_number_gives_no_pulse() {
+        assert_eq!(ServoMap::standard().pulse(f32::NAN), 0);
+    }
+
+    #[test]
+    fn a_reversed_servo_reads_its_angle_back() {
+        let reversed = ServoMap::new(2000, 1000, 180.0);
+        assert_eq!(reversed.pulse(0.0), 2000);
+        assert!((reversed.angle(1500) - 90.0).abs() < 1e-3);
+        assert!((reversed.angle(1250) - 135.0).abs() < 1e-3);
     }
 
     #[test]

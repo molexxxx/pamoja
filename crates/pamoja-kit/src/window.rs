@@ -11,6 +11,12 @@
 /// The population [`variance`](Window::variance) is given directly; the standard deviation
 /// is its square root, left to the caller so the type stays dependency-free. Capacity `N`
 /// should be at least one; a zero-capacity window simply holds nothing.
+/// [`with_capacity`](Window::with_capacity) keeps fewer than `N`, for a window sized at run
+/// time.
+///
+/// A reading that is not a finite number, such as the NaN a failed sensor reports, is not
+/// kept, so one bad reading cannot turn the mean into NaN for as long as it stays in the
+/// window.
 ///
 /// # Examples
 ///
@@ -31,6 +37,7 @@
 #[derive(Clone, Copy, Debug)]
 pub struct Window<const N: usize> {
     samples: [f32; N],
+    capacity: usize,
     len: usize,
     next: usize,
 }
@@ -42,8 +49,25 @@ impl<const N: usize> Window<N> {
     ///
     /// A window holding no readings yet.
     pub fn new() -> Self {
+        Self::with_capacity(N)
+    }
+
+    /// Creates an empty window that keeps at most `capacity` readings.
+    ///
+    /// The storage is still `N` readings; this is how a window sized at run time, such as
+    /// one a configuration chooses, keeps fewer.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - the most readings to keep. One above `N` is taken as `N`.
+    ///
+    /// # Returns
+    ///
+    /// A window holding no readings yet.
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             samples: [0.0; N],
+            capacity: capacity.min(N),
             len: 0,
             next: 0,
         }
@@ -53,19 +77,19 @@ impl<const N: usize> Window<N> {
     ///
     /// # Arguments
     ///
-    /// * `reading` - the value to record.
+    /// * `reading` - the value to record. One that is not a finite number is not kept.
     pub fn push(&mut self, reading: f32) {
-        if N == 0 {
+        if self.capacity == 0 || !reading.is_finite() {
             return;
         }
         self.samples[self.next] = reading;
-        self.next = (self.next + 1) % N;
-        if self.len < N {
+        self.next = (self.next + 1) % self.capacity;
+        if self.len < self.capacity {
             self.len += 1;
         }
     }
 
-    /// Returns the number of readings currently held, at most `N`.
+    /// Returns the number of readings currently held, at most the capacity.
     pub fn len(&self) -> usize {
         self.len
     }
@@ -75,14 +99,15 @@ impl<const N: usize> Window<N> {
         self.len == 0
     }
 
-    /// Returns `true` if the window holds its full capacity of `N` readings.
+    /// Returns `true` if the window holds as many readings as its capacity.
     pub fn is_full(&self) -> bool {
-        self.len == N
+        self.len == self.capacity
     }
 
-    /// Returns the window's capacity, `N`.
+    /// Returns the most readings the window keeps: `N`, or less when made with
+    /// [`with_capacity`](Window::with_capacity).
     pub fn capacity(&self) -> usize {
-        N
+        self.capacity
     }
 
     /// Returns the most recent reading, or [`None`] if the window is empty.
@@ -90,7 +115,7 @@ impl<const N: usize> Window<N> {
         if self.len == 0 {
             return None;
         }
-        Some(self.samples[(self.next + N - 1) % N])
+        Some(self.samples[(self.next + self.capacity - 1) % self.capacity])
     }
 
     /// Returns the oldest reading still held, or [`None`] if the window is empty.
@@ -219,6 +244,31 @@ mod tests {
         assert_eq!(window.latest(), Some(40.0));
         assert_eq!(window.min(), Some(20.0));
         assert_eq!(window.max(), Some(40.0));
+    }
+
+    #[test]
+    fn a_smaller_capacity_keeps_fewer_readings() {
+        let mut window = Window::<32>::with_capacity(3);
+        for reading in [10.0, 20.0, 30.0, 40.0] {
+            window.push(reading);
+        }
+        assert_eq!(window.capacity(), 3);
+        assert!(window.is_full());
+        assert_eq!(window.oldest(), Some(20.0));
+        assert_eq!(window.latest(), Some(40.0));
+        assert_eq!(Window::<4>::with_capacity(9).capacity(), 4);
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_not_kept() {
+        let mut window = Window::<4>::new();
+        window.push(2.0);
+        window.push(f32::NAN);
+        window.push(f32::INFINITY);
+        window.push(4.0);
+        assert_eq!(window.len(), 2);
+        assert_eq!(window.mean(), Some(3.0));
+        assert_eq!(window.max(), Some(4.0));
     }
 
     #[test]

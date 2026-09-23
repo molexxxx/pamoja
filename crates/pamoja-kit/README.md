@@ -50,18 +50,21 @@ The first helpers cover the jobs the cookbook leans on most:
   (min, max, range, mean, population variance).
 - `units` - convert a reading to the unit a person reads (Celsius and Fahrenheit,
   pascals to hPa/kPa/psi, ratio and percent).
-- `DiffDrive`, `Ackermann`, `SkidSteer`, `Mecanum` - wheel kinematics for the common
-  differential, car-like, skid-steer, and omnidirectional chassis (behind `robotics`).
+- `DiffDrive` - wheel speeds for a two-wheeled differential chassis, and back.
+- `Ackermann`, `SkidSteer`, `Mecanum` - wheel kinematics for the car-like, skid-steer,
+  and omnidirectional chassis (behind `robotics`).
 - `TwoLinkArm` / `forward_kinematics` - manipulator kinematics: the planar two-link inverse,
-  and Denavit-Hartenberg forward kinematics for any serial arm.
-- `Odometry` - dead-reckon a `Pose` from a body motion or wheel deltas, exact-arc.
+  and Denavit-Hartenberg forward kinematics for any serial arm (behind `robotics`).
+- `Odometry` - dead-reckon a `Pose` from a body motion or wheel deltas, exact-arc (behind
+  `robotics`).
 - `WaypointFollower` / `obstacle_stop` - steer toward a waypoint and stop for an obstacle
   (behind `robotics` and `geo`).
 - `SafetyGate` - the gate every motion command passes through: emergency `EStop`, deadman
-  `Watchdog`, and bounded motion (`Limits`).
+  `Watchdog`, and bounded motion (`Limits`) (behind `robotics`).
 - `ServoMap` / `Esc` / `Quadrature` / `QuadratureScale` - servo and ESC pulse widths
-  and quadrature-encoder decoding.
-- `Twist` / `Pose` - the shared body-velocity and world-pose types the robotics helpers use.
+  and quadrature-encoder decoding (behind `robotics`).
+- `Twist` / `Pose` - the shared body-velocity and world-pose types the robotics helpers use
+  (behind `robotics`).
 - `Coordinate` / `Geofence` - great-circle distance and bearing, and leaving a safe
   area (behind the default `geo` feature).
 - `imu` - roll and pitch from a three-axis accelerometer (behind the `imu` feature).
@@ -73,6 +76,22 @@ math and can be turned off on the most constrained targets; the waypoint guidanc
 
 The crate is `no_std` and allocation-free, so the same helpers run on a
 microcontroller and on a server.
+
+# Readings that are not numbers
+
+A sensor that fails often reports NaN, and one NaN or infinity folded into an average, an
+integral, or a window stays there. So every helper that keeps state ignores a reading that
+is not a finite number: its state does not change, a helper that answers with a value
+answers with the one it already held, and one that reports events, such as `Trigger`,
+`Surge`, and `Depletion`, reports none. `Anomaly` is the exception, since such a
+reading is the clearest anomaly there is, and flags it.
+
+The motion helpers fail safe instead: a range that is not a number is an obstacle, a lost
+fix or heading stops the waypoint follower, and a time step that is not a number stops
+the `SafetyGate`. A helper that ignores a reading holds its last decision, so a
+thermostat that was heating keeps heating while its probe reads NaN; a node that must fail
+safe checks its readings itself. Helpers that keep no state, such as `deadband` and
+`Calibration::apply`, return NaN for NaN, as arithmetic does.
 
 **Examples**
 

@@ -767,9 +767,9 @@ function windowedVectors() {
     trend.push(reading);
     const want = vector.trend.slopes[index];
     if (want === null) {
-      assert.strictEqual(trend.slope(), null, "no slope without enough readings");
+      assert.strictEqual(trend.slope, null, "no slope without enough readings");
     } else {
-      close(trend.slope(), want, "trend slope", 1e-4);
+      close(trend.slope, want, "trend slope", 1e-4);
     }
   });
 

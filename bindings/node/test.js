@@ -14,6 +14,8 @@ const {
   unpackSamples,
   Quantizer,
   Smoother,
+  Pid,
+  Debounce,
   Thermostat,
   Trigger,
   Edge,
@@ -204,17 +206,17 @@ function codecs() {
 // The helper math a field node runs between reading a sensor and acting on it.
 function helpers() {
   const smoother = new Smoother(0.5);
-  assert.strictEqual(smoother.value(), null, "a fresh smoother has no value");
+  assert.strictEqual(smoother.value, null, "a fresh smoother has no value");
   smoother.update(10);
   const smoothed = smoother.update(20);
   assert.ok(smoothed > 10 && smoothed < 20, "smoothing should lag the step");
   smoother.reset();
-  assert.strictEqual(smoother.value(), null, "reset should clear the value");
+  assert.strictEqual(smoother.value, null, "reset should clear the value");
 
   const dry = Trigger.below(30, 5);
   assert.strictEqual(dry.update(42), null, "above the line nothing fires");
   assert.strictEqual(dry.update(28), Edge.Set, "crossing it fires once");
-  assert.ok(dry.isSet(), "and the trigger reports the condition holds");
+  assert.ok(dry.isSet, "and the trigger reports the condition holds");
   assert.strictEqual(dry.update(33), null, "inside the band it holds");
   assert.strictEqual(dry.update(36), Edge.Cleared, "coming back past the band clears it");
   assert.strictEqual(dry.threshold, 30);
@@ -222,7 +224,7 @@ function helpers() {
   const fridge = Thermostat.cooling(8, 1);
   assert.ok(!fridge.update(7), "a cool fridge leaves the compressor off");
   assert.ok(fridge.update(9.5), "a warm fridge switches the compressor on");
-  assert.ok(fridge.isOn());
+  assert.ok(fridge.isOn);
 
   const tank = new Depletion(10);
   assert.strictEqual(tank.update(100), null, "the first reading sets no rate");
@@ -902,11 +904,51 @@ function sensingAndActuation() {
 
   const trend = new Trend();
   [1, 2, 3, 4].forEach((value) => trend.push(value));
-  assert.ok(Math.abs(trend.slope() - 1) < 1e-4, "a rising signal has a positive slope");
+  assert.ok(Math.abs(trend.slope - 1) < 1e-4, "a rising signal has a positive slope");
 
   const anomaly = new Anomaly(3);
   for (let i = 0; i < 8; i += 1) anomaly.check(20);
   assert.ok(anomaly.check(900), "a reading far outside the window is flagged");
+  assert.ok(anomaly.check(NaN), "and so is one that is not a number");
+
+  const small = new Median(3);
+  const wide = new Median();
+  for (let i = 0; i < 10; i += 1) {
+    small.update(10);
+    wide.update(10);
+  }
+  small.update(20);
+  wide.update(20);
+  assert.strictEqual(small.update(20), 20, "a small median follows a real change");
+  assert.strictEqual(wide.update(20), 10, "a wide one follows it late");
+  assert.strictEqual(small.capacity, 3, "and says how many readings it keeps");
+  assert.throws(() => new Median(0), /capacity must be a whole number from 1 to 32, not 0/);
+  assert.throws(() => new Window(33), /capacity must be a whole number from 1 to 32, not 33/);
+  assert.throws(() => new Trend(2.5), /capacity must be a whole number from 2 to 32, not 2.5/);
+  assert.throws(() => new Trend(1), /from 2 to 32, not 1/, "a line needs two readings");
+  assert.throws(() => new Anomaly(3, 1), /from 2 to 32, not 1/, "and so does a spread");
+  assert.strictEqual(new Anomaly(3, 8).capacity, 8);
+
+  const lastFew = new Window(2);
+  [1, 2, 3].forEach((value) => lastFew.push(value));
+  assert.ok(lastFew.isFull, "a small window fills");
+  assert.strictEqual(lastFew.oldest(), 2, "and drops its oldest");
+  assert.strictEqual(lastFew.latest(), 3);
+  lastFew.push(NaN);
+  assert.strictEqual(lastFew.mean(), 2.5, "a reading that is not a number is not kept");
+
+  assert.throws(() => new Debounce(2.9, false), /samples must be a whole number from 0 to 65535, not 2.9/);
+  assert.throws(() => new Debounce(-1, false), /not -1/);
+  assert.strictEqual(new Debounce(3, true).state, true, "a debouncer starts where it is told");
+
+  const pid = new Pid(2, 0.5, 0);
+  const before = pid.update(10, 7, 1);
+  assert.strictEqual(pid.update(10, NaN, 1), before, "a missing reading holds the last output");
+  assert.ok(Number.isFinite(pid.update(10, 7, 1)), "and does not poison the controller");
+
+  const level = Trigger.below(20, 2);
+  assert.strictEqual(level.watchesAbove, false, "a below trigger watches a falling reading");
+  assert.strictEqual(level.update(NaN), null, "a reading that is not a number fires nothing");
 }
 
 // Talking to an autopilot: framing a message, reading it back off a link that

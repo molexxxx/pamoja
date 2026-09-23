@@ -301,7 +301,7 @@ async def main() -> tuple[list[str], bool, int]:
             await run(rule["then"])
         elif edge == Edge.CLEARED:
             await run(rule["otherwise"])
-        print(f"{reading}: {edge or 'no edge'}, valve {'on' if valve['open'] else 'off'}")
+        print(f"{reading}: {edge.value if edge else 'no edge'}, valve {'on' if valve['open'] else 'off'}")
 
     # The watcher on the other topic heard each edge as the rule published it.
     heard = [(await watcher.recv()).text for _ in range(2)]

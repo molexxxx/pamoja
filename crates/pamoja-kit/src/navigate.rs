@@ -105,6 +105,8 @@ impl WaypointFollower {
     /// # Returns
     ///
     /// The [`Guidance`]; once within the arrival radius the twist is zero and `arrived` is set.
+    /// A heading or coordinate that is not a finite number also gives a zero twist, so a lost
+    /// fix stops the robot rather than steering it by NaN.
     pub fn guide(&self, here: Coordinate, heading_deg: f32, target: Coordinate) -> Guidance {
         let distance_m = here.distance_to(target);
         let bearing_deg = here.bearing_to(target) as f32;
@@ -132,8 +134,13 @@ impl WaypointFollower {
             0.0
         };
 
+        let twist = if forward.is_finite() && angular.is_finite() {
+            Twist::planar(forward, angular)
+        } else {
+            Twist::zero()
+        };
         Guidance {
-            twist: Twist::planar(forward, angular),
+            twist,
             distance_m,
             heading_error_deg,
             arrived: false,
@@ -156,7 +163,9 @@ impl WaypointFollower {
 /// # Returns
 ///
 /// The original twist when the way is clear, or one with no translation (rotation preserved) when
-/// an obstacle is within range.
+/// an obstacle is within range. A range that is not a number, which a sensor that saw nothing
+/// it could measure can report, counts as an obstacle: the way is clear only when a reading says
+/// so.
 ///
 /// # Examples
 ///
@@ -170,10 +179,10 @@ impl WaypointFollower {
 /// assert_eq!(obstacle_stop(driving, 0.3, 0.5), Twist::new(0.0, 0.0, 0.5));
 /// ```
 pub fn obstacle_stop(twist: Twist, range_m: f32, stop_distance_m: f32) -> Twist {
-    if range_m <= magnitude(stop_distance_m) {
-        Twist::new(0.0, 0.0, twist.omega)
-    } else {
+    if range_m > magnitude(stop_distance_m) {
         twist
+    } else {
+        Twist::new(0.0, 0.0, twist.omega)
     }
 }
 
@@ -220,5 +229,27 @@ mod tests {
         let target = Coordinate::new(0.0001, 0.0); // due north, 90 deg off
         let g = follower.guide(here, 90.0, target); // facing east
         assert!((g.twist.omega.abs() - 0.5).abs() < 1e-6); // clamped to the cap
+    }
+
+    #[test]
+    fn a_lost_fix_or_heading_stops_the_robot() {
+        let follower = WaypointFollower::new(1.5, 3.0, 1.5, 1.0);
+        let here = Coordinate::new(0.0, 0.0);
+        let target = Coordinate::new(0.0, 0.01);
+        let lost_fix = follower.guide(Coordinate::new(f64::NAN, 0.0), 90.0, target);
+        assert_eq!(lost_fix.twist, Twist::zero());
+        assert!(!lost_fix.arrived);
+        let lost_heading = follower.guide(here, f32::NAN, target);
+        assert_eq!(lost_heading.twist, Twist::zero());
+    }
+
+    #[test]
+    fn a_range_that_is_not_a_number_counts_as_an_obstacle() {
+        let driving = Twist::new(1.0, 0.0, 0.5);
+        assert_eq!(
+            obstacle_stop(driving, f32::NAN, 0.5),
+            Twist::new(0.0, 0.0, 0.5)
+        );
+        assert_eq!(obstacle_stop(driving, f32::INFINITY, 0.5), driving);
     }
 }

@@ -10,7 +10,7 @@ public sealed class Depletion : IDisposable
 
     private Depletion(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_depletion_free, "depletion estimator");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_depletion_free, "depletion estimator", serialized: true);
     }
 
     /// <summary>Creates an estimator counting down to a threshold.</summary>
@@ -21,8 +21,12 @@ public sealed class Depletion : IDisposable
     }
 
     /// <summary>Records a level and estimates the samples left before the threshold.</summary>
-    /// <param name="level">The latest measured level.</param>
-    /// <returns>The samples remaining, or <c>null</c> while the level is steady or rising, and on the first reading, when no rate of fall is known yet.</returns>
+    /// <param name="level">The latest measured level. One that is not a finite number is ignored.</param>
+    /// <returns>
+    /// The samples remaining: 0 once the level is at or below the threshold, the first
+    /// reading included. <c>null</c> while the level is steady or rising, or on a first
+    /// reading above the threshold, when no rate of fall is known yet.
+    /// </returns>
     public uint? Update(float level) =>
         _handle.UseTry<uint>((IntPtr handle, out uint samples) =>
             NativeMethods.pamoja_depletion_update(handle, level, out samples));

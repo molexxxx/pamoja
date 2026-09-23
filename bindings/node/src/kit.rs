@@ -1,9 +1,10 @@
 //! Generated Node bindings for the goal-named helper math.
 //!
-//! These mirror the `pamoja-kit` Rust API one-to-one. The helpers are synchronous
-//! pure math, so every method here returns its value directly; the ones that
-//! answer "maybe" return `null` rather than throwing, because having no answer yet
-//! is an ordinary state and not a failure.
+//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are
+//! Rust only. The helpers are synchronous pure math, so every method here returns its value
+//! directly; the ones that answer "maybe" return `null` rather than throwing, because having
+//! no answer yet is an ordinary state and not a failure. A reading that is not a finite
+//! number is ignored by every helper that keeps state, as the Rust crate documents.
 
 use napi_derive::napi;
 use pamoja_kit::{
@@ -75,8 +76,8 @@ impl Smoother {
         f64::from(self.inner.update(sample as f32))
     }
 
-    /// Returns the current value, or `null` before the first sample.
-    #[napi]
+    /// The current value, or `null` before the first sample.
+    #[napi(getter)]
     pub fn value(&self) -> Option<f64> {
         self.inner.value().map(f64::from)
     }
@@ -159,8 +160,8 @@ impl Thermostat {
         self.inner.update(reading as f32)
     }
 
-    /// Reports the current output without feeding in a reading.
-    #[napi]
+    /// Whether the load is on, as the last reading left it.
+    #[napi(getter)]
     pub fn is_on(&self) -> bool {
         self.inner.is_on()
     }
@@ -212,7 +213,7 @@ impl Trigger {
     }
 
     /// Whether the condition currently holds.
-    #[napi]
+    #[napi(getter)]
     pub fn is_set(&self) -> bool {
         self.inner.is_set()
     }
@@ -227,6 +228,12 @@ impl Trigger {
     #[napi(getter)]
     pub fn hysteresis(&self) -> f64 {
         f64::from(self.inner.hysteresis())
+    }
+
+    /// Whether the trigger watches a rising reading, as `above` makes it.
+    #[napi(getter)]
+    pub fn watches_above(&self) -> bool {
+        self.inner.watches_above()
     }
 }
 
@@ -248,8 +255,9 @@ impl Depletion {
 
     /// Records a level and returns the samples left before the threshold.
     ///
-    /// Returns `null` while the level is steady or rising, and on the first
-    /// reading, when no rate of fall is known yet.
+    /// Returns 0 once the level is at or below the threshold, the first reading included,
+    /// and `null` while the level is steady or rising, or on a first reading above it,
+    /// when no rate of fall is known yet.
     #[napi]
     pub fn update(&mut self, level: f64) -> Option<u32> {
         self.inner.update(level as f32)
@@ -283,8 +291,8 @@ impl Kalman {
         f64::from(self.inner.update(reading as f32))
     }
 
-    /// Returns the current estimate without folding in a reading.
-    #[napi]
+    /// The current estimate.
+    #[napi(getter)]
     pub fn estimate(&self) -> f64 {
         f64::from(self.inner.estimate())
     }
@@ -299,11 +307,19 @@ pub struct Debounce {
 #[napi]
 impl Debounce {
     /// Creates a debouncer needing `samples` agreeing readings to change state.
+    ///
+    /// `samples` is a whole number from 0 to 65535; anything else is refused rather than
+    /// rounded.
     #[napi(constructor)]
-    pub fn new(samples: u16, initial: bool) -> Self {
-        Self {
-            inner: CoreDebounce::new(samples, initial),
+    pub fn new(samples: f64, initial: bool) -> napi::Result<Self> {
+        if samples.fract() != 0.0 || !(0.0..=f64::from(u16::MAX)).contains(&samples) {
+            return Err(napi::Error::from_reason(format!(
+                "samples must be a whole number from 0 to 65535, not {samples}"
+            )));
         }
+        Ok(Self {
+            inner: CoreDebounce::new(samples as u16, initial),
+        })
     }
 
     /// Feeds a raw reading in and returns the settled state.
@@ -312,8 +328,8 @@ impl Debounce {
         self.inner.update(raw)
     }
 
-    /// Returns the settled state without feeding in a reading.
-    #[napi]
+    /// The settled state.
+    #[napi(getter)]
     pub fn state(&self) -> bool {
         self.inner.state()
     }
@@ -341,8 +357,8 @@ impl Ramp {
         f64::from(self.inner.update(target as f32))
     }
 
-    /// Returns the current value.
-    #[napi]
+    /// The current value.
+    #[napi(getter)]
     pub fn value(&self) -> f64 {
         f64::from(self.inner.value())
     }
@@ -362,7 +378,7 @@ pub struct Surge {
 
 #[napi]
 impl Surge {
-    /// Creates a detector for rises of at least `limit` between readings.
+    /// Creates a detector for rises of more than `limit` between readings.
     #[napi(factory)]
     pub fn rising(limit: f64) -> Self {
         Self {
@@ -370,7 +386,7 @@ impl Surge {
         }
     }
 
-    /// Creates a detector for falls of at least `limit` between readings.
+    /// Creates a detector for falls of more than `limit` between readings.
     #[napi(factory)]
     pub fn falling(limit: f64) -> Self {
         Self {
@@ -378,7 +394,7 @@ impl Surge {
         }
     }
 
-    /// Feeds a value in and returns the size of a qualifying step, or `null`.
+    /// Feeds a value in and returns the size of a step past the limit, or `null`.
     #[napi]
     pub fn update(&mut self, value: f64) -> Option<f64> {
         self.inner.update(value as f32).map(f64::from)
@@ -462,22 +478,36 @@ pub fn bearing_between(from: Coord, to: Coord) -> f64 {
     Coordinate::from(from).bearing_to(to.into())
 }
 
-/// Suppresses movement within `width` of `center`, so noise does not act.
+/// Holds `value` at `center` while it stays within `width` either side, and passes it
+/// through unchanged once it is further out.
 #[napi]
 pub fn deadband(value: f64, center: f64, width: f64) -> f64 {
     f64::from(core_deadband(value as f32, center as f32, width as f32))
 }
 
-/// The number of readings a windowed helper keeps.
+/// The most readings a windowed helper keeps, and the number it keeps unless told fewer.
 ///
 /// The Rust helpers are generic over their capacity, which has no JavaScript
-/// equivalent, so these are built at one documented size. The crate's own
-/// examples use three to eight readings, so this is headroom rather than a limit.
+/// equivalent, so these are built with room for this many and keep fewer when asked.
 #[napi]
 pub const WINDOW_CAPACITY: u32 = 32;
 
-/// The capacity every windowed helper here is built at.
+/// The storage every windowed helper here is built with.
 const CAPACITY: usize = 32;
+
+/// Reads the capacity a windowed helper was asked for, refusing one below `least`, the
+/// fewest readings the helper can answer from.
+fn capacity_of(capacity: Option<f64>, least: usize) -> napi::Result<usize> {
+    let Some(capacity) = capacity else {
+        return Ok(CAPACITY);
+    };
+    if capacity.fract() != 0.0 || !(least as f64..=CAPACITY as f64).contains(&capacity) {
+        return Err(napi::Error::from_reason(format!(
+            "capacity must be a whole number from {least} to {CAPACITY}, not {capacity}"
+        )));
+    }
+    Ok(capacity as usize)
+}
 
 /// A rolling window of the most recent readings, with the stats over them.
 #[napi]
@@ -487,13 +517,12 @@ pub struct Window {
 
 #[napi]
 impl Window {
-    /// Creates an empty window.
+    /// Creates an empty window that keeps up to `capacity` readings, 32 unless told fewer.
     #[napi(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self {
-            inner: CoreWindow::new(),
-        }
+    pub fn new(capacity: Option<f64>) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreWindow::with_capacity(capacity_of(capacity, 1)?),
+        })
     }
 
     /// Adds a reading, dropping the oldest once the window is full.
@@ -514,10 +543,28 @@ impl Window {
         self.inner.is_empty()
     }
 
+    /// Whether the window holds as many readings as it keeps.
+    #[napi(getter)]
+    pub fn is_full(&self) -> bool {
+        self.inner.is_full()
+    }
+
     /// How many readings the window holds before it starts dropping.
     #[napi(getter)]
     pub fn capacity(&self) -> u32 {
         self.inner.capacity() as u32
+    }
+
+    /// The most recent reading, or `null` while the window is empty.
+    #[napi]
+    pub fn latest(&self) -> Option<f64> {
+        self.inner.latest().map(f64::from)
+    }
+
+    /// The oldest reading still held, or `null` while the window is empty.
+    #[napi]
+    pub fn oldest(&self) -> Option<f64> {
+        self.inner.oldest().map(f64::from)
     }
 
     /// The mean of the readings, or `null` while the window is empty.
@@ -538,13 +585,13 @@ impl Window {
         self.inner.max().map(f64::from)
     }
 
-    /// The spread between the smallest and largest readings.
+    /// The spread between the smallest and largest readings, or `null` while empty.
     #[napi]
     pub fn range(&self) -> Option<f64> {
         self.inner.range().map(f64::from)
     }
 
-    /// The variance of the readings, or `null` without enough of them.
+    /// The population variance of the readings, 0 for one reading, or `null` while empty.
     #[napi]
     pub fn variance(&self) -> Option<f64> {
         self.inner.variance().map(f64::from)
@@ -559,13 +606,15 @@ pub struct Median {
 
 #[napi]
 impl Median {
-    /// Creates an empty median filter.
+    /// Creates an empty median filter over up to `capacity` readings, 32 unless told fewer.
+    ///
+    /// A small odd window, such as 5, follows a real change in a few readings; a window of
+    /// 32 follows it 16 readings late.
     #[napi(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self {
-            inner: CoreMedian::new(),
-        }
+    pub fn new(capacity: Option<f64>) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreMedian::with_capacity(capacity_of(capacity, 1)?),
+        })
     }
 
     /// Folds a reading in and returns the median of the window.
@@ -575,9 +624,15 @@ impl Median {
     }
 
     /// The current median, or `null` before the first reading.
-    #[napi]
+    #[napi(getter)]
     pub fn value(&self) -> Option<f64> {
         self.inner.median().map(f64::from)
+    }
+
+    /// How many readings the filter keeps.
+    #[napi(getter)]
+    pub fn capacity(&self) -> u32 {
+        self.inner.capacity() as u32
     }
 }
 
@@ -589,13 +644,14 @@ pub struct Trend {
 
 #[napi]
 impl Trend {
-    /// Creates an empty trend estimator.
+    /// Creates an empty trend estimator over up to `capacity` readings, 32 unless told fewer.
+    ///
+    /// A line needs two readings, so `capacity` is at least 2.
     #[napi(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self {
-            inner: CoreTrend::new(),
-        }
+    pub fn new(capacity: Option<f64>) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreTrend::with_capacity(capacity_of(capacity, 2)?),
+        })
     }
 
     /// Adds a reading.
@@ -604,16 +660,22 @@ impl Trend {
         self.inner.push(reading as f32);
     }
 
-    /// The fitted slope in units per reading, or `null` without enough readings.
+    /// The fitted slope in units per reading, or `null` without two readings.
     ///
     /// A positive slope is a rising signal.
-    #[napi]
+    #[napi(getter)]
     pub fn slope(&self) -> Option<f64> {
         self.inner.slope().map(f64::from)
     }
+
+    /// How many readings the estimator keeps.
+    #[napi(getter)]
+    pub fn capacity(&self) -> u32 {
+        self.inner.capacity() as u32
+    }
 }
 
-/// Flags a reading that stands out from the ones around it.
+/// Flags a reading that stands out from the ones before it.
 #[napi]
 pub struct Anomaly {
     inner: CoreAnomaly<CAPACITY>,
@@ -621,17 +683,29 @@ pub struct Anomaly {
 
 #[napi]
 impl Anomaly {
-    /// Creates a detector that flags a reading `sigmas` deviations from the mean.
+    /// Creates a detector that flags a reading `sigmas` deviations from the mean of up to
+    /// `capacity` readings before it, 32 unless told fewer.
+    ///
+    /// A spread needs two readings, so `capacity` is at least 2.
     #[napi(constructor)]
-    pub fn new(sigmas: f64) -> Self {
-        Self {
-            inner: CoreAnomaly::new(sigmas as f32),
-        }
+    pub fn new(sigmas: f64, capacity: Option<f64>) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreAnomaly::with_capacity(sigmas as f32, capacity_of(capacity, 2)?),
+        })
     }
 
     /// Folds a reading in and reports whether it stands out.
+    ///
+    /// Nothing is flagged before two readings are held; from the third on, a reading can
+    /// be, and one that is not a finite number always is.
     #[napi]
     pub fn check(&mut self, reading: f64) -> bool {
         self.inner.check(reading as f32)
+    }
+
+    /// How many readings the baseline keeps.
+    #[napi(getter)]
+    pub fn capacity(&self) -> u32 {
+        self.inner.capacity() as u32
     }
 }
