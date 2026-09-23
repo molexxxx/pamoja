@@ -4,16 +4,26 @@
 //! publish their prices as Schema.org product data, in JSON-LD or in meta tags, which is
 //! what is read, so no vendor needs a rule of its own. A page that states no price that
 //! way, or that refuses a scripted reader, keeps its last record and is named in the
-//! report. A page that offers several variants states a price for each: the offer whose
-//! address carries the variant the record's own address names is taken, else the offer
-//! whose SKU the record's product name carries, else the one nearest the last record, so
-//! the record keeps tracking the variant a person chose. `curl` does the fetching, as it
-//! does for the link check.
+//! report with the day it was last read. A store that answers that the page does not
+//! exist no longer lists the part, and the offer is taken off the page. A page that offers
+//! several variants states a price for each: the offer whose address carries the variant
+//! the record's own address names is taken, else the offer whose SKU the record's product
+//! name carries, else the one nearest the last record, so the record keeps tracking the
+//! variant a person chose.
+//!
+//! Digi-Key refuses scripted readers at its store pages and answers through its Product
+//! Information API instead. Where a production app's credentials are set, in
+//! `DIGIKEY_CLIENT_ID` and `DIGIKEY_CLIENT_SECRET`, with `DIGIKEY_ACCOUNT_ID` where the
+//! account asks for it, a Digi-Key offer is read from the API: its single-unit price, and
+//! whether Digi-Key still sells the part. Without them a Digi-Key offer is fetched like
+//! any other and kept when refused. `curl` does the fetching, as it does for the link
+//! check, and every credential reaches it on standard input rather than its command line.
 
 use std::fs;
+use std::io::Write;
 use std::path::Path;
-use std::process::{Command, ExitCode};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, ExitCode, Stdio};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 use toml_edit::{DocumentMut, Item, Table};
@@ -89,6 +99,39 @@ struct Change {
     now: String,
 }
 
+// Why an offer was not read, and whether the store has stopped listing it.
+#[derive(Debug, PartialEq)]
+struct Unread {
+    reason: String,
+    gone: bool,
+}
+
+impl Unread {
+    fn kept(reason: impl Into<String>) -> Self {
+        Unread {
+            reason: reason.into(),
+            gone: false,
+        }
+    }
+
+    fn gone(reason: impl Into<String>) -> Self {
+        Unread {
+            reason: reason.into(),
+            gone: true,
+        }
+    }
+}
+
+// What the refresh found across every offer, for the report.
+#[derive(Default)]
+struct Found {
+    changed: Vec<Change>,
+    unchanged: usize,
+    removed: Vec<String>,
+    notes: Vec<String>,
+    unread: Vec<String>,
+}
+
 fn refresh(root: &Path) -> Result<String, String> {
     let path = root.join("docs/hardware.toml");
     let text =
@@ -97,9 +140,8 @@ fn refresh(root: &Path) -> Result<String, String> {
         .parse()
         .map_err(|err| format!("hardware.toml is not valid TOML: {err}"))?;
     let today = today();
-    let mut changed = Vec::new();
-    let mut unchanged = 0usize;
-    let mut unread = Vec::new();
+    let mut found = Found::default();
+    let mut digikey = DigiKey::from_env();
 
     let entries = doc
         .get_mut("entry")
@@ -114,7 +156,8 @@ fn refresh(root: &Path) -> Result<String, String> {
         let Some(buys) = entry.get_mut("buy").and_then(Item::as_array_of_tables_mut) else {
             continue;
         };
-        for buy in buys.iter_mut() {
+        let mut gone = Vec::new();
+        for (at, buy) in buys.iter_mut().enumerate() {
             let vendor = buy
                 .get("vendor")
                 .and_then(Item::as_str)
@@ -135,26 +178,35 @@ fn refresh(root: &Path) -> Result<String, String> {
                 .and_then(Item::as_str)
                 .unwrap_or_default()
                 .to_owned();
+            let checked = buy
+                .get("checked")
+                .and_then(Item::as_str)
+                .unwrap_or("an unknown day")
+                .to_owned();
             let pick = Pick {
                 url: &url,
                 name: &name,
                 near: usd(&was).map(|_| amount_of(&was)),
             };
-            match fetch(&url).and_then(|html| {
-                reading(&html, &pick)
-                    .ok_or_else(|| "the page states no price as product data".to_owned())
-            }) {
-                Ok(read) => {
+            let outcome = match digikey.as_mut().filter(|_| is_digikey(&url)) {
+                Some(api) => api.read(&url),
+                None => page(&url, &pick).map(|read| (read, None)),
+            };
+            match outcome {
+                Ok((read, note)) => {
                     let now = money(&read);
                     if now != was {
-                        changed.push(Change {
+                        found.changed.push(Change {
                             part: part.clone(),
                             vendor: vendor.clone(),
                             was: was.clone(),
                             now: now.clone(),
                         });
                     } else {
-                        unchanged += 1;
+                        found.unchanged += 1;
+                    }
+                    if let Some(note) = note {
+                        found.notes.push(format!("{part}: {vendor}: {note}"));
                     }
                     buy["price"] = toml_edit::value(now);
                     buy["checked"] = toml_edit::value(today.clone());
@@ -162,16 +214,270 @@ fn refresh(root: &Path) -> Result<String, String> {
                         buy["verified"] = toml_edit::value(true);
                     }
                 }
-                Err(reason) => unread.push(format!("{part}: {vendor} ({url}): {reason}")),
+                Err(Unread { reason, gone: true }) => {
+                    gone.push(at);
+                    found
+                        .removed
+                        .push(format!("{part}: {vendor} ({url}): {reason}"));
+                }
+                Err(Unread { reason, .. }) => found.unread.push(format!(
+                    "{part}: {vendor} ({url}), last read {checked}: {reason}"
+                )),
             }
         }
-        order(buys);
+        settle(entry, &gone, &today);
     }
 
     let updated = doc.to_string();
     Hardware::parse(&updated)?.check(root)?;
     fs::write(&path, &updated).map_err(|err| format!("writing {}: {err}", path.display()))?;
-    Ok(report_text(&today, &changed, unchanged, &unread))
+    Ok(report_text(&today, &found))
+}
+
+// Takes the offers at `gone` off a part and orders the rest cheapest first. A part left
+// with no offer says so from the day it lost the last one.
+fn settle(entry: &mut Table, gone: &[usize], today: &str) {
+    let Some(buys) = entry.get_mut("buy").and_then(Item::as_array_of_tables_mut) else {
+        return;
+    };
+    for &at in gone.iter().rev() {
+        buys.remove(at);
+    }
+    if buys.is_empty() {
+        entry.remove("buy");
+        entry["buy_checked"] = toml_edit::value(today);
+    } else {
+        order(buys);
+    }
+}
+
+// The price a store page states, or why it could not be read.
+fn page(url: &str, pick: &Pick) -> Result<Reading, Unread> {
+    let html = fetch(url)?;
+    reading(&html, pick).ok_or_else(|| Unread::kept("the page states no price as product data"))
+}
+
+// Whether an address is on Digi-Key's store.
+fn is_digikey(url: &str) -> bool {
+    url.split_once("://")
+        .and_then(|(_, rest)| rest.split('/').next())
+        .is_some_and(|host| host == "digikey.com" || host.ends_with(".digikey.com"))
+}
+
+// Where Digi-Key hands out an access token for a production app's credentials.
+const DIGIKEY_TOKEN: &str = "https://api.digikey.com/v1/oauth2/token";
+
+// The product details operation of Product Information V4, before the product number.
+const DIGIKEY_SEARCH: &str = "https://api.digikey.com/products/v4/search/";
+
+// A token lasts ten minutes; one older than this is replaced before it is used.
+const TOKEN_LIFE: Duration = Duration::from_secs(8 * 60);
+
+/// Digi-Key's Product Information V4 API, read with a production app's credentials
+/// under the client credentials grant.
+struct DigiKey {
+    client_id: String,
+    client_secret: String,
+    account_id: Option<String>,
+    token: Option<(String, Instant)>,
+}
+
+impl DigiKey {
+    /// The app named by the environment, or `None` when its credentials are not set.
+    ///
+    /// # Returns
+    ///
+    /// The client, before any token is asked for.
+    fn from_env() -> Option<DigiKey> {
+        let set = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+        Some(DigiKey {
+            client_id: set("DIGIKEY_CLIENT_ID")?,
+            client_secret: set("DIGIKEY_CLIENT_SECRET")?,
+            account_id: set("DIGIKEY_ACCOUNT_ID"),
+            token: None,
+        })
+    }
+
+    /// A current access token, asked for again once the last one is near its end.
+    ///
+    /// # Errors
+    ///
+    /// Kept, naming the status, when Digi-Key refuses the credentials.
+    fn token(&mut self) -> Result<String, Unread> {
+        if let Some((token, at)) = &self.token {
+            if at.elapsed() < TOKEN_LIFE {
+                return Ok(token.clone());
+            }
+        }
+        let form = format!(
+            "client_id={}&client_secret={}&grant_type=client_credentials",
+            encode(&self.client_id),
+            encode(&self.client_secret)
+        );
+        let (body, code) =
+            curl(&["--data", "@-", DIGIKEY_TOKEN], Some(&form)).map_err(Unread::kept)?;
+        if code != "200" {
+            return Err(Unread::kept(format!(
+                "Digi-Key refused the app's credentials, answering {code}"
+            )));
+        }
+        let token = serde_json::from_str::<Value>(&body)
+            .ok()
+            .and_then(|value| value.get("access_token")?.as_str().map(str::to_owned))
+            .ok_or_else(|| Unread::kept("Digi-Key's token answer carried no access token"))?;
+        self.token = Some((token.clone(), Instant::now()));
+        Ok(token)
+    }
+
+    /// Reads one Digi-Key offer through the API.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - the offer's store page, which names the part and the listing.
+    ///
+    /// # Returns
+    ///
+    /// The single-unit price, and a note where Digi-Key marks the part anything but active.
+    ///
+    /// # Errors
+    ///
+    /// Gone when Digi-Key no longer lists or sells the part; kept for anything else.
+    fn read(&mut self, url: &str) -> Result<(Reading, Option<String>), Unread> {
+        let (part, listing) = digikey_part(url)
+            .ok_or_else(|| Unread::kept("the address names no Digi-Key product"))?;
+        let token = self.token()?;
+        let mut headers = format!(
+            "Authorization: Bearer {token}\nX-DIGIKEY-Client-Id: {}\nX-DIGIKEY-Locale-Site: US\nX-DIGIKEY-Locale-Language: en\nX-DIGIKEY-Locale-Currency: USD\nAccept: application/json\n",
+            self.client_id
+        );
+        if let Some(account) = &self.account_id {
+            headers.push_str(&format!("X-DIGIKEY-Account-Id: {account}\n"));
+        }
+        let address = format!("{DIGIKEY_SEARCH}{}/productdetails", encode(&part));
+        let (body, code) =
+            curl(&["--header", "@-", &address], Some(&headers)).map_err(Unread::kept)?;
+        match code.as_str() {
+            "200" => details(&body, listing),
+            "404" => Err(Unread::gone("Digi-Key no longer lists the part")),
+            other => Err(Unread::kept(format!("Digi-Key's API answered {other}"))),
+        }
+    }
+}
+
+// The manufacturer part number and Digi-Key's listing number from a store address of the
+// shape `/en/products/detail/<maker>/<part>/<listing>`.
+fn digikey_part(url: &str) -> Option<(String, &str)> {
+    let path = url.split(['?', '#']).next()?;
+    let rest = path.split_once("/products/detail/")?.1;
+    let mut segments = rest.trim_end_matches('/').split('/');
+    let _maker = segments.next()?;
+    let part = segments.next().filter(|s| !s.is_empty())?;
+    let listing = segments.next().filter(|s| !s.is_empty())?;
+    Some((decode(part), listing))
+}
+
+// What Digi-Key's product details say about the listing the record names.
+fn details(body: &str, listing: &str) -> Result<(Reading, Option<String>), Unread> {
+    let value: Value =
+        serde_json::from_str(body).map_err(|_| Unread::kept("Digi-Key's answer is not JSON"))?;
+    let product = value
+        .get("Product")
+        .ok_or_else(|| Unread::kept("Digi-Key's answer names no product"))?;
+    let address = product
+        .get("ProductUrl")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !address
+        .trim_end_matches('/')
+        .ends_with(&format!("/{listing}"))
+    {
+        return Err(Unread::kept(format!(
+            "Digi-Key matched a different listing, {address}"
+        )));
+    }
+    let status = product
+        .pointer("/ProductStatus/Status")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let flag = |name: &str| product.get(name).and_then(Value::as_bool).unwrap_or(false);
+    let stock = product
+        .get("QuantityAvailable")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let lower = status.to_ascii_lowercase();
+    if flag("Discontinued")
+        || lower.starts_with("discontinued")
+        || (lower == "obsolete" && stock == 0)
+    {
+        let marked = if status.is_empty() {
+            "discontinued"
+        } else {
+            status
+        };
+        return Err(Unread::gone(format!("Digi-Key marks it {marked}")));
+    }
+    let amount = product
+        .get("UnitPrice")
+        .and_then(number)
+        .filter(|amount| *amount > 0.0)
+        .ok_or_else(|| Unread::kept("Digi-Key states no single-unit price"))?;
+    let currency = value
+        .pointer("/SearchLocaleUsed/Currency")
+        .and_then(Value::as_str)
+        .unwrap_or("USD")
+        .to_ascii_uppercase();
+    let note = if flag("EndOfLife") {
+        Some("the maker has ended it; Digi-Key sells the stock that remains".to_owned())
+    } else if !status.is_empty() && lower != "active" {
+        Some(format!("Digi-Key marks it {status}"))
+    } else {
+        None
+    };
+    Ok((
+        Reading {
+            amount,
+            currency,
+            sku: None,
+            url: None,
+        },
+        note,
+    ))
+}
+
+// Percent-encodes everything but the unreserved characters, for a path segment or a form.
+fn encode(text: &str) -> String {
+    text.bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                char::from(byte).to_string()
+            }
+            other => format!("%{other:02X}"),
+        })
+        .collect()
+}
+
+// Undoes percent-encoding; a malformed escape is left as written.
+fn decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let escaped = (bytes[at] == b'%')
+            .then(|| text.get(at + 1..at + 3))
+            .flatten()
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        match escaped {
+            Some(byte) => {
+                out.push(byte);
+                at += 3;
+            }
+            None => {
+                out.push(bytes[at]);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 // Cheapest first, by the indicative rates; an offer whose price cannot be read as a
@@ -447,29 +753,53 @@ fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
     }
 }
 
-// The page as curl sees it, following redirects; a status other than 200 is a reason.
-fn fetch(url: &str) -> Result<String, String> {
-    let output = Command::new("curl")
+// The page as curl sees it, following redirects. A page the store says does not exist is
+// gone; any other status but 200 is a reason to keep the last record.
+fn fetch(url: &str) -> Result<String, Unread> {
+    let (body, code) =
+        curl(&["--location", "--user-agent", AGENT, url], None).map_err(Unread::kept)?;
+    match code.as_str() {
+        "200" => Ok(body),
+        "404" | "410" => Err(Unread::gone(format!(
+            "answered {code}, so the store no longer lists it"
+        ))),
+        "000" => Err(Unread::kept("no answer")),
+        other => Err(Unread::kept(format!("answered {other}"))),
+    }
+}
+
+// curl with the given arguments and, where given, `input` on its standard input, which is
+// how a credential reaches it without appearing on a command line. The body and the
+// status code.
+fn curl(args: &[&str], input: Option<&str>) -> Result<(String, String), String> {
+    let mut child = Command::new("curl")
         .args([
             "--silent",
-            "--location",
             "--max-time",
             "45",
-            "--user-agent",
-            AGENT,
             "--write-out",
             "\n%{http_code}",
-            url,
         ])
-        .output()
+        .args(args)
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("running curl: {err}"))?;
+    if let (Some(text), Some(mut stdin)) = (input, child.stdin.take()) {
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|err| format!("writing to curl: {err}"))?;
+    }
+    let output = child
+        .wait_with_output()
         .map_err(|err| format!("running curl: {err}"))?;
     let text = String::from_utf8_lossy(&output.stdout);
     let (body, code) = text.rsplit_once('\n').unwrap_or(("", text.trim()));
-    match code.trim() {
-        "200" => Ok(body.to_owned()),
-        "000" => Err("no answer".to_owned()),
-        other => Err(format!("answered {other}")),
-    }
+    Ok((body.to_owned(), code.trim().to_owned()))
 }
 
 // Today in UTC as YYYY-MM-DD, from the epoch without a calendar dependency.
@@ -494,13 +824,13 @@ fn civil(days: i64) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
-fn report_text(today: &str, changed: &[Change], unchanged: usize, unread: &[String]) -> String {
+fn report_text(today: &str, found: &Found) -> String {
     let mut out = format!("Prices read on {today}.\n\n");
-    if changed.is_empty() {
+    if found.changed.is_empty() {
         out.push_str("No price changed.\n");
     } else {
         out.push_str("| Part | Vendor | Was | Now |\n| --- | --- | --- | --- |\n");
-        for change in changed {
+        for change in &found.changed {
             out.push_str(&format!(
                 "| {} | {} | {} | {} |\n",
                 change.part, change.vendor, change.was, change.now
@@ -508,12 +838,26 @@ fn report_text(today: &str, changed: &[Change], unchanged: usize, unread: &[Stri
         }
     }
     out.push_str(&format!(
-        "\n{unchanged} offer(s) unchanged, re-dated to today.\n"
+        "\n{} offer(s) unchanged, re-dated to today.\n",
+        found.unchanged
     ));
-    if !unread.is_empty() {
-        out.push_str("\nKept the last record, since the page could not be read:\n\n");
-        for line in unread {
-            out.push_str(&format!("- {line}\n"));
+    let sections = [
+        (
+            "Taken off the page, since the store no longer lists the part:",
+            &found.removed,
+        ),
+        ("Read, with something to know about the part:", &found.notes),
+        (
+            "Kept the last record, since the page could not be read:",
+            &found.unread,
+        ),
+    ];
+    for (heading, lines) in sections {
+        if !lines.is_empty() {
+            out.push_str(&format!("\n{heading}\n\n"));
+            for line in lines {
+                out.push_str(&format!("- {line}\n"));
+            }
         }
     }
     out
@@ -610,20 +954,119 @@ mod tests {
     }
 
     #[test]
-    fn the_report_names_what_changed_and_what_could_not_be_read() {
-        let text = report_text(
-            "2026-09-13",
-            &[Change {
+    fn the_report_names_what_changed_what_was_removed_and_what_could_not_be_read() {
+        let found = Found {
+            changed: vec![Change {
                 part: "bme280".to_owned(),
                 vendor: "Adafruit".to_owned(),
                 was: "US$14.95".to_owned(),
                 now: "US$15.95".to_owned(),
             }],
-            3,
-            &["uln2003: Digi-Key (https://x): answered 403".to_owned()],
-        );
+            unchanged: 3,
+            removed: vec!["ina226: A store (https://y): answered 404".to_owned()],
+            notes: vec!["hdc1080: Digi-Key: Digi-Key marks it Last Time Buy".to_owned()],
+            unread: vec![
+                "uln2003: Digi-Key (https://x), last read 2026-09-06: answered 403".to_owned(),
+            ],
+        };
+        let text = report_text("2026-09-13", &found);
         assert!(text.contains("| bme280 | Adafruit | US$14.95 | US$15.95 |"));
         assert!(text.contains("3 offer(s) unchanged"));
-        assert!(text.contains("- uln2003: Digi-Key (https://x): answered 403"));
+        assert!(text.contains("no longer lists the part:\n\n- ina226: A store"));
+        assert!(text.contains("- hdc1080: Digi-Key: Digi-Key marks it Last Time Buy"));
+        assert!(text.contains("- uln2003: Digi-Key (https://x), last read 2026-09-06"));
+        assert!(!report_text("2026-09-13", &Found::default()).contains("Taken off"));
+    }
+
+    #[test]
+    fn an_offer_that_is_gone_leaves_the_file_and_a_part_left_bare_says_so() {
+        let text = "[[entry]]\nkey = \"x\"\n[[entry.buy]]\nvendor = \"A\"\nurl = \"https://a\"\nprice = \"US$16.95\"\nchecked = \"2026-09-06\"\n[[entry.buy]]\nvendor = \"B\"\nurl = \"https://b\"\nprice = \"US$9.00\"\nchecked = \"2026-09-06\"\n[[entry]]\nkey = \"y\"\n[[entry.buy]]\nvendor = \"C\"\nurl = \"https://c\"\nprice = \"US$1.00\"\nchecked = \"2026-09-06\"\n";
+        let mut doc: DocumentMut = text.parse().unwrap();
+        {
+            let entries = doc["entry"].as_array_of_tables_mut().unwrap();
+            let mut tables = entries.iter_mut();
+            settle(tables.next().unwrap(), &[1], "2026-09-23");
+            settle(tables.next().unwrap(), &[0], "2026-09-23");
+        }
+        let rendered = doc.to_string();
+        assert!(rendered.contains("vendor = \"A\"") && !rendered.contains("vendor = \"B\""));
+        assert!(!rendered.contains("vendor = \"C\""));
+        assert!(rendered.contains("buy_checked = \"2026-09-23\""));
+        assert_eq!(rendered.matches("buy_checked").count(), 1);
+    }
+
+    #[test]
+    fn a_digikey_address_names_the_part_and_the_listing() {
+        assert!(is_digikey(
+            "https://www.digikey.com/en/products/detail/texas-instruments/ULN2003AN/277624"
+        ));
+        assert!(!is_digikey("https://www.adafruit.com/product/2652"));
+        assert!(!is_digikey("https://notdigikey.com/x"));
+        assert_eq!(
+            digikey_part(
+                "https://www.digikey.com/en/products/detail/texas-instruments/ULN2003AN/277624?s=1"
+            ),
+            Some(("ULN2003AN".to_owned(), "277624"))
+        );
+        assert_eq!(
+            digikey_part("https://www.digikey.com/en/products/detail/maker/AB%2FC-1/99/"),
+            Some(("AB/C-1".to_owned(), "99"))
+        );
+        assert_eq!(
+            digikey_part("https://www.digikey.com/en/products/result?keywords=x"),
+            None
+        );
+        assert_eq!(encode("AB/C 1"), "AB%2FC%201");
+        assert_eq!(decode(&encode("a+b/c~d")), "a+b/c~d");
+        assert_eq!(decode("100%"), "100%");
+    }
+
+    fn product(fields: &str) -> String {
+        format!(
+            r#"{{"SearchLocaleUsed":{{"Site":"US","Language":"en","Currency":"USD"}},"Product":{{"ProductUrl":"https://www.digikey.com/en/products/detail/texas-instruments/ULN2003AN/277624",{fields}}}}}"#
+        )
+    }
+
+    #[test]
+    fn an_active_digikey_part_is_read_at_its_single_unit_price() {
+        let body = product(
+            r#""UnitPrice":0.71,"QuantityAvailable":5000,"Discontinued":false,"EndOfLife":false,"ProductStatus":{"Id":0,"Status":"Active"}"#,
+        );
+        let (read, note) = details(&body, "277624").unwrap();
+        assert_eq!(money(&read), "US$0.71");
+        assert_eq!(note, None);
+    }
+
+    #[test]
+    fn a_digikey_part_it_no_longer_sells_is_gone_and_one_at_end_of_life_is_noted() {
+        let discontinued = product(
+            r#""UnitPrice":0.71,"QuantityAvailable":0,"Discontinued":true,"ProductStatus":{"Status":"Discontinued at Digi-Key"}"#,
+        );
+        let unread = details(&discontinued, "277624").unwrap_err();
+        assert!(unread.gone && unread.reason.contains("Discontinued at Digi-Key"));
+
+        let obsolete_and_empty =
+            product(r#""UnitPrice":0,"QuantityAvailable":0,"ProductStatus":{"Status":"Obsolete"}"#);
+        assert!(details(&obsolete_and_empty, "277624").unwrap_err().gone);
+
+        let ending = product(
+            r#""UnitPrice":1.20,"QuantityAvailable":40,"EndOfLife":true,"ProductStatus":{"Status":"Last Time Buy"}"#,
+        );
+        let (read, note) = details(&ending, "277624").unwrap();
+        assert_eq!(money(&read), "US$1.20");
+        assert!(note.unwrap().contains("the maker has ended it"));
+    }
+
+    #[test]
+    fn a_digikey_answer_for_another_listing_or_without_a_price_is_kept() {
+        let body = product(r#""UnitPrice":0.71,"ProductStatus":{"Status":"Active"}"#);
+        let other = details(&body, "999999").unwrap_err();
+        assert!(!other.gone && other.reason.contains("a different listing"));
+        let unpriced = product(r#""UnitPrice":0,"ProductStatus":{"Status":"Active"}"#);
+        assert_eq!(
+            details(&unpriced, "277624").unwrap_err(),
+            Unread::kept("Digi-Key states no single-unit price")
+        );
+        assert!(!details("not json", "277624").unwrap_err().gone);
     }
 }

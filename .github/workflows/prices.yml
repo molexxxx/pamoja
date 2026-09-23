@@ -22,9 +22,15 @@ jobs:
           persist-credentials: false
 
       # Every product page the hardware page lists is read for the price it states as
-      # product data, and each part's offers are ordered cheapest first. A vendor that
-      # refuses a scripted reader keeps its last record and is named in the report.
+      # product data, and each part's offers are ordered cheapest first. Digi-Key is read
+      # through its Product Information API with the app's credentials. A store that no
+      # longer lists a part loses its offer; one that refuses a scripted reader keeps its
+      # last record and is named in the report.
       - name: Read every product page
+        env:
+          DIGIKEY_CLIENT_ID: ${{ secrets.DIGIKEY_CLIENT_ID }}
+          DIGIKEY_CLIENT_SECRET: ${{ secrets.DIGIKEY_CLIENT_SECRET }}
+          DIGIKEY_ACCOUNT_ID: ${{ secrets.DIGIKEY_ACCOUNT_ID }}
         run: cargo run -p xtask -- prices --report "${{ runner.temp }}/prices.md"
 
       - name: Regenerate the hardware page
