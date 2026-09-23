@@ -214,6 +214,13 @@ released together, so one entry covers all of them.
 - A store drains onto a transport in TypeScript and Python, as it did in Rust and C#:
   `store.drainTo(transport, topic)` and `store.drain_to(transport, topic)` send every record
   to one topic, oldest first, removing each only once the transport has taken it.
+- The simulators guide rewritten around a vineyard rover with nothing built: a replayed range
+  finder that ends the loop when it runs out, a drive that records its commands, a pose from
+  the kinematics, a seeded soil probe read twice to the same values, and a radio that loses
+  every third report, printing the same nine lines in all four languages, where the old
+  example printed its numbers differently in each. Its tables cover what each simulator
+  stands in for, the noisy sensor's settings, the degraded link's patterns, how the robot
+  moves, and what each error means.
 - The store-and-forward guide rewritten around a hive scale in a remote apiary: weights queue
   on a bounded file store with no link, survive a reboot, stay in order through a drain that
   loses its uplink part-way, and reach the beekeeper's gateway later, printing the same seven

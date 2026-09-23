@@ -459,7 +459,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="python-sim">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><code class="pkg-import">pamoja.sim</code><p>Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sim.html">Simulators</a><code class="pkg-import">pamoja.sim</code><p>Noisy and replay sensors, a recording actuator, a simulated robot that dead-reckons its pose, and a link that loses sends on a pattern</p></div>
 <div class="pkg-get"><code class="cmd">pip install pamoja-sim</code><button class="copy" type="button" data-copy="pip install pamoja-sim" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

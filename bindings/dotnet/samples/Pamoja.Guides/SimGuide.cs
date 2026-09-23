@@ -1,4 +1,9 @@
+using System.Globalization;
+
+using Pamoja;
+using Pamoja.Core;
 using Pamoja.Kit;
+using Pamoja.Loopback;
 using Pamoja.Sim;
 
 using static Guides.Guide;
@@ -9,50 +14,93 @@ namespace Guides;
 public static class SimGuide
 {
     /// <summary>Runs the example.</summary>
-    /// <returns>A task that completes once the rover has run the capture.</returns>
+    /// <returns>A task that completes once the rover has run the row.</returns>
     public static async Task RunAsync()
     {
         // ANCHOR: example
-        // The clear distance ahead, in meters, taken from an earlier survey run. A replay
-        // hands it back one reading at a time, so the loop below sees the same input on
-        // every run: the same rover code, driven by a recording rather than a range finder.
-        float[] capture = [4.0f, 3.0f, 1.5f, 0.5f];
-        using var ahead = new Replay(capture);
-        using var throttle = new RecordingActuator();
-        using var rover = new SimulatedRobot(0.5f); // each command advances half a second
+        // The clear distance ahead, in meters, replayed from an earlier survey of the
+        // row, so every run sees the same row.
+        using var ahead = new Replay([4.0f, 3.0f, 1.5f, 0.5f]);
+        // The drive keeps the commands it is given instead of turning a motor.
+        using var drive = new RecordingActuator();
+        // The rover's pose comes from integrating each command over half a second.
+        const float Dt = 0.5f;
+        using var rover = new SimulatedRobot(Dt);
+        // The soil probe reads around 31 percent, drying half a point a reading, with a
+        // wobble drawn from a seed, so the same seed gives the same readings every run.
+        using var soil = new SimulatedSensor(31.0f, -0.5f, 0.3f, 7);
+        // The radio loses every third report on its way to the base.
+        using var station = new LoopbackBroker();
+        using Transport radio = Transport.Degraded(station.Rung(), dropEvery: 3);
+        await radio.ConnectAsync();
 
-        List<float> seen = [];
-        for (int step = 0; step < capture.Length; step++)
+        List<float> moisture = [];
+        int delivered = 0;
+        while (true)
         {
-            float reading = await ahead.ReadAsync();
-            seen.Add(reading);
+            // A replay that has handed back every reading reports that it is closed.
+            float clear;
+            try
+            {
+                clear = await ahead.ReadAsync();
+            }
+            catch (PamojaException error)
+            {
+                Console.WriteLine($"ahead     ran out after {moisture.Count} readings: {error.Message}");
+                break;
+            }
 
-            // Drive on while there is room ahead, otherwise stop and turn on the spot.
-            bool clear = reading > 1.0f;
-            float vx = clear ? 1.0f : 0.0f;
-            float omega = clear ? 0.0f : 1.0f;
-            await throttle.ApplyAsync(vx);
-            await rover.ApplyAsync(new Twist(vx, Omega: omega));
-            Console.WriteLine($"{reading} m ahead, so drive at {vx} and turn at {omega}");
+            (float speed, float turn) = clear > 1.0f ? (1.0f, 0.0f) : (0.0f, 1.0f);
+            await drive.ApplyAsync(speed);
+            await rover.ApplyAsync(new Twist(speed, Omega: turn));
+            float wet = await soil.ReadAsync();
+            float elapsed = moisture.Count * Dt;
+            moisture.Add(wet);
+            string report = Tenths(wet);
+            try
+            {
+                await radio.SendAsync("vineyard/row-4/soil", report);
+                delivered++;
+            }
+            catch (PamojaException)
+            {
+            }
+
+            Console.WriteLine(
+                $"{Tenths(elapsed)} s     {Tenths(clear)} m clear:"
+                + $" drive {Tenths(speed)}, turn {Tenths(turn)}, soil {report}");
         }
 
-        // The recording actuator kept every command, which is how a test says what the
-        // control loop decided rather than only what it ended up doing.
-        Console.WriteLine($"commands  {string.Join(", ", throttle.Commands)}");
+        // The drive kept every command, which is how a test says what the loop decided
+        // rather than only what it ended up doing.
+        Console.WriteLine($"drive     recorded {string.Join(", ", drive.Commands.Select(Tenths))}");
 
-        // Three half-second commands at 1 m/s reach 1.5 m along x. The last one turns on
+        // Three half-second commands at 1 m/s reach 1.5 m along x. The last turns on
         // the spot at 1 rad/s for half a second, which moves the rover nowhere.
         Pose pose = rover.Pose;
         Console.WriteLine(
-            $"pose      x {pose.X:F1} m, y {pose.Y:F1} m, heading {pose.Theta:F1} rad");
+            $"rover     ended at x {Tenths(pose.X)} m, y {Tenths(pose.Y)} m, heading {Tenths(pose.Theta)} rad");
+
+        // A second probe with the same seed reads exactly the same values.
+        using var twin = new SimulatedSensor(31.0f, -0.5f, 0.3f, 7);
+        List<float> again = [];
+        foreach (float _ in moisture)
+        {
+            again.Add(await twin.ReadAsync());
+        }
+
+        string verdict = again.SequenceEqual(moisture) ? "the same" : "different";
+        Console.WriteLine($"soil      a probe with the same seed read {verdict} {again.Count} values");
+        Console.WriteLine($"radio     delivered {delivered} of {moisture.Count} soil reports and lost the third");
         // ANCHOR_END: example
 
-        Expect(seen.SequenceEqual(capture), "the replay hands back the captured series");
-        Expect(
-            throttle.Commands.SequenceEqual([1.0f, 1.0f, 1.0f, 0.0f]),
-            "and the actuator kept every command the loop issued");
-        Expect(Math.Abs(pose.X - 1.5f) < 1e-6f, "1.5 m traveled along x");
-        Expect(Math.Abs(pose.Y) < 1e-6f, "with no sideways drift");
-        Expect(Math.Abs(pose.Theta - 0.5f) < 1e-6f, "and a half-radian turn at the end");
+        Expect(drive.Commands.SequenceEqual([1.0f, 1.0f, 1.0f, 0.0f]), "the drive kept every command");
+        Expect(Math.Abs(pose.X - 1.5f) < 1e-6f && Math.Abs(pose.Y) < 1e-6f, "1.5 m along x");
+        Expect(Math.Abs(pose.Theta - 0.5f) < 1e-6f, "a half-radian turn on the spot");
+        Expect(again.SequenceEqual(moisture), "the same seed gave the same readings");
+        Expect(delivered == 3, "the radio lost the third report");
     }
+
+    /// <summary>Writes a value to one decimal place, whatever the machine's culture.</summary>
+    private static string Tenths(float value) => value.ToString("F1", CultureInfo.InvariantCulture);
 }

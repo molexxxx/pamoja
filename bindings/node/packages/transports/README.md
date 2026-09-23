@@ -19,7 +19,7 @@ npm install @pamoja/transports
 | [Event bus](https://pamoja.molex.cloud/docs/guides/bus.html) | `@pamoja/bus` | An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss |
 | [Engine surface](https://pamoja.molex.cloud/docs/guides/transport.html) | `@pamoja/core` | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | [Your own link](https://pamoja.molex.cloud/docs/guides/link.html) | `@pamoja/core` | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
-| [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |
+| [Simulators](https://pamoja.molex.cloud/docs/guides/sim.html) | `@pamoja/sim` | Noisy and replay sensors, a recording actuator, a simulated robot that dead-reckons its pose, and a link that loses sends on a pattern |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).
 
