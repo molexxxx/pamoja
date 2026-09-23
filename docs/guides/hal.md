@@ -823,7 +823,7 @@ The mistakes that cost an afternoon:
 
 <!-- table: next hal -->
 - [Sensor drivers](sensors.md): Datasheet-anchored drivers for eleven parts, from every language.
-- [Actuator drivers](actuators.md): PCA9685 PWM and servo pulses, and stepper coil sequencing.
+- [Actuator drivers](actuators.md): A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing.
 - [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
 - Beside it: [Buses and links](../buses.md), [Raspberry Pi](../boards/raspberry-pi.md), [RP2040](../boards/rp2040.md).
 - Also in Field I/O: [Serial framing](serial.md), [Modbus RTU](modbus.md), [CAN and J1939](can.md), [I2C, SPI, and GPIO](gpio.md).

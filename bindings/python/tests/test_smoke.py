@@ -487,7 +487,38 @@ def test_an_actuator_command_encodes_to_its_registers():
     assert actuators.steps_for_degrees(90.0, 200) == 50
 
 
-def test_the_windowed_helpers_summarise_recent_readings():
+def test_a_pca9685_driver_programs_a_part_that_keeps_its_datasheet_rules():
+    from pamoja.actuators import Pca9685, pca9685, pwm
+    from pamoja.core import PamojaError
+    from pamoja.hal import I2cBus
+
+    address = pca9685.DEFAULT_ADDRESS
+    bus = I2cBus.simulated([pca9685.sim.part(address)])
+    board = Pca9685(bus, address, frequency_hz=50)
+    assert board.prescale == 121, "round(25 MHz / 4096 / 50) - 1"
+    board.set_channel(0, pwm.servo(1500))
+    assert bus.waited_micros == pca9685.OSCILLATOR_STARTUP_MICROS
+
+    part = bus.part(address)
+    assert part.register(pca9685.REGISTER_PRE_SCALE) == 121
+    assert part.register(pca9685.REGISTER_MODE1) == pca9685.MODE1_AUTO_INCREMENT
+    first = pca9685.channel_register(0)
+    assert bytes(part.register(first + offset) for offset in range(4)) == pwm.servo(1500)
+
+    board.set_all(pwm.full_off())
+    assert bus.part(address).register(pca9685.channel_register(15) + 3) == 0x10
+    with pytest.raises(ValueError, match="sixteen channels"):
+        board.set_channel(16, pwm.full_on())
+    with pytest.raises(PamojaError, match="nothing answered at 0x00"):
+        board.software_reset()
+
+    fresh = pca9685.sim.part(address)
+    assert fresh.register(pca9685.REGISTER_MODE1) == pca9685.MODE1_RESET
+    assert fresh.register(pca9685.REGISTER_MODE2) == pca9685.MODE2_RESET
+    assert fresh.register(pca9685.REGISTER_PRE_SCALE) == pca9685.PRE_SCALE_RESET
+
+
+def test_the_windowed_helpers_summarize_recent_readings():
     from pamoja.kit import WINDOW_CAPACITY, Anomaly, Median, Trend, Window
 
     window = Window()

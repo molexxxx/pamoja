@@ -13,6 +13,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Output, Outputs, Pca9685};
@@ -107,6 +109,19 @@ pub const COUNTS: u16 = 4096;
 pub const PRE_SCALE_RESET: u8 = 0x1E;
 /// The power-on value of MODE1 (0x11): sleeping, responding to the All Call address.
 pub const MODE1_RESET: u8 = 0x11;
+/// The smallest value the part loads into PRE_SCALE; a smaller write loads this.
+pub const PRE_SCALE_MIN: u8 = 3;
+/// The power-on value of SUBADR1 (0xE2), the first programmable subaddress.
+pub const SUBADR1_RESET: u8 = 0xE2;
+/// The power-on value of SUBADR2 (0xE4).
+pub const SUBADR2_RESET: u8 = 0xE4;
+/// The power-on value of SUBADR3 (0xE8).
+pub const SUBADR3_RESET: u8 = 0xE8;
+/// The power-on value of ALLCALLADR (0xE0), the LED All Call address.
+pub const ALLCALL_ADDR_RESET: u8 = 0xE0;
+/// The power-on value of every channel's LEDn_OFF_H (0x10): the full-off bit set, so each
+/// output starts off. The channel's other three registers start at zero.
+pub const LED_OFF_H_RESET: u8 = 0x10;
 
 /// Returns the address of a channel's first register (its on-count low byte).
 ///

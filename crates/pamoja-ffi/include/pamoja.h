@@ -18,6 +18,55 @@
 // How many counts a PCA9685 period is divided into.
 #define PAMOJA_PCA9685_COUNTS 4096
 
+// The address a PCA9685 answers at with its six address pins low.
+#define PAMOJA_PCA9685_DEFAULT_ADDRESS 64
+
+// How long the oscillator takes to run once woken, in microseconds.
+#define PAMOJA_PCA9685_OSCILLATOR_STARTUP_MICROS 500
+
+// Mode register 1: restart, clock, auto-increment, sleep, and the addresses answered.
+#define PAMOJA_PCA9685_REGISTER_MODE1 0
+
+// Mode register 2: how the outputs are wired and when they change.
+#define PAMOJA_PCA9685_REGISTER_MODE2 1
+
+// The first of channel 0's four registers; channel n starts four registers on per channel.
+#define PAMOJA_PCA9685_REGISTER_LED0_ON_L 6
+
+// The first of the four ALL_LED registers, which load every channel at once.
+#define PAMOJA_PCA9685_REGISTER_ALL_LED_ON_L 250
+
+// The prescaler that sets the PWM frequency, writable only while the part sleeps.
+#define PAMOJA_PCA9685_REGISTER_PRE_SCALE 254
+
+// MODE1's RESTART bit: set when the part slept with a channel running, cleared by a written 1.
+#define PAMOJA_PCA9685_MODE1_RESTART 128
+
+// MODE1's EXTCLK bit: the prescaler divides the EXTCLK pin rather than the oscillator.
+#define PAMOJA_PCA9685_MODE1_EXTCLK 64
+
+// MODE1's auto-increment bit: the register pointer moves on after each byte.
+#define PAMOJA_PCA9685_MODE1_AUTO_INCREMENT 32
+
+// MODE1's SLEEP bit: the oscillator is off and PRE_SCALE takes a write.
+#define PAMOJA_PCA9685_MODE1_SLEEP 16
+
+// The power-on value of MODE1: asleep, answering the All Call address.
+#define PAMOJA_PCA9685_MODE1_RESET 17
+
+// The power-on value of MODE2: totem-pole outputs.
+#define PAMOJA_PCA9685_MODE2_RESET 4
+
+// The power-on value of PRE_SCALE: 200 Hz on the internal oscillator.
+#define PAMOJA_PCA9685_PRE_SCALE_RESET 30
+
+// The smallest value the part loads into PRE_SCALE, about 1526 Hz.
+#define PAMOJA_PCA9685_PRE_SCALE_MIN 3
+
+// The frequency a PCA9685 driver runs at unless given another, in hertz: the part's own
+// power-on 200 Hz.
+#define PAMOJA_PCA9685_DEFAULT_FREQUENCY_HZ 200
+
 // The length in bytes of an entry hash.
 #define PAMOJA_AUDIT_DIGEST_LEN 32
 
@@ -1830,7 +1879,7 @@ typedef enum {
 
 // A stepper drive pattern, trading torque, smoothness, and resolution.
 typedef enum {
-  // One coil energised at a time: four steps, least torque and least power.
+  // One coil energized at a time: four steps, least torque and least power.
   PamojaStepDrive_Wave = 0,
   // Two adjacent coils at a time: four steps, most torque.
   PamojaStepDrive_FullStep = 1,
@@ -2505,6 +2554,9 @@ typedef struct PamojaMqttMessage PamojaMqttMessage;
 // An OPT3001 driven over an I2C bus. Opaque; release it with [`pamoja_opt3001_free`].
 typedef struct PamojaOpt3001 PamojaOpt3001;
 
+// A PCA9685 driver. Opaque; release it with [`pamoja_pca9685_free`].
+typedef struct PamojaPca9685 PamojaPca9685;
+
 // An opaque handle to a PID controller.
 typedef struct PamojaPid PamojaPid;
 
@@ -2648,6 +2700,29 @@ typedef struct {
   // The high byte of that count; bit 4 is the full-off flag.
   uint8_t off_high;
 } PamojaPwm;
+
+// How a PCA9685's sixteen outputs are wired, the MODE2 register.
+typedef struct {
+  // 1 for totem-pole outputs, the power-on setting; 0 for open-drain.
+  uint8_t totem_pole;
+  // 1 to invert the output logic, for a board with no external driver.
+  uint8_t inverted;
+  // 1 to change the outputs on the acknowledge of each register write rather than on the
+  // stop condition.
+  uint8_t change_on_ack;
+} PamojaPca9685Outputs;
+
+// How a PCA9685 driver programs the part.
+typedef struct {
+  // The PWM frequency every channel shares, in hertz; the prescaler reaches 24 to 1526 at
+  // 25 MHz, and 50 is what a hobby servo wants.
+  uint32_t frequency_hz;
+  // The clock the prescaler divides, in hertz: the internal 25 MHz unless the board drives
+  // EXTCLK.
+  uint32_t oscillator_hz;
+  // How the outputs are wired.
+  PamojaPca9685Outputs outputs;
+} PamojaPca9685Settings;
 
 // The fields J1939 packs into an extended CAN identifier.
 //
@@ -5262,6 +5337,164 @@ void pamoja_stepper_free(PamojaStepper *stepper);
 //
 // The step count, negative for a negative angle.
 int32_t pamoja_stepper_steps_for_degrees(float degrees, uint32_t steps_per_revolution);
+
+// Returns the settings a PCA9685 driver takes when given none: 200 Hz on the internal
+// oscillator with totem-pole outputs, the part's own power-on state.
+//
+// # Returns
+//
+// The settings.
+PamojaPca9685Settings pamoja_pca9685_settings_default(void);
+
+// Creates a PCA9685 driver on a bus. Nothing is sent until [`pamoja_pca9685_init`] or the
+// first channel is loaded.
+//
+// # Arguments
+//
+// * `bus` - the bus the part is on; the driver holds its own share.
+// * `address` - the address the A5 to A0 pins select, `0x40` with all six low.
+// * `settings` - the frequency, the oscillator, and the output wiring; see
+//   [`pamoja_pca9685_settings_default`].
+// * `out_driver` - receives the driver.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the driver in `out_driver`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_driver` a writable pointer or null.
+PamojaStatus pamoja_pca9685_new(const PamojaI2cBus *bus,
+                                uint8_t address,
+                                PamojaPca9685Settings settings,
+                                PamojaPca9685 **out_driver);
+
+// Puts the oscillator to sleep, writes the prescale and the output wiring, wakes it, waits
+// the 500 us it needs, and restarts the channels.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::Io`] when the bus failed, or
+// [`PamojaStatus::InvalidArgument`] for a null driver.
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_init(PamojaPca9685 *driver);
+
+// Loads one channel's on and off counts, initializing the part first if it has not been.
+//
+// # Arguments
+//
+// * `driver` - the driver.
+// * `channel` - the output, 0 to 15.
+// * `pwm` - the four register bytes to load, as the `pamoja_pwm_` functions build them.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], [`PamojaStatus::InvalidArgument`] for a channel past 15 or a null
+// driver, or [`PamojaStatus::Io`] when the bus failed.
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_set_channel(PamojaPca9685 *driver, uint8_t channel, PamojaPwm pwm);
+
+// Loads every channel with the same counts in one transfer, through the ALL_LED registers.
+//
+// # Arguments
+//
+// * `driver` - the driver.
+// * `pwm` - the four register bytes to load.
+//
+// # Returns
+//
+// As [`pamoja_pca9685_set_channel`].
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_set_all(PamojaPca9685 *driver, PamojaPwm pwm);
+
+// Stops the oscillator. The channel registers keep their values, and a channel still
+// running when the part sleeps sets its RESTART bit.
+//
+// # Returns
+//
+// As [`pamoja_pca9685_init`].
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_sleep(PamojaPca9685 *driver);
+
+// Wakes the oscillator, waits the 500 us it needs, and restarts every channel that was
+// running before the sleep.
+//
+// # Returns
+//
+// As [`pamoja_pca9685_init`].
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_wake(PamojaPca9685 *driver);
+
+// Sends the general-call software reset, which returns every PCA9685 on the bus to its
+// power-on state, not only this one. It goes to address `0x00`, which nothing on a simulated
+// bus answers.
+//
+// # Returns
+//
+// As [`pamoja_pca9685_init`].
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+PamojaStatus pamoja_pca9685_software_reset(PamojaPca9685 *driver);
+
+// Returns the prescale value the driver writes for its frequency.
+//
+// # Returns
+//
+// The PRE_SCALE register value, or 0 for a null driver.
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+uint8_t pamoja_pca9685_prescale(const PamojaPca9685 *driver);
+
+// Returns the frequency the part runs at once the prescaler has rounded the one asked for.
+//
+// # Returns
+//
+// The frequency in hertz, or 0 for a null driver.
+//
+// # Safety
+//
+// `driver` must be a live handle or null.
+float pamoja_pca9685_frequency(const PamojaPca9685 *driver);
+
+// Releases a driver and its share of the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `driver` must be a handle from [`pamoja_pca9685_new`] that has not been freed, or null.
+void pamoja_pca9685_free(PamojaPca9685 *driver);
+
+// Creates a simulated PCA9685 as it powers up: asleep at 200 Hz with every output off,
+// keeping its datasheet's rules for writes, reads, and its register pointer.
+//
+// # Arguments
+//
+// * `address` - the address it answers to.
+//
+// # Returns
+//
+// A part to put on a simulated bus, released with
+// [`pamoja_i2c_part_free`](crate::hal::pamoja_i2c_part_free).
+PamojaI2cPart *pamoja_pca9685_sim_part(uint8_t address);
 
 // Creates a log that signs with a device identity and starts from nothing.
 //

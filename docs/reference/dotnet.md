@@ -249,7 +249,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-actuators">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">Pamoja.Actuators</code><p>PCA9685 PWM and servo pulses, and stepper coil sequencing</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/actuators.html">Actuator drivers</a><code class="pkg-import">Pamoja.Actuators</code><p>A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Actuators</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Actuators" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

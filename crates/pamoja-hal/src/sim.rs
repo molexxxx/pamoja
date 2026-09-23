@@ -108,6 +108,68 @@ pub struct I2cPart {
     registers: [u8; REGISTERS],
     pointer: Option<u8>,
     transfers: usize,
+    rules: Rules,
+}
+
+/// The rules a part with byte-wide registers keeps beyond plain memory: which writes it takes,
+/// what a read returns, and where its register pointer moves.
+///
+/// [`Rules::MEMORY`] stores every byte written, reads back what it stored, and moves on one
+/// register a byte, which is most parts. A part whose datasheet says otherwise, such as one
+/// that ignores a register while it runs or loads many registers from one write, gives its
+/// own functions. They are plain functions over the register map, so a part that keeps
+/// rules still needs no allocator.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_hal::i2c::I2c;
+/// use pamoja_hal::sim::{I2cPart, Rules, REGISTERS};
+///
+/// // A part whose register 0x10 only takes a write while bit 0 of register 0x00 is set.
+/// fn write(registers: &mut [u8; REGISTERS], register: u8, value: u8) {
+///     if register != 0x10 || registers[0x00] & 1 != 0 {
+///         registers[register as usize] = value;
+///     }
+/// }
+/// let rules = Rules { write, ..Rules::MEMORY };
+/// let mut part = I2cPart::new(0x40).following(rules);
+///
+/// part.write(0x40, &[0x10, 0x55]).unwrap();
+/// assert_eq!(part.register(0x10), 0x00, "locked");
+/// part.write(0x40, &[0x00, 0x01]).unwrap();
+/// part.write(0x40, &[0x10, 0x55]).unwrap();
+/// assert_eq!(part.register(0x10), 0x55, "unlocked");
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct Rules {
+    /// Takes one byte a driver wrote to a register: stores it, drops it, or loads it elsewhere.
+    pub write: fn(registers: &mut [u8; REGISTERS], register: u8, value: u8),
+    /// What a read of a register returns.
+    pub read: fn(registers: &[u8; REGISTERS], register: u8) -> u8,
+    /// Where the register pointer goes after a byte at a register is written or read.
+    pub next: fn(registers: &[u8; REGISTERS], register: u8) -> u8,
+}
+
+impl Rules {
+    /// Plain memory: every write stored, every read what was stored, one register a byte.
+    pub const MEMORY: Rules = Rules {
+        write: store,
+        read: stored,
+        next: following,
+    };
+}
+
+fn store(registers: &mut [u8; REGISTERS], register: u8, value: u8) {
+    registers[register as usize] = value;
+}
+
+fn stored(registers: &[u8; REGISTERS], register: u8) -> u8 {
+    registers[register as usize]
+}
+
+fn following(_registers: &[u8; REGISTERS], register: u8) -> u8 {
+    register.wrapping_add(1)
 }
 
 impl I2cPart {
@@ -127,7 +189,23 @@ impl I2cPart {
             registers: [0; REGISTERS],
             pointer: None,
             transfers: 0,
+            rules: Rules::MEMORY,
         }
+    }
+
+    /// The same part, keeping its datasheet's rules for writes, reads, and its pointer.
+    ///
+    /// # Arguments
+    ///
+    /// * `rules` - the rules; see [`Rules`].
+    ///
+    /// # Returns
+    ///
+    /// The part.
+    #[must_use]
+    pub const fn following(mut self, rules: Rules) -> I2cPart {
+        self.rules = rules;
+        self
     }
 
     /// The same part, holding these bytes from a register on.
@@ -213,25 +291,28 @@ impl I2cPart {
         }
     }
 
-    // A write names a register and then fills it and the ones after it.
+    // A write names a register and then fills it and the ones after it, as the rules allow.
     fn take_write(&mut self, bytes: &[u8]) {
         let Some((&first, rest)) = bytes.split_first() else {
             return;
         };
-        self.pointer = Some(first);
-        self.load(first, rest);
-        self.pointer = Some(first.wrapping_add(rest.len() as u8));
+        let mut at = first;
+        for &byte in rest {
+            (self.rules.write)(&mut self.registers, at, byte);
+            at = (self.rules.next)(&self.registers, at);
+        }
+        self.pointer = Some(at);
     }
 
-    // A read takes from wherever the last write left off, moving on as it goes.
+    // A read takes from wherever the last write left off, moving on as the rules say.
     fn take_read(&mut self, buffer: &mut [u8]) -> Result<(), PartError> {
         let Some(first) = self.pointer else {
             return Err(PartError::NoRegister);
         };
         let mut at = first;
         for slot in buffer.iter_mut() {
-            *slot = self.registers[at as usize];
-            at = at.wrapping_add(1);
+            *slot = (self.rules.read)(&self.registers, at);
+            at = (self.rules.next)(&self.registers, at);
         }
         self.pointer = Some(at);
         Ok(())

@@ -63,6 +63,22 @@ released together, so one entry covers all of them.
   part answers, the sixteen INA219 and INA226 addresses, what a measurement waits, every
   setting and its choices in each language, the ADS1115's ranges, calibrating a current
   monitor, the simulated parts, and what each error means.
+- The PCA9685 driver in TypeScript, Python, and C#, over an `I2cBus`: `Pca9685` with its
+  frequency, oscillator, and output wiring as settings, and `init`, `set_channel`,
+  `set_all`, `sleep`, `wake`, and `software_reset`, loading the four register bytes the
+  `pwm` builders make. The C ABI carries it as a handle. Its registers, MODE1 bits, and
+  power-on values are named in every language, so a program reads the part back by name.
+- A simulated PCA9685, `pca9685::sim::part` and its twin in every language, holding the
+  power-on registers of the datasheet's Table 4 and keeping the rules its register
+  descriptions set out: PRE_SCALE takes a write only while the oscillator sleeps and never
+  loads less than 3, the register pointer moves on only with auto-increment set, one write
+  to the ALL_LED registers loads every channel while they read back zero, RESTART clears on
+  a written 1 and sets when the part sleeps with a channel running, and EXTCLK stays set. A
+  driver that writes the prescale awake leaves the part at 200 Hz, as the part would.
+- Rules for a simulated part with byte-wide registers: `pamoja_hal::sim::Rules`, three
+  plain functions for what a write does, what a read returns, and where the pointer moves,
+  given to a part with `I2cPart::following`. `Rules::MEMORY`, every part's default, is
+  plain memory. The PCA9685 is the first part built on them.
 - The buses guide rewritten around the shared bus in all four languages, each opening
   with how its language hands out the bus and reports a failure, plus the same program
   on a Raspberry Pi, tables of the bus kinds, the BME280's registers, oversampling and
@@ -547,9 +563,9 @@ released together, so one entry covers all of them.
 - A simulated bus hands a part back as whichever kind it is. In Rust `I2cBus::part` is
   generic over the kind, `bus.part::<I2cPart>(address)`; in TypeScript and Python it
   returns the part as it is; in C# `bus.Part(address)` returns a `SimulatedPart` and
-  `bus.Part<I2cPart>(address)` that kind or null. In C#, `Ina219` and `Ads1115` are now
-  classes whose static members are the datasheet and whose instances are drivers, as
-  `Bme280` became.
+  `bus.Part<I2cPart>(address)` that kind or null. In C#, `Ina219`, `Ads1115`, and
+  `Pca9685` are now classes whose static members are the datasheet and whose instances
+  are drivers, as `Bme280` became.
 - Every guide ends with a Where next generated from the capability map: the guides a
   reader goes to after it, each with what it covers, the pages beside it such as a board
   page, and the rest of its chapter. Before, one guide in 37 had one. The language tabs move

@@ -12,6 +12,8 @@ use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
 #[cfg(feature = "actuators")]
 mod actuators;
+#[cfg(feature = "actuators")]
+mod actuators_driver;
 #[cfg(feature = "audit")]
 mod audit;
 #[cfg(feature = "bus")]
@@ -588,6 +590,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "actuators")]
     {
         m.add_class::<actuators::Stepper>()?;
+        m.add_class::<actuators_driver::Pca9685>()?;
+        m.add_function(wrap_pyfunction!(actuators_driver::pca9685_sim_part, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pca9685_limits, m)?)?;
         m.add_function(wrap_pyfunction!(actuators::pca9685_channel_register, m)?)?;
         m.add_function(wrap_pyfunction!(

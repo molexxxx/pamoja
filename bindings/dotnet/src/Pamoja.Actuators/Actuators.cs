@@ -25,44 +25,6 @@ public enum StepDirection
     Backward = 1,
 }
 
-/// <summary>An NXP PCA9685 16-channel PWM controller, for servos, LEDs, and valves.</summary>
-public static class Pca9685
-{
-    /// <summary>The part's internal oscillator frequency, in hertz.</summary>
-    public const uint InternalOscHz = 25_000_000;
-
-    /// <summary>How many channels it drives.</summary>
-    public const byte Channels = 16;
-
-    /// <summary>How many counts each period is divided into.</summary>
-    public const ushort Counts = 4096;
-
-    /// <summary>Returns the first of a channel's four consecutive registers.</summary>
-    /// <param name="channel">The channel, 0 to 15.</param>
-    /// <returns>The register address.</returns>
-    /// <exception cref="PamojaException">The channel is beyond the part.</exception>
-    public static byte ChannelRegister(byte channel)
-    {
-        Status.ThrowIfError(
-            NativeMethods.pamoja_pca9685_channel_register(channel, out byte register));
-        return register;
-    }
-
-    /// <summary>Returns the prescale value that sets an update rate.</summary>
-    /// <param name="updateRateHz">The PWM frequency wanted.</param>
-    /// <param name="oscHz">The oscillator frequency, usually <see cref="InternalOscHz"/>.</param>
-    /// <returns>The prescale register value.</returns>
-    public static byte PrescaleForFrequency(uint updateRateHz, uint oscHz = InternalOscHz) =>
-        NativeMethods.pamoja_pca9685_prescale_for_frequency(updateRateHz, oscHz);
-
-    /// <summary>Returns the update rate a prescale value produces.</summary>
-    /// <param name="prescale">The prescale register value.</param>
-    /// <param name="oscHz">The oscillator frequency, usually <see cref="InternalOscHz"/>.</param>
-    /// <returns>The frequency in hertz.</returns>
-    public static float FrequencyForPrescale(byte prescale, uint oscHz = InternalOscHz) =>
-        NativeMethods.pamoja_pca9685_frequency_for_prescale(prescale, oscHz);
-}
-
 /// <summary>The four register bytes for one PCA9685 channel.</summary>
 /// <remarks>
 /// Each call returns them in the channel's own register order, so they can be
@@ -112,20 +74,28 @@ public static class Pwm
     /// <exception cref="PamojaException">The registers are not four bytes.</exception>
     public static (ushort On, ushort Off) Counts(ReadOnlySpan<byte> bytes)
     {
+        Status.ThrowIfError(NativeMethods.pamoja_pwm_counts(Native(bytes), out ushort on, out ushort off));
+        return (on, off);
+    }
+
+    /// <summary>Packs four register bytes into the struct the C ABI takes.</summary>
+    /// <param name="bytes">The four channel registers.</param>
+    /// <returns>The native setting.</returns>
+    /// <exception cref="PamojaException">The registers are not four bytes.</exception>
+    internal static PamojaPwm Native(ReadOnlySpan<byte> bytes)
+    {
         if (bytes.Length != 4)
         {
             throw new PamojaException("pwm must be exactly 4 bytes");
         }
 
-        PamojaPwm pwm = new()
+        return new PamojaPwm
         {
             OnLow = bytes[0],
             OnHigh = bytes[1],
             OffLow = bytes[2],
             OffHigh = bytes[3],
         };
-        Status.ThrowIfError(NativeMethods.pamoja_pwm_counts(pwm, out ushort on, out ushort off));
-        return (on, off);
     }
 
     /// <summary>Lays a native setting out in register order.</summary>
