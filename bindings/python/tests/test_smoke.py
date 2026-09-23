@@ -522,6 +522,50 @@ def test_a_pca9685_driver_programs_a_part_that_keeps_its_datasheet_rules():
     assert fresh.register(pca9685.REGISTER_PRE_SCALE) == pca9685.PRE_SCALE_RESET
 
 
+def test_a_serial_port_carries_bytes_over_every_kind_of_line():
+    from pamoja.core import PamojaError
+    from pamoja.hal import Parity, SerialPort, SerialPortKind, SerialSettings, SerialStep
+
+    modbus = SerialSettings(9_600, Parity.EVEN)
+    assert str(modbus) == "9600 8E1"
+    assert modbus.bits_per_character == 11, "start, eight data, parity, stop"
+    assert modbus.character_nanos == 1_145_834
+    assert modbus.transfer_micros(8) == 9_167
+
+    gateway, node = SerialPort.pair(SerialSettings(115_200))
+    node.write(b"t=21.5")
+    assert gateway.read(16, timeout=0.1) == b"t=21.5"
+    assert gateway.read(16, timeout=0.25) == b"", "a simulated read does not wait"
+    assert gateway.waited_micros == 250_000
+    assert gateway.kind is SerialPortKind.PAIRED
+    assert gateway.settings == SerialSettings(115_200)
+
+    line = SerialPort.looped(modbus)
+    line.write(bytes([1, 2, 3]))
+    assert line.read(2, timeout=0) == bytes([1, 2])
+    line.discard_input()
+    assert line.read(8, timeout=0) == b""
+    line.wait(0.002)
+    assert line.waited_micros == 2_000
+    assert (line.written, line.received) == (3, 2)
+
+    script = SerialPort.scripted(
+        SerialSettings(9_600), [SerialStep.write(b"?"), SerialStep.read(b"42")]
+    )
+    with pytest.raises(PamojaError, match="expected 3f"):
+        script.write(b"!")
+    script.write(b"?")
+    assert script.read(4, timeout=0.01) == b"42"
+    assert script.remaining == 0
+    assert line.remaining is None
+
+    with pytest.raises(ValueError, match="3 stop bits"):
+        SerialPort.looped(SerialSettings(9_600, stop_bits=3))
+    if sys.platform != "linux":
+        with pytest.raises(PamojaError, match="only Linux"):
+            SerialPort.open("/dev/serial0", SerialSettings(115_200))
+
+
 def test_the_stepper_drivers_walk_the_coils_and_pulse_the_lines_as_rust_does():
     from pamoja.actuators import Direction, Drive, FourWire, StepDir, stepper
     from pamoja.gpio import Level, PinScript

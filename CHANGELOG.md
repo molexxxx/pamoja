@@ -75,6 +75,23 @@ released together, so one entry covers all of them.
   to the ALL_LED registers loads every channel while they read back zero, RESTART clears on
   a written 1 and sets when the part sleeps with a channel running, and EXTCLK stays set. A
   driver that writes the prescale awake leaves the part at 200 Hz, as the part would.
+- One serial port that a program and every driver on it share, in every language.
+  `pamoja_hal::port::SerialPort` in Rust (the `std` feature) is a handle that clones into
+  each holder, over the kernel's serial device (`SerialPort::open`, the `linux` feature),
+  opened raw at a speed, a parity, and a stop bit count, with a read that waits in `poll`
+  up to its timeout and a write that returns once the bytes have left the UART; a line
+  looped back on itself; the two ends of a null-modem pair; a simulated device behind the
+  `Peer` trait; or a script. A read anywhere but a real device counts its timeout in
+  `waited_micros` without sleeping. `Settings` gives the bits a character, the time one
+  takes, and a run's time on the wire. TypeScript, Python, and C# get `SerialPort`,
+  `SerialStep`, `Parity`, and the settings in their `hal` packages, with `write` and `read`
+  on a worker thread in Node.
+- The serial framing guide rewritten around a weather mast whose node sends COBS frames to a
+  gateway on a paired port, printing the same ten lines in all four languages, with a
+  Raspberry Pi UART self-test on one jumper wire in each. Its tables cover the two framings
+  and what they cost, line formats and their time on the wire, the kinds of port, the
+  settings in each language, which UART each Raspberry Pi model puts on its header, and what
+  each error means.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a

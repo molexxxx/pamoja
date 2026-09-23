@@ -98,10 +98,13 @@ other's RX; the levels, since a board's UART is 3.3 V logic and a PC serial
 port or an RS-232 cable is not; and the framing, since a bare stream of bytes
 has no packet boundaries of its own.
 
-pamoja: [`pamoja-serial`](guides/serial.md) carries the framing, SLIP and COBS
-byte stuffing with streaming decoders, so a byte stream carries discrete
-packets; [`pamoja-mavlink`](guides/mavlink.md) opens a serial port for a flight
-controller. Source: Microchip's UART reference manual,
+pamoja: `SerialPort` in [`pamoja-hal`](guides/serial.md#on-a-board) opens the
+kernel's serial device raw at a speed and a character format, from every
+language, and stands in for one with a looped line or a null-modem pair when
+nothing is plugged in; [`pamoja-serial`](guides/serial.md) carries the framing,
+SLIP and COBS byte stuffing with streaming decoders, so a byte stream carries
+discrete packets; [`pamoja-mavlink`](guides/mavlink.md) opens a serial port for
+a flight controller. Source: Microchip's UART reference manual,
 [DS70000582](https://ww1.microchip.com/downloads/en/DeviceDoc/70000582e.pdf).
 
 ## PWM

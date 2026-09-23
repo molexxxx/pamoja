@@ -98,6 +98,7 @@ async function main() {
   sensingAndActuation();
   laterSensors();
   await buses();
+  await serialPorts();
   await sensorDrivers();
   await actuatorDrivers();
   await stepperDrivers();
@@ -502,6 +503,52 @@ async function actuatorDrivers() {
   assert.strictEqual(part.register(pca9685.channelRegister(15) + 3), 0x10, "every channel off");
   await assert.rejects(board.setChannel(16, pwm.fullOn()), /sixteen channels/);
   await assert.rejects(board.softwareReset(), /nothing answered at 0x00/);
+}
+
+// A serial port over each kind of line a test reaches: a pair carries bytes both ways, a
+// looped line reads back what it wrote, a script refuses a write it did not expect, and a read
+// with nothing coming resolves at once and counts its timeout.
+async function serialPorts() {
+  const { SerialPort, SerialStep, Parity, SerialPortKind } = hal;
+  const modbus = { baud: 9600, parity: Parity.Even };
+  assert.strictEqual(SerialPort.bitsPerCharacter(modbus), 11, "start, eight data, parity, stop");
+  assert.strictEqual(SerialPort.characterNanos(modbus), 1145834);
+  assert.strictEqual(SerialPort.transferMicros(modbus, 8), 9167);
+
+  const [gateway, node] = SerialPort.pair({ baud: 115200 });
+  await node.write(Buffer.from("t=21.5"));
+  assert.deepStrictEqual(await gateway.read(16, 100), Buffer.from("t=21.5"));
+  const started = Date.now();
+  assert.strictEqual((await gateway.read(16, 250)).length, 0);
+  assert.ok(Date.now() - started < 200, "a simulated read does not wait");
+  assert.strictEqual(gateway.waitedMicros, 250000);
+  assert.strictEqual(gateway.kind, SerialPortKind.Paired);
+  assert.deepStrictEqual(gateway.settings, { baud: 115200, parity: Parity.None, stopBits: 1 });
+
+  const line = SerialPort.looped(modbus);
+  await line.write(Buffer.from([1, 2, 3]));
+  assert.deepStrictEqual(await line.read(2, 0), Buffer.from([1, 2]));
+  line.discardInput();
+  assert.strictEqual((await line.read(8, 0)).length, 0);
+  await line.wait(2);
+  assert.strictEqual(line.waitedMicros, 2000);
+  assert.strictEqual(line.written, 3);
+  assert.strictEqual(line.received, 2);
+
+  const script = SerialPort.scripted({ baud: 9600 }, [
+    SerialStep.write(Buffer.from("?")),
+    SerialStep.read(Buffer.from("42")),
+  ]);
+  await assert.rejects(script.write(Buffer.from("!")), /expected 3f/);
+  await script.write(Buffer.from("?"));
+  assert.deepStrictEqual(await script.read(4, 10), Buffer.from("42"));
+  assert.strictEqual(script.remaining, 0);
+  assert.strictEqual(line.remaining, null);
+
+  assert.throws(() => SerialPort.looped({ baud: 9600, stopBits: 3 }), /3 stop bits/);
+  if (process.platform !== "linux") {
+    assert.throws(() => SerialPort.open("/dev/serial0", { baud: 115200 }), /only Linux/);
+  }
 }
 
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust

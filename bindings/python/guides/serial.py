@@ -1,49 +1,96 @@
-"""The serial framing guide example; see docs/guides/serial.md."""
+"""The serial framing guide example: a weather mast whose node sends COBS frames up a UART to a
+gateway; see docs/guides/serial.md."""
 
 # ANCHOR: example
-from pamoja.serial import COBS_DELIMITER, SLIP_END, SLIP_ESC, SlipDecoder, cobs, slip
+from pamoja.hal import SerialPort, SerialSettings
+from pamoja.serial import COBS_DELIMITER, CobsDecoder, cobs, slip
 
-# A UART carries bytes, not packets, so a framing has to mark where one packet ends. SLIP
-# reserves two byte values for that, and the package names both: the end byte closes a
-# frame, the escape byte carries a value that would otherwise look like one.
-payload = b"lvl=" + bytes([SLIP_END, SLIP_ESC])
-framed = slip.encode(payload)
-print(f"slip      {len(payload)} payload bytes framed as {len(framed)}")
 
-# Decoding gives the payload back unchanged, reserved bytes and all.
-restored = slip.decode(framed)
-print(f"slip      decoded back to {len(restored)} bytes")
+def reading(sequence: int, text: str) -> bytes:
+    """A reading: a two-byte sequence number, most significant byte first, then its text."""
+    return sequence.to_bytes(2, "big") + text.encode()
 
-# COBS trades that escaping for one code byte per run of up to 254 non-zero bytes, each
-# run led by its own length, so a frame never grows by more than a byte per 254. Zero is
-# the delimiter, and never appears inside a frame.
-packet = b"lvl=" + bytes([COBS_DELIMITER]) + b"7"
-cobs_framed = cobs.encode(packet)
-print(f"cobs      {len(packet)} payload bytes framed as {len(cobs_framed)}")
 
-# A read from a port returns whatever arrived, which is rarely one whole frame. This chunk
-# holds two good frames with a truncated one between them; the decoder hands over the good
-# ones and discards only the bad frame.
-decoder = SlipDecoder()
-chunk = (
-    b"ok"
-    + bytes([SLIP_END])
-    + bytes([SLIP_ESC])  # a frame that ends before its escape pair completes
-    + bytes([SLIP_END])
-    + b"go"
-    + bytes([SLIP_END])
+# The line: 115200 baud, eight data bits, no parity, one stop bit. Ten bits a character.
+settings = SerialSettings(115_200)
+print(
+    f"line         {settings}, {settings.bits_per_character} bits a character, "
+    f"{settings.character_nanos / 1_000:.2f} us each"
 )
-frames = decoder.feed(chunk)
-for frame in frames:
-    print(f"received  {frame.decode()}")
-print(f"discarded {decoder.discarded} frame the stream mangled")
+
+# The two ends of the cable with nothing plugged in. On a Raspberry Pi the gateway's end is
+# SerialPort.open("/dev/serial0", settings) and nothing after this statement changes.
+gateway, node = SerialPort.pair(settings)
+
+# A UART carries bytes, and nothing marks where a message ends, so the node frames each reading
+# with COBS: zero becomes the one byte that ends a frame and never appears inside one, which
+# matters here, since the sequence number is full of zeros.
+texts = ["wind=12.4", "wind=13.1", "wind=11.8"]
+sent = 0
+for sequence, text in enumerate(texts, start=1):
+    frame = cobs.encode(reading(sequence, text))
+    node.write(frame)
+    sent += len(frame)
+print(
+    f"node         {len(texts)} readings of {len(reading(1, texts[0]))} bytes, "
+    f"framed as {sent} bytes"
+)
+
+# A read returns whatever has arrived, which is rarely one frame: here it is all three. The
+# decoder splits the stream back into payloads at each delimiter.
+arrived = gateway.read(256, timeout=0.1)
+print(f"gateway      {len(arrived)} bytes in one read")
+decoder = CobsDecoder()
+payloads = decoder.feed(arrived)
+for payload in payloads:
+    print(f"reading {int.from_bytes(payload[:2], 'big')}    {payload[2:].decode()}")
+
+# What one frame costs on the wire at this speed, start and stop bits included.
+frame_length = sent // len(texts)
+print(
+    f"on the wire  {settings.transfer_micros(frame_length) / 1_000:.2f} ms "
+    f"for a {frame_length}-byte frame at {settings}"
+)
+
+# The node restarts partway through a frame. As it comes back up it sends a lone delimiter,
+# which closes off the half frame, so the gateway drops it rather than gluing it to the next
+# one, and then it sends the reading again.
+again = cobs.encode(reading(4, "wind=12.9"))
+node.write(again[: len(again) // 2])
+node.write(bytes([COBS_DELIMITER]))
+node.write(again)
+dropped_before = decoder.discarded
+resent = decoder.feed(gateway.read(256, timeout=0.1))
+dropped = decoder.discarded - dropped_before
+print(f"restart      {dropped} frame cut short and dropped, then {resent[0][2:].decode()}")
+
+# SLIP, the older framing, ends a frame with one reserved byte and escapes that byte and its
+# own escape byte inside one. With no reserved bytes in a reading it costs a byte less than
+# COBS; a payload full of them costs up to twice its length under SLIP, and never more than
+# one byte in 254 over under COBS.
+first = reading(1, texts[0])
+slip_length = len(slip.encode(first))
+cobs_length = len(cobs.encode(first))
+print(
+    f"framing      {len(first)} payload bytes: {slip_length} under SLIP, "
+    f"{cobs_length} under COBS"
+)
+
+# The node goes quiet. A read waits for the first byte up to its timeout; on a port with
+# nothing plugged in it returns at once and counts the wait instead of sleeping through it, so
+# a test of a silent node takes no time.
+waited_before = gateway.waited_micros
+quiet = gateway.read(256, timeout=0.5)
+waited = (gateway.waited_micros - waited_before) // 1_000
+print(f"silence      {len(quiet)} bytes in {waited} ms, counted and not slept")
 # ANCHOR_END: example
 
-# The bytes each specification fixes are pinned once, in the crate tests and the
-# generated conformance vectors, so a guide asserts behavior instead.
-assert len(framed) > len(payload)
-assert len(cobs_framed) > len(packet)
-assert restored == payload
-assert cobs.decode(cobs_framed) == packet
-assert frames == [b"ok", b"go"]
-assert decoder.discarded == 1
+assert settings.character_nanos == 86_806, "10 bits at 115200"
+assert payloads == [reading(1, "wind=12.4"), reading(2, "wind=13.1"), reading(3, "wind=11.8")]
+assert sent == 39, "each 11-byte payload gains one code byte and a delimiter"
+assert settings.transfer_micros(13) == 1_129
+assert dropped == 1
+assert resent == [reading(4, "wind=12.9")]
+assert (slip_length, cobs_length) == (12, 13)
+assert gateway.waited_micros == 500_000
+assert node.written == 39 + len(again) // 2 + 1 + len(again)

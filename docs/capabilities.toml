@@ -152,13 +152,14 @@ pages = ["buses.md", "boards/raspberry-pi.md", "boards/esp32.md", "boards/rp2040
 key = "hal"
 chapter = "field-io"
 title = "Buses"
-summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus a program and its drivers share, and delays that sleep or only count"
+summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus and one serial port a program and its drivers share, and delays that sleep or only count"
 crates = ["pamoja-hal"]
 node = "hal"
 python = "hal"
 dotnet = [
     "I2cBus", "SimulatedPart", "I2cPart", "WordPart", "CommandPart", "I2cStep", "I2cBusKind",
-    "I2cFault", "IDelay", "DelayLog", "SleepDelay",
+    "I2cFault", "IDelay", "DelayLog", "SleepDelay", "SerialPort", "SerialSettings", "SerialStep",
+    "Parity", "SerialPortKind",
 ]
 guide = "guides/hal.md"
 next = ["sensors", "actuators", "device"]

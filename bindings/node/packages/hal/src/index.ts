@@ -6,7 +6,8 @@
  * other end: the kernel's adapter on a Linux board, simulated parts that answer from their
  * registers, or a script of the transfers a driver is expected to make. A driver runs the
  * same way over all three, so a program is written and tested with nothing plugged in and
- * then pointed at `/dev/i2c-1`.
+ * then pointed at `/dev/i2c-1`. A {@link SerialPort} is the same idea for a UART, and the
+ * {@link Delay} types pace a driver that waits between pin changes.
  *
  * @packageDocumentation
  */
@@ -18,6 +19,11 @@ import {
   type I2cFault as I2cFaultName,
   I2cPart,
   I2cStep,
+  type Parity as ParityName,
+  SerialPort,
+  type SerialPortKind as SerialPortKindName,
+  type SerialSettings,
+  SerialStep,
   WordPart,
 } from '@pamoja/native'
 
@@ -112,6 +118,64 @@ export const I2cFault = {
 
 /** How a scripted step fails the transfer that reaches it. */
 export type I2cFault = I2cFaultName
+
+/**
+ * One serial port, shared by the program and every driver built on it.
+ *
+ * `SerialPort.open(path, settings)` opens the kernel's serial device raw on a Linux board:
+ * `/dev/serial0` for a Raspberry Pi's own UART, `/dev/ttyUSB0` or `/dev/ttyACM0` for a USB
+ * adapter. `SerialPort.looped(settings)` is a line with TX wired to RX,
+ * `SerialPort.pair(settings)` the two ends of a null-modem cable, and
+ * `SerialPort.scripted(settings, steps)` a port that checks each write against a script of
+ * {@link SerialStep}s. `write` resolves once the bytes have left the UART, and
+ * `read(max, timeoutMs)` once bytes have arrived or the timeout has passed. On anything but
+ * the kernel's device a read never waits: it resolves at once, and the time it would have
+ * waited is added to `waitedMicros`. `SerialPort.characterNanos(settings)` and
+ * `SerialPort.transferMicros(settings, bytes)` give the time on the wire.
+ */
+export { SerialPort }
+
+/**
+ * One step of a scripted port: `SerialStep.write(bytes)` for a write the program is expected
+ * to make, and `SerialStep.read(bytes)` for bytes the far end sends.
+ */
+export { SerialStep }
+
+/**
+ * A port's speed and character format: `baud`, with `parity` none and `stopBits` 1 unless
+ * given. Eight data bits, always.
+ */
+export type { SerialSettings }
+
+/** The parity bit each character carries. */
+export const Parity = {
+  /** No parity bit. */
+  None: 'None' as ParityName,
+  /** A bit that makes the count of ones even, what Modbus RTU asks for by default. */
+  Even: 'Even' as ParityName,
+  /** A bit that makes the count of ones odd. */
+  Odd: 'Odd' as ParityName,
+} as const
+
+/** The parity bit each character carries. */
+export type Parity = ParityName
+
+/** What is on the other end of a serial port. */
+export const SerialPortKind = {
+  /** The kernel's serial device, with a real line on the other end. */
+  Device: 'Device' as SerialPortKindName,
+  /** The port's own output, looped back to its input. */
+  Looped: 'Looped' as SerialPortKindName,
+  /** The other end of a null-modem pair. */
+  Paired: 'Paired' as SerialPortKindName,
+  /** A simulated device that answers each write. */
+  Simulated: 'Simulated' as SerialPortKindName,
+  /** A script of the writes a driver is expected to make. */
+  Scripted: 'Scripted' as SerialPortKindName,
+} as const
+
+/** What is on the other end of a serial port. */
+export type SerialPortKind = SerialPortKindName
 
 /**
  * What paces a driver that has to wait between pin changes, such as a stepper between

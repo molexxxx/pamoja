@@ -193,6 +193,8 @@ __all__ = [
     "SealedMessage",
     "SeenPackets",
     "SenderStep",
+    "SerialPort",
+    "SerialStep",
     "Session",
     "Sht3x",
     "Sht3xMeasurement",
@@ -534,7 +536,10 @@ __all__ = [
     "scd4x_word",
     "scd4x_word_frame",
     "scd4x_write_frame",
+    "serial_bits_per_character",
+    "serial_character_nanos",
     "serial_framing_bytes",
+    "serial_transfer_micros",
     "sht3x_celsius",
     "sht3x_crc",
     "sht3x_fahrenheit",
@@ -9203,6 +9208,106 @@ class SenderStep:
         """
 
 @typing.final
+class SerialPort:
+    r"""
+    One serial port, shared by the program and every driver built on it.
+    
+    A failed write or read raises `PamojaError` with the reason: the script expected another
+    write, or the kernel's own words.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What is on the other end: `"Device"`, `"Looped"`, `"Paired"`, `"Simulated"`, or
+        `"Scripted"`.
+        """
+    @property
+    def settings(self) -> tuple[builtins.int, builtins.str, builtins.int]:
+        r"""
+        The speed, the parity name, and the stop bit count the port runs at.
+        """
+    @property
+    def written(self) -> builtins.int:
+        r"""
+        How many bytes have been written through the port.
+        """
+    @property
+    def received(self) -> builtins.int:
+        r"""
+        How many bytes have been read through the port.
+        """
+    @property
+    def waited_micros(self) -> builtins.int:
+        r"""
+        How long reads have waited without an answer, and waits have waited, in microseconds,
+        whether or not the process slept through it.
+        """
+    @property
+    def remaining(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many steps a script has left, or `None` when the port is not scripted.
+        """
+    @staticmethod
+    def open(path: builtins.str, baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> SerialPort:
+        r"""
+        Opens the kernel's serial device raw: `/dev/serial0` for a Raspberry Pi's own UART,
+        `/dev/ttyUSB0` or `/dev/ttyACM0` for a USB adapter.
+        
+        Raises `PamojaError` anywhere but Linux, for a speed that is not a standard rate from
+        1200 to 921600, and when the device cannot be opened.
+        """
+    @staticmethod
+    def looped(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> SerialPort:
+        r"""
+        A line looped back on itself: every byte written is waiting to be read.
+        """
+    @staticmethod
+    def pair(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> tuple[SerialPort, SerialPort]:
+        r"""
+        The two ends of a null-modem pair: what one end writes, the other reads.
+        """
+    @staticmethod
+    def scripted(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int, steps: typing.Sequence[SerialStep]) -> SerialPort:
+        r"""
+        A port that checks each write against the next step of a script, and makes the bytes
+        the far end sends readable as the script reaches them.
+        """
+    def write(self, data: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Writes bytes, returning once they have left the UART.
+        """
+    def read(self, size: builtins.int, timeout_micros: builtins.int) -> bytes:
+        r"""
+        Reads up to `size` bytes, waiting up to `timeout_micros` for the first one when nothing
+        has arrived, and returns what arrived, empty when the timeout passed with nothing.
+        """
+    def discard_input(self) -> None:
+        r"""
+        Drops whatever has arrived and not been read.
+        """
+    def wait(self, micros: builtins.int) -> None:
+        r"""
+        Waits, really on the kernel's device and anywhere else only counted.
+        """
+
+@typing.final
+class SerialStep:
+    r"""
+    One step of a scripted port: a write the program is expected to make, or bytes the far end
+    sends.
+    """
+    @staticmethod
+    def write(data: typing.Sequence[builtins.int]) -> SerialStep:
+        r"""
+        A write the program is expected to make, in one call.
+        """
+    @staticmethod
+    def read(data: typing.Sequence[builtins.int]) -> SerialStep:
+        r"""
+        Bytes the far end sends, readable once every step before them has happened.
+        """
+
+@typing.final
 class Session:
     r"""
     A confidential, tamper-evident, replay-protected channel with one peer.
@@ -12063,10 +12168,27 @@ def scd4x_write_frame(command: builtins.int, value: builtins.int) -> builtins.li
     Builds the five bytes that send an SCD4x command with an argument.
     """
 
+def serial_bits_per_character(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> builtins.int:
+    r"""
+    Returns the bits one character takes on the wire: a start bit, eight data bits, the parity
+    bit if there is one, and the stop bits.
+    """
+
+def serial_character_nanos(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int) -> builtins.int:
+    r"""
+    Returns how long one character takes on the wire, in nanoseconds, rounded up.
+    """
+
 def serial_framing_bytes() -> tuple[builtins.int, builtins.int, builtins.int, builtins.int, builtins.int]:
     r"""
     Returns the reserved framing bytes: SLIP end, escape, the two escape codes, and
     the COBS delimiter.
+    """
+
+def serial_transfer_micros(baud: builtins.int, parity: builtins.str, stop_bits: builtins.int, count: builtins.int) -> builtins.int:
+    r"""
+    Returns how long `count` bytes sent back to back take on the wire, in microseconds, rounded
+    up.
     """
 
 def sht3x_celsius(raw: builtins.int) -> builtins.float:
