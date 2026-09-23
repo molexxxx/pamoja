@@ -105,7 +105,7 @@ pamoja-modbus = { path = "../crates/pamoja-modbus" }
 pamoja-can = { path = "../crates/pamoja-can" }
 pamoja-gpio = { path = "../crates/pamoja-gpio", features = ["linux"] }
 pamoja-hal = { path = "../crates/pamoja-hal" }
-pamoja-sensors = { path = "../crates/pamoja-sensors" }
+pamoja-sensors = { path = "../crates/pamoja-sensors", features = ["linux"] }
 pamoja-actuators = { path = "../crates/pamoja-actuators" }
 pamoja-mavlink = { path = "../crates/pamoja-mavlink" }
 pamoja-zenoh = { path = "../crates/pamoja-zenoh" }

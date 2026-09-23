@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">55 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">56 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -336,7 +336,7 @@ The buses and framings that reach a part on the end of a wire.
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://reveng.sourceforge.io/crc-catalogue/1-15.htm#crc.cat.crc-8-maxim-dow"><span class="hw-main"><b>The document</b><small>CRC-8/MAXIM-DOW</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/ds18b20.rs#L720"><span class="hw-main"><b>The test</b><small><code>ds18b20.rs</code> line 720</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/ds18b20.rs#L821"><span class="hw-main"><b>The test</b><small><code>ds18b20.rs</code> line 821</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>
@@ -345,7 +345,7 @@ The buses and framings that reach a part on the end of a wire.
 
 Parts decoded byte for byte, each from the manufacturer's own datasheet.
 
-<nav class="hw-index" aria-label="Sensors and actuators index"><a href="#crc-8-sensirion">Sensirion CRC-8</a><a href="#sensor-datasheets">Twelve manufacturer datasheets</a></nav>
+<nav class="hw-index" aria-label="Sensors and actuators index"><a href="#crc-8-sensirion">Sensirion CRC-8</a><a href="#sensor-datasheets">Twelve manufacturer datasheets</a><a href="#w1-therm">w1_therm sysfs interface</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="crc-8-sensirion">
 <header class="hw-head">
@@ -357,7 +357,7 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 </header>
 <p class="hw-summary">The datasheets' own worked examples, including every CRC in the SCD4x command tables.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://sensirion.com/products/catalog/SHT31-DIS-B"><span class="hw-main"><b>The document</b><small>Sensirion CRC-8</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/sht3x.rs#L739"><span class="hw-main"><b>The test</b><small><code>sht3x.rs</code> line 739</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/sht3x.rs#L741"><span class="hw-main"><b>The test</b><small><code>sht3x.rs</code> line 741</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="sensor-datasheets">
@@ -370,7 +370,20 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 </header>
 <p class="hw-summary">Each driver asserts its datasheet's own worked compensation example. Every document is linked from the hardware page, part by part.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://pamoja.molex.cloud/docs/hardware.html"><span class="hw-main"><b>The document</b><small>Twelve manufacturer datasheets</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs#L981"><span class="hw-main"><b>The test</b><small><code>bme280.rs</code> line 981</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/bme280.rs#L983"><span class="hw-main"><b>The test</b><small><code>bme280.rs</code> line 983</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="w1-therm">
+<header class="hw-head">
+
+### w1_therm sysfs interface {#w1-therm}
+
+<p class="hw-by">The Linux kernel</p>
+<p class="hw-summary">The w1_slave file a Linux board serves for each DS18B20 on its 1-Wire bus</p>
+</header>
+<p class="hw-summary">The text is the one w1_slave_show prints in the kernel's drivers/w1/slaves/w1_therm.c, and its millidegrees are the datasheet's temperature rows.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.kernel.org/w1/slaves/w1_therm.html"><span class="hw-main"><b>The document</b><small>w1_therm sysfs interface</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/ds18b20.rs#L954"><span class="hw-main"><b>The test</b><small><code>ds18b20.rs</code> line 954</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>

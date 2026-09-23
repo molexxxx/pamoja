@@ -5,7 +5,9 @@ import builtins
 import typing
 __all__ = [
     "AckOutcome",
+    "Ads1115",
     "Ads1115Config",
+    "Ads1115Sample",
     "AgreementKey",
     "AlertReport",
     "Anomaly",
@@ -17,6 +19,7 @@ __all__ = [
     "Bme280Config",
     "Bme280CtrlMeas",
     "Bme280Measurement",
+    "Bmp280",
     "Bmp280Calibration",
     "Bmp280Coefficients",
     "Bmp280Config",
@@ -34,6 +37,7 @@ __all__ = [
     "ChirpstackUplinkEvent",
     "CoapClient",
     "CobsDecoder",
+    "CommandPart",
     "CommandProtocol",
     "ControlPolicy",
     "Controller",
@@ -43,6 +47,7 @@ __all__ = [
     "DeviceIdentity",
     "Dialect",
     "Ds18b20Reading",
+    "Ds18b20Thermometer",
     "DutyCycle",
     "ElementSpec",
     "EventBus",
@@ -62,15 +67,21 @@ __all__ = [
     "GatewayTxpk",
     "Geofence",
     "GpioLine",
+    "Hdc1080",
     "Hdc1080Config",
     "Hdc1080Measurement",
     "I2cBus",
     "I2cPart",
     "I2cStep",
     "ImageVerifier",
+    "Ina219",
+    "Ina219Config",
+    "Ina219Reading",
+    "Ina226",
     "Ina226Config",
     "Ina226DieId",
     "Ina226MaskEnable",
+    "Ina226Reading",
     "J1939Message",
     "Kalman",
     "Ladder",
@@ -155,7 +166,9 @@ __all__ = [
     "ModbusFrame",
     "MqttClient",
     "MqttMessage",
+    "Opt3001",
     "Opt3001Config",
+    "Opt3001Reading",
     "Pid",
     "Pose",
     "PowerPlan",
@@ -174,11 +187,13 @@ __all__ = [
     "Reporter",
     "Route",
     "Router",
+    "Scd4x",
     "Scd4xMeasurement",
     "SealedMessage",
     "SeenPackets",
     "SenderStep",
     "Session",
+    "Sht3x",
     "Sht3xMeasurement",
     "Sht3xStatus",
     "Signals",
@@ -205,15 +220,22 @@ __all__ = [
     "Sx127xTxPower",
     "Theme",
     "Thermostat",
+    "Tmp117",
+    "Tmp117Alerts",
     "Tmp117Config",
+    "Tmp117Reading",
     "Trend",
     "Trigger",
     "Updater",
     "Window",
+    "WordPart",
     "ads1115_config_bits",
     "ads1115_config_from_bits",
+    "ads1115_conversion_micros",
     "ads1115_full_scale_microvolts",
     "ads1115_samples_per_second",
+    "ads1115_sim_part",
+    "ads1115_sim_reporting",
     "ads1115_to_nanovolts",
     "ads1115_to_volts",
     "bearing_between",
@@ -246,6 +268,11 @@ __all__ = [
     "bmp280_oversampling_factor",
     "bmp280_parse_measurement",
     "bmp280_pressure_skipped",
+    "bmp280_sim_burst",
+    "bmp280_sim_burst_for",
+    "bmp280_sim_calibration",
+    "bmp280_sim_part",
+    "bmp280_sim_reporting",
     "bmp280_standby_micros",
     "bmp280_temperature_skipped",
     "can_dlc_to_len",
@@ -269,8 +296,10 @@ __all__ = [
     "ds18b20_max_conversion_micros",
     "ds18b20_micro_celsius",
     "ds18b20_parse_scratchpad",
+    "ds18b20_parse_w1_slave",
     "ds18b20_resolution_bits",
     "ds18b20_step_micro_celsius",
+    "ds18b20_w1_slave_text",
     "encode_delta_samples",
     "encode_manifest",
     "envelope_body",
@@ -293,6 +322,8 @@ __all__ = [
     "hdc1080_relative_humidity",
     "hdc1080_serial_id",
     "hdc1080_serial_id_registers",
+    "hdc1080_sim_part",
+    "hdc1080_sim_reporting",
     "hdc1080_temperature_conversion_micros",
     "hdc1080_temperature_register",
     "hkdf_sha256_expand",
@@ -302,18 +333,26 @@ __all__ = [
     "i2c_address_is_general_call",
     "i2c_address_is_reserved",
     "image_digest",
+    "ina219_adc_conversion_micros",
+    "ina219_address",
     "ina219_bus_millivolts",
     "ina219_bus_register",
     "ina219_calibration",
+    "ina219_config_bits",
+    "ina219_config_from_bits",
+    "ina219_conversion_micros",
     "ina219_conversion_ready",
     "ina219_current_microamps",
     "ina219_current_register",
+    "ina219_gain_range_millivolts",
     "ina219_math_overflow",
     "ina219_minimum_current_lsb_microamps",
     "ina219_power_microwatts",
     "ina219_power_register",
     "ina219_shunt_microvolts",
     "ina219_shunt_register",
+    "ina219_sim_part",
+    "ina219_sim_reporting",
     "ina226_active_alert_function",
     "ina226_address",
     "ina226_averaging_samples",
@@ -343,6 +382,8 @@ __all__ = [
     "ina226_shunt_millivolts",
     "ina226_shunt_nanovolts",
     "ina226_shunt_register",
+    "ina226_sim_part",
+    "ina226_sim_reporting",
     "ina226_update_micros",
     "j1939_broadcast",
     "j1939_compose",
@@ -431,6 +472,8 @@ __all__ = [
     "opt3001_lux",
     "opt3001_milli_lux",
     "opt3001_raw_from_milli_lux",
+    "opt3001_sim_part",
+    "opt3001_sim_reporting",
     "opt3001_word_from_bytes",
     "opt3001_word_to_bytes",
     "pca9685_channel_register",
@@ -481,6 +524,8 @@ __all__ = [
     "scd4x_self_test_passed",
     "scd4x_serial_number",
     "scd4x_serial_number_frame",
+    "scd4x_sim_part",
+    "scd4x_sim_reporting",
     "scd4x_temperature_offset_milli_celsius",
     "scd4x_temperature_offset_word",
     "scd4x_temperature_raw",
@@ -503,6 +548,8 @@ __all__ = [
     "sht3x_parse_status",
     "sht3x_periodic",
     "sht3x_relative_humidity",
+    "sht3x_sim_part",
+    "sht3x_sim_reporting",
     "sht3x_single_shot",
     "sht3x_status_bytes",
     "sht3x_status_from_bits",
@@ -609,6 +656,8 @@ __all__ = [
     "tmp117_raw_from_celsius",
     "tmp117_raw_from_micro_celsius",
     "tmp117_revision",
+    "tmp117_sim_part",
+    "tmp117_sim_reporting",
     "tmp117_temperature_bytes",
     "tmp117_temperature_from_bytes",
     "update_block_descriptor",
@@ -642,6 +691,38 @@ class AckOutcome:
     def __repr__(self) -> builtins.str:
         r"""
         Returns a readable form for logs and the interpreter.
+        """
+
+@typing.final
+class Ads1115:
+    r"""
+    A Texas Instruments ADS1115 driven over an I2C bus, converting one input on demand.
+    """
+    @property
+    def config(self) -> Ads1115Config:
+        r"""
+        The configuration the driver writes.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, mux: builtins.int = 0, pga: builtins.int = 2, data_rate: builtins.int = 4) -> Ads1115:
+        r"""
+        A driver for the part at `address` on `bus`, converting AIN0 against AIN1 at the
+        2.048 V range and 128 samples per second, the part's reset settings, unless told
+        otherwise by code. Nothing is sent until `init` or the first `sample`.
+        """
+    def init(self) -> None:
+        r"""
+        Writes the input, range, and data rate, and reads the configuration back. Raises
+        `PamojaError` when nothing answers or the configuration reads back differently.
+        """
+    def sample(self) -> Ads1115Sample:
+        r"""
+        Runs one conversion of the configured input and returns it, initializing the part first
+        if `init` has not run.
+        """
+    def sample_input(self, mux: builtins.int) -> Ads1115Sample:
+        r"""
+        Converts another input once, by its multiplexer code, leaving the configured input as
+        it was.
         """
 
 @typing.final
@@ -746,6 +827,38 @@ class Ads1115Config:
     def __eq__(self, other: Ads1115Config) -> builtins.bool:
         r"""
         Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Ads1115Sample:
+    r"""
+    One ADS1115 conversion.
+    """
+    @property
+    def raw(self) -> builtins.int:
+        r"""
+        The conversion register, two's complement.
+        """
+    @property
+    def pga(self) -> builtins.int:
+        r"""
+        The gain code the conversion ran at.
+        """
+    @property
+    def nanovolts(self) -> builtins.int:
+        r"""
+        The voltage in nanovolts, exact in integer arithmetic.
+        """
+    @property
+    def volts(self) -> builtins.float:
+        r"""
+        The voltage in volts.
+        """
+    @property
+    def clipped(self) -> builtins.bool:
+        r"""
+        Whether the conversion sits at an end code, where the output clips for a signal past
+        the range, so the voltage is a bound rather than the reading.
         """
 
 @typing.final
@@ -1043,6 +1156,32 @@ class Bme280Measurement:
     def relative_humidity_percent(self) -> builtins.float:
         r"""
         The relative humidity as a percentage.
+        """
+
+@typing.final
+class Bmp280:
+    r"""
+    A Bosch BMP280 driven over an I2C bus, measuring on demand in forced mode.
+    """
+    @property
+    def coefficients(self) -> typing.Optional[Bmp280Coefficients]:
+        r"""
+        The trimming coefficients read at initialization, or `None` before it.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, temperature: builtins.int = 1, pressure: builtins.int = 1, filter: builtins.int = 0) -> Bmp280:
+        r"""
+        A driver for the part at `address` on `bus`. The oversampling codes default to x1 and
+        the filter code to off. Nothing is sent until `init` or the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Resets the part, checks it is a BMP280, reads its trimming, and writes the settings,
+        leaving the part asleep. Raises `PamojaError` when nothing answers or another part does.
+        """
+    def measure(self) -> Bmp280Reading:
+        r"""
+        Runs one forced measurement and returns the compensated reading, initializing the part
+        first if `init` has not run.
         """
 
 @typing.final
@@ -1842,6 +1981,39 @@ class CobsDecoder:
         """
 
 @typing.final
+class CommandPart:
+    r"""
+    A part that is not there, answering commands with the replies it was given.
+    
+    A write sends a command and any arguments after it; a read takes the reply that command
+    left, once, padded with `0xFF`. A read with no reply waiting is not acknowledged.
+    """
+    @property
+    def received(self) -> builtins.list[bytes]:
+        r"""
+        Every write the part has received, oldest first: a command and any arguments after it.
+        """
+    @property
+    def address(self) -> builtins.int:
+        r"""
+        The address the part answers to.
+        """
+    @property
+    def transfers(self) -> builtins.int:
+        r"""
+        How many transfers the part has served.
+        """
+    def __new__(cls, address: builtins.int, width: builtins.int = 2) -> CommandPart:
+        r"""
+        A part answering at one address that has been given no replies yet; a command takes
+        `width` bytes.
+        """
+    def answer(self, command: typing.Sequence[builtins.int], reply: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Answers one command with a reply from now on, in place of any reply given before.
+        """
+
+@typing.final
 class CommandProtocol:
     r"""
     Tracks one command awaiting its acknowledgment.
@@ -2132,6 +2304,48 @@ class Ds18b20Reading:
     def resolution_bits(self) -> builtins.int:
         r"""
         The configured resolution, as a number of bits: 9, 10, 11, or 12.
+        """
+
+@typing.final
+class Ds18b20Thermometer:
+    r"""
+    A DS18B20 the Linux kernel serves as a `w1_slave` file under `/sys/bus/w1/devices`.
+    """
+    @property
+    def path(self) -> builtins.str:
+        r"""
+        The path of the file the thermometer reads.
+        """
+    @property
+    def serial(self) -> typing.Optional[builtins.str]:
+        r"""
+        The serial the kernel named the thermometer's directory after: the twelve hex digits
+        after `28-`, which tell one probe from another and stay with the part for life. None
+        when the file does not sit in a DS18B20's directory, as one named by `at` may not.
+        """
+    @staticmethod
+    def for_serial(serial: builtins.str) -> Ds18b20Thermometer:
+        r"""
+        A thermometer named by the serial in its directory name, the twelve hex digits after
+        `28-`.
+        """
+    @staticmethod
+    def at(path: builtins.str) -> Ds18b20Thermometer:
+        r"""
+        A thermometer named by the path of its `w1_slave` file.
+        """
+    @staticmethod
+    def discover(devices: typing.Optional[builtins.str] = None) -> builtins.list[Ds18b20Thermometer]:
+        r"""
+        Every DS18B20 the kernel has found, one per `28-` directory under `devices`, which is
+        `/sys/bus/w1/devices` unless given. Raises `PamojaError` when the directory cannot be
+        listed, which usually means the 1-Wire overlay is off.
+        """
+    def read(self) -> Ds18b20Reading:
+        r"""
+        Reads the file, which makes the kernel run a conversion, and returns the decoded
+        reading. Raises `PamojaError` when the file cannot be read or the kernel or this decoder
+        rejects the checksum.
         """
 
 @typing.final
@@ -3106,6 +3320,38 @@ class GpioLine:
         """
 
 @typing.final
+class Hdc1080:
+    r"""
+    A Texas Instruments HDC1080 driven over an I2C bus, measuring temperature then humidity from
+    one trigger.
+    """
+    @property
+    def configuration(self) -> Hdc1080Config:
+        r"""
+        The configuration the driver writes.
+        """
+    def __new__(cls, bus: I2cBus, temperature_resolution_bits: builtins.int = 14, humidity_resolution_bits: builtins.int = 14) -> Hdc1080:
+        r"""
+        A driver for the part on `bus`, which has one address, at 14 bits a channel unless
+        told otherwise. Raises `ValueError` for a resolution the part does not have.
+        """
+    def init(self) -> None:
+        r"""
+        Checks the part is an HDC1080 and writes the configuration. Raises `PamojaError` when
+        nothing answers or another part does.
+        """
+    def measure(self) -> Hdc1080Measurement:
+        r"""
+        Triggers one acquisition of both channels and returns them, initializing the part first
+        if `init` has not run. Raises `PamojaError` when the part does not acknowledge the read,
+        which it refuses until its results are ready.
+        """
+    def heater(self, on: builtins.bool) -> None:
+        r"""
+        Switches the on-die heater, which runs only during acquisitions, on or off.
+        """
+
+@typing.final
 class Hdc1080Config:
     r"""
     An HDC1080 configuration register, field by field.
@@ -3254,20 +3500,20 @@ class I2cBus:
         adapter: the interface is not turned on, or the process may not use it.
         """
     @staticmethod
-    def simulated(parts: typing.Optional[typing.Sequence[I2cPart]] = None) -> I2cBus:
+    def simulated(parts: typing.Optional[typing.Sequence[I2cPart  |  WordPart  |  CommandPart]] = None) -> I2cBus:
         r"""
-        A bus of simulated parts, each answering at its own address. A later part at an
-        address an earlier one holds takes its place.
+        A bus of simulated parts of any kind, each answering at its own address. A later part
+        at an address an earlier one holds takes its place.
         """
     @staticmethod
     def scripted(steps: typing.Sequence[I2cStep]) -> I2cBus:
         r"""
         A bus that plays the steps in order and refuses any transfer that is not the next one.
         """
-    def attach(self, part: I2cPart) -> None:
+    def attach(self, part: I2cPart  |  WordPart  |  CommandPart) -> None:
         r"""
-        Puts a copy of a part on a simulated bus, in place of any part at its address. Raises
-        `PamojaError` for a bus that is not simulated.
+        Puts a copy of a part of any kind on a simulated bus, in place of any part at its
+        address. Raises `PamojaError` for a bus that is not simulated.
         """
     def write(self, address: builtins.int, data: typing.Sequence[builtins.int]) -> None:
         r"""
@@ -3282,10 +3528,11 @@ class I2cBus:
         Writes bytes and then reads `length` bytes in one transaction, with a repeated start
         between them, which is how a register is read.
         """
-    def part(self, address: builtins.int) -> typing.Optional[I2cPart]:
+    def part(self, address: builtins.int) -> typing.Optional[I2cPart  |  WordPart  |  CommandPart]:
         r"""
         A copy of what a simulated part holds now, with whatever drivers have written to it,
-        or `None` when the bus is not simulated or no part holds the address.
+        as the class of part it is, or `None` when the bus is not simulated or no part holds
+        the address.
         """
 
 @typing.final
@@ -3372,6 +3619,216 @@ class ImageVerifier:
         Settles the image, returning its digest, and spends this verifier.
         
         Raises if the image is not the one the manifest described.
+        """
+
+@typing.final
+class Ina219:
+    r"""
+    A Texas Instruments INA219 driven over an I2C bus, measuring shunt and bus voltage, current,
+    and power on demand.
+    """
+    @property
+    def current_lsb_microamps(self) -> builtins.int:
+        r"""
+        The current step the driver programs, in microamps per count.
+        """
+    @property
+    def calibration_word(self) -> builtins.int:
+        r"""
+        The calibration word the driver programs.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, shunt_milliohms: builtins.int = 100, max_microamps: builtins.int = 3200000, current_lsb_microamps: typing.Optional[builtins.int] = None, config: typing.Optional[Ina219Config] = None) -> Ina219:
+        r"""
+        A driver for the part at `address` on `bus`: a 100 milliohm shunt sized for 3.2 A and
+        the power-on register settings unless told otherwise. Nothing is sent until `init` or
+        the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Resets the part, writes the configuration and the calibration, and reads the
+        calibration back. Raises `PamojaError` when nothing answers or it does not hold.
+        """
+    def measure(self) -> Ina219Reading:
+        r"""
+        Triggers one shunt and bus conversion and returns every result, initializing the part
+        first if `init` has not run.
+        """
+
+@typing.final
+class Ina219Config:
+    r"""
+    An INA219 configuration register, field by field, each setting as the code the datasheet
+    prints.
+    """
+    @property
+    def reset(self) -> builtins.bool:
+        r"""
+        Whether writing this resets the part.
+        """
+    @reset.setter
+    def reset(self, value: builtins.bool) -> None:
+        r"""
+        Whether writing this resets the part.
+        """
+    @property
+    def bus_range(self) -> builtins.int:
+        r"""
+        The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+        """
+    @bus_range.setter
+    def bus_range(self, value: builtins.int) -> None:
+        r"""
+        The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+        """
+    @property
+    def gain(self) -> builtins.int:
+        r"""
+        The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+        """
+    @gain.setter
+    def gain(self, value: builtins.int) -> None:
+        r"""
+        The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+        """
+    @property
+    def bus_adc(self) -> builtins.int:
+        r"""
+        The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
+        12 bits from `9` up.
+        """
+    @bus_adc.setter
+    def bus_adc(self, value: builtins.int) -> None:
+        r"""
+        The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
+        12 bits from `9` up.
+        """
+    @property
+    def shunt_adc(self) -> builtins.int:
+        r"""
+        The shunt converter code, as `bus_adc`.
+        """
+    @shunt_adc.setter
+    def shunt_adc(self, value: builtins.int) -> None:
+        r"""
+        The shunt converter code, as `bus_adc`.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The operating-mode code, `0..=7`.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The operating-mode code, `0..=7`.
+        """
+    def __new__(cls, reset: builtins.bool = False, bus_range: builtins.int = 1, gain: builtins.int = 3, bus_adc: builtins.int = 3, shunt_adc: builtins.int = 3, mode: builtins.int = 7) -> Ina219Config:
+        r"""
+        Builds a configuration, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Ina219Config) -> builtins.bool:
+        r"""
+        Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Ina219Reading:
+    r"""
+    One INA219 conversion: the four result registers as read, and what they mean.
+    """
+    @property
+    def shunt(self) -> builtins.int:
+        r"""
+        The shunt-voltage register.
+        """
+    @property
+    def bus(self) -> builtins.int:
+        r"""
+        The bus-voltage register, flags included.
+        """
+    @property
+    def current(self) -> builtins.int:
+        r"""
+        The current register.
+        """
+    @property
+    def power(self) -> builtins.int:
+        r"""
+        The power register.
+        """
+    @property
+    def current_lsb_microamps(self) -> builtins.int:
+        r"""
+        The current step the calibration programmed, in microamps per count.
+        """
+    @property
+    def shunt_microvolts(self) -> builtins.int:
+        r"""
+        The shunt voltage in microvolts.
+        """
+    @property
+    def bus_millivolts(self) -> builtins.int:
+        r"""
+        The bus voltage in millivolts.
+        """
+    @property
+    def current_microamps(self) -> builtins.int:
+        r"""
+        The current in microamps; negative flows the other way through the shunt.
+        """
+    @property
+    def power_microwatts(self) -> builtins.int:
+        r"""
+        The power in microwatts.
+        """
+    @property
+    def math_overflow(self) -> builtins.bool:
+        r"""
+        Whether the part's arithmetic overflowed, leaving current and power meaningless.
+        """
+
+@typing.final
+class Ina226:
+    r"""
+    A Texas Instruments INA226 driven over an I2C bus, measuring shunt and bus voltage, current,
+    and power on demand.
+    """
+    @property
+    def current_lsb_microamps(self) -> builtins.int:
+        r"""
+        The current step the driver programs, in microamps per count.
+        """
+    @property
+    def calibration_word(self) -> builtins.int:
+        r"""
+        The calibration word the driver programs.
+        """
+    @property
+    def identity(self) -> typing.Optional[Ina226DieId]:
+        r"""
+        The die id read at initialization, or `None` before it.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, shunt_milliohms: builtins.int = 100, max_microamps: builtins.int = 3200000, current_lsb_microamps: typing.Optional[builtins.int] = None, config: typing.Optional[Ina226Config] = None) -> Ina226:
+        r"""
+        A driver for the part at `address` on `bus`: a 100 milliohm shunt sized for 3.2 A and
+        the power-on register settings unless told otherwise. Nothing is sent until `init` or
+        the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Resets the part, checks it is an INA226, writes the configuration and the calibration,
+        and reads the calibration back. Raises `PamojaError` when nothing answers or another
+        part does.
+        """
+    def measure(self) -> Ina226Reading:
+        r"""
+        Triggers one shunt and bus conversion and returns every result, initializing the part
+        first if `init` has not run.
+        """
+    def set_alert(self, mask: Ina226MaskEnable, limit: builtins.int) -> None:
+        r"""
+        Programs the alert pin: which limit it watches, one function at a time, and the limit,
+        in the units of the register the function watches.
         """
 
 @typing.final
@@ -3576,6 +4033,82 @@ class Ina226MaskEnable:
     def __eq__(self, other: Ina226MaskEnable) -> builtins.bool:
         r"""
         Reports whether two registers select the same enables and flags.
+        """
+
+@typing.final
+class Ina226Reading:
+    r"""
+    One INA226 conversion: the four result registers as read, and what they mean.
+    """
+    @property
+    def shunt(self) -> builtins.int:
+        r"""
+        The shunt-voltage register.
+        """
+    @property
+    def bus(self) -> builtins.int:
+        r"""
+        The bus-voltage register.
+        """
+    @property
+    def current(self) -> builtins.int:
+        r"""
+        The current register.
+        """
+    @property
+    def power(self) -> builtins.int:
+        r"""
+        The power register.
+        """
+    @property
+    def current_lsb_microamps(self) -> builtins.int:
+        r"""
+        The current step the calibration programmed, in microamps per count.
+        """
+    @property
+    def shunt_nanovolts(self) -> builtins.int:
+        r"""
+        The shunt voltage in nanovolts.
+        """
+    @property
+    def shunt_millivolts(self) -> builtins.float:
+        r"""
+        The shunt voltage in millivolts.
+        """
+    @property
+    def bus_microvolts(self) -> builtins.int:
+        r"""
+        The bus voltage in microvolts.
+        """
+    @property
+    def bus_volts(self) -> builtins.float:
+        r"""
+        The bus voltage in volts.
+        """
+    @property
+    def current_microamps(self) -> builtins.int:
+        r"""
+        The current in microamps; negative flows the other way through the shunt.
+        """
+    @property
+    def current_amps(self) -> builtins.float:
+        r"""
+        The current in amps.
+        """
+    @property
+    def power_microwatts(self) -> builtins.int:
+        r"""
+        The power in microwatts.
+        """
+    @property
+    def power_watts(self) -> builtins.float:
+        r"""
+        The power in watts.
+        """
+    @property
+    def math_overflow(self) -> builtins.bool:
+        r"""
+        Whether the part's arithmetic overflowed, leaving current and power meaningless.
         """
 
 @typing.final
@@ -7680,6 +8213,38 @@ class MqttMessage:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class Opt3001:
+    r"""
+    A Texas Instruments OPT3001 driven over an I2C bus, measuring on demand in single-shot mode.
+    """
+    @property
+    def configuration(self) -> Opt3001Config:
+        r"""
+        The configuration the driver writes, with the part in shutdown.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, long_conversion: builtins.bool = True, range_number: builtins.int = 12) -> Opt3001:
+        r"""
+        A driver for the part at `address` on `bus`, integrating each conversion for 800 ms
+        and choosing its own range unless told otherwise. Nothing is sent until `init` or the
+        first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Checks the part is an OPT3001 and writes the settings with the part in shutdown.
+        Raises `PamojaError` when nothing answers or another part does.
+        """
+    def measure(self) -> Opt3001Reading:
+        r"""
+        Runs one conversion and returns the illuminance, initializing the part first if `init`
+        has not run.
+        """
+    def set_limits(self, low_milli_lux: builtins.int, high_milli_lux: builtins.int) -> None:
+        r"""
+        Writes the low and high limits the part's interrupt pin compares each result against,
+        in millilux.
+        """
+
+@typing.final
 class Opt3001Config:
     r"""
     An OPT3001 configuration register, field by field.
@@ -7801,6 +8366,27 @@ class Opt3001Config:
     def __eq__(self, other: Opt3001Config) -> builtins.bool:
         r"""
         Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Opt3001Reading:
+    r"""
+    An OPT3001 illuminance result.
+    """
+    @property
+    def raw(self) -> builtins.int:
+        r"""
+        The result register: a four-bit exponent over a twelve-bit mantissa.
+        """
+    @property
+    def milli_lux(self) -> builtins.int:
+        r"""
+        The illuminance in millilux, exact in integer arithmetic.
+        """
+    @property
+    def lux(self) -> builtins.float:
+        r"""
+        The illuminance in lux.
         """
 
 @typing.final
@@ -8384,6 +8970,60 @@ class Router:
         """
 
 @typing.final
+class Scd4x:
+    r"""
+    A Sensirion SCD40 or SCD41 driven over an I2C bus in periodic measurement, a result every
+    five seconds.
+    """
+    @property
+    def serial(self) -> typing.Optional[builtins.int]:
+        r"""
+        The 48-bit serial number read at initialization, or `None` before it.
+        """
+    def __new__(cls, bus: I2cBus) -> Scd4x:
+        r"""
+        A driver for the part on `bus`, which has one address. Nothing is sent until `init` or
+        the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Stops any running measurement, reads the serial number, and starts periodic
+        measurement. Raises `PamojaError` when nothing answers or the serial number fails its
+        checksum.
+        """
+    def measure(self) -> Scd4xMeasurement:
+        r"""
+        Waits for the next periodic result and returns it, initializing the part first if
+        `init` has not run.
+        """
+    def measure_single_shot(self) -> Scd4xMeasurement:
+        r"""
+        Runs one on-demand measurement on an SCD41, which takes five seconds. The part must not
+        be measuring periodically: call `stop` first, or use this in place of `init`.
+        """
+    def data_ready(self) -> builtins.bool:
+        r"""
+        Asks the part whether a periodic result is waiting, so `measure` would read at once.
+        """
+    def stop(self) -> None:
+        r"""
+        Stops periodic measurement, after which the part takes its settings commands.
+        """
+    def start(self) -> None:
+        r"""
+        Starts periodic measurement.
+        """
+    def set_temperature_offset(self, milli_celsius: builtins.int) -> None:
+        r"""
+        Sets the temperature offset that compensates the part's own warmth, in millidegrees,
+        until power is lost.
+        """
+    def set_sensor_altitude(self, meters: builtins.int) -> None:
+        r"""
+        Sets the altitude the part corrects its carbon dioxide reading for, in meters.
+        """
+
+@typing.final
 class Scd4xMeasurement:
     r"""
     A decoded SCD4x measurement frame.
@@ -8532,6 +9172,44 @@ class Session:
         Raises if the counter repeats or is older than the replay window still
         tracks, and if the tag does not authenticate. Nothing readable is ever
         returned from a message that failed either check.
+        """
+
+@typing.final
+class Sht3x:
+    r"""
+    A Sensirion SHT3x driven over an I2C bus, measuring on demand in single-shot mode.
+    """
+    @property
+    def last_status(self) -> typing.Optional[Sht3xStatus]:
+        r"""
+        The status register as it was last read, or `None` before it has been.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, repeatability: builtins.str = 'High') -> Sht3x:
+        r"""
+        A driver for the part at `address` on `bus`, at `"High"` repeatability unless given
+        `"Low"` or `"Medium"`. Nothing is sent until `init` or the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Soft-resets the part and reads its status; a status word whose checksum holds is what
+        confirms an SHT3x answers. Raises `PamojaError` when nothing answers or the word fails.
+        """
+    def measure(self) -> Sht3xMeasurement:
+        r"""
+        Runs one single-shot measurement and returns it, initializing the part first if `init`
+        has not run. Raises `PamojaError` when a data word fails its checksum.
+        """
+    def read_status(self) -> Sht3xStatus:
+        r"""
+        Reads the status register, which `last_status` keeps as well.
+        """
+    def heater_on(self) -> None:
+        r"""
+        Switches the plausibility-check heater on, initializing the part first if needed.
+        """
+    def heater_off(self) -> None:
+        r"""
+        Switches the heater off, which is its state after any reset.
         """
 
 @typing.final
@@ -9258,6 +9936,59 @@ class Thermostat:
         """
 
 @typing.final
+class Tmp117:
+    r"""
+    A Texas Instruments TMP117 driven over an I2C bus, converting on demand in one-shot mode.
+    """
+    @property
+    def silicon_revision(self) -> typing.Optional[builtins.int]:
+        r"""
+        The silicon revision read at initialization, or `None` before it.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, averaging: builtins.int = 1) -> Tmp117:
+        r"""
+        A driver for the part at `address` on `bus`, averaging eight conversions into each
+        result unless given another code. Nothing is sent until `init` or the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Checks the part is a TMP117, waits for its EEPROM to finish loading, and writes the
+        settings with the part in shutdown. Raises `PamojaError` when nothing answers or
+        another part does.
+        """
+    def measure(self) -> Tmp117Reading:
+        r"""
+        Runs one conversion and returns the temperature, initializing the part first if `init`
+        has not run.
+        """
+    def set_alert_limits(self, high_celsius: builtins.float, low_celsius: builtins.float) -> None:
+        r"""
+        Writes the high and low limits the part compares each result against; the factory
+        limits are 192 C and -256 C.
+        """
+    def alerts(self) -> Tmp117Alerts:
+        r"""
+        Reads the alert flags: whether a result since the last call was above the high limit
+        or below the low limit, including results the driver's own reads saw.
+        """
+
+@typing.final
+class Tmp117Alerts:
+    r"""
+    The TMP117's alert flags: whether a result since they were last read crossed a limit.
+    """
+    @property
+    def high(self) -> builtins.bool:
+        r"""
+        A result was above the high limit.
+        """
+    @property
+    def low(self) -> builtins.bool:
+        r"""
+        A result was below the low limit.
+        """
+
+@typing.final
 class Tmp117Config:
     r"""
     A TMP117 configuration register, field by field.
@@ -9379,6 +10110,27 @@ class Tmp117Config:
     def __eq__(self, other: Tmp117Config) -> builtins.bool:
         r"""
         Reports whether two configurations select the same settings.
+        """
+
+@typing.final
+class Tmp117Reading:
+    r"""
+    A TMP117 temperature result.
+    """
+    @property
+    def raw(self) -> builtins.int:
+        r"""
+        The temperature register, 7.8125 millidegrees Celsius per count.
+        """
+    @property
+    def micro_celsius(self) -> builtins.int:
+        r"""
+        The temperature in micro-degrees Celsius, exact in integer arithmetic.
+        """
+    @property
+    def celsius(self) -> builtins.float:
+        r"""
+        The temperature in degrees Celsius.
         """
 
 @typing.final
@@ -9572,6 +10324,44 @@ class Window:
         The variance of the readings, or ``None`` without enough of them.
         """
 
+@typing.final
+class WordPart:
+    r"""
+    A part that is not there, answering from 256 registers sixteen bits wide.
+    
+    A pointer byte names a register and a register travels most significant byte first. Bits
+    the part sets for itself, such as a conversion-ready flag, are marked with `read_only` and
+    keep the part's value whatever a driver writes.
+    """
+    @property
+    def address(self) -> builtins.int:
+        r"""
+        The address the part answers to.
+        """
+    @property
+    def transfers(self) -> builtins.int:
+        r"""
+        How many transfers the part has served.
+        """
+    def __new__(cls, address: builtins.int) -> WordPart:
+        r"""
+        A part answering at one address, with every register reading zero.
+        """
+    def set(self, register: builtins.int, value: builtins.int) -> None:
+        r"""
+        Puts a value in one register, read-only bits included, the way the part itself would.
+        """
+    def read_only(self, register: builtins.int, mask: builtins.int) -> None:
+        r"""
+        Marks bits of one register as the part's to set: a driver's write leaves them as the
+        part holds them.
+        """
+    def word(self, register: builtins.int) -> builtins.int:
+        r"""
+        What one register holds now, which is what a driver wrote there apart from the
+        read-only bits.
+        """
+
 def ads1115_config_bits(config: Ads1115Config) -> builtins.int:
     r"""
     Assembles the 16-bit ADS1115 configuration register value.
@@ -9582,6 +10372,12 @@ def ads1115_config_from_bits(bits: builtins.int) -> Ads1115Config:
     Parses a 16-bit ADS1115 configuration register value.
     """
 
+def ads1115_conversion_micros(data_rate: builtins.int) -> builtins.int:
+    r"""
+    Returns how long an ADS1115 conversion takes at a data-rate code, in microseconds: one
+    period of the rate plus the datasheet's ten percent rate variation.
+    """
+
 def ads1115_full_scale_microvolts(pga: builtins.int) -> builtins.int:
     r"""
     Returns the full-scale range an ADS1115 gain code selects, in microvolts.
@@ -9590,6 +10386,16 @@ def ads1115_full_scale_microvolts(pga: builtins.int) -> builtins.int:
 def ads1115_samples_per_second(data_rate: builtins.int) -> builtins.int:
     r"""
     Returns the sample rate an ADS1115 data-rate code selects.
+    """
+
+def ads1115_sim_part(address: builtins.int) -> WordPart:
+    r"""
+    A simulated ADS1115 reading 1.65 V, half a 3.3 V supply, at the range a driver starts with.
+    """
+
+def ads1115_sim_reporting(address: builtins.int, pga: builtins.int, volts: builtins.float) -> WordPart:
+    r"""
+    A simulated ADS1115 that reads what it is asked to at the gain code a driver converts at.
     """
 
 def ads1115_to_nanovolts(pga: builtins.int, raw: builtins.int) -> builtins.int:
@@ -9754,6 +10560,33 @@ def bmp280_pressure_skipped(pressure: builtins.int) -> builtins.bool:
     Reports whether a raw BMP280 pressure says the measurement is switched off.
     """
 
+def bmp280_sim_burst() -> bytes:
+    r"""
+    The six data registers a simulated BMP280 holds: one measurement a real part took.
+    """
+
+def bmp280_sim_burst_for(celsius: builtins.float, hectopascals: builtins.float) -> bytes:
+    r"""
+    The six data registers that compensate to a reading against the simulated trimming.
+    """
+
+def bmp280_sim_calibration() -> bytes:
+    r"""
+    The 24 trimming bytes a simulated BMP280 holds.
+    """
+
+def bmp280_sim_part(address: builtins.int) -> I2cPart:
+    r"""
+    A simulated BMP280 holding a real part's trimming and one measurement it took, which
+    compensate to 20.44 C and 848.05 hPa.
+    """
+
+def bmp280_sim_reporting(address: builtins.int, celsius: builtins.float, hectopascals: builtins.float) -> I2cPart:
+    r"""
+    A simulated BMP280 that reads what it is asked to, within a hundredth of a degree and of a
+    hectopascal.
+    """
+
 def bmp280_standby_micros(code: builtins.int) -> builtins.int:
     r"""
     Returns the normal-mode standby period a BMP280 code selects, in microseconds.
@@ -9873,6 +10706,12 @@ def ds18b20_parse_scratchpad(data: typing.Sequence[builtins.int]) -> Ds18b20Read
     Parses and CRC-checks a nine-byte DS18B20 scratchpad.
     """
 
+def ds18b20_parse_w1_slave(text: builtins.str) -> Ds18b20Reading:
+    r"""
+    Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+    of its `w1_slave` file, checking the scratchpad's CRC as well as the kernel's verdict.
+    """
+
 def ds18b20_resolution_bits(config_byte: builtins.int) -> builtins.int:
     r"""
     Returns the resolution a DS18B20 configuration byte selects, in bits.
@@ -9881,6 +10720,13 @@ def ds18b20_resolution_bits(config_byte: builtins.int) -> builtins.int:
 def ds18b20_step_micro_celsius(bits: builtins.int) -> builtins.int:
     r"""
     Returns the temperature step a DS18B20 resolution resolves, in micro-degrees.
+    """
+
+def ds18b20_w1_slave_text(data: typing.Sequence[builtins.int]) -> builtins.str:
+    r"""
+    Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+    read cleanly, the inverse of `ds18b20_parse_w1_slave`. Raises `PamojaError` when the CRC
+    does not match.
     """
 
 def encode_delta_samples(samples: typing.Sequence[builtins.int]) -> bytes:
@@ -9999,6 +10845,17 @@ def hdc1080_serial_id_registers(serial: builtins.int) -> builtins.list[builtins.
     Splits a serial number back into the three HDC1080 serial-ID registers.
     """
 
+def hdc1080_sim_part() -> WordPart:
+    r"""
+    A simulated HDC1080 reading 22.5 C and 45 %.
+    """
+
+def hdc1080_sim_reporting(celsius: builtins.float, relative_humidity: builtins.float) -> WordPart:
+    r"""
+    A simulated HDC1080 that reads what it is asked to, within three thousandths of a degree
+    and two thousandths of a percent.
+    """
+
 def hdc1080_temperature_conversion_micros(bits: builtins.int) -> builtins.int:
     r"""
     Returns how long an HDC1080 temperature conversion takes, in microseconds.
@@ -10047,6 +10904,17 @@ def image_digest(image: typing.Sequence[builtins.int]) -> bytes:
     Hashes a complete image, for a publisher filling in a manifest.
     """
 
+def ina219_adc_conversion_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how long one INA219 conversion takes at a converter code, in microseconds.
+    """
+
+def ina219_address(a1: builtins.int, a0: builtins.int) -> builtins.int:
+    r"""
+    Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+    datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+    """
+
 def ina219_bus_millivolts(raw: builtins.int) -> builtins.int:
     r"""
     Converts a raw INA219 bus-voltage register to millivolts.
@@ -10062,6 +10930,22 @@ def ina219_calibration(current_lsb_microamps: builtins.int, shunt_milliohms: bui
     Computes the INA219 calibration register for a shunt and current resolution.
     """
 
+def ina219_config_bits(config: Ina219Config) -> builtins.int:
+    r"""
+    Assembles the 16-bit INA219 configuration register value.
+    """
+
+def ina219_config_from_bits(bits: builtins.int) -> Ina219Config:
+    r"""
+    Parses a 16-bit INA219 configuration register value.
+    """
+
+def ina219_conversion_micros(config: Ina219Config) -> builtins.int:
+    r"""
+    Returns how long one INA219 conversion cycle takes, in microseconds: the shunt and bus
+    conversions the mode runs, one after the other.
+    """
+
 def ina219_conversion_ready(raw: builtins.int) -> builtins.bool:
     r"""
     Reports whether an INA219 bus-voltage register says a conversion is ready.
@@ -10075,6 +10959,12 @@ def ina219_current_microamps(raw: builtins.int, current_lsb_microamps: builtins.
 def ina219_current_register(microamps: builtins.int, current_lsb_microamps: builtins.int) -> builtins.int:
     r"""
     Builds the INA219 current register a monitor reports for a current.
+    """
+
+def ina219_gain_range_millivolts(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the shunt-voltage range an INA219 gain code selects, in millivolts either side of
+    zero.
     """
 
 def ina219_math_overflow(raw: builtins.int) -> builtins.bool:
@@ -10105,6 +10995,18 @@ def ina219_shunt_microvolts(raw: builtins.int) -> builtins.int:
 def ina219_shunt_register(microvolts: builtins.int) -> builtins.int:
     r"""
     Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
+    """
+
+def ina219_sim_part(address: builtins.int) -> WordPart:
+    r"""
+    A simulated INA219 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
+    with.
+    """
+
+def ina219_sim_reporting(address: builtins.int, shunt_milliohms: builtins.int, max_microamps: builtins.int, bus_millivolts: builtins.int, microamps: builtins.int) -> WordPart:
+    r"""
+    A simulated INA219 that reads what it is asked to, calibrated for the same shunt and largest
+    current a driver is given.
     """
 
 def ina226_active_alert_function(mask: Ina226MaskEnable) -> typing.Optional[builtins.str]:
@@ -10250,6 +11152,18 @@ def ina226_shunt_nanovolts(raw: builtins.int) -> builtins.int:
 def ina226_shunt_register(nanovolts: builtins.int) -> builtins.int:
     r"""
     Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage.
+    """
+
+def ina226_sim_part(address: builtins.int) -> WordPart:
+    r"""
+    A simulated INA226 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
+    with.
+    """
+
+def ina226_sim_reporting(address: builtins.int, shunt_milliohms: builtins.int, max_microamps: builtins.int, bus_microvolts: builtins.int, microamps: builtins.int) -> WordPart:
+    r"""
+    A simulated INA226 that reads what it is asked to, calibrated for the same shunt and largest
+    current a driver is given.
     """
 
 def ina226_update_micros(config: Ina226Config) -> builtins.int:
@@ -10768,6 +11682,17 @@ def opt3001_raw_from_milli_lux(milli_lux: builtins.int) -> builtins.int:
     Builds the OPT3001 result register that decodes to an illuminance.
     """
 
+def opt3001_sim_part(address: builtins.int) -> WordPart:
+    r"""
+    A simulated OPT3001 reading 380 lux, its conversion-ready flag set.
+    """
+
+def opt3001_sim_reporting(address: builtins.int, lux: builtins.float) -> WordPart:
+    r"""
+    A simulated OPT3001 that reads what it is asked to, to the nearest step its exponent and
+    mantissa represent.
+    """
+
 def opt3001_word_from_bytes(data: typing.Sequence[builtins.int]) -> builtins.int:
     r"""
     Reads the two bytes an OPT3001 sends for a register.
@@ -11030,6 +11955,16 @@ def scd4x_serial_number_frame(serial: builtins.int) -> builtins.list[builtins.in
     Builds the nine bytes an SCD4x sends for a serial number.
     """
 
+def scd4x_sim_part() -> CommandPart:
+    r"""
+    A simulated SCD4x reading 800 ppm, 22.5 C, and 45 %, always with a result waiting.
+    """
+
+def scd4x_sim_reporting(co2_ppm: builtins.int, celsius: builtins.float, relative_humidity: builtins.float) -> CommandPart:
+    r"""
+    A simulated SCD4x that reads what it is asked to.
+    """
+
 def scd4x_temperature_offset_milli_celsius(word: builtins.int) -> builtins.int:
     r"""
     Converts an SCD4x temperature-offset word back to milli-degrees Celsius.
@@ -11139,6 +12074,17 @@ def sht3x_periodic(repeatability: builtins.str, rate: builtins.str) -> builtins.
 def sht3x_relative_humidity(raw: builtins.int) -> builtins.float:
     r"""
     Converts a raw SHT3x humidity word to a relative humidity percentage.
+    """
+
+def sht3x_sim_part(address: builtins.int) -> CommandPart:
+    r"""
+    A simulated SHT3x reading 22.5 C and 45 %.
+    """
+
+def sht3x_sim_reporting(address: builtins.int, celsius: builtins.float, relative_humidity: builtins.float) -> CommandPart:
+    r"""
+    A simulated SHT3x that reads what it is asked to, within three thousandths of a degree and
+    two thousandths of a percent.
     """
 
 def sht3x_single_shot(repeatability: builtins.str, clock_stretching: builtins.bool) -> builtins.int:
@@ -11704,6 +12650,17 @@ def tmp117_raw_from_micro_celsius(micro_celsius: builtins.int) -> builtins.int:
 def tmp117_revision(raw: builtins.int) -> builtins.int:
     r"""
     Reads the die revision out of a TMP117 device-ID register.
+    """
+
+def tmp117_sim_part(address: builtins.int) -> WordPart:
+    r"""
+    A simulated TMP117 reading 21.25 C, its configuration register keeping the flags the part
+    sets for itself, with the data-ready flag set.
+    """
+
+def tmp117_sim_reporting(address: builtins.int, celsius: builtins.float) -> WordPart:
+    r"""
+    A simulated TMP117 that reads what it is asked to, to the nearest 7.8125 millidegrees.
     """
 
 def tmp117_temperature_bytes(raw: builtins.int) -> builtins.list[builtins.int]:

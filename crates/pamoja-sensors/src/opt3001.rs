@@ -28,6 +28,8 @@ pub const DEVICE_ID: u16 = 0x3001;
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Opt3001, POLL_INTERVAL_MILLIS, STATUS_POLLS};

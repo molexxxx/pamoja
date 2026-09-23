@@ -9,6 +9,32 @@
  */
 export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
 
+/** A Texas Instruments ADS1115 driven over an I2C bus, converting one input on demand. */
+export declare class Ads1115 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `sample`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Ads1115Settings | undefined | null)
+  /**
+   * Writes the input, range, and data rate, and reads the configuration back. Rejects when
+   * nothing answers or the configuration reads back differently.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one conversion of the configured input and resolves with it, initializing the
+   * part first if `init` has not run.
+   */
+  sample(): Promise<Ads1115Sample>
+  /**
+   * Converts another input once, by its multiplexer code, leaving the configured input as
+   * it was.
+   */
+  sampleInput(mux: number): Promise<Ads1115Sample>
+  /** The configuration the driver writes. */
+  get config(): Ads1115Config
+}
+
 /** A key-agreement secret, and the public key to hand to a peer. */
 export declare class AgreementKey {
   /** Creates a key-agreement secret from a provisioned 32-byte seed. */
@@ -101,6 +127,27 @@ export declare class Bme280Calibration {
   constructor(tempPress: Buffer, humidity: Buffer)
   /** Turns an eight-byte burst read into a compensated reading. */
   compensate(measurement: Buffer): Bme280Measurement
+}
+
+/** A Bosch BMP280 driven over an I2C bus, measuring on demand in forced mode. */
+export declare class Bmp280 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Bmp280Settings | undefined | null)
+  /**
+   * Resets the part, checks it is a BMP280, reads its trimming, and writes the settings,
+   * leaving the part asleep. Rejects when nothing answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one forced measurement and resolves with the compensated reading, initializing the
+   * part first if `init` has not run.
+   */
+  measure(): Promise<Bmp280Reading>
+  /** The trimming coefficients read at initialization, or `null` before it. */
+  get coefficients(): Bmp280Coefficients | null
 }
 
 /** A BMP280's factory calibration, read once and reused for every measurement. */
@@ -201,6 +248,30 @@ export declare class CobsDecoder {
   get discarded(): number
   /** Discards any partly assembled frame. */
   reset(): void
+}
+
+/**
+ * A part that is not there, answering commands with the replies it was given.
+ *
+ * A write sends a command and any arguments after it; a read then takes the reply that
+ * command left, once, padded with `0xFF` the way an idle bus reads. A command given no reply
+ * leaves none, and a read then is not acknowledged, which is what a real part does when asked
+ * for data it does not have.
+ */
+export declare class CommandPart {
+  /**
+   * A part answering at one address that has been given no replies yet; a command takes
+   * `width` bytes, two unless given.
+   */
+  constructor(address: number, width?: number | undefined | null)
+  /** Answers one command with a reply from now on, in place of any reply given before. */
+  answer(command: Buffer, reply: Buffer): void
+  /** Every write the part has received, oldest first: a command and any arguments after it. */
+  get received(): Array<Buffer>
+  /** The address the part answers to. */
+  get address(): number
+  /** How many transfers the part has served. */
+  get transfers(): number
 }
 
 /** Tracks one command awaiting its acknowledgment. */
@@ -334,6 +405,37 @@ export declare class Dialect {
    * neither it nor the common dialect knows the id.
    */
   crcExtra(msgid: number): number | null
+}
+
+/** A DS18B20 the Linux kernel serves as a `w1_slave` file under `/sys/bus/w1/devices`. */
+export declare class Ds18b20Thermometer {
+  /**
+   * A thermometer named by the serial in its directory name, the twelve hex digits after
+   * `28-`.
+   */
+  static forSerial(serial: string): Ds18b20Thermometer
+  /** A thermometer named by the path of its `w1_slave` file. */
+  static at(path: string): Ds18b20Thermometer
+  /**
+   * Every DS18B20 the kernel has found, one per `28-` directory under `devices`, which is
+   * `/sys/bus/w1/devices` unless given. Throws when the directory cannot be listed, which
+   * usually means the 1-Wire overlay is off.
+   */
+  static discover(devices?: string | undefined | null): Array<Ds18b20Thermometer>
+  /** The path of the file the thermometer reads. */
+  get path(): string
+  /**
+   * The serial the kernel named the thermometer's directory after: the twelve hex digits
+   * after `28-`, which tell one probe from another and stay with the part for life. Null
+   * when the file does not sit in a DS18B20's directory, as one named by `at` may not.
+   */
+  get serial(): string | null
+  /**
+   * Reads the file on a worker thread, which makes the kernel run a conversion, and
+   * resolves with the decoded reading. Rejects when the file cannot be read or the kernel
+   * or this decoder rejects the checksum.
+   */
+  read(): Promise<Ds18b20Reading>
 }
 
 /** The split between the time a node works and the time it sleeps. */
@@ -473,6 +575,33 @@ export declare class GpioLine {
 }
 
 /**
+ * A Texas Instruments HDC1080 driven over an I2C bus, measuring temperature then humidity from
+ * one trigger.
+ */
+export declare class Hdc1080 {
+  /**
+   * A driver for the part on `bus`, which has one address. Nothing is sent until `init` or
+   * the first `measure`. Throws for a resolution the part does not have.
+   */
+  constructor(bus: I2cBus, settings?: Hdc1080Settings | undefined | null)
+  /**
+   * Checks the part is an HDC1080 and writes the configuration. Rejects when nothing
+   * answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Triggers one acquisition of both channels and resolves with them, initializing the part
+   * first if `init` has not run. Rejects when the part does not acknowledge the read, which
+   * it refuses until its results are ready.
+   */
+  measure(): Promise<Hdc1080Measurement>
+  /** Switches the on-die heater, which runs only during acquisitions, on or off. */
+  heater(on: boolean): Promise<void>
+  /** The configuration the driver writes. */
+  get configuration(): Hdc1080Configuration
+}
+
+/**
  * One I2C bus, shared by the program and every driver built on it.
  *
  * Transfers run one at a time, synchronously; each is quick, the time a few bytes take on
@@ -488,17 +617,17 @@ export declare class I2cBus {
    */
   static open(path: string): I2cBus
   /**
-   * A bus of simulated parts, each answering at its own address. A later part at an
-   * address an earlier one holds takes its place.
+   * A bus of simulated parts of any kind, each answering at its own address. A later part
+   * at an address an earlier one holds takes its place.
    */
-  static simulated(parts?: Array<I2cPart> | undefined | null): I2cBus
+  static simulated(parts?: Array<I2cPart | WordPart | CommandPart> | undefined | null): I2cBus
   /** A bus that plays the steps in order and refuses any transfer that is not the next one. */
   static scripted(steps: Array<I2cStep>): I2cBus
   /**
-   * Puts a copy of a part on a simulated bus, in place of any part at its address. Throws
-   * for a bus that is not simulated.
+   * Puts a copy of a part of any kind on a simulated bus, in place of any part at its
+   * address. Throws for a bus that is not simulated.
    */
-  attach(part: I2cPart): void
+  attach(part: I2cPart | WordPart | CommandPart): void
   /** What answers on the bus. */
   get kind(): I2cBusKind
   /** Writes bytes to a part in one transaction: usually a register address and its value. */
@@ -512,9 +641,10 @@ export declare class I2cBus {
   writeRead(address: number, bytes: Buffer, length: number): Buffer
   /**
    * A copy of what a simulated part holds now, with whatever drivers have written to it,
-   * or `null` when the bus is not simulated or no part holds the address.
+   * as the class of part it is, or `null` when the bus is not simulated or no part holds
+   * the address.
    */
-  part(address: number): I2cPart | null
+  part(address: number): I2cPart | WordPart | CommandPart | null
   /**
    * How many transfers have been made on the bus, by the program and every driver on it,
    * including any that failed.
@@ -584,6 +714,65 @@ export declare class ImageVerifier {
    * Throws if the image is not the one the manifest described.
    */
   finish(): Buffer
+}
+
+/**
+ * A Texas Instruments INA219 driven over an I2C bus, measuring shunt and bus voltage, current,
+ * and power on demand.
+ */
+export declare class Ina219 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Ina219Settings | undefined | null)
+  /**
+   * Resets the part, writes the configuration and the calibration, and reads the
+   * calibration back. Rejects when nothing answers or the calibration does not hold.
+   */
+  init(): Promise<void>
+  /**
+   * Triggers one shunt and bus conversion and resolves with every result, initializing the
+   * part first if `init` has not run.
+   */
+  measure(): Promise<Ina219Reading>
+  /** The current step the driver programs, in microamps per count. */
+  get currentLsbMicroamps(): number
+  /** The calibration word the driver programs. */
+  get calibrationWord(): number
+}
+
+/**
+ * A Texas Instruments INA226 driven over an I2C bus, measuring shunt and bus voltage, current,
+ * and power on demand.
+ */
+export declare class Ina226 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Ina226Settings | undefined | null)
+  /**
+   * Resets the part, checks it is an INA226, writes the configuration and the calibration,
+   * and reads the calibration back. Rejects when nothing answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Triggers one shunt and bus conversion and resolves with every result, initializing the
+   * part first if `init` has not run.
+   */
+  measure(): Promise<Ina226Reading>
+  /**
+   * Programs the alert pin: which limit it watches, one function at a time, and the limit,
+   * in the units of the register the function watches.
+   */
+  setAlert(mask: Ina226MaskEnable, limit: number): Promise<void>
+  /** The current step the driver programs, in microamps per count. */
+  get currentLsbMicroamps(): number
+  /** The calibration word the driver programs. */
+  get calibrationWord(): number
+  /** The die id read at initialization, or `null` before it. */
+  get identity(): Ina226DieId | null
 }
 
 /**
@@ -1794,6 +1983,32 @@ export declare class MqttClient {
   disconnect(): Promise<void>
 }
 
+/** A Texas Instruments OPT3001 driven over an I2C bus, measuring on demand in single-shot mode. */
+export declare class Opt3001 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Opt3001Settings | undefined | null)
+  /**
+   * Checks the part is an OPT3001 and writes the settings with the part in shutdown.
+   * Rejects when nothing answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one conversion and resolves with the illuminance, initializing the part first if
+   * `init` has not run.
+   */
+  measure(): Promise<Opt3001Reading>
+  /**
+   * Writes the low and high limits the part's interrupt pin compares each result against,
+   * in millilux.
+   */
+  setLimits(lowMilliLux: number, highMilliLux: number): Promise<void>
+  /** The configuration the driver writes, with the part in shutdown. */
+  get configuration(): Opt3001Configuration
+}
+
 /** Holds a value at a setpoint by trading off present, past, and predicted error. */
 export declare class Pid {
   /** Creates a controller with the given proportional, integral, derivative gains. */
@@ -2046,6 +2261,48 @@ export declare class Router {
   get capacity(): number
 }
 
+/**
+ * A Sensirion SCD40 or SCD41 driven over an I2C bus in periodic measurement, a result every
+ * five seconds.
+ */
+export declare class Scd4x {
+  /**
+   * A driver for the part on `bus`, which has one address. Nothing is sent until `init` or
+   * the first `measure`.
+   */
+  constructor(bus: I2cBus)
+  /**
+   * Stops any running measurement, reads the serial number, and starts periodic
+   * measurement. Rejects when nothing answers or the serial number fails its checksum.
+   */
+  init(): Promise<void>
+  /**
+   * Waits for the next periodic result and resolves with it, initializing the part first if
+   * `init` has not run.
+   */
+  measure(): Promise<Scd4xMeasurement>
+  /**
+   * Runs one on-demand measurement on an SCD41, which takes five seconds. The part must not
+   * be measuring periodically: call `stop` first, or use this in place of `init`.
+   */
+  measureSingleShot(): Promise<Scd4xMeasurement>
+  /** Asks the part whether a periodic result is waiting, so `measure` would read at once. */
+  dataReady(): Promise<boolean>
+  /** Stops periodic measurement, after which the part takes its settings commands. */
+  stop(): Promise<void>
+  /** Starts periodic measurement. */
+  start(): Promise<void>
+  /**
+   * Sets the temperature offset that compensates the part's own warmth, in millidegrees,
+   * until power is lost.
+   */
+  setTemperatureOffset(milliCelsius: number): Promise<void>
+  /** Sets the altitude the part corrects its carbon dioxide reading for, in meters. */
+  setSensorAltitude(meters: number): Promise<void>
+  /** The 48-bit serial number read at initialization, or `null` before it. */
+  get serial(): number | null
+}
+
 /** A memory of recently seen packets, so a node relays each one only once. */
 export declare class SeenPackets {
   /**
@@ -2109,6 +2366,33 @@ export declare class Session {
    * returned from a message that failed either check.
    */
   open(sealed: SealedMessage, aad?: Buffer | undefined | null): Buffer
+}
+
+/** A Sensirion SHT3x driven over an I2C bus, measuring on demand in single-shot mode. */
+export declare class Sht3x {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Sht3xSettings | undefined | null)
+  /**
+   * Soft-resets the part and reads its status; a status word whose checksum holds is what
+   * confirms an SHT3x answers. Rejects when nothing answers or the word fails its checksum.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one single-shot measurement and resolves with it, initializing the part first if
+   * `init` has not run. Rejects when a data word fails its checksum.
+   */
+  measure(): Promise<Sht3xMeasurement>
+  /** Reads the status register, which `lastStatus` keeps as well. */
+  readStatus(): Promise<Sht3xStatus>
+  /** Switches the plausibility-check heater on, initializing the part first if needed. */
+  heaterOn(): Promise<void>
+  /** Switches the heater off, which is its state after any reset. */
+  heaterOff(): Promise<void>
+  /** The status register as it was last read, or `null` before it has been. */
+  get lastStatus(): Sht3xStatus | null
 }
 
 /**
@@ -2278,6 +2562,37 @@ export declare class Thermostat {
   update(reading: number): boolean
   /** Reports the current output without feeding in a reading. */
   isOn(): boolean
+}
+
+/** A Texas Instruments TMP117 driven over an I2C bus, converting on demand in one-shot mode. */
+export declare class Tmp117 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Tmp117Settings | undefined | null)
+  /**
+   * Checks the part is a TMP117, waits for its EEPROM to finish loading, and writes the
+   * settings with the part in shutdown. Rejects when nothing answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one conversion and resolves with the temperature, initializing the part first if
+   * `init` has not run.
+   */
+  measure(): Promise<Tmp117Reading>
+  /**
+   * Writes the high and low limits the part compares each result against; the factory
+   * limits are 192 C and -256 C.
+   */
+  setAlertLimits(highCelsius: number, lowCelsius: number): Promise<void>
+  /**
+   * Resolves with the alert flags: whether a result since the last call was above the high
+   * limit or below the low limit, including results the driver's own reads saw.
+   */
+  alerts(): Promise<Tmp117Alerts>
+  /** The silicon revision read at initialization, or `null` before it. */
+  get siliconRevision(): number | null
 }
 
 export declare class Transport {
@@ -2452,6 +2767,36 @@ export declare class Window {
   variance(): number | null
 }
 
+/**
+ * A part that is not there, answering from 256 registers sixteen bits wide.
+ *
+ * A pointer byte names a register and a register travels most significant byte first. A
+ * write of the pointer alone aims the next read; a write of the pointer and a word stores the
+ * word; a read takes words from the pointer on. Bits the part sets for itself, such as a
+ * conversion-ready flag, are marked with `readOnly` and keep the part's value whatever a
+ * driver writes.
+ */
+export declare class WordPart {
+  /** A part answering at one address, with every register reading zero. */
+  constructor(address: number)
+  /** Puts a value in one register, read-only bits included, the way the part itself would. */
+  set(register: number, value: number): void
+  /**
+   * Marks bits of one register as the part's to set: a driver's write leaves them as the
+   * part holds them.
+   */
+  readOnly(register: number, mask: number): void
+  /**
+   * What one register holds now, which is what a driver wrote there apart from the
+   * read-only bits.
+   */
+  word(register: number): number
+  /** The address the part answers to. */
+  get address(): number
+  /** How many transfers the part has served. */
+  get transfers(): number
+}
+
 /** What an incoming acknowledgment means for the command in flight. */
 export interface AckOutcome {
   /**
@@ -2494,11 +2839,56 @@ export declare function ads1115ConfigBits(config: Ads1115Config): number
 /** Parses a 16-bit ADS1115 configuration register value. */
 export declare function ads1115ConfigFromBits(bits: number): Ads1115Config
 
+/**
+ * Returns how long an ADS1115 conversion takes at a data-rate code, in microseconds: one
+ * period of the rate plus the datasheet's ten percent rate variation.
+ */
+export declare function ads1115ConversionMicros(dataRate: number): number
+
 /** Returns the full-scale range an ADS1115 gain code selects, in microvolts. */
 export declare function ads1115FullScaleMicrovolts(pga: number): number
 
+/** One ADS1115 conversion. */
+export interface Ads1115Sample {
+  /** The conversion register, two's complement. */
+  raw: number
+  /** The gain code the conversion ran at. */
+  pga: number
+  /** The voltage in nanovolts, exact in integer arithmetic. */
+  nanovolts: number
+  /** The voltage in volts. */
+  volts: number
+  /**
+   * Whether the conversion sits at an end code, where the output clips for a signal past
+   * the range, so the voltage is a bound rather than the reading.
+   */
+  clipped: boolean
+}
+
 /** Returns the sample rate an ADS1115 data-rate code selects. */
 export declare function ads1115SamplesPerSecond(dataRate: number): number
+
+/**
+ * How an ADS1115 driver converts. A field left out keeps the part's reset setting: AIN0
+ * against AIN1, the 2.048 V range, and 128 samples per second.
+ */
+export interface Ads1115Settings {
+  /**
+   * The input multiplexer code, `0..=7`: `0..=3` a differential pair, `4..=7` one input
+   * against ground.
+   */
+  mux?: number
+  /** The gain code, `0..=7`, which sets the full-scale range. */
+  pga?: number
+  /** The data-rate code, `0..=7`, from 8 to 860 samples per second. */
+  dataRate?: number
+}
+
+/** A simulated ADS1115 reading 1.65 V, half a 3.3 V supply, at the range a driver starts with. */
+export declare function ads1115SimPart(address: number): WordPart
+
+/** A simulated ADS1115 that reads what it is asked to at the gain code a driver converts at. */
+export declare function ads1115SimReporting(address: number, pga: number, volts: number): WordPart
 
 /** Converts a raw ADS1115 conversion result to nanovolts. */
 export declare function ads1115ToNanovolts(pga: number, raw: number): number
@@ -2746,6 +3136,40 @@ export interface Bmp280Reading {
   /** The pressure in hectopascals, the unit a barometer is usually quoted in. */
   hectopascals: number
 }
+
+/**
+ * How a BMP280 driver measures. A field left out keeps the default: both measurements at
+ * oversampling x1 and the filter off.
+ */
+export interface Bmp280Settings {
+  /** The temperature oversampling code, `0..=5`, where `0` skips the measurement. */
+  temperature?: number
+  /** The pressure oversampling code, `0..=5`, where `0` skips the measurement. */
+  pressure?: number
+  /** The IIR filter's three-bit `filter[2:0]` code, `0` for the filter off, written as given. */
+  filter?: number
+}
+
+/** The six data registers a simulated BMP280 holds: one measurement a real part took. */
+export declare function bmp280SimBurst(): Buffer
+
+/** The six data registers that compensate to a reading against the simulated trimming. */
+export declare function bmp280SimBurstFor(celsius: number, hectopascals: number): Buffer
+
+/** The 24 trimming bytes a simulated BMP280 holds. */
+export declare function bmp280SimCalibration(): Buffer
+
+/**
+ * A simulated BMP280 holding a real part's trimming and one measurement it took, which
+ * compensate to 20.44 C and 848.05 hPa.
+ */
+export declare function bmp280SimPart(address: number): I2cPart
+
+/**
+ * A simulated BMP280 that reads what it is asked to, within a hundredth of a degree and of a
+ * hectopascal.
+ */
+export declare function bmp280SimReporting(address: number, celsius: number, hectopascals: number): I2cPart
 
 /** Returns the normal-mode standby period a BMP280 code selects, in microseconds. */
 export declare function bmp280StandbyMicros(code: number): number
@@ -3033,6 +3457,12 @@ export declare function ds18b20MicroCelsius(raw: number): number
 /** Parses and CRC-checks a nine-byte DS18B20 scratchpad. */
 export declare function ds18b20ParseScratchpad(bytes: Buffer): Ds18b20Reading
 
+/**
+ * Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+ * of its `w1_slave` file, checking the scratchpad's CRC as well as the kernel's verdict.
+ */
+export declare function ds18b20ParseW1Slave(text: string): Ds18b20Reading
+
 /** A decoded DS18B20 scratchpad. */
 export interface Ds18b20Reading {
   /** The raw temperature register, 1/16 degree Celsius per count. */
@@ -3054,6 +3484,12 @@ export declare function ds18b20ResolutionBits(configByte: number): number
 
 /** Returns the temperature step a DS18B20 resolution resolves, in micro-degrees. */
 export declare function ds18b20StepMicroCelsius(bits: number): number
+
+/**
+ * Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+ * read cleanly, the inverse of `ds18b20ParseW1Slave`. Throws when the CRC does not match.
+ */
+export declare function ds18b20W1SlaveText(scratchpad: Buffer): string
 
 /** What a trigger reports when a reading changes its state. */
 export declare const enum Edge {
@@ -3635,6 +4071,23 @@ export declare function hdc1080SerialId(high: number, mid: number, low: number):
 /** Splits a serial number back into the three HDC1080 serial-ID registers. */
 export declare function hdc1080SerialIdRegisters(serial: number): Array<number>
 
+/** How an HDC1080 driver measures. A field left out keeps 14 bits. */
+export interface Hdc1080Settings {
+  /** The temperature resolution in bits: 14 or 11. */
+  temperatureResolutionBits?: number
+  /** The humidity resolution in bits: 14, 11, or 8. */
+  humidityResolutionBits?: number
+}
+
+/** A simulated HDC1080 reading 22.5 C and 45 %. */
+export declare function hdc1080SimPart(): WordPart
+
+/**
+ * A simulated HDC1080 that reads what it is asked to, within three thousandths of a degree
+ * and two thousandths of a percent.
+ */
+export declare function hdc1080SimReporting(celsius: number, relativeHumidity: number): WordPart
+
 /** Returns how long an HDC1080 temperature conversion takes, in microseconds. */
 export declare function hdc1080TemperatureConversionMicros(bits: number): number
 
@@ -3718,6 +4171,15 @@ export declare const enum I2cFault {
 /** Hashes a complete image, for a publisher filling in a manifest. */
 export declare function imageDigest(image: Buffer): Buffer
 
+/** Returns how long one INA219 conversion takes at a converter code, in microseconds. */
+export declare function ina219AdcConversionMicros(code: number): number
+
+/**
+ * Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+ * datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+ */
+export declare function ina219Address(a1: number, a0: number): number
+
 /** Converts a raw INA219 bus-voltage register to millivolts. */
 export declare function ina219BusMillivolts(raw: number): number
 
@@ -3727,6 +4189,40 @@ export declare function ina219BusRegister(millivolts: number): number
 /** Computes the INA219 calibration register for a shunt and current resolution. */
 export declare function ina219Calibration(currentLsbMicroamps: number, shuntMilliohms: number): number
 
+/** Assembles the 16-bit INA219 configuration register value. */
+export declare function ina219ConfigBits(config: Ina219Configuration): number
+
+/** Parses a 16-bit INA219 configuration register value. */
+export declare function ina219ConfigFromBits(bits: number): Ina219Configuration
+
+/**
+ * An INA219 configuration register, field by field, each setting as the code the datasheet
+ * prints.
+ */
+export interface Ina219Configuration {
+  /** Whether writing the register resets the part. */
+  reset: boolean
+  /** The bus-voltage range code: `0` for 16 V, `1` for 32 V. */
+  busRange: number
+  /** The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV. */
+  gain: number
+  /**
+   * The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
+   * 12 bits from `9` up.
+   */
+  busAdc: number
+  /** The shunt converter code, as `busAdc`. */
+  shuntAdc: number
+  /** The operating-mode code, `0..=7`. */
+  mode: number
+}
+
+/**
+ * Returns how long one INA219 conversion cycle takes, in microseconds: the shunt and bus
+ * conversions the mode runs, one after the other.
+ */
+export declare function ina219ConversionMicros(config: Ina219Configuration): number
+
 /** Reports whether an INA219 bus-voltage register says a conversion is ready. */
 export declare function ina219ConversionReady(raw: number): boolean
 
@@ -3735,6 +4231,12 @@ export declare function ina219CurrentMicroamps(raw: number, currentLsbMicroamps:
 
 /** Builds the INA219 current register a monitor reports for a current. */
 export declare function ina219CurrentRegister(microamps: number, currentLsbMicroamps: number): number
+
+/**
+ * Returns the shunt-voltage range an INA219 gain code selects, in millivolts either side of
+ * zero.
+ */
+export declare function ina219GainRangeMillivolts(code: number): number
 
 /** Reports whether an INA219 bus-voltage register flags a math overflow. */
 export declare function ina219MathOverflow(raw: number): boolean
@@ -3748,11 +4250,65 @@ export declare function ina219PowerMicrowatts(raw: number, currentLsbMicroamps: 
 /** Builds the INA219 power register a monitor reports for a power. */
 export declare function ina219PowerRegister(microwatts: number, currentLsbMicroamps: number): number
 
+/** One INA219 conversion: the four result registers as read, and what they mean. */
+export interface Ina219Reading {
+  /** The shunt-voltage register. */
+  shunt: number
+  /** The bus-voltage register, flags included. */
+  bus: number
+  /** The current register. */
+  current: number
+  /** The power register. */
+  power: number
+  /** The current step the calibration programmed, in microamps per count. */
+  currentLsbMicroamps: number
+  /** The shunt voltage in microvolts. */
+  shuntMicrovolts: number
+  /** The bus voltage in millivolts. */
+  busMillivolts: number
+  /** The current in microamps; negative flows the other way through the shunt. */
+  currentMicroamps: number
+  /** The power in microwatts. */
+  powerMicrowatts: number
+  /** Whether the part's arithmetic overflowed, leaving current and power meaningless. */
+  mathOverflow: boolean
+}
+
+/**
+ * How an INA219 driver measures. A field left out keeps the default: a 100 milliohm shunt
+ * sized for 3.2 A, the common breakout, and the power-on register settings.
+ */
+export interface Ina219Settings {
+  /** The shunt resistance in milliohms. */
+  shuntMilliohms?: number
+  /**
+   * The largest current the shunt will carry, in microamps, which sets the finest current
+   * step the calibration allows.
+   */
+  maxMicroamps?: number
+  /** A current step to use instead, in microamps per count, such as a round 100. */
+  currentLsbMicroamps?: number
+  /** The range, gain, and converter settings; the mode is chosen per conversion. */
+  configuration?: Ina219Configuration
+}
+
 /** Converts a raw INA219 shunt-voltage register to microvolts. */
 export declare function ina219ShuntMicrovolts(raw: number): number
 
 /** Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage. */
 export declare function ina219ShuntRegister(microvolts: number): number
+
+/**
+ * A simulated INA219 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
+ * with.
+ */
+export declare function ina219SimPart(address: number): WordPart
+
+/**
+ * A simulated INA219 that reads what it is asked to, calibrated for the same shunt and largest
+ * current a driver is given.
+ */
+export declare function ina219SimReporting(address: number, shuntMilliohms: number, maxMicroamps: number, busMillivolts: number, microamps: number): WordPart
 
 /** Returns the alert function an INA226 pin actually responds to. */
 export declare function ina226ActiveAlertFunction(mask: Ina226MaskEnable): Ina226AlertFunction | null
@@ -3894,6 +4450,56 @@ export declare function ina226PowerRegisterFromCurrent(current: number, bus: num
 /** Converts a raw INA226 power register to watts. */
 export declare function ina226PowerWatts(raw: number, currentLsbMicroamps: number): number
 
+/** One INA226 conversion: the four result registers as read, and what they mean. */
+export interface Ina226Reading {
+  /** The shunt-voltage register. */
+  shunt: number
+  /** The bus-voltage register. */
+  bus: number
+  /** The current register. */
+  current: number
+  /** The power register. */
+  power: number
+  /** The current step the calibration programmed, in microamps per count. */
+  currentLsbMicroamps: number
+  /** The shunt voltage in nanovolts. */
+  shuntNanovolts: number
+  /** The shunt voltage in millivolts. */
+  shuntMillivolts: number
+  /** The bus voltage in microvolts. */
+  busMicrovolts: number
+  /** The bus voltage in volts. */
+  busVolts: number
+  /** The current in microamps; negative flows the other way through the shunt. */
+  currentMicroamps: number
+  /** The current in amps. */
+  currentAmps: number
+  /** The power in microwatts. */
+  powerMicrowatts: number
+  /** The power in watts. */
+  powerWatts: number
+  /** Whether the part's arithmetic overflowed, leaving current and power meaningless. */
+  mathOverflow: boolean
+}
+
+/**
+ * How an INA226 driver measures. A field left out keeps the default: a 100 milliohm shunt
+ * sized for 3.2 A and the power-on register settings.
+ */
+export interface Ina226Settings {
+  /** The shunt resistance in milliohms. */
+  shuntMilliohms?: number
+  /**
+   * The largest current the shunt will carry, in microamps, which sets the finest current
+   * step the calibration allows.
+   */
+  maxMicroamps?: number
+  /** A current step to use instead, in microamps per count. */
+  currentLsbMicroamps?: number
+  /** The averaging and conversion times; the mode is chosen per conversion. */
+  configuration?: Ina226Configuration
+}
+
 /** Converts a raw INA226 shunt-voltage register to millivolts. */
 export declare function ina226ShuntMillivolts(raw: number): number
 
@@ -3902,6 +4508,18 @@ export declare function ina226ShuntNanovolts(raw: number): number
 
 /** Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage. */
 export declare function ina226ShuntRegister(nanovolts: number): number
+
+/**
+ * A simulated INA226 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
+ * with.
+ */
+export declare function ina226SimPart(address: number): WordPart
+
+/**
+ * A simulated INA226 that reads what it is asked to, calibrated for the same shunt and largest
+ * current a driver is given.
+ */
+export declare function ina226SimReporting(address: number, shuntMilliohms: number, maxMicroamps: number, busMicrovolts: number, microamps: number): WordPart
 
 /** Returns how often an INA226 in this configuration updates its results. */
 export declare function ina226UpdateMicros(config: Ina226Configuration): number
@@ -6309,6 +6927,39 @@ export declare function opt3001MilliLux(raw: number): number
 /** Builds the OPT3001 result register that decodes to an illuminance. */
 export declare function opt3001RawFromMilliLux(milliLux: number): number
 
+/** An OPT3001 illuminance result. */
+export interface Opt3001Reading {
+  /** The result register: a four-bit exponent over a twelve-bit mantissa. */
+  raw: number
+  /** The illuminance in millilux, exact in integer arithmetic. */
+  milliLux: number
+  /** The illuminance in lux. */
+  lux: number
+}
+
+/** How an OPT3001 driver measures. A field left out keeps the part's reset setting. */
+export interface Opt3001Settings {
+  /**
+   * Whether each conversion integrates for 800 ms, for resolution, rather than 100 ms, for
+   * speed; 800 ms unless given.
+   */
+  longConversion?: boolean
+  /**
+   * The full-scale range number, `0..=11`, or `12` to let the part choose, which it does
+   * unless given.
+   */
+  rangeNumber?: number
+}
+
+/** A simulated OPT3001 reading 380 lux, its conversion-ready flag set. */
+export declare function opt3001SimPart(address: number): WordPart
+
+/**
+ * A simulated OPT3001 that reads what it is asked to, to the nearest step its exponent and
+ * mantissa represent.
+ */
+export declare function opt3001SimReporting(address: number, lux: number): WordPart
+
 /** Reads the two bytes an OPT3001 sends for a register. */
 export declare function opt3001WordFromBytes(bytes: Buffer): number
 
@@ -6676,6 +7327,12 @@ export declare function scd4xSerialNumber(frame: Buffer): number
 /** Builds the nine bytes an SCD4x sends for a serial number. */
 export declare function scd4xSerialNumberFrame(serial: number): Buffer
 
+/** A simulated SCD4x reading 800 ppm, 22.5 C, and 45 %, always with a result waiting. */
+export declare function scd4xSimPart(): CommandPart
+
+/** A simulated SCD4x that reads what it is asked to. */
+export declare function scd4xSimReporting(co2Ppm: number, celsius: number, relativeHumidity: number): CommandPart
+
 /** Converts an SCD4x temperature-offset word back to milli-degrees Celsius. */
 export declare function scd4xTemperatureOffsetMilliCelsius(word: number): number
 
@@ -6792,6 +7449,21 @@ export declare const enum Sht3xRepeatability {
   /** The slowest and most precise setting. */
   High = 'High',
 }
+
+/** How an SHT3x driver measures. A field left out keeps the default, high repeatability. */
+export interface Sht3xSettings {
+  /** How repeatable each measurement is, against how long it takes. */
+  repeatability?: Sht3xRepeatability
+}
+
+/** A simulated SHT3x reading 22.5 C and 45 %. */
+export declare function sht3xSimPart(address: number): CommandPart
+
+/**
+ * A simulated SHT3x that reads what it is asked to, within three thousandths of a degree and
+ * two thousandths of a percent.
+ */
+export declare function sht3xSimReporting(address: number, celsius: number, relativeHumidity: number): CommandPart
 
 /** Returns the SHT3x single-shot command for a repeatability and clock mode. */
 export declare function sht3xSingleShot(repeatability: Sht3xRepeatability, clockStretching: boolean): number
@@ -7520,6 +8192,14 @@ export interface Theme {
   track?: string
 }
 
+/** The TMP117's alert flags: whether a result since they were last read crossed a limit. */
+export interface Tmp117Alerts {
+  /** A result was above the high limit. */
+  high: boolean
+  /** A result was below the low limit. */
+  low: boolean
+}
+
 /** Returns how many conversions a TMP117 averaging code folds into one result. */
 export declare function tmp117AveragingConversions(code: number): number
 
@@ -7597,8 +8277,36 @@ export declare function tmp117RawFromCelsius(celsius: number): number
 /** Builds the TMP117 temperature register that decodes to a temperature. */
 export declare function tmp117RawFromMicroCelsius(microCelsius: number): number
 
+/** A TMP117 temperature result. */
+export interface Tmp117Reading {
+  /** The temperature register, 7.8125 millidegrees Celsius per count. */
+  raw: number
+  /** The temperature in micro-degrees Celsius, exact in integer arithmetic. */
+  microCelsius: number
+  /** The temperature in degrees Celsius. */
+  celsius: number
+}
+
 /** Reads the die revision out of a TMP117 device-ID register. */
 export declare function tmp117Revision(raw: number): number
+
+/** How a TMP117 driver measures. A field left out keeps the default. */
+export interface Tmp117Settings {
+  /**
+   * The averaging code, `0..=3`, for 1, 8, 32, or 64 conversions per result; `1`, eight,
+   * is the factory setting and the default.
+   */
+  averaging?: number
+}
+
+/**
+ * A simulated TMP117 reading 21.25 C, its configuration register keeping the flags the part
+ * sets for itself, with the data-ready flag set.
+ */
+export declare function tmp117SimPart(address: number): WordPart
+
+/** A simulated TMP117 that reads what it is asked to, to the nearest 7.8125 millidegrees. */
+export declare function tmp117SimReporting(address: number, celsius: number): WordPart
 
 /** Builds the two bytes a TMP117 sends for a temperature register. */
 export declare function tmp117TemperatureBytes(raw: number): Buffer

@@ -20,7 +20,9 @@ all-features = true
 # Sensor trait. The decode half needs nothing and builds with the feature off.
 default = ["embedded-hal"]
 embedded-hal = ["dep:embedded-hal", "dep:pamoja-core", "dep:pamoja-hal"]
-std = ["embedded-hal", "pamoja-core/std", "pamoja-hal/std"]
+# The simulated parts that take commands, the SHT3x and SCD4x, keep their replies in a vector.
+alloc = ["embedded-hal", "pamoja-hal/alloc"]
+std = ["alloc", "pamoja-core/std", "pamoja-hal/std"]
 # The Linux kernel's 1-Wire thermometer files, read as a Sensor; see `ds18b20::linux`.
 linux = ["std"]
 

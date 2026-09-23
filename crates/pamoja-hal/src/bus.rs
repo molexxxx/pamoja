@@ -59,7 +59,7 @@ use embedded_hal::i2c::{
 };
 
 use crate::script::{I2cScript, ScriptError};
-use crate::sim::{I2cPart, PartError};
+use crate::sim::{FromPart, Part, PartError};
 
 /// What answers on an [`I2cBus`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -203,7 +203,7 @@ enum Backend {
         path: PathBuf,
         device: crate::linux::I2cdev,
     },
-    Parts(Vec<I2cPart>),
+    Parts(Vec<Part>),
     Script(I2cScript),
 }
 
@@ -223,7 +223,7 @@ fn lock(shared: &Mutex<Shared>) -> MutexGuard<'_, Shared> {
 }
 
 /// Puts a part in the list, in place of one at the same address.
-fn place(parts: &mut Vec<I2cPart>, part: I2cPart) -> Option<I2cPart> {
+fn place(parts: &mut Vec<Part>, part: Part) -> Option<Part> {
     match parts
         .iter_mut()
         .find(|held| held.address() == part.address())
@@ -292,17 +292,18 @@ impl I2cBus {
     ///
     /// # Arguments
     ///
-    /// * `parts` - the parts on the bus, put on in order as [`I2cBus::attach`] puts them, so a
-    ///   part at an address an earlier one holds takes its place.
+    /// * `parts` - the parts on the bus, of any of the three kinds, put on in order as
+    ///   [`I2cBus::attach`] puts them, so a part at an address an earlier one holds takes its
+    ///   place.
     ///
     /// # Returns
     ///
     /// The bus. A transfer to an address no part holds fails with
     /// [`BusError::NoAcknowledge`].
-    pub fn simulated(parts: impl IntoIterator<Item = I2cPart>) -> I2cBus {
-        let mut placed: Vec<I2cPart> = Vec::new();
+    pub fn simulated<P: Into<Part>>(parts: impl IntoIterator<Item = P>) -> I2cBus {
+        let mut placed: Vec<Part> = Vec::new();
         for part in parts {
-            place(&mut placed, part);
+            place(&mut placed, part.into());
         }
         I2cBus::with(Backend::Parts(placed))
     }
@@ -314,7 +315,7 @@ impl I2cBus {
     ///
     /// # Arguments
     ///
-    /// * `part` - the part.
+    /// * `part` - the part, of any of the three kinds.
     ///
     /// # Returns
     ///
@@ -323,9 +324,9 @@ impl I2cBus {
     /// # Errors
     ///
     /// [`NotSimulated`] when the bus is the kernel's adapter or a script.
-    pub fn attach(&self, part: I2cPart) -> Result<Option<I2cPart>, NotSimulated> {
+    pub fn attach(&self, part: impl Into<Part>) -> Result<Option<Part>, NotSimulated> {
         match &mut lock(&self.shared).backend {
-            Backend::Parts(parts) => Ok(place(parts, part)),
+            Backend::Parts(parts) => Ok(place(parts, part.into())),
             _ => Err(NotSimulated),
         }
     }
@@ -354,7 +355,7 @@ impl I2cBus {
         lock(&self.shared).backend.kind()
     }
 
-    /// What a simulated part holds now.
+    /// What a simulated part holds now, as the kind of part the caller names.
     ///
     /// # Arguments
     ///
@@ -363,11 +364,32 @@ impl I2cBus {
     /// # Returns
     ///
     /// A copy of the part, with whatever drivers have written to it, or `None` when the bus
-    /// is not simulated or no part holds the address.
+    /// is not simulated, no part holds the address, or the part there is another kind. Ask
+    /// for a [`Part`] to take any kind.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_hal::bus::I2cBus;
+    /// use pamoja_hal::i2c::I2c;
+    /// use pamoja_hal::sim::{I2cPart, WordPart};
+    ///
+    /// let mut bus = I2cBus::simulated([I2cPart::new(0x76)]);
+    /// bus.write(0x76, &[0xf4, 0x25])?;
+    ///
+    /// let part: I2cPart = bus.part(0x76).expect("a byte-wide part at 0x76");
+    /// assert_eq!(part.register(0xf4), 0x25);
+    /// assert!(bus.part::<WordPart>(0x76).is_none(), "it is not a word-wide one");
+    /// # Ok::<(), pamoja_hal::bus::BusError>(())
+    /// ```
     #[must_use]
-    pub fn part(&self, address: u8) -> Option<I2cPart> {
+    pub fn part<P: FromPart>(&self, address: u8) -> Option<P> {
         match &lock(&self.shared).backend {
-            Backend::Parts(parts) => parts.iter().find(|part| part.address() == address).cloned(),
+            Backend::Parts(parts) => parts
+                .iter()
+                .find(|part| part.address() == address)
+                .cloned()
+                .and_then(P::from_part),
             _ => None,
         }
     }
@@ -515,6 +537,7 @@ impl DelayNs for BusDelay {
 mod tests {
     use super::*;
     use crate::script::I2cStep;
+    use crate::sim::{CommandPart, I2cPart, WordPart};
     use embedded_hal::i2c::Error as _;
     use std::time::Instant;
 
@@ -526,8 +549,10 @@ mod tests {
         driver.write(0x76, &[0xf4, 0x25]).unwrap();
         driver.write(0x48, &[0x01, 0x60, 0x20]).unwrap();
 
-        assert_eq!(bus.part(0x76).map(|part| part.register(0xf4)), Some(0x25));
-        assert_eq!(bus.part(0x48).map(|part| part.register(0x02)), Some(0x20));
+        let part = bus.part::<I2cPart>(0x76).map(|part| part.register(0xf4));
+        assert_eq!(part, Some(0x25));
+        let part = bus.part::<I2cPart>(0x48).map(|part| part.register(0x02));
+        assert_eq!(part, Some(0x20));
         assert_eq!(bus.transfers(), 2);
         assert_eq!(bus.kind(), BusKind::Simulated);
         assert_eq!(bus.remaining(), None);
@@ -539,19 +564,56 @@ mod tests {
             I2cPart::new(0x76).holding(0xd0, &[0x58]),
             I2cPart::new(0x76).holding(0xd0, &[0x60]),
         ]);
-        assert_eq!(bus.part(0x76).map(|part| part.register(0xd0)), Some(0x60));
+        let held = bus.part::<I2cPart>(0x76).map(|part| part.register(0xd0));
+        assert_eq!(held, Some(0x60));
 
         let replaced = bus
             .attach(I2cPart::new(0x76).holding(0xd0, &[0x61]))
             .expect("a simulated bus takes parts");
-        assert_eq!(replaced.map(|part| part.register(0xd0)), Some(0x60));
-        assert_eq!(bus.part(0x76).map(|part| part.register(0xd0)), Some(0x61));
+        let replaced = replaced
+            .and_then(I2cPart::from_part)
+            .map(|part| part.register(0xd0));
+        assert_eq!(replaced, Some(0x60));
+        let held = bus.part::<I2cPart>(0x76).map(|part| part.register(0xd0));
+        assert_eq!(held, Some(0x61));
 
         assert!(bus
             .attach(I2cPart::new(0x48))
             .expect("a free address")
             .is_none());
-        assert!(bus.part(0x48).is_some());
+        assert!(bus.part::<Part>(0x48).is_some());
+    }
+
+    #[test]
+    fn one_bus_holds_parts_of_every_kind() {
+        let mut bus = I2cBus::simulated([
+            Part::from(I2cPart::new(0x76).holding(0xd0, &[0x60])),
+            WordPart::new(0x48).holding(0x0f, 0x0117).into(),
+            CommandPart::new(0x44, 2)
+                .answering(&[0xf3, 0x2d], &[0x80, 0x10, 0xe1])
+                .into(),
+        ]);
+
+        let mut word = [0u8; 2];
+        bus.write_read(0x48, &[0x0f], &mut word).unwrap();
+        assert_eq!(u16::from_be_bytes(word), 0x0117);
+        bus.write(0x44, &[0xf3, 0x2d]).unwrap();
+        let mut status = [0u8; 3];
+        bus.read(0x44, &mut status).unwrap();
+        assert_eq!(status, [0x80, 0x10, 0xe1]);
+
+        assert!(bus.part::<WordPart>(0x48).is_some());
+        assert!(
+            bus.part::<I2cPart>(0x48).is_none(),
+            "a word-wide part is not a byte-wide one"
+        );
+        let commands: CommandPart = bus.part(0x44).expect("a part that takes commands");
+        assert_eq!(commands.received().len(), 1);
+        assert_eq!(
+            bus.read(0x44, &mut status).unwrap_err(),
+            BusError::Part(PartError::NoReply),
+            "the reply was taken"
+        );
     }
 
     #[test]
@@ -572,7 +634,7 @@ mod tests {
             ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address)
         );
         assert_eq!(error.to_string(), "nothing answered at 0x77");
-        assert!(bus.part(0x77).is_none());
+        assert!(bus.part::<Part>(0x77).is_none());
         assert_eq!(bus.transfers(), 1, "a refused transfer still happened");
     }
 
@@ -615,12 +677,12 @@ mod tests {
         assert_eq!(id, [0x60]);
         assert_eq!(bus.remaining(), Some(0));
         assert_eq!(bus.kind(), BusKind::Scripted);
-        assert!(bus.part(0x76).is_none());
+        assert!(bus.part::<Part>(0x76).is_none());
     }
 
     #[test]
     fn a_simulated_bus_counts_a_wait_without_sleeping_through_it() {
-        let bus = I2cBus::simulated([]);
+        let bus = I2cBus::simulated(Vec::<Part>::new());
         let mut delay = bus.delay();
 
         let started = Instant::now();

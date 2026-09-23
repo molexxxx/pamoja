@@ -1,13 +1,101 @@
+using Pamoja.Hal;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sensors;
 
 /// <summary>
-/// A Sensirion SHT3x-DIS humidity and temperature sensor. Every call goes straight to
-/// the pamoja C ABI, which decodes exactly what the manufacturer's datasheet specifies.
+/// A Sensirion SHT3x-DIS humidity and temperature sensor, and a driver for one on an I2C bus.
 /// </summary>
-public static class Sht3x
+/// <remarks>
+/// <para>
+/// The static members are the part's datasheet, decoded exactly as the manufacturer
+/// specifies, and <see cref="Sim"/>, a part that is not there.
+/// </para>
+/// <para>
+/// An instance drives one part over an <see cref="I2cBus"/>, measuring on demand in
+/// single-shot mode. The part has no id register, so <see cref="Init"/> soft-resets it and
+/// reads its status: a status word whose checksum holds is what confirms an SHT3x answers.
+/// Nothing is sent until <see cref="Init"/> or the first <see cref="Measure"/>.
+/// </para>
+/// </remarks>
+public sealed class Sht3x : IDisposable
 {
+    /// <summary>The address with ADDR low.</summary>
+    public const byte AddressA = 0x44;
+
+    /// <summary>The address with ADDR high.</summary>
+    public const byte AddressB = 0x45;
+
+    private readonly NativeHandle _handle;
+
+    /// <summary>Creates a driver for the part at <paramref name="address"/> on <paramref name="bus"/>.</summary>
+    /// <param name="bus">The bus the part is on.</param>
+    /// <param name="address"><see cref="AddressA"/> with ADDR low, <see cref="AddressB"/> with ADDR high.</param>
+    /// <param name="repeatability">How repeatable each measurement is, against how long it takes.</param>
+    /// <exception cref="PamojaException">The native driver could not be created.</exception>
+    public Sht3x(I2cBus bus, byte address, Repeatability repeatability = Repeatability.High)
+    {
+        ArgumentNullException.ThrowIfNull(bus);
+        IntPtr sensor = IntPtr.Zero;
+        Status.ThrowIfError(bus.Use(held =>
+            NativeMethods.pamoja_sht3x_new(held, address, (byte)repeatability, out sensor)));
+        _handle = new NativeHandle(sensor, NativeMethods.pamoja_sht3x_free);
+    }
+
+    /// <summary>How repeatable a measurement is, which trades noise against time and energy.</summary>
+    public enum Repeatability : byte
+    {
+        /// <summary>Low repeatability, 4 ms at most.</summary>
+        Low = 0,
+
+        /// <summary>Medium repeatability, 6 ms at most.</summary>
+        Medium = 1,
+
+        /// <summary>High repeatability, 15 ms at most; the driver's default.</summary>
+        High = 2,
+    }
+
+    /// <summary>The status register as it was last read, or null before it has been.</summary>
+    public PamojaSht3xStatus? LastStatus =>
+        _handle.Use(sensor => NativeMethods.pamoja_sht3x_last_status(sensor, out PamojaSht3xStatus status)
+            ? status
+            : (PamojaSht3xStatus?)null);
+
+    /// <summary>Soft-resets the part and reads its status.</summary>
+    /// <exception cref="PamojaException">Nothing answered, or the status word failed its checksum.</exception>
+    public void Init() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_sht3x_init));
+
+    /// <summary>Runs one single-shot measurement, initializing the part first if needed.</summary>
+    /// <returns>The checksum-checked temperature and humidity.</returns>
+    /// <exception cref="PamojaException">As <see cref="Init"/>, and when a data word fails its checksum.</exception>
+    public PamojaSht3xMeasurement Measure()
+    {
+        PamojaSht3xMeasurement measurement = default;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_sht3x_measure(sensor, out measurement)));
+        return measurement;
+    }
+
+    /// <summary>Reads the status register.</summary>
+    /// <returns>The status, which <see cref="LastStatus"/> keeps as well.</returns>
+    /// <exception cref="PamojaException">The transfer failed, or the word failed its checksum.</exception>
+    public PamojaSht3xStatus ReadStatus()
+    {
+        PamojaSht3xStatus status = default;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_sht3x_read_status(sensor, out status)));
+        return status;
+    }
+
+    /// <summary>Switches the plausibility-check heater on, initializing the part first if needed.</summary>
+    /// <exception cref="PamojaException">As <see cref="Init"/>.</exception>
+    public void HeaterOn() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_sht3x_heater_on));
+
+    /// <summary>Switches the heater off, which is its state after any reset.</summary>
+    /// <exception cref="PamojaException">As <see cref="Init"/>.</exception>
+    public void HeaterOff() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_sht3x_heater_off));
+
+    /// <summary>Releases the driver and its share of the bus.</summary>
+    public void Dispose() => _handle.Dispose();
+
     /// <summary>Computes the CRC-8 an SHT3x appends to every data word.</summary>
     /// <param name="data">The data.</param>
     /// <returns>The value the C ABI computes.</returns>
@@ -213,5 +301,40 @@ public static class Sht3x
         uint value;
         Status.ThrowIfError(NativeMethods.pamoja_sht3x_interval_micros(rate, out value));
         return value;
+    }
+
+    /// <summary>An SHT3x that is not there, for a bus with nothing plugged in.</summary>
+    /// <remarks>
+    /// It takes Sensirion's 16-bit commands: every single-shot measurement and a periodic fetch
+    /// answer with the reading and its checksums, the status command with the status a part
+    /// reports after a reset, and a reset, the heater, and the rest with nothing.
+    /// </remarks>
+    public static class Sim
+    {
+        /// <summary>The temperature <see cref="Part"/> reports.</summary>
+        public const float Celsius = 22.5f;
+
+        /// <summary>The relative humidity <see cref="Part"/> reports, as a percentage.</summary>
+        public const float RelativeHumidity = 45.0f;
+
+        /// <summary>Makes a part reading <see cref="Celsius"/> and <see cref="RelativeHumidity"/>.</summary>
+        /// <param name="address">The address it answers to.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static CommandPart Part(byte address) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_sht3x_sim_part(address),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated SHT3x"));
+
+        /// <summary>Makes a part that reads what it is asked to.</summary>
+        /// <param name="address">The address it answers to.</param>
+        /// <param name="celsius">The temperature it reports.</param>
+        /// <param name="relativeHumidity">The humidity it reports, as a percentage.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static CommandPart Reporting(byte address, float celsius, float relativeHumidity) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_sht3x_sim_reporting(address, celsius, relativeHumidity),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated SHT3x"));
     }
 }

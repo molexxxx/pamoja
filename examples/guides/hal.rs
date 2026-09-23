@@ -11,6 +11,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_hal::bus::I2cBus;
     use pamoja_hal::script::{I2cScript, I2cStep};
+    use pamoja_hal::sim::I2cPart;
     use pamoja_sensors::bme280::{
         register, sim, Bme280, Config, CtrlHum, CtrlMeas, Mode, Oversampling, CHIP_ID,
         I2C_ADDRESS_PRIMARY, I2C_ADDRESS_SECONDARY, RESET_WORD,
@@ -30,7 +31,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
     // the driver wrote, so the configuration reads back off the bus.
     sensor.init()?;
-    let part = bus.part(BME280).ok_or("no part at the address")?;
+    let part: I2cPart = bus.part(BME280).ok_or("no part at the address")?;
     let humidity = CtrlHum::from_bits(part.register(register::CTRL_HUM)).humidity;
     let ctrl = CtrlMeas::from_bits(part.register(register::CTRL_MEAS));
     println!(

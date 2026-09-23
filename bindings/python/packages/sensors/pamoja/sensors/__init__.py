@@ -10,8 +10,9 @@ simulated part that answers it with nothing plugged in.
 from __future__ import annotations
 
 import enum
+from typing import List, Optional
 
-from pamoja.hal import I2cBus, I2cPart
+from pamoja.hal import CommandPart, I2cBus, I2cPart, WordPart
 
 from pamoja._native import Ads1115Config, Bme280Calibration, Bme280Measurement, Ds18b20Reading
 from pamoja._native import Bme280 as _NativeBme280
@@ -256,9 +257,56 @@ from pamoja._native import tmp117_raw_from_micro_celsius as _tmp117_raw_from_mic
 from pamoja._native import tmp117_revision as _tmp117_revision
 from pamoja._native import tmp117_temperature_bytes as _tmp117_temperature_bytes
 from pamoja._native import tmp117_temperature_from_bytes as _tmp117_temperature_from_bytes
+from pamoja._native import Ads1115 as _NativeAds1115
+from pamoja._native import Ads1115Sample, Ina219Config, Ina219Reading, Ina226Reading
+from pamoja._native import Bmp280 as _NativeBmp280
+from pamoja._native import Ds18b20Thermometer as _NativeDs18b20Thermometer
+from pamoja._native import Hdc1080 as _NativeHdc1080
+from pamoja._native import Ina219 as _NativeIna219
+from pamoja._native import Ina226 as _NativeIna226
+from pamoja._native import Opt3001 as _NativeOpt3001
+from pamoja._native import Opt3001Reading, Tmp117Alerts, Tmp117Reading
+from pamoja._native import Scd4x as _NativeScd4x
+from pamoja._native import Sht3x as _NativeSht3x
+from pamoja._native import Tmp117 as _NativeTmp117
+from pamoja._native import ads1115_conversion_micros as _ads1115_conversion_micros
+from pamoja._native import ads1115_sim_part as _ads1115_sim_part
+from pamoja._native import ads1115_sim_reporting as _ads1115_sim_reporting
+from pamoja._native import bmp280_sim_burst as _bmp280_sim_burst
+from pamoja._native import bmp280_sim_burst_for as _bmp280_sim_burst_for
+from pamoja._native import bmp280_sim_calibration as _bmp280_sim_calibration
+from pamoja._native import bmp280_sim_part as _bmp280_sim_part
+from pamoja._native import bmp280_sim_reporting as _bmp280_sim_reporting
+from pamoja._native import ds18b20_parse_w1_slave as _ds18b20_parse_w1_slave
+from pamoja._native import ds18b20_w1_slave_text as _ds18b20_w1_slave_text
+from pamoja._native import hdc1080_sim_part as _hdc1080_sim_part
+from pamoja._native import hdc1080_sim_reporting as _hdc1080_sim_reporting
+from pamoja._native import ina219_adc_conversion_micros as _ina219_adc_conversion_micros
+from pamoja._native import ina219_address as _ina219_address
+from pamoja._native import ina219_config_bits as _ina219_config_bits
+from pamoja._native import ina219_config_from_bits as _ina219_config_from_bits
+from pamoja._native import ina219_conversion_micros as _ina219_conversion_micros
+from pamoja._native import ina219_gain_range_millivolts as _ina219_gain_range_millivolts
+from pamoja._native import ina219_sim_part as _ina219_sim_part
+from pamoja._native import ina219_sim_reporting as _ina219_sim_reporting
+from pamoja._native import ina226_sim_part as _ina226_sim_part
+from pamoja._native import ina226_sim_reporting as _ina226_sim_reporting
+from pamoja._native import opt3001_sim_part as _opt3001_sim_part
+from pamoja._native import opt3001_sim_reporting as _opt3001_sim_reporting
+from pamoja._native import scd4x_sim_part as _scd4x_sim_part
+from pamoja._native import scd4x_sim_reporting as _scd4x_sim_reporting
+from pamoja._native import sht3x_sim_part as _sht3x_sim_part
+from pamoja._native import sht3x_sim_reporting as _sht3x_sim_reporting
+from pamoja._native import tmp117_sim_part as _tmp117_sim_part
+from pamoja._native import tmp117_sim_reporting as _tmp117_sim_reporting
 
 __all__ = [
+    "Ads1115",
     "Ads1115Config",
+    "Ads1115DataRate",
+    "Ads1115Mux",
+    "Ads1115Pga",
+    "Ads1115Sample",
     "Bme280",
     "Bme280Calibration",
     "Bme280Config",
@@ -268,26 +316,53 @@ __all__ = [
     "Bme280Mode",
     "Bme280Oversampling",
     "Bme280Standby",
+    "Bmp280",
     "Bmp280Calibration",
     "Bmp280Coefficients",
     "Bmp280Config",
     "Bmp280CtrlMeas",
+    "Bmp280Oversampling",
     "Bmp280RawMeasurement",
     "Bmp280Reading",
     "Ds18b20Reading",
+    "Ds18b20Thermometer",
+    "Hdc1080",
     "Hdc1080Config",
+    "Hdc1080HumidityResolution",
     "Hdc1080Measurement",
+    "Hdc1080TemperatureResolution",
+    "Ina219",
+    "Ina219Adc",
+    "Ina219BusRange",
+    "Ina219Config",
+    "Ina219Gain",
+    "Ina219Mode",
+    "Ina219Reading",
+    "Ina226",
     "Ina226AlertFunction",
+    "Ina226Averaging",
     "Ina226Config",
+    "Ina226ConversionTime",
     "Ina226DieId",
+    "Ina226Mode",
     "Ina226MaskEnable",
+    "Ina226Reading",
+    "Opt3001",
     "Opt3001Config",
+    "Opt3001ConversionTime",
+    "Opt3001Reading",
+    "Scd4x",
     "Scd4xMeasurement",
+    "Sht3x",
     "Sht3xMeasurement",
     "Sht3xRate",
     "Sht3xRepeatability",
     "Sht3xStatus",
+    "Tmp117",
+    "Tmp117Alerts",
+    "Tmp117Averaging",
     "Tmp117Config",
+    "Tmp117Reading",
     "ads1115",
     "bme280",
     "bmp280",
@@ -364,6 +439,255 @@ class Bme280Standby(enum.IntEnum):
     MS_10 = 6
     #: 20 ms.
     MS_20 = 7
+
+
+class Bmp280Oversampling(enum.IntEnum):
+    """How many samples a BMP280 measurement averages, as its register code."""
+
+    #: The measurement is skipped.
+    SKIPPED = 0
+    #: One sample.
+    X1 = 1
+    #: Two samples.
+    X2 = 2
+    #: Four samples.
+    X4 = 3
+    #: Eight samples.
+    X8 = 4
+    #: Sixteen samples.
+    X16 = 5
+
+
+class Tmp117Averaging(enum.IntEnum):
+    """How many conversions a TMP117 averages into one result, as its register code."""
+
+    #: No averaging: each result is one 15.5 ms conversion.
+    NONE = 0
+    #: Eight conversions, the factory setting.
+    X8 = 1
+    #: Thirty-two conversions.
+    X32 = 2
+    #: Sixty-four conversions.
+    X64 = 3
+
+
+class Opt3001ConversionTime(enum.IntEnum):
+    """How long an OPT3001 conversion integrates, in milliseconds."""
+
+    #: 100 ms, for speed.
+    MS_100 = 100
+    #: 800 ms, for resolution; the part's reset setting.
+    MS_800 = 800
+
+
+class Hdc1080TemperatureResolution(enum.IntEnum):
+    """An HDC1080 temperature resolution, as its bit count."""
+
+    #: 11 bits, 3.65 ms.
+    BITS_11 = 11
+    #: 14 bits, 6.35 ms.
+    BITS_14 = 14
+
+
+class Hdc1080HumidityResolution(enum.IntEnum):
+    """An HDC1080 humidity resolution, as its bit count."""
+
+    #: 8 bits, 2.5 ms.
+    BITS_8 = 8
+    #: 11 bits, 3.85 ms.
+    BITS_11 = 11
+    #: 14 bits, 6.5 ms.
+    BITS_14 = 14
+
+
+class Ina219BusRange(enum.IntEnum):
+    """An INA219 bus-voltage range, as its register code."""
+
+    #: 0 to 16 V.
+    V16 = 0
+    #: 0 to 32 V, the reset setting.
+    V32 = 1
+
+
+class Ina219Gain(enum.IntEnum):
+    """An INA219 shunt gain, by the shunt-voltage range it gives, as its register code."""
+
+    #: Gain 1, 40 mV either side of zero.
+    DIV1 = 0
+    #: Gain 1/2, 80 mV.
+    DIV2 = 1
+    #: Gain 1/4, 160 mV.
+    DIV4 = 2
+    #: Gain 1/8, 320 mV, the reset setting.
+    DIV8 = 3
+
+
+class Ina219Adc(enum.IntEnum):
+    """An INA219 converter setting: a resolution, or samples averaged at 12 bits."""
+
+    #: 9 bits, 84 us.
+    BITS_9 = 0b0000
+    #: 10 bits, 148 us.
+    BITS_10 = 0b0001
+    #: 11 bits, 276 us.
+    BITS_11 = 0b0010
+    #: 12 bits, 532 us, the reset setting.
+    BITS_12 = 0b0011
+    #: 2 samples averaged, 1.06 ms.
+    SAMPLES_2 = 0b1001
+    #: 4 samples averaged, 2.13 ms.
+    SAMPLES_4 = 0b1010
+    #: 8 samples averaged, 4.26 ms.
+    SAMPLES_8 = 0b1011
+    #: 16 samples averaged, 8.51 ms.
+    SAMPLES_16 = 0b1100
+    #: 32 samples averaged, 17.02 ms.
+    SAMPLES_32 = 0b1101
+    #: 64 samples averaged, 34.05 ms.
+    SAMPLES_64 = 0b1110
+    #: 128 samples averaged, 68.10 ms.
+    SAMPLES_128 = 0b1111
+
+
+class Ina219Mode(enum.IntEnum):
+    """An INA219 operating mode, as its register code."""
+
+    #: No conversions, lowest power.
+    POWER_DOWN = 0
+    #: One shunt conversion.
+    SHUNT_TRIGGERED = 1
+    #: One bus conversion.
+    BUS_TRIGGERED = 2
+    #: One shunt and one bus conversion.
+    SHUNT_AND_BUS_TRIGGERED = 3
+    #: The converter disabled.
+    ADC_OFF = 4
+    #: Shunt conversions back to back.
+    SHUNT_CONTINUOUS = 5
+    #: Bus conversions back to back.
+    BUS_CONTINUOUS = 6
+    #: Shunt and bus conversions back to back, the reset setting.
+    SHUNT_AND_BUS_CONTINUOUS = 7
+
+
+class Ina226Averaging(enum.IntEnum):
+    """How many samples an INA226 folds into each result, as its register code."""
+
+    #: Every conversion reported, the reset setting.
+    SAMPLES_1 = 0
+    #: 4 samples.
+    SAMPLES_4 = 1
+    #: 16 samples.
+    SAMPLES_16 = 2
+    #: 64 samples.
+    SAMPLES_64 = 3
+    #: 128 samples.
+    SAMPLES_128 = 4
+    #: 256 samples.
+    SAMPLES_256 = 5
+    #: 512 samples.
+    SAMPLES_512 = 6
+    #: 1024 samples.
+    SAMPLES_1024 = 7
+
+
+class Ina226ConversionTime(enum.IntEnum):
+    """An INA226 conversion time, for the bus or the shunt voltage, as its register code."""
+
+    #: 140 us.
+    US_140 = 0
+    #: 204 us.
+    US_204 = 1
+    #: 332 us.
+    US_332 = 2
+    #: 588 us.
+    US_588 = 3
+    #: 1.1 ms, the reset setting.
+    US_1100 = 4
+    #: 2.116 ms.
+    US_2116 = 5
+    #: 4.156 ms.
+    US_4156 = 6
+    #: 8.244 ms.
+    US_8244 = 7
+
+
+class Ina226Mode(enum.IntEnum):
+    """An INA226 operating mode, as its register code."""
+
+    #: No conversions; the registers stay readable and writable.
+    POWER_DOWN = 0
+    #: One shunt conversion.
+    SHUNT_TRIGGERED = 1
+    #: One bus conversion.
+    BUS_TRIGGERED = 2
+    #: One shunt and one bus conversion.
+    SHUNT_AND_BUS_TRIGGERED = 3
+    #: Shunt conversions back to back.
+    SHUNT_CONTINUOUS = 5
+    #: Bus conversions back to back.
+    BUS_CONTINUOUS = 6
+    #: Shunt and bus conversions back to back, the reset setting.
+    SHUNT_AND_BUS_CONTINUOUS = 7
+
+
+class Ads1115Mux(enum.IntEnum):
+    """An ADS1115 input multiplexer setting, as its register code."""
+
+    #: AIN0 against AIN1, the reset setting.
+    AIN0_AIN1 = 0
+    #: AIN0 against AIN3.
+    AIN0_AIN3 = 1
+    #: AIN1 against AIN3.
+    AIN1_AIN3 = 2
+    #: AIN2 against AIN3.
+    AIN2_AIN3 = 3
+    #: AIN0 against ground.
+    AIN0_GND = 4
+    #: AIN1 against ground.
+    AIN1_GND = 5
+    #: AIN2 against ground.
+    AIN2_GND = 6
+    #: AIN3 against ground.
+    AIN3_GND = 7
+
+
+class Ads1115Pga(enum.IntEnum):
+    """An ADS1115 full-scale range, as its register code."""
+
+    #: 6.144 V either side of zero.
+    FSR_6_144 = 0
+    #: 4.096 V.
+    FSR_4_096 = 1
+    #: 2.048 V, the reset setting.
+    FSR_2_048 = 2
+    #: 1.024 V.
+    FSR_1_024 = 3
+    #: 0.512 V.
+    FSR_0_512 = 4
+    #: 0.256 V.
+    FSR_0_256 = 5
+
+
+class Ads1115DataRate(enum.IntEnum):
+    """An ADS1115 data rate, as its register code."""
+
+    #: 8 samples per second.
+    SPS_8 = 0
+    #: 16 samples per second.
+    SPS_16 = 1
+    #: 32 samples per second.
+    SPS_32 = 2
+    #: 64 samples per second.
+    SPS_64 = 3
+    #: 128 samples per second, the reset setting.
+    SPS_128 = 4
+    #: 250 samples per second.
+    SPS_250 = 5
+    #: 475 samples per second.
+    SPS_475 = 6
+    #: 860 samples per second.
+    SPS_860 = 7
 
 
 class Bme280:
@@ -760,11 +1084,174 @@ class _Ds18b20:
         """
         return _ds18b20_max_conversion_micros(bits)
 
+    def parse_w1_slave(self, text: str) -> Ds18b20Reading:
+        """Decode the text the Linux kernel's ``w1_therm`` driver serves for a thermometer:
+        the scratchpad in hex with the kernel's checksum verdict, then the temperature.
+
+        :param text: The ``w1_slave`` file's contents.
+        :returns: The reading, its CRC checked here as well.
+        :raises PamojaError: If the kernel or this decoder rejects the CRC, or the text is
+            not in the driver's format.
+        """
+        return _ds18b20_parse_w1_slave(text)
+
+    def w1_slave_text(self, data: bytes) -> str:
+        """Render the text the Linux kernel's ``w1_therm`` driver serves for a scratchpad
+        it read cleanly, the inverse of :meth:`parse_w1_slave`: the bytes with the CRC the
+        kernel computed and ``YES``, then the bytes again with ``t=`` and the temperature
+        in millidegrees.
+
+        :param data: The nine scratchpad bytes, the ninth their CRC.
+        :returns: The ``w1_slave`` file's two lines.
+        :raises ValueError: If the bytes are not nine.
+        :raises PamojaError: If the CRC does not match.
+        """
+        return _ds18b20_w1_slave_text(bytes(data))
+
+
+class _Ina219Sim:
+    """An INA219 that is not there, for a bus with nothing plugged in.
+
+    A monitor's current and power registers count in steps the calibration sets, so
+    :meth:`reporting` takes the same shunt and largest current a driver is given.
+    """
+
+    __slots__ = ()
+
+    #: The shunt :meth:`part` sits across, in milliohms: the common breakout's.
+    SHUNT_MILLIOHMS = 100
+    #: The largest current :meth:`part` is sized for, in microamps.
+    MAX_MICROAMPS = 3_200_000
+    #: The bus voltage :meth:`part` reports, in millivolts.
+    BUS_MILLIVOLTS = 12_000
+    #: The current :meth:`part` reports, in microamps.
+    MICROAMPS = 500_000
+
+    def part(self, address: int) -> WordPart:
+        """Make a part carrying 500 mA at 12 V through the shunt a driver starts with.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_ina219_sim_part(address))
+
+    def reporting(
+        self,
+        address: int,
+        shunt_milliohms: int,
+        max_microamps: int,
+        bus_millivolts: int,
+        microamps: int,
+    ) -> WordPart:
+        """Make a part that reads what it is asked to, on the steps its registers count
+        in: 4 mV of bus, 10 uV of shunt, and the calibration's current step.
+
+        :param address: The address it answers to.
+        :param shunt_milliohms: The shunt, as the driver is given it.
+        :param max_microamps: The largest current, as the driver is given it.
+        :param bus_millivolts: The bus voltage it reports.
+        :param microamps: The current it reports; negative flows the other way.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(
+            _ina219_sim_reporting(
+                address, shunt_milliohms, max_microamps, bus_millivolts, microamps
+            )
+        )
+
 
 class _Ina219:
     """A TI INA219 current, voltage, and power monitor."""
 
     __slots__ = ()
+
+    #: The address with A1 and A0 tied to ground; the pins add to it.
+    BASE_ADDRESS = 0x40
+    #: An address pin tied to GND, as the code :meth:`address` takes.
+    PIN_GROUND = 0
+    #: An address pin tied to VS+.
+    PIN_SUPPLY = 1
+    #: An address pin tied to SDA.
+    PIN_SDA = 2
+    #: An address pin tied to SCL.
+    PIN_SCL = 3
+    #: The configuration register's power-on value.
+    CONFIG_RESET = 0x399F
+    #: The configuration register: range, gain, converter settings, and mode.
+    REGISTER_CONFIGURATION = 0x00
+    #: The shunt voltage, 10 uV per count.
+    REGISTER_SHUNT_VOLTAGE = 0x01
+    #: The bus voltage in bits 15:3, 4 mV per count, with two flags below.
+    REGISTER_BUS_VOLTAGE = 0x02
+    #: The power, scaled by the calibration.
+    REGISTER_POWER = 0x03
+    #: The current, scaled by the calibration.
+    REGISTER_CURRENT = 0x04
+    #: The calibration, which sets the current and power scale.
+    REGISTER_CALIBRATION = 0x05
+
+    #: The bus-voltage range codes.
+    BusRange = Ina219BusRange
+    #: The shunt gain codes.
+    Gain = Ina219Gain
+    #: The converter codes.
+    Adc = Ina219Adc
+    #: The operating-mode codes.
+    Mode = Ina219Mode
+    #: An INA219 that is not there, for a bus with nothing plugged in.
+    sim = _Ina219Sim()
+
+    def address(self, a1: int, a0: int) -> int:
+        """Return the 7-bit address the A1 and A0 pins select, from Table 1 of the
+        datasheet.
+
+        :param a1: What the A1 pin is tied to, one of the ``PIN_`` codes.
+        :param a0: What the A0 pin is tied to.
+        :returns: The address, 0x40 to 0x4F.
+        :raises ValueError: If either pin code is not 0, 1, 2, or 3.
+        """
+        return _ina219_address(a1, a0)
+
+    def config_bits(self, config: Ina219Config) -> int:
+        """Assemble the configuration register value.
+
+        :param config: The range, gain, converter, and mode codes.
+        :returns: The register value to write.
+        """
+        return _ina219_config_bits(config)
+
+    def config_from_bits(self, bits: int) -> Ina219Config:
+        """Parse a configuration register value.
+
+        :param bits: The register value, as read from the part.
+        :returns: The settings. Every value decodes.
+        """
+        return _ina219_config_from_bits(bits)
+
+    def conversion_micros(self, config: Ina219Config) -> int:
+        """Return how long one conversion cycle takes: the shunt and bus conversions the
+        mode runs, one after the other.
+
+        :param config: The settings.
+        :returns: The time in microseconds.
+        """
+        return _ina219_conversion_micros(config)
+
+    def adc_conversion_micros(self, adc: Ina219Adc) -> int:
+        """Return how long one conversion takes at a converter setting.
+
+        :param adc: The setting.
+        :returns: The time in microseconds, from the datasheet's table.
+        """
+        return _ina219_adc_conversion_micros(int(adc))
+
+    def gain_range_millivolts(self, gain: Ina219Gain) -> int:
+        """Return the shunt-voltage range a gain selects.
+
+        :param gain: The gain.
+        :returns: The range in millivolts either side of zero.
+        """
+        return _ina219_gain_range_millivolts(int(gain))
 
     def calibration(self, current_lsb_microamps: int, shunt_milliohms: int) -> int:
         """Compute the calibration register for a shunt and current resolution.
@@ -873,10 +1360,77 @@ class _Ina219:
         return _ina219_power_microwatts(raw, current_lsb_microamps)
 
 
+class _Ads1115Sim:
+    """An ADS1115 that is not there, for a bus with nothing plugged in.
+
+    A conversion comes back as a count of the range the gain selects, so :meth:`reporting`
+    takes the same gain a driver is given.
+    """
+
+    __slots__ = ()
+
+    #: The voltage :meth:`part` reports: half a 3.3 V supply.
+    VOLTS = 1.65
+
+    def part(self, address: int) -> WordPart:
+        """Make a part reading :attr:`VOLTS` at the range a driver starts with.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_ads1115_sim_part(address))
+
+    def reporting(self, address: int, pga: Ads1115Pga, volts: float) -> WordPart:
+        """Make a part that reads what it is asked to, on the nearest of the 32768 steps
+        either side of zero the range divides into.
+
+        :param address: The address it answers to.
+        :param pga: The range the driver converts at.
+        :param volts: The voltage it reports, held to the range.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_ads1115_sim_reporting(address, int(pga), volts))
+
+
 class _Ads1115:
     """A TI ADS1115 16-bit analog-to-digital converter."""
 
     __slots__ = ()
+
+    #: The address with ADDR tied to ground.
+    ADDRESS_GND = 0x48
+    #: The address with ADDR tied to VDD.
+    ADDRESS_VDD = 0x49
+    #: The address with ADDR tied to SDA.
+    ADDRESS_SDA = 0x4A
+    #: The address with ADDR tied to SCL.
+    ADDRESS_SCL = 0x4B
+    #: The conversion register.
+    REGISTER_CONVERSION = 0x00
+    #: The configuration register.
+    REGISTER_CONFIG = 0x01
+    #: The comparator's low threshold register.
+    REGISTER_LO_THRESH = 0x02
+    #: The comparator's high threshold register.
+    REGISTER_HI_THRESH = 0x03
+
+    #: The input multiplexer codes.
+    Mux = Ads1115Mux
+    #: The full-scale range codes.
+    Pga = Ads1115Pga
+    #: The data-rate codes.
+    DataRate = Ads1115DataRate
+    #: An ADS1115 that is not there, for a bus with nothing plugged in.
+    sim = _Ads1115Sim()
+
+    def conversion_micros(self, data_rate: Ads1115DataRate) -> int:
+        """Return how long a conversion takes at a data rate: one period plus the
+        datasheet's ten percent rate variation.
+
+        :param data_rate: The data rate.
+        :returns: The time in microseconds.
+        """
+        return _ads1115_conversion_micros(int(data_rate))
 
     #: The value the configuration register reads after a reset.
     CONFIG_RESET = 0x8583
@@ -973,10 +1527,66 @@ class Ina226AlertFunction(str, enum.Enum):
     POWER_OVER_LIMIT = "PowerOverLimit"
 
 
+class _Bmp280Sim:
+    """A BMP280 that is not there, for a bus with nothing plugged in.
+
+    A BMP280 is a BME280 without humidity, so :meth:`part` holds the temperature and
+    pressure half of a real part and reads 20.44 C and 848.05 hPa.
+    """
+
+    __slots__ = ()
+
+    #: The status a simulated part reports when it is neither measuring nor loading.
+    STATUS_IDLE = 0x00
+
+    def part(self, address: int) -> I2cPart:
+        """Make a part holding a real part's trimming and one measurement it took.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return I2cPart._wrap(_bmp280_sim_part(address))
+
+    def reporting(self, address: int, celsius: float, hectopascals: float) -> I2cPart:
+        """Make a part that reads what it is asked to, within a hundredth of a degree and
+        of a hectopascal.
+
+        :param address: The address it answers to.
+        :param celsius: The temperature it reports.
+        :param hectopascals: The pressure it reports.
+        :returns: The part, to put on a simulated bus.
+        """
+        return I2cPart._wrap(_bmp280_sim_reporting(address, celsius, hectopascals))
+
+    def calibration(self) -> bytes:
+        """The 24 trimming bytes a simulated part holds."""
+        return bytes(_bmp280_sim_calibration())
+
+    def burst(self) -> bytes:
+        """The six data registers a simulated part holds: one measurement a real part
+        took."""
+        return bytes(_bmp280_sim_burst())
+
+    def burst_for(self, celsius: float, hectopascals: float) -> bytes:
+        """Build the six data registers that compensate to a reading against the simulated
+        trimming.
+
+        :param celsius: The temperature.
+        :param hectopascals: The pressure.
+        :returns: The bytes a burst read would return.
+        """
+        return bytes(_bmp280_sim_burst_for(celsius, hectopascals))
+
+
 class _Bmp280:
     """A Bosch BMP280 pressure and temperature sensor, the BME280 without humidity."""
 
     __slots__ = ()
+
+    #: The oversampling codes.
+    Oversampling = Bmp280Oversampling
+    #: A BMP280 that is not there, for a bus with nothing plugged in.
+    sim = _Bmp280Sim()
 
     #: The address a BMP280 answers on with its SDO pin low.
     ADDRESS_PRIMARY = 0x76
@@ -1118,10 +1728,47 @@ class _Bmp280:
         return _bmp280_standby_micros(code)
 
 
+class _Sht3xSim:
+    """An SHT3x that is not there, for a bus with nothing plugged in.
+
+    It answers every single-shot command and a periodic fetch with the reading and its
+    checksums, and the status command with the status a part reports after a reset.
+    """
+
+    __slots__ = ()
+
+    #: The temperature :meth:`part` reports.
+    CELSIUS = 22.5
+    #: The relative humidity :meth:`part` reports, as a percentage.
+    RELATIVE_HUMIDITY = 45.0
+
+    def part(self, address: int) -> CommandPart:
+        """Make a part reading :attr:`CELSIUS` and :attr:`RELATIVE_HUMIDITY`.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return CommandPart._wrap(_sht3x_sim_part(address))
+
+    def reporting(self, address: int, celsius: float, relative_humidity: float) -> CommandPart:
+        """Make a part that reads what it is asked to, within three thousandths of a degree
+        and two thousandths of a percent.
+
+        :param address: The address it answers to.
+        :param celsius: The temperature it reports.
+        :param relative_humidity: The humidity it reports, as a percentage.
+        :returns: The part, to put on a simulated bus.
+        """
+        return CommandPart._wrap(_sht3x_sim_reporting(address, celsius, relative_humidity))
+
+
 class _Sht3x:
     """A Sensirion SHT30, SHT31, or SHT35 temperature and humidity sensor."""
 
     __slots__ = ()
+
+    #: An SHT3x that is not there, for a bus with nothing plugged in.
+    sim = _Sht3xSim()
 
     #: The address the part answers on with its ADDR pin low.
     ADDRESS_A = 0x44
@@ -1405,10 +2052,50 @@ class _Sht3x:
         """
         return _sht3x_interval_micros(Sht3xRate(rate).value)
 
+class _Scd4xSim:
+    """An SCD4x that is not there, for a bus with nothing plugged in.
+
+    It answers the serial number, data-ready, and measurement commands, each word with its
+    checksum, and always has a result waiting.
+    """
+
+    __slots__ = ()
+
+    #: The carbon dioxide :meth:`part` reports, in parts per million.
+    CO2_PPM = 800
+    #: The temperature :meth:`part` reports.
+    CELSIUS = 22.5
+    #: The relative humidity :meth:`part` reports, as a percentage.
+    RELATIVE_HUMIDITY = 45.0
+    #: The serial number every simulated part reports.
+    SERIAL = 0x0000_5A4D_0C1E_2B3F
+
+    def part(self) -> CommandPart:
+        """Make a part reading :attr:`CO2_PPM`, :attr:`CELSIUS`, and
+        :attr:`RELATIVE_HUMIDITY`.
+
+        :returns: The part, to put on a simulated bus.
+        """
+        return CommandPart._wrap(_scd4x_sim_part())
+
+    def reporting(self, co2_ppm: int, celsius: float, relative_humidity: float) -> CommandPart:
+        """Make a part that reads what it is asked to.
+
+        :param co2_ppm: The carbon dioxide it reports, in parts per million.
+        :param celsius: The temperature it reports.
+        :param relative_humidity: The humidity it reports, as a percentage.
+        :returns: The part, to put on a simulated bus.
+        """
+        return CommandPart._wrap(_scd4x_sim_reporting(co2_ppm, celsius, relative_humidity))
+
+
 class _Scd4x:
     """A Sensirion SCD40 or SCD41 carbon dioxide, temperature, and humidity sensor."""
 
     __slots__ = ()
+
+    #: An SCD4x that is not there, for a bus with nothing plugged in.
+    sim = _Scd4xSim()
 
     #: The only address the part answers on.
     ADDRESS = 0x62
@@ -1720,10 +2407,45 @@ class _Scd4x:
         return bytes(_scd4x_serial_number_frame(serial))
 
 
+class _Tmp117Sim:
+    """A TMP117 that is not there, for a bus with nothing plugged in.
+
+    Its configuration register keeps the flags the part sets for itself whatever a driver
+    writes, with the data-ready flag set, so every conversion reads as finished.
+    """
+
+    __slots__ = ()
+
+    #: The temperature :meth:`part` reports.
+    CELSIUS = 21.25
+
+    def part(self, address: int) -> WordPart:
+        """Make a part reading :attr:`CELSIUS`.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_tmp117_sim_part(address))
+
+    def reporting(self, address: int, celsius: float) -> WordPart:
+        """Make a part that reads what it is asked to, to the nearest 7.8125 millidegrees.
+
+        :param address: The address it answers to.
+        :param celsius: The temperature it reports.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_tmp117_sim_reporting(address, celsius))
+
+
 class _Tmp117:
     """A TI TMP117 precision thermometer."""
 
     __slots__ = ()
+
+    #: The averaging codes.
+    Averaging = Tmp117Averaging
+    #: A TMP117 that is not there, for a bus with nothing plugged in.
+    sim = _Tmp117Sim()
 
     #: The value the device-ID register reads, which confirms the part.
     DEVICE_ID = 0x0117
@@ -1933,10 +2655,46 @@ class _Tmp117:
         """
         return _tmp117_cycle_micros(cycle, averaging)
 
+class _Hdc1080Sim:
+    """An HDC1080 that is not there, for a bus with nothing plugged in."""
+
+    __slots__ = ()
+
+    #: The temperature :meth:`part` reports.
+    CELSIUS = 22.5
+    #: The relative humidity :meth:`part` reports, as a percentage.
+    RELATIVE_HUMIDITY = 45.0
+
+    def part(self) -> WordPart:
+        """Make a part reading :attr:`CELSIUS` and :attr:`RELATIVE_HUMIDITY`, at the one
+        address an HDC1080 has.
+
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_hdc1080_sim_part())
+
+    def reporting(self, celsius: float, relative_humidity: float) -> WordPart:
+        """Make a part that reads what it is asked to, within three thousandths of a degree
+        and two thousandths of a percent.
+
+        :param celsius: The temperature it reports.
+        :param relative_humidity: The humidity it reports, as a percentage.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_hdc1080_sim_reporting(celsius, relative_humidity))
+
+
 class _Hdc1080:
     """A TI HDC1080 temperature and humidity sensor."""
 
     __slots__ = ()
+
+    #: The temperature resolutions.
+    TemperatureResolution = Hdc1080TemperatureResolution
+    #: The humidity resolutions.
+    HumidityResolution = Hdc1080HumidityResolution
+    #: An HDC1080 that is not there, for a bus with nothing plugged in.
+    sim = _Hdc1080Sim()
 
     #: The only address the part answers on.
     ADDRESS = 0x40
@@ -2112,10 +2870,46 @@ class _Hdc1080:
         return _hdc1080_humidity_conversion_micros(bits)
 
 
+class _Opt3001Sim:
+    """An OPT3001 that is not there, for a bus with nothing plugged in.
+
+    Its configuration register keeps the flags the part sets for itself whatever a driver
+    writes, with the conversion-ready flag set, so every conversion reads as finished.
+    """
+
+    __slots__ = ()
+
+    #: The illuminance :meth:`part` reports.
+    LUX = 380.0
+
+    def part(self, address: int) -> WordPart:
+        """Make a part reading :attr:`LUX`.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_opt3001_sim_part(address))
+
+    def reporting(self, address: int, lux: float) -> WordPart:
+        """Make a part that reads what it is asked to, to the nearest step its exponent and
+        mantissa represent.
+
+        :param address: The address it answers to.
+        :param lux: The illuminance it reports.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_opt3001_sim_reporting(address, lux))
+
+
 class _Opt3001:
     """A TI OPT3001 ambient light sensor."""
 
     __slots__ = ()
+
+    #: The conversion times.
+    ConversionTime = Opt3001ConversionTime
+    #: An OPT3001 that is not there, for a bus with nothing plugged in.
+    sim = _Opt3001Sim()
 
     #: The address the part answers on with ADDR tied to GND.
     ADDRESS_GND = 0x44
@@ -2259,10 +3053,64 @@ class _Opt3001:
         return _opt3001_is_automatic_range(range_number)
 
 
+class _Ina226Sim:
+    """An INA226 that is not there, for a bus with nothing plugged in.
+
+    It carries TI's manufacturer id and the INA226 die id, its conversion-ready flag is set,
+    and :meth:`reporting` takes the same shunt and largest current a driver is given.
+    """
+
+    __slots__ = ()
+
+    #: The shunt :meth:`part` sits across, in milliohms.
+    SHUNT_MILLIOHMS = 100
+    #: The largest current :meth:`part` is sized for, in microamps.
+    MAX_MICROAMPS = 3_200_000
+    #: The bus voltage :meth:`part` reports, in microvolts.
+    BUS_MICROVOLTS = 12_000_000
+    #: The current :meth:`part` reports, in microamps.
+    MICROAMPS = 500_000
+
+    def part(self, address: int) -> WordPart:
+        """Make a part carrying 500 mA at 12 V through the shunt a driver starts with.
+
+        :param address: The address it answers to.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(_ina226_sim_part(address))
+
+    def reporting(
+        self,
+        address: int,
+        shunt_milliohms: int,
+        max_microamps: int,
+        bus_microvolts: int,
+        microamps: int,
+    ) -> WordPart:
+        """Make a part that reads what it is asked to, on the steps its registers count
+        in: 1.25 mV of bus, 2.5 uV of shunt, and the calibration's current step.
+
+        :param address: The address it answers to.
+        :param shunt_milliohms: The shunt, as the driver is given it.
+        :param max_microamps: The largest current, as the driver is given it.
+        :param bus_microvolts: The bus voltage it reports.
+        :param microamps: The current it reports; negative flows the other way.
+        :returns: The part, to put on a simulated bus.
+        """
+        return WordPart._wrap(
+            _ina226_sim_reporting(
+                address, shunt_milliohms, max_microamps, bus_microvolts, microamps
+            )
+        )
+
+
 class _Ina226:
     """A TI INA226 current, voltage, and power monitor."""
 
     __slots__ = ()
+
+    #: An INA226 that is not there, for a bus with nothing plugged in.
+    sim = _Ina226Sim()
 
     #: The address with both A1 and A0 tied to GND.
     BASE_ADDRESS = 0x40
@@ -2572,6 +3420,734 @@ class _Ina226:
         :returns: The power register.
         """
         return _ina226_power_register_from_current(current, bus)
+
+
+class Bmp280:
+    """A Bosch BMP280 driven over an :class:`~pamoja.hal.I2cBus`, measuring on demand in
+    forced mode.
+
+    Nothing is sent until :meth:`init` or the first :meth:`measure`. The driver holds its
+    own share of the bus, and releases the interpreter while the part answers.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([bmp280.sim.part(bmp280.ADDRESS_PRIMARY)])
+    >>> f"{Bmp280(bus, bmp280.ADDRESS_PRIMARY).measure().celsius:.2f}"
+    '20.44'
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        temperature: Bmp280Oversampling = Bmp280Oversampling.X1,
+        pressure: Bmp280Oversampling = Bmp280Oversampling.X1,
+        filter: int = 0,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: ``bmp280.ADDRESS_PRIMARY`` with SDO low, or
+            ``bmp280.ADDRESS_SECONDARY`` with SDO high.
+        :param temperature: The temperature oversampling.
+        :param pressure: The pressure oversampling.
+        :param filter: The IIR filter's three-bit code, ``0`` for the filter off, written
+            as given.
+        """
+        self._native = _NativeBmp280(
+            bus._native, address, int(temperature), int(pressure), int(filter)
+        )
+
+    def init(self) -> None:
+        """Reset the part, check it is a BMP280, read its trimming, and write the settings,
+        leaving the part asleep.
+
+        :raises PamojaError: If nothing answers at the address, another part does, or the
+            trimming never finishes loading.
+        """
+        self._native.init()
+
+    def measure(self) -> Bmp280Reading:
+        """Run one forced measurement and compensate it, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The reading.
+        :raises PamojaError: As :meth:`init`, and when the part is still measuring after
+            the datasheet's time.
+        """
+        return self._native.measure()
+
+    @property
+    def coefficients(self) -> Optional[Bmp280Coefficients]:
+        """The trimming coefficients read at initialization, or ``None`` before it."""
+        return self._native.coefficients
+
+
+class Tmp117:
+    """A Texas Instruments TMP117 driven over an :class:`~pamoja.hal.I2cBus`, converting on
+    demand in one-shot mode and powered down between conversions.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([tmp117.sim.reporting(tmp117.ADDRESS_ADD0_GND, -18.5)])
+    >>> Tmp117(bus, tmp117.ADDRESS_ADD0_GND).measure().celsius
+    -18.5
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self, bus: I2cBus, address: int, *, averaging: Tmp117Averaging = Tmp117Averaging.X8
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: One of the ``tmp117.ADDRESS_ADD0_*`` constants, by where ADD0 is
+            tied.
+        :param averaging: How many conversions are averaged into each result.
+        """
+        self._native = _NativeTmp117(bus._native, address, int(averaging))
+
+    def init(self) -> None:
+        """Check the part is a TMP117, wait for its EEPROM, and write the settings with the
+        part in shutdown.
+
+        :raises PamojaError: If nothing answers, the device id is not a TMP117's, or the
+            EEPROM never reports ready.
+        """
+        self._native.init()
+
+    def measure(self) -> Tmp117Reading:
+        """Run one conversion and read the temperature, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The temperature.
+        :raises PamojaError: As :meth:`init`, and when the conversion never finishes.
+        """
+        return self._native.measure()
+
+    def set_alert_limits(self, high_celsius: float, low_celsius: float) -> None:
+        """Write the high and low limits the part compares each result against.
+
+        :param high_celsius: The high limit; the factory value is 192 C.
+        :param low_celsius: The low limit; the factory value is -256 C.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.set_alert_limits(high_celsius, low_celsius)
+
+    def alerts(self) -> Tmp117Alerts:
+        """Read the alert flags, including results the driver's own reads saw since the
+        last call.
+
+        :returns: Whether a result was above the high limit or below the low limit.
+        :raises PamojaError: If the transfer fails.
+        """
+        return self._native.alerts()
+
+    @property
+    def silicon_revision(self) -> Optional[int]:
+        """The silicon revision read at initialization, or ``None`` before it."""
+        return self._native.silicon_revision
+
+
+class Opt3001:
+    """A Texas Instruments OPT3001 driven over an :class:`~pamoja.hal.I2cBus`, measuring
+    illuminance on demand in single-shot mode.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([opt3001.sim.reporting(opt3001.ADDRESS_GND, 1200.0)])
+    >>> Opt3001(bus, opt3001.ADDRESS_GND).measure().lux
+    1200.0
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        conversion_time: Opt3001ConversionTime = Opt3001ConversionTime.MS_800,
+        range_number: int = 12,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: One of the ``opt3001.ADDRESS_*`` constants, by where ADDR is tied.
+        :param conversion_time: How long each conversion integrates.
+        :param range_number: A fixed full-scale range, ``0`` to ``11``, or ``12`` to let
+            the part choose.
+        """
+        self._native = _NativeOpt3001(
+            bus._native,
+            address,
+            Opt3001ConversionTime(conversion_time) == Opt3001ConversionTime.MS_800,
+            range_number,
+        )
+
+    def init(self) -> None:
+        """Check the part is an OPT3001 and write the settings with the part in shutdown.
+
+        :raises PamojaError: If nothing answers, or either id register is not an OPT3001's.
+        """
+        self._native.init()
+
+    def measure(self) -> Opt3001Reading:
+        """Run one conversion and read the illuminance, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The illuminance.
+        :raises PamojaError: As :meth:`init`, and when the conversion never finishes.
+        """
+        return self._native.measure()
+
+    def set_limits(self, low_milli_lux: int, high_milli_lux: int) -> None:
+        """Write the low and high limits the part's interrupt pin compares each result
+        against.
+
+        :param low_milli_lux: The low limit, in millilux.
+        :param high_milli_lux: The high limit, in millilux.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.set_limits(low_milli_lux, high_milli_lux)
+
+    @property
+    def configuration(self) -> Opt3001Config:
+        """The configuration the driver writes, with the part in shutdown."""
+        return self._native.configuration
+
+
+class Hdc1080:
+    """A Texas Instruments HDC1080 driven over an :class:`~pamoja.hal.I2cBus`, measuring
+    temperature then humidity from one trigger at its one address.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([hdc1080.sim.reporting(4.0, 91.0)])
+    >>> round(Hdc1080(bus).measure().relative_humidity, 2)
+    91.0
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        *,
+        temperature_resolution: Hdc1080TemperatureResolution = (
+            Hdc1080TemperatureResolution.BITS_14
+        ),
+        humidity_resolution: Hdc1080HumidityResolution = Hdc1080HumidityResolution.BITS_14,
+    ) -> None:
+        """Make a driver for the part on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param temperature_resolution: The temperature resolution, which sets its time.
+        :param humidity_resolution: The humidity resolution, which sets its time.
+        :raises ValueError: For a resolution the part does not have.
+        """
+        self._native = _NativeHdc1080(
+            bus._native, int(temperature_resolution), int(humidity_resolution)
+        )
+
+    def init(self) -> None:
+        """Check the part is an HDC1080 and write the configuration.
+
+        :raises PamojaError: If nothing answers, or either id register is not an HDC1080's.
+        """
+        self._native.init()
+
+    def measure(self) -> Hdc1080Measurement:
+        """Trigger one acquisition of both channels and read them, initializing the part
+        first if :meth:`init` has not run.
+
+        :returns: The temperature and humidity.
+        :raises PamojaError: As :meth:`init`, and when the part does not acknowledge the
+            read, which it refuses until its results are ready.
+        """
+        return self._native.measure()
+
+    def heater(self, on: bool) -> None:
+        """Switch the on-die heater, which runs only during acquisitions, on or off.
+
+        :param on: Whether the heater runs.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.heater(on)
+
+    @property
+    def configuration(self) -> Hdc1080Config:
+        """The configuration the driver writes."""
+        return self._native.configuration
+
+
+class Ina219:
+    """A Texas Instruments INA219 driven over an :class:`~pamoja.hal.I2cBus`: shunt and bus
+    voltage, current, and power on demand.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([ina219.sim.part(ina219.BASE_ADDRESS)])
+    >>> Ina219(bus, ina219.BASE_ADDRESS).measure().bus_millivolts
+    12000
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        shunt_milliohms: int = 100,
+        max_microamps: int = 3_200_000,
+        current_lsb_microamps: Optional[int] = None,
+        config: Optional[Ina219Config] = None,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: ``ina219.BASE_ADDRESS`` plus what A1 and A0 add.
+        :param shunt_milliohms: The shunt resistance; the common breakout's is 100.
+        :param max_microamps: The largest current the shunt will carry, which sets the
+            finest current step.
+        :param current_lsb_microamps: A current step to use instead, such as a round 100.
+        :param config: The range, gain, and converter settings; the power-on ones unless
+            given.
+        """
+        self._native = _NativeIna219(
+            bus._native,
+            address,
+            shunt_milliohms,
+            max_microamps,
+            current_lsb_microamps,
+            config,
+        )
+
+    def init(self) -> None:
+        """Reset the part, write the configuration and the calibration, and read the
+        calibration back, the identity check a part with no id register allows.
+
+        :raises PamojaError: If nothing answers, or the calibration does not hold.
+        """
+        self._native.init()
+
+    def measure(self) -> Ina219Reading:
+        """Trigger one shunt and bus conversion and read every result, initializing the
+        part first if :meth:`init` has not run.
+
+        :returns: The registers as read, and what they mean.
+        :raises PamojaError: As :meth:`init`, and when the conversion-ready flag never sets.
+        """
+        return self._native.measure()
+
+    @property
+    def current_lsb_microamps(self) -> int:
+        """The current step the driver programs, in microamps per count."""
+        return self._native.current_lsb_microamps
+
+    @property
+    def calibration_word(self) -> int:
+        """The calibration word the driver programs."""
+        return self._native.calibration_word
+
+
+class Ina226:
+    """A Texas Instruments INA226 driven over an :class:`~pamoja.hal.I2cBus`: shunt and bus
+    voltage, current, and power on demand.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([ina226.sim.part(ina226.BASE_ADDRESS)])
+    >>> Ina226(bus, ina226.BASE_ADDRESS).measure().bus_microvolts
+    12000000
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        shunt_milliohms: int = 100,
+        max_microamps: int = 3_200_000,
+        current_lsb_microamps: Optional[int] = None,
+        config: Optional[Ina226Config] = None,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: The address A1 and A0 select, which ``ina226.address`` works out.
+        :param shunt_milliohms: The shunt resistance.
+        :param max_microamps: The largest current the shunt will carry, which sets the
+            finest current step.
+        :param current_lsb_microamps: A current step to use instead.
+        :param config: The averaging and conversion times; the power-on ones unless given.
+        """
+        self._native = _NativeIna226(
+            bus._native,
+            address,
+            shunt_milliohms,
+            max_microamps,
+            current_lsb_microamps,
+            config,
+        )
+
+    def init(self) -> None:
+        """Reset the part, check it is an INA226, and program the configuration and
+        calibration.
+
+        :raises PamojaError: If nothing answers, the id registers are not an INA226's, or
+            the calibration does not read back.
+        """
+        self._native.init()
+
+    def measure(self) -> Ina226Reading:
+        """Trigger one shunt and bus conversion and read every result, initializing the
+        part first if :meth:`init` has not run.
+
+        :returns: The registers as read, and what they mean.
+        :raises PamojaError: As :meth:`init`, and when the conversion-ready flag never sets.
+        """
+        return self._native.measure()
+
+    def set_alert(self, mask: Ina226MaskEnable, limit: int) -> None:
+        """Program the alert pin: which limit it watches, and the limit.
+
+        :param mask: The mask/enable settings, one alert function at a time.
+        :param limit: The alert-limit register, in the units of the register the function
+            watches.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.set_alert(mask, limit)
+
+    @property
+    def current_lsb_microamps(self) -> int:
+        """The current step the driver programs, in microamps per count."""
+        return self._native.current_lsb_microamps
+
+    @property
+    def calibration_word(self) -> int:
+        """The calibration word the driver programs."""
+        return self._native.calibration_word
+
+    @property
+    def identity(self) -> Optional[Ina226DieId]:
+        """The die id read at initialization, or ``None`` before it."""
+        return self._native.identity
+
+
+class Ads1115:
+    """A Texas Instruments ADS1115 driven over an :class:`~pamoja.hal.I2cBus`, converting
+    one input on demand.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([ads1115.sim.part(ads1115.ADDRESS_GND)])
+    >>> round(Ads1115(bus, ads1115.ADDRESS_GND).sample().volts, 3)
+    1.65
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        mux: Ads1115Mux = Ads1115Mux.AIN0_AIN1,
+        pga: Ads1115Pga = Ads1115Pga.FSR_2_048,
+        data_rate: Ads1115DataRate = Ads1115DataRate.SPS_128,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: One of the ``ads1115.ADDRESS_*`` constants, by where ADDR is tied.
+        :param mux: The input the part converts.
+        :param pga: The full-scale range, and with it the size of one count.
+        :param data_rate: The data rate, and with it the conversion time and the noise.
+        """
+        self._native = _NativeAds1115(
+            bus._native, address, int(mux), int(pga), int(data_rate)
+        )
+
+    def init(self) -> None:
+        """Write the input, range, and data rate, and read the configuration back, the
+        identity check a part with no id register allows.
+
+        :raises PamojaError: If nothing answers, or the configuration reads back
+            differently.
+        """
+        self._native.init()
+
+    def sample(self) -> Ads1115Sample:
+        """Run one conversion of the configured input, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The conversion, with the range it ran at.
+        :raises PamojaError: As :meth:`init`, and when the conversion never finishes.
+        """
+        return self._native.sample()
+
+    def sample_input(self, mux: Ads1115Mux) -> Ads1115Sample:
+        """Convert another input once, leaving the configured input as it was.
+
+        :param mux: The input for this one conversion.
+        :returns: The conversion.
+        :raises PamojaError: As :meth:`sample`.
+        """
+        return self._native.sample_input(int(mux))
+
+    @property
+    def config(self) -> Ads1115Config:
+        """The configuration the driver writes."""
+        return self._native.config
+
+
+class Sht3x:
+    """A Sensirion SHT3x driven over an :class:`~pamoja.hal.I2cBus`, measuring on demand in
+    single-shot mode.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([sht3x.sim.reporting(sht3x.ADDRESS_A, 30.0, 70.0)])
+    >>> round(Sht3x(bus, sht3x.ADDRESS_A).measure().celsius, 1)
+    30.0
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(
+        self,
+        bus: I2cBus,
+        address: int,
+        *,
+        repeatability: Sht3xRepeatability = Sht3xRepeatability.HIGH,
+    ) -> None:
+        """Make a driver for the part at ``address`` on ``bus``.
+
+        :param bus: The bus the part is on.
+        :param address: ``sht3x.ADDRESS_A`` with ADDR low, ``sht3x.ADDRESS_B`` with it
+            high.
+        :param repeatability: How repeatable each measurement is, against how long it
+            takes.
+        """
+        self._native = _NativeSht3x(
+            bus._native, address, Sht3xRepeatability(repeatability).value
+        )
+
+    def init(self) -> None:
+        """Soft-reset the part and read its status; a status word whose checksum holds is
+        what confirms an SHT3x answers, as the part has no id register.
+
+        :raises PamojaError: If nothing answers, or the status word fails its checksum.
+        """
+        self._native.init()
+
+    def measure(self) -> Sht3xMeasurement:
+        """Run one single-shot measurement, initializing the part first if :meth:`init`
+        has not run.
+
+        :returns: The checksum-checked temperature and humidity.
+        :raises PamojaError: As :meth:`init`, and when a data word fails its checksum.
+        """
+        return self._native.measure()
+
+    def read_status(self) -> Sht3xStatus:
+        """Read the status register, which :attr:`last_status` keeps as well.
+
+        :returns: The status.
+        :raises PamojaError: If the transfer fails or the word fails its checksum.
+        """
+        return self._native.read_status()
+
+    def heater_on(self) -> None:
+        """Switch the plausibility-check heater on, initializing the part first if needed.
+
+        :raises PamojaError: As :meth:`init`.
+        """
+        self._native.heater_on()
+
+    def heater_off(self) -> None:
+        """Switch the heater off, which is its state after any reset.
+
+        :raises PamojaError: As :meth:`init`.
+        """
+        self._native.heater_off()
+
+    @property
+    def last_status(self) -> Optional[Sht3xStatus]:
+        """The status register as it was last read, or ``None`` before it has been."""
+        return self._native.last_status
+
+
+class Scd4x:
+    """A Sensirion SCD40 or SCD41 driven over an :class:`~pamoja.hal.I2cBus` in periodic
+    measurement, a result every five seconds.
+
+    >>> from pamoja.hal import I2cBus
+    >>> bus = I2cBus.simulated([scd4x.sim.reporting(1450, 24.0, 55.0)])
+    >>> Scd4x(bus).measure().co2_ppm
+    1450
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, bus: I2cBus) -> None:
+        """Make a driver for the part on ``bus``, which has one address.
+
+        :param bus: The bus the part is on.
+        """
+        self._native = _NativeScd4x(bus._native)
+
+    def init(self) -> None:
+        """Stop any running measurement, read the serial number, and start periodic
+        measurement.
+
+        :raises PamojaError: If nothing answers, or the serial number fails its checksum.
+        """
+        self._native.init()
+
+    def measure(self) -> Scd4xMeasurement:
+        """Wait for the next periodic result and read it, initializing the part first if
+        :meth:`init` has not run.
+
+        :returns: The carbon dioxide, temperature, and humidity.
+        :raises PamojaError: As :meth:`init`, when no result becomes ready, and when a word
+            fails its checksum.
+        """
+        return self._native.measure()
+
+    def measure_single_shot(self) -> Scd4xMeasurement:
+        """Run one on-demand measurement on an SCD41, which takes five seconds. The part
+        must not be measuring periodically: call :meth:`stop` first, or use this in place
+        of :meth:`init`.
+
+        :returns: The measurement.
+        :raises PamojaError: As :meth:`measure`.
+        """
+        return self._native.measure_single_shot()
+
+    def data_ready(self) -> bool:
+        """Ask the part whether a periodic result is waiting.
+
+        :returns: Whether :meth:`measure` would read without waiting.
+        :raises PamojaError: If the transfer fails or the word fails its checksum.
+        """
+        return self._native.data_ready()
+
+    def stop(self) -> None:
+        """Stop periodic measurement, after which the part takes its settings commands.
+
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.stop()
+
+    def start(self) -> None:
+        """Start periodic measurement.
+
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.start()
+
+    def set_temperature_offset(self, milli_celsius: int) -> None:
+        """Set the temperature offset that compensates the part's own warmth, until power
+        is lost.
+
+        :param milli_celsius: The offset to subtract, in millidegrees.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.set_temperature_offset(milli_celsius)
+
+    def set_sensor_altitude(self, meters: int) -> None:
+        """Set the altitude the part corrects its carbon dioxide reading for.
+
+        :param meters: The altitude above sea level.
+        :raises PamojaError: If the transfer fails.
+        """
+        self._native.set_sensor_altitude(meters)
+
+    @property
+    def serial(self) -> Optional[int]:
+        """The 48-bit serial number read at initialization, or ``None`` before it."""
+        return self._native.serial
+
+
+class Ds18b20Thermometer:
+    """A DS18B20 the Linux kernel serves as a ``w1_slave`` file.
+
+    On a Raspberry Pi the ``w1-gpio`` overlay (``dtoverlay=w1-gpio`` in ``config.txt``)
+    puts a 1-Wire bus on GPIO 4, and the kernel lists every DS18B20 it finds under
+    ``/sys/bus/w1/devices`` as a directory named by its family code and serial. Reading the
+    directory's ``w1_slave`` file makes the kernel run a conversion and print the
+    scratchpad, which :meth:`read` decodes. The file is only text, so a test can write one
+    anywhere and read it with :meth:`at`.
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, native: _NativeDs18b20Thermometer) -> None:
+        """Wrap a native thermometer. Use :meth:`for_serial`, :meth:`at`, or
+        :meth:`discover`."""
+        self._native = native
+
+    @classmethod
+    def for_serial(cls, serial: str) -> Ds18b20Thermometer:
+        """Name a thermometer by the serial in its directory name.
+
+        :param serial: The twelve hex digits after ``28-``.
+        :returns: The thermometer, reading ``/sys/bus/w1/devices/28-<serial>/w1_slave``.
+        """
+        return cls(_NativeDs18b20Thermometer.for_serial(serial))
+
+    @classmethod
+    def at(cls, path: str) -> Ds18b20Thermometer:
+        """Name a thermometer by the path of its ``w1_slave`` file.
+
+        :param path: The file to read.
+        :returns: The thermometer.
+        """
+        return cls(_NativeDs18b20Thermometer.at(str(path)))
+
+    @classmethod
+    def discover(cls, devices: Optional[str] = None) -> List[Ds18b20Thermometer]:
+        """List every DS18B20 the kernel has found, one per ``28-`` directory.
+
+        :param devices: The directory the kernel lists its 1-Wire devices in, or ``None``
+            for ``/sys/bus/w1/devices``.
+        :returns: The thermometers, sorted by directory name.
+        :raises PamojaError: If the directory cannot be listed, which usually means the
+            1-Wire overlay is off.
+        """
+        found = _NativeDs18b20Thermometer.discover(None if devices is None else str(devices))
+        return [cls(native) for native in found]
+
+    @property
+    def path(self) -> str:
+        """The path of the file the thermometer reads."""
+        return self._native.path
+
+    @property
+    def serial(self) -> Optional[str]:
+        """The serial the kernel named the thermometer's directory after.
+
+        The twelve hex digits after ``28-``, which tell one probe from another and stay with
+        the part for life, or ``None`` when the file does not sit in a DS18B20's directory, as
+        one named by :meth:`at` may not.
+
+        >>> Ds18b20Thermometer.for_serial("000005e2fdc3").serial
+        '000005e2fdc3'
+        >>> Ds18b20Thermometer.at("/tmp/w1_slave").serial is None
+        True
+        """
+        return self._native.serial
+
+    def read(self) -> Ds18b20Reading:
+        """Read the file, which makes the kernel run a conversion, and decode it.
+
+        :returns: The checksum-checked reading.
+        :raises PamojaError: If the file cannot be read, because the overlay is off, the
+            probe is gone, or the process may not read it; or if the kernel or this decoder
+            rejects the checksum.
+        """
+        return self._native.read()
 
 
 #: A Bosch BME280 temperature, pressure, and humidity sensor.

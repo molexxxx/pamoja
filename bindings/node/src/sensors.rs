@@ -232,14 +232,28 @@ pub fn ds18b20_parse_scratchpad(bytes: Buffer) -> napi::Result<Ds18b20Reading> {
         .try_into()
         .map_err(|_| length_error("scratchpad", 9))?;
     let reading = ds18b20::Scratchpad::parse(&scratchpad).map_err(to_napi)?;
-    Ok(Ds18b20Reading {
-        raw_temperature: reading.raw_temperature(),
-        micro_celsius: reading.temperature_micro_celsius(),
-        celsius: f64::from(reading.temperature_celsius()),
-        alarm_high: reading.alarm_high(),
-        alarm_low: reading.alarm_low(),
-        resolution_bits: reading.resolution().bits(),
-    })
+    Ok(reading.into())
+}
+
+/// Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+/// of its `w1_slave` file, checking the scratchpad's CRC as well as the kernel's verdict.
+#[napi(js_name = "ds18b20ParseW1Slave")]
+pub fn ds18b20_parse_w1_slave(text: String) -> napi::Result<Ds18b20Reading> {
+    ds18b20::parse_w1_slave(&text)
+        .map(Ds18b20Reading::from)
+        .map_err(to_napi)
+}
+
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+/// read cleanly, the inverse of `ds18b20ParseW1Slave`. Throws when the CRC does not match.
+#[napi(js_name = "ds18b20W1SlaveText")]
+pub fn ds18b20_w1_slave_text(scratchpad: Buffer) -> napi::Result<String> {
+    let bytes: [u8; 9] = scratchpad
+        .as_ref()
+        .try_into()
+        .map_err(|_| length_error("scratchpad", 9))?;
+    let scratchpad = ds18b20::Scratchpad::parse(&bytes).map_err(to_napi)?;
+    Ok(ds18b20::w1_slave_text(&scratchpad))
 }
 
 /// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
@@ -404,6 +418,71 @@ pub fn ads1115_to_nanovolts(pga: u8, raw: i16) -> i64 {
 #[napi]
 pub fn ads1115_to_volts(pga: u8, raw: i16) -> f64 {
     f64::from(ads1115::to_volts(ads1115::Pga::from_code(pga), raw))
+}
+
+/// Returns how long an ADS1115 conversion takes at a data-rate code, in microseconds: one
+/// period of the rate plus the datasheet's ten percent rate variation.
+#[napi(js_name = "ads1115ConversionMicros")]
+pub fn ads1115_conversion_micros(data_rate: u8) -> u32 {
+    ads1115::conversion_micros(ads1115::DataRate::from_code(data_rate))
+}
+
+/// An INA219 configuration register, field by field, each setting as the code the datasheet
+/// prints.
+#[napi(object, js_name = "Ina219Configuration")]
+pub struct Ina219Configuration {
+    /// Whether writing the register resets the part.
+    pub reset: bool,
+    /// The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+    pub bus_range: u8,
+    /// The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+    pub gain: u8,
+    /// The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
+    /// 12 bits from `9` up.
+    pub bus_adc: u8,
+    /// The shunt converter code, as `busAdc`.
+    pub shunt_adc: u8,
+    /// The operating-mode code, `0..=7`.
+    pub mode: u8,
+}
+
+/// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+/// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+#[napi(js_name = "ina219Address")]
+pub fn ina219_address(a1: u8, a0: u8) -> napi::Result<u8> {
+    Ok(ina219::address(address_pin(a1)?, address_pin(a0)?))
+}
+
+/// Assembles the 16-bit INA219 configuration register value.
+#[napi(js_name = "ina219ConfigBits")]
+pub fn ina219_config_bits(config: Ina219Configuration) -> u16 {
+    ina219::Configuration::from(config).bits()
+}
+
+/// Parses a 16-bit INA219 configuration register value.
+#[napi(js_name = "ina219ConfigFromBits")]
+pub fn ina219_config_from_bits(bits: u16) -> Ina219Configuration {
+    ina219::Configuration::from_bits(bits).into()
+}
+
+/// Returns how long one INA219 conversion cycle takes, in microseconds: the shunt and bus
+/// conversions the mode runs, one after the other.
+#[napi(js_name = "ina219ConversionMicros")]
+pub fn ina219_conversion_micros(config: Ina219Configuration) -> u32 {
+    ina219::Configuration::from(config).conversion_micros()
+}
+
+/// Returns how long one INA219 conversion takes at a converter code, in microseconds.
+#[napi(js_name = "ina219AdcConversionMicros")]
+pub fn ina219_adc_conversion_micros(code: u8) -> u32 {
+    ina219::Adc::from_code(code).conversion_micros()
+}
+
+/// Returns the shunt-voltage range an INA219 gain code selects, in millivolts either side of
+/// zero.
+#[napi(js_name = "ina219GainRangeMillivolts")]
+pub fn ina219_gain_range_millivolts(code: u8) -> u16 {
+    ina219::Gain::from_code(code).range_millivolts()
 }
 
 /// A BMP280's per-chip trimming coefficients, as they sit in its registers.
@@ -1700,6 +1779,45 @@ pub fn ina226_power_register_from_current(current: i16, bus: u16) -> u16 {
     ina226::power_register_from_current(current, bus)
 }
 
+impl From<ds18b20::Scratchpad> for Ds18b20Reading {
+    fn from(value: ds18b20::Scratchpad) -> Self {
+        Ds18b20Reading {
+            raw_temperature: value.raw_temperature(),
+            micro_celsius: value.temperature_micro_celsius(),
+            celsius: f64::from(value.temperature_celsius()),
+            alarm_high: value.alarm_high(),
+            alarm_low: value.alarm_low(),
+            resolution_bits: value.resolution().bits(),
+        }
+    }
+}
+
+impl From<Ina219Configuration> for ina219::Configuration {
+    fn from(value: Ina219Configuration) -> Self {
+        ina219::Configuration {
+            reset: value.reset,
+            bus_range: ina219::BusRange::from_code(value.bus_range),
+            gain: ina219::Gain::from_code(value.gain),
+            bus_adc: ina219::Adc::from_code(value.bus_adc),
+            shunt_adc: ina219::Adc::from_code(value.shunt_adc),
+            mode: ina219::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<ina219::Configuration> for Ina219Configuration {
+    fn from(value: ina219::Configuration) -> Self {
+        Ina219Configuration {
+            reset: value.reset,
+            bus_range: value.bus_range.code(),
+            gain: value.gain.code(),
+            bus_adc: value.bus_adc.code(),
+            shunt_adc: value.shunt_adc.code(),
+            mode: value.mode.code(),
+        }
+    }
+}
+
 impl From<Ads1115Config> for ads1115::Config {
     fn from(value: Ads1115Config) -> Self {
         ads1115::Config {
@@ -2236,7 +2354,7 @@ fn address_pin(code: u8) -> napi::Result<ina226::AddressPin> {
         2 => Ok(ina226::AddressPin::Sda),
         3 => Ok(ina226::AddressPin::Scl),
         _ => Err(napi::Error::from_reason(
-            "an INA226 address pin must be tied to GND, VS, SDA, or SCL: code 0 to 3",
+            "an address pin must be tied to GND, the supply, SDA, or SCL: code 0 to 3",
         )),
     }
 }

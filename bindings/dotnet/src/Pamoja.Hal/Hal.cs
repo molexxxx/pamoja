@@ -40,29 +40,21 @@ public enum I2cFault : byte
     Other = 6,
 }
 
-/// <summary>A part that is not there, answering from 256 registers.</summary>
+/// <summary>A part that is not there, of any of the three kinds a simulated bus holds.</summary>
 /// <remarks>
-/// A write names a register and fills it and the ones after it; a read takes them back from
-/// wherever the last write left off. What a driver writes stays written, so
-/// <see cref="Register"/> reads a part's configuration back once a driver is done with it.
+/// <see cref="I2cPart"/> answers from registers a byte wide, as Bosch's parts do;
+/// <see cref="WordPart"/> from registers sixteen bits wide, as Texas Instruments' parts do; and
+/// <see cref="CommandPart"/> from commands and the replies they leave, as Sensirion's parts do.
+/// A simulated bus takes any of them, and <see cref="I2cBus.Part(byte)"/> gives each back as
+/// its own kind.
 /// </remarks>
-public sealed class I2cPart : IDisposable
+public abstract class SimulatedPart : IDisposable
 {
     private readonly NativeHandle _handle;
 
-    /// <summary>Creates a part answering at one address, with every register reading zero.</summary>
-    /// <param name="address">The 7-bit address it answers to.</param>
-    public I2cPart(byte address)
-        : this(NativeHandle.Create(
-            NativeMethods.pamoja_i2c_part_new(address),
-            NativeMethods.pamoja_i2c_part_free,
-            "I2C part"))
-    {
-    }
-
-    /// <summary>Wraps a part a native call made, such as a simulated sensor from another package.</summary>
+    /// <summary>Wraps a part's native handle.</summary>
     /// <param name="handle">The part's handle, released with <c>pamoja_i2c_part_free</c>.</param>
-    public I2cPart(NativeHandle handle)
+    private protected SimulatedPart(NativeHandle handle)
     {
         ArgumentNullException.ThrowIfNull(handle);
         _handle = handle;
@@ -73,6 +65,63 @@ public sealed class I2cPart : IDisposable
 
     /// <summary>How many transfers the part has served.</summary>
     public int Transfers => (int)_handle.Use(NativeMethods.pamoja_i2c_part_transfers);
+
+    /// <summary>Wraps a part a native call made as the kind it is.</summary>
+    /// <param name="handle">The part's handle, released with <c>pamoja_i2c_part_free</c>.</param>
+    /// <returns>An <see cref="I2cPart"/>, a <see cref="WordPart"/>, or a <see cref="CommandPart"/>.</returns>
+    public static SimulatedPart FromHandle(NativeHandle handle)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        return handle.Use(NativeMethods.pamoja_i2c_part_kind) switch
+        {
+            NativeMethods.I2cPartWords => new WordPart(handle),
+            NativeMethods.I2cPartCommands => new CommandPart(handle),
+            _ => new I2cPart(handle),
+        };
+    }
+
+    /// <summary>Runs a native call that needs this part's handle.</summary>
+    /// <typeparam name="TResult">What the native call returns.</typeparam>
+    /// <param name="call">The native call to make.</param>
+    /// <returns>Whatever the native call returned.</returns>
+    public TResult Use<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _handle.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Wraps a new native part, or throws when the native side made none.</summary>
+    /// <param name="part">The handle a native constructor returned.</param>
+    /// <param name="what">What the part is, for the error.</param>
+    /// <returns>The owned handle.</returns>
+    private protected static NativeHandle Own(IntPtr part, string what) =>
+        NativeHandle.Create(part, NativeMethods.pamoja_i2c_part_free, what);
+}
+
+/// <summary>A part that is not there, answering from 256 registers a byte wide.</summary>
+/// <remarks>
+/// A write names a register and fills it and the ones after it; a read takes them back from
+/// wherever the last write left off. What a driver writes stays written, so
+/// <see cref="Register"/> reads a part's configuration back once a driver is done with it.
+/// </remarks>
+public sealed class I2cPart : SimulatedPart
+{
+    /// <summary>Creates a part answering at one address, with every register reading zero.</summary>
+    /// <param name="address">The 7-bit address it answers to.</param>
+    public I2cPart(byte address)
+        : base(Own(NativeMethods.pamoja_i2c_part_new(address), "I2C part"))
+    {
+    }
+
+    /// <summary>Wraps a part a native call made, such as a simulated sensor from another package.</summary>
+    /// <param name="handle">The part's handle, released with <c>pamoja_i2c_part_free</c>.</param>
+    public I2cPart(NativeHandle handle)
+        : base(handle)
+    {
+    }
 
     /// <summary>Puts bytes in the part from a register on, and returns the part.</summary>
     /// <param name="first">The register the bytes start at.</param>
@@ -90,7 +139,7 @@ public sealed class I2cPart : IDisposable
     public void Load(byte first, ReadOnlySpan<byte> bytes)
     {
         byte[] copy = bytes.ToArray();
-        Status.ThrowIfError(_handle.Use(part =>
+        Status.ThrowIfError(Use(part =>
             NativeMethods.pamoja_i2c_part_load(part, first, copy, (nuint)copy.Length)));
     }
 
@@ -98,7 +147,7 @@ public sealed class I2cPart : IDisposable
     /// <param name="register">Which register.</param>
     /// <returns>Its value, which is what a driver wrote if it wrote one.</returns>
     public byte Register(byte register) =>
-        _handle.Use(part => NativeMethods.pamoja_i2c_part_register(part, register));
+        Use(part => NativeMethods.pamoja_i2c_part_register(part, register));
 
     /// <summary>Reads consecutive registers from one register on.</summary>
     /// <param name="first">The first register.</param>
@@ -107,19 +156,130 @@ public sealed class I2cPart : IDisposable
     public byte[] Read(byte first, int length)
     {
         byte[] bytes = new byte[length];
-        Status.ThrowIfError(_handle.Use(part =>
+        Status.ThrowIfError(Use(part =>
             NativeMethods.pamoja_i2c_part_read(part, first, bytes, (nuint)bytes.Length)));
         return bytes;
     }
+}
 
-    /// <summary>Runs a native call that needs this part's handle.</summary>
-    /// <typeparam name="TResult">What the native call returns.</typeparam>
-    /// <param name="call">The native call to make.</param>
-    /// <returns>Whatever the native call returned.</returns>
-    public TResult Use<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
+/// <summary>A part that is not there, answering from 256 registers sixteen bits wide.</summary>
+/// <remarks>
+/// A pointer byte names a register and a register travels most significant byte first. A
+/// write of the pointer alone aims the next read; a write of the pointer and a word stores the
+/// word; a read takes words from the pointer on. Bits the part sets for itself, such as a
+/// conversion-ready flag, are marked with <see cref="ReadOnly"/> and keep the part's value
+/// whatever a driver writes.
+/// </remarks>
+public sealed class WordPart : SimulatedPart
+{
+    /// <summary>Creates a part answering at one address, with every register reading zero.</summary>
+    /// <param name="address">The 7-bit address it answers to.</param>
+    public WordPart(byte address)
+        : base(Own(NativeMethods.pamoja_i2c_word_part_new(address), "I2C word part"))
+    {
+    }
 
-    /// <inheritdoc/>
-    public void Dispose() => _handle.Dispose();
+    /// <summary>Wraps a part a native call made, such as a simulated sensor from another package.</summary>
+    /// <param name="handle">The part's handle, released with <c>pamoja_i2c_part_free</c>.</param>
+    public WordPart(NativeHandle handle)
+        : base(handle)
+    {
+    }
+
+    /// <summary>Puts a value in one register and returns the part.</summary>
+    /// <param name="register">The register.</param>
+    /// <param name="value">What it holds, read-only bits included.</param>
+    /// <returns>This part, so calls chain.</returns>
+    public WordPart Holding(byte register, ushort value)
+    {
+        Set(register, value);
+        return this;
+    }
+
+    /// <summary>Marks bits of one register as the part's to set, and returns the part.</summary>
+    /// <param name="register">The register.</param>
+    /// <param name="mask">The bits a driver's write leaves as the part holds them.</param>
+    /// <returns>This part, so calls chain.</returns>
+    public WordPart ReadOnly(byte register, ushort mask)
+    {
+        Status.ThrowIfError(Use(part => NativeMethods.pamoja_i2c_part_read_only(part, register, mask)));
+        return this;
+    }
+
+    /// <summary>Puts a value in one register, read-only bits included, the way the part itself would.</summary>
+    /// <param name="register">The register.</param>
+    /// <param name="value">What it holds.</param>
+    public void Set(byte register, ushort value) =>
+        Status.ThrowIfError(Use(part => NativeMethods.pamoja_i2c_part_set_word(part, register, value)));
+
+    /// <summary>Reads what one register holds now.</summary>
+    /// <param name="register">Which register.</param>
+    /// <returns>Its value, which is what a driver wrote there apart from the read-only bits.</returns>
+    public ushort Word(byte register) =>
+        Use(part => NativeMethods.pamoja_i2c_part_word(part, register));
+}
+
+/// <summary>A part that is not there, answering commands with the replies it was given.</summary>
+/// <remarks>
+/// A write sends a command and any arguments after it; a read then takes the reply that
+/// command left, once, padded with <c>0xFF</c> the way an idle bus reads. A command given no
+/// reply leaves none, and a read then is not acknowledged, which is what a real part does when
+/// asked for data it does not have.
+/// </remarks>
+public sealed class CommandPart : SimulatedPart
+{
+    /// <summary>Creates a part answering at one address that has been given no replies yet.</summary>
+    /// <param name="address">The 7-bit address it answers to.</param>
+    /// <param name="width">How many bytes a command takes: two for Sensirion's 16-bit commands.</param>
+    public CommandPart(byte address, int width = 2)
+        : base(Own(NativeMethods.pamoja_i2c_command_part_new(address, (nuint)width), "I2C command part"))
+    {
+    }
+
+    /// <summary>Wraps a part a native call made, such as a simulated sensor from another package.</summary>
+    /// <param name="handle">The part's handle, released with <c>pamoja_i2c_part_free</c>.</param>
+    public CommandPart(NativeHandle handle)
+        : base(handle)
+    {
+    }
+
+    /// <summary>Every write the part has received, oldest first: a command and any arguments after it.</summary>
+    public IReadOnlyList<byte[]> Received
+    {
+        get
+        {
+            int count = (int)Use(NativeMethods.pamoja_i2c_part_received_count);
+            var writes = new List<byte[]>(count);
+            for (int index = 0; index < count; index++)
+            {
+                IntPtr buffer = Use(part => NativeMethods.pamoja_i2c_part_received(part, (nuint)index));
+                writes.Add(OwnedBuffer.Take(buffer));
+            }
+
+            return writes;
+        }
+    }
+
+    /// <summary>Answers one command with a reply from now on, and returns the part.</summary>
+    /// <param name="command">The command's bytes.</param>
+    /// <param name="reply">What a read after it returns, in place of any reply given before.</param>
+    /// <returns>This part, so calls chain.</returns>
+    public CommandPart Answering(ReadOnlySpan<byte> command, ReadOnlySpan<byte> reply)
+    {
+        Answer(command, reply);
+        return this;
+    }
+
+    /// <summary>Answers one command with a reply from now on.</summary>
+    /// <param name="command">The command's bytes.</param>
+    /// <param name="reply">What a read after it returns, in place of any reply given before.</param>
+    public void Answer(ReadOnlySpan<byte> command, ReadOnlySpan<byte> reply)
+    {
+        byte[] commandCopy = command.ToArray();
+        byte[] replyCopy = reply.ToArray();
+        Status.ThrowIfError(Use(part => NativeMethods.pamoja_i2c_part_answer(
+            part, commandCopy, (nuint)commandCopy.Length, replyCopy, (nuint)replyCopy.Length)));
+    }
 }
 
 /// <summary>One transfer a script expects, and what the part answers.</summary>
@@ -199,9 +359,9 @@ public sealed class I2cStep
 /// <remarks>
 /// <para>
 /// <see cref="Open"/> opens the kernel's adapter on a Linux board; <see cref="Simulated"/> puts
-/// <see cref="I2cPart"/>s on a bus, each answering at its own address; <see cref="Scripted"/>
-/// plays <see cref="I2cStep"/>s in order and refuses any other transfer. A driver runs the same
-/// way over all three.
+/// <see cref="SimulatedPart"/>s on a bus, each answering at its own address;
+/// <see cref="Scripted"/> plays <see cref="I2cStep"/>s in order and refuses any other transfer.
+/// A driver runs the same way over all three.
 /// </para>
 /// <para>
 /// A failed transfer throws <see cref="PamojaException"/> with the reason: nothing answered at
@@ -266,15 +426,15 @@ public sealed class I2cBus : IDisposable
 
     /// <summary>Makes a bus of simulated parts, each answering at its own address.</summary>
     /// <param name="parts">
-    /// The parts, copied onto the bus. A later part at an address an earlier one holds takes
-    /// its place.
+    /// The parts, of any kind, copied onto the bus. A later part at an address an earlier one
+    /// holds takes its place.
     /// </param>
     /// <returns>The bus. A transfer to an address no part holds throws, as nothing acknowledges it.</returns>
-    public static I2cBus Simulated(params I2cPart[] parts)
+    public static I2cBus Simulated(params SimulatedPart[] parts)
     {
         ArgumentNullException.ThrowIfNull(parts);
         var bus = new I2cBus(NativeMethods.pamoja_i2c_bus_simulated());
-        foreach (I2cPart part in parts)
+        foreach (SimulatedPart part in parts)
         {
             bus.Attach(part);
         }
@@ -309,9 +469,9 @@ public sealed class I2cBus : IDisposable
     /// Puts a copy of a part on a simulated bus, in place of any part at its address. A driver
     /// keeps working across the change, which is how a test moves a reading on.
     /// </summary>
-    /// <param name="part">The part.</param>
+    /// <param name="part">The part, of any kind.</param>
     /// <exception cref="PamojaException">The bus is not simulated.</exception>
-    public void Attach(I2cPart part)
+    public void Attach(SimulatedPart part)
     {
         ArgumentNullException.ThrowIfNull(part);
         Status.ThrowIfError(_handle.Use(bus =>
@@ -362,13 +522,36 @@ public sealed class I2cBus : IDisposable
 
     /// <summary>Copies what a simulated part holds now, with whatever drivers wrote to it.</summary>
     /// <param name="address">The part's address.</param>
-    /// <returns>The copy, or null when the bus is not simulated or no part holds the address.</returns>
-    public I2cPart? Part(byte address)
+    /// <returns>
+    /// The copy, as the kind of part it is, or null when the bus is not simulated or no part
+    /// holds the address.
+    /// </returns>
+    public SimulatedPart? Part(byte address)
     {
         IntPtr part = _handle.Use(bus => NativeMethods.pamoja_i2c_bus_part(bus, address));
         return part == IntPtr.Zero
             ? null
-            : new I2cPart(new NativeHandle(part, NativeMethods.pamoja_i2c_part_free));
+            : SimulatedPart.FromHandle(new NativeHandle(part, NativeMethods.pamoja_i2c_part_free));
+    }
+
+    /// <summary>Copies what a simulated part of one kind holds now, with whatever drivers wrote to it.</summary>
+    /// <typeparam name="TPart"><see cref="I2cPart"/>, <see cref="WordPart"/>, or <see cref="CommandPart"/>.</typeparam>
+    /// <param name="address">The part's address.</param>
+    /// <returns>
+    /// The copy, or null when the bus is not simulated, no part holds the address, or the part
+    /// there is of another kind.
+    /// </returns>
+    public TPart? Part<TPart>(byte address)
+        where TPart : SimulatedPart
+    {
+        SimulatedPart? part = Part(address);
+        if (part is TPart wanted)
+        {
+            return wanted;
+        }
+
+        part?.Dispose();
+        return null;
     }
 
     /// <summary>Runs a native call that needs this bus's handle.</summary>

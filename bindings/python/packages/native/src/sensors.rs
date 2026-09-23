@@ -414,14 +414,44 @@ pub fn ds18b20_parse_scratchpad(data: Vec<u8>) -> PyResult<Ds18b20Reading> {
         .try_into()
         .map_err(|_| length_error("scratchpad", 9))?;
     let reading = ds18b20::Scratchpad::parse(&scratchpad).map_err(to_py)?;
-    Ok(Ds18b20Reading {
-        raw_temperature: reading.raw_temperature(),
-        micro_celsius: reading.temperature_micro_celsius(),
-        celsius: reading.temperature_celsius(),
-        alarm_high: reading.alarm_high(),
-        alarm_low: reading.alarm_low(),
-        resolution_bits: reading.resolution().bits(),
-    })
+    Ok(reading.into())
+}
+
+/// Decodes the text the Linux kernel's `w1_therm` driver serves for a DS18B20, the contents
+/// of its `w1_slave` file, checking the scratchpad's CRC as well as the kernel's verdict.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ds18b20_parse_w1_slave(text: &str) -> PyResult<Ds18b20Reading> {
+    ds18b20::parse_w1_slave(text)
+        .map(Ds18b20Reading::from)
+        .map_err(to_py)
+}
+
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+/// read cleanly, the inverse of `ds18b20_parse_w1_slave`. Raises `PamojaError` when the CRC
+/// does not match.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ds18b20_w1_slave_text(data: Vec<u8>) -> PyResult<String> {
+    let bytes: [u8; 9] = data
+        .as_slice()
+        .try_into()
+        .map_err(|_| length_error("scratchpad", 9))?;
+    let scratchpad = ds18b20::Scratchpad::parse(&bytes).map_err(to_py)?;
+    Ok(ds18b20::w1_slave_text(&scratchpad))
+}
+
+impl From<ds18b20::Scratchpad> for Ds18b20Reading {
+    fn from(value: ds18b20::Scratchpad) -> Self {
+        Ds18b20Reading {
+            raw_temperature: value.raw_temperature(),
+            micro_celsius: value.temperature_micro_celsius(),
+            celsius: value.temperature_celsius(),
+            alarm_high: value.alarm_high(),
+            alarm_low: value.alarm_low(),
+            resolution_bits: value.resolution().bits(),
+        }
+    }
 }
 
 /// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
@@ -612,6 +642,142 @@ pub fn ads1115_to_nanovolts(pga: u8, raw: i16) -> i64 {
 #[pyfunction]
 pub fn ads1115_to_volts(pga: u8, raw: i16) -> f32 {
     ads1115::to_volts(ads1115::Pga::from_code(pga), raw)
+}
+
+/// Returns how long an ADS1115 conversion takes at a data-rate code, in microseconds: one
+/// period of the rate plus the datasheet's ten percent rate variation.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ads1115_conversion_micros(data_rate: u8) -> u32 {
+    ads1115::conversion_micros(ads1115::DataRate::from_code(data_rate))
+}
+
+/// An INA219 configuration register, field by field, each setting as the code the datasheet
+/// prints.
+#[gen_stub_pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone, PartialEq, Eq)]
+pub struct Ina219Config {
+    /// Whether writing this resets the part.
+    #[pyo3(get, set)]
+    reset: bool,
+    /// The bus-voltage range code: `0` for 16 V, `1` for 32 V.
+    #[pyo3(get, set)]
+    bus_range: u8,
+    /// The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
+    #[pyo3(get, set)]
+    gain: u8,
+    /// The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
+    /// 12 bits from `9` up.
+    #[pyo3(get, set)]
+    bus_adc: u8,
+    /// The shunt converter code, as `bus_adc`.
+    #[pyo3(get, set)]
+    shunt_adc: u8,
+    /// The operating-mode code, `0..=7`.
+    #[pyo3(get, set)]
+    mode: u8,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Ina219Config {
+    /// Builds a configuration, defaulting every field to the part's reset state.
+    #[new]
+    #[pyo3(signature = (
+        reset = false,
+        bus_range = 1,
+        gain = 3,
+        bus_adc = 3,
+        shunt_adc = 3,
+        mode = 7,
+    ))]
+    fn new(reset: bool, bus_range: u8, gain: u8, bus_adc: u8, shunt_adc: u8, mode: u8) -> Self {
+        Self {
+            reset,
+            bus_range,
+            gain,
+            bus_adc,
+            shunt_adc,
+            mode,
+        }
+    }
+
+    /// Reports whether two configurations select the same settings.
+    fn __eq__(&self, other: &Ina219Config) -> bool {
+        self == other
+    }
+}
+
+/// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+/// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_address(a1: u8, a0: u8) -> PyResult<u8> {
+    Ok(ina219::address(address_pin(a1)?, address_pin(a0)?))
+}
+
+/// Assembles the 16-bit INA219 configuration register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_config_bits(config: Ina219Config) -> u16 {
+    ina219::Configuration::from(config).bits()
+}
+
+/// Parses a 16-bit INA219 configuration register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_config_from_bits(bits: u16) -> Ina219Config {
+    ina219::Configuration::from_bits(bits).into()
+}
+
+/// Returns how long one INA219 conversion cycle takes, in microseconds: the shunt and bus
+/// conversions the mode runs, one after the other.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_conversion_micros(config: Ina219Config) -> u32 {
+    ina219::Configuration::from(config).conversion_micros()
+}
+
+/// Returns how long one INA219 conversion takes at a converter code, in microseconds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_adc_conversion_micros(code: u8) -> u32 {
+    ina219::Adc::from_code(code).conversion_micros()
+}
+
+/// Returns the shunt-voltage range an INA219 gain code selects, in millivolts either side of
+/// zero.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_gain_range_millivolts(code: u8) -> u16 {
+    ina219::Gain::from_code(code).range_millivolts()
+}
+
+impl From<Ina219Config> for ina219::Configuration {
+    fn from(value: Ina219Config) -> Self {
+        ina219::Configuration {
+            reset: value.reset,
+            bus_range: ina219::BusRange::from_code(value.bus_range),
+            gain: ina219::Gain::from_code(value.gain),
+            bus_adc: ina219::Adc::from_code(value.bus_adc),
+            shunt_adc: ina219::Adc::from_code(value.shunt_adc),
+            mode: ina219::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<ina219::Configuration> for Ina219Config {
+    fn from(value: ina219::Configuration) -> Self {
+        Ina219Config {
+            reset: value.reset,
+            bus_range: value.bus_range.code(),
+            gain: value.gain.code(),
+            bus_adc: value.bus_adc.code(),
+            shunt_adc: value.shunt_adc.code(),
+            mode: value.mode.code(),
+        }
+    }
 }
 
 /// A BMP280's per-chip trimming coefficients, as they sit in its registers.
@@ -2801,7 +2967,7 @@ impl From<ina226::DieId> for Ina226DieId {
 }
 
 /// Reads an SHT3x repeatability back from its name.
-fn read_repeatability(repeatability: &str) -> PyResult<sht3x::Repeatability> {
+pub(crate) fn read_repeatability(repeatability: &str) -> PyResult<sht3x::Repeatability> {
     match repeatability {
         "Low" => Ok(sht3x::Repeatability::Low),
         "Medium" => Ok(sht3x::Repeatability::Medium),
@@ -2881,7 +3047,7 @@ fn address_pin(code: u8) -> PyResult<ina226::AddressPin> {
         2 => Ok(ina226::AddressPin::Sda),
         3 => Ok(ina226::AddressPin::Scl),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "an INA226 address pin must be tied to GND, VS, SDA, or SCL: code 0 to 3",
+            "an address pin must be tied to GND, the supply, SDA, or SCL: code 0 to 3",
         )),
     }
 }

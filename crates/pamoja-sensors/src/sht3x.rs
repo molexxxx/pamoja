@@ -18,6 +18,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "alloc")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::Sht3x;

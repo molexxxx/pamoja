@@ -1,14 +1,197 @@
+using Pamoja.Hal;
 using Pamoja.Native.Interop;
 
 namespace Pamoja.Sensors;
 
 /// <summary>
-/// A Texas Instruments INA226 current, voltage, and power monitor. Every call goes
-/// straight to the pamoja C ABI, which decodes exactly what the manufacturer's
-/// datasheet specifies.
+/// A Texas Instruments INA226 current, voltage, and power monitor, and a driver for one on an
+/// I2C bus.
 /// </summary>
-public static class Ina226
+/// <remarks>
+/// <para>
+/// The static members are the part's datasheet, decoded exactly as the manufacturer
+/// specifies, and <see cref="Sim"/>, a part that is not there.
+/// </para>
+/// <para>
+/// An instance drives one part over an <see cref="I2cBus"/>: it resets the part, checks its
+/// identity, programs the calibration for the shunt and the current it is sized for, and
+/// triggers one shunt and bus conversion per <see cref="Measure"/>. Nothing is sent until
+/// <see cref="Init"/> or the first <see cref="Measure"/>.
+/// </para>
+/// </remarks>
+public sealed class Ina226 : IDisposable
 {
+    private readonly NativeHandle _handle;
+
+    /// <summary>Creates a driver for the part at <paramref name="address"/> on <paramref name="bus"/>.</summary>
+    /// <param name="bus">The bus the part is on.</param>
+    /// <param name="address">The address A1 and A0 select, which <see cref="Address(AddressPin, AddressPin)"/> works out.</param>
+    /// <param name="shuntMilliohms">The shunt resistance in milliohms.</param>
+    /// <param name="maxMicroamps">The largest current the shunt will carry, which sets the finest current step.</param>
+    /// <param name="currentLsbMicroamps">A current step to use instead, such as a round 100, or 0 for the finest.</param>
+    /// <param name="config">The averaging, conversion times, and mode, or null for <see cref="Ina226Config.PowerOn"/>.</param>
+    /// <exception cref="PamojaException">The native driver could not be created.</exception>
+    public Ina226(
+        I2cBus bus,
+        byte address,
+        uint shuntMilliohms = 100,
+        uint maxMicroamps = 3_200_000,
+        uint currentLsbMicroamps = 0,
+        Ina226Config? config = null)
+    {
+        ArgumentNullException.ThrowIfNull(bus);
+        PamojaIna226Settings settings = NativeMethods.pamoja_ina226_settings_default();
+        settings.ShuntMilliohms = shuntMilliohms;
+        settings.MaxMicroamps = maxMicroamps;
+        settings.CurrentLsbMicroamps = currentLsbMicroamps;
+        settings.Config = (config ?? Ina226Config.PowerOn).ToNative();
+        IntPtr sensor = IntPtr.Zero;
+        Status.ThrowIfError(bus.Use(held =>
+            NativeMethods.pamoja_ina226_new(held, address, settings, out sensor)));
+        _handle = new NativeHandle(sensor, NativeMethods.pamoja_ina226_free);
+    }
+
+    /// <summary>What an address pin is tied to, as the code <see cref="Address(AddressPin, AddressPin)"/> takes.</summary>
+    public enum AddressPin : byte
+    {
+        /// <summary>Tied to GND.</summary>
+        Ground = 0,
+
+        /// <summary>Tied to VS.</summary>
+        Supply = 1,
+
+        /// <summary>Tied to SDA.</summary>
+        Sda = 2,
+
+        /// <summary>Tied to SCL.</summary>
+        Scl = 3,
+    }
+
+    /// <summary>How many samples each result folds together, as the register code.</summary>
+    public enum Averaging : byte
+    {
+        /// <summary>Every conversion reported, the reset setting.</summary>
+        Samples1 = 0,
+
+        /// <summary>4 samples.</summary>
+        Samples4 = 1,
+
+        /// <summary>16 samples.</summary>
+        Samples16 = 2,
+
+        /// <summary>64 samples.</summary>
+        Samples64 = 3,
+
+        /// <summary>128 samples.</summary>
+        Samples128 = 4,
+
+        /// <summary>256 samples.</summary>
+        Samples256 = 5,
+
+        /// <summary>512 samples.</summary>
+        Samples512 = 6,
+
+        /// <summary>1024 samples.</summary>
+        Samples1024 = 7,
+    }
+
+    /// <summary>How long one bus or shunt conversion takes, as the register code.</summary>
+    public enum ConversionTime : byte
+    {
+        /// <summary>140 µs.</summary>
+        Us140 = 0,
+
+        /// <summary>204 µs.</summary>
+        Us204 = 1,
+
+        /// <summary>332 µs.</summary>
+        Us332 = 2,
+
+        /// <summary>588 µs.</summary>
+        Us588 = 3,
+
+        /// <summary>1.1 ms, the reset setting.</summary>
+        Us1100 = 4,
+
+        /// <summary>2.116 ms.</summary>
+        Us2116 = 5,
+
+        /// <summary>4.156 ms.</summary>
+        Us4156 = 6,
+
+        /// <summary>8.244 ms.</summary>
+        Us8244 = 7,
+    }
+
+    /// <summary>Which voltages the part converts, and whether once or continuously, as the register code.</summary>
+    public enum Mode : byte
+    {
+        /// <summary>No conversions; the registers stay readable and writable.</summary>
+        PowerDown = 0,
+
+        /// <summary>One shunt conversion.</summary>
+        ShuntTriggered = 1,
+
+        /// <summary>One bus conversion.</summary>
+        BusTriggered = 2,
+
+        /// <summary>One shunt and one bus conversion.</summary>
+        ShuntAndBusTriggered = 3,
+
+        /// <summary>Shunt conversions back to back.</summary>
+        ShuntContinuous = 5,
+
+        /// <summary>Bus conversions back to back.</summary>
+        BusContinuous = 6,
+
+        /// <summary>Shunt and bus conversions back to back, the reset setting.</summary>
+        ShuntAndBusContinuous = 7,
+    }
+
+    /// <summary>The current step the driver programs, in microamps per count.</summary>
+    public uint CurrentLsbMicroamps => _handle.Use(NativeMethods.pamoja_ina226_current_lsb);
+
+    /// <summary>Returns the 7-bit address the A1 and A0 pins select.</summary>
+    /// <param name="a1">What the A1 pin is tied to.</param>
+    /// <param name="a0">What the A0 pin is tied to.</param>
+    /// <returns>The address, 0x40 to 0x4F.</returns>
+    public static byte Address(AddressPin a1, AddressPin a0) => Address((byte)a1, (byte)a0);
+
+    /// <summary>The calibration word the driver programs.</summary>
+    public ushort CalibrationWord => _handle.Use(NativeMethods.pamoja_ina226_calibration_word);
+
+    /// <summary>The die id read at initialization, or null before it.</summary>
+    public PamojaIna226DieId? Identity =>
+        _handle.Use(sensor => NativeMethods.pamoja_ina226_identity(sensor, out PamojaIna226DieId die)
+            ? die
+            : (PamojaIna226DieId?)null);
+
+    /// <summary>Resets the part, checks it is an INA226, and programs the configuration and calibration.</summary>
+    /// <exception cref="PamojaException">
+    /// Nothing answered, the id registers are not an INA226's, or the calibration did not read back.
+    /// </exception>
+    public void Init() => Status.ThrowIfError(_handle.Use(NativeMethods.pamoja_ina226_init));
+
+    /// <summary>Triggers one shunt and bus conversion and reads every result, initializing the part first if needed.</summary>
+    /// <returns>The registers as read, and what they mean.</returns>
+    /// <exception cref="PamojaException">As <see cref="Init"/>, and when the conversion-ready flag never sets.</exception>
+    public Ina226Reading Measure()
+    {
+        PamojaIna226Reading reading = default;
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_ina226_measure(sensor, out reading)));
+        return Ina226Reading.From(reading);
+    }
+
+    /// <summary>Programs the alert pin: which limit it watches, and the limit.</summary>
+    /// <param name="mask">The mask/enable settings, one alert function at a time.</param>
+    /// <param name="limit">The alert-limit register, in the units of the register the function watches.</param>
+    /// <exception cref="PamojaException">The transfer failed.</exception>
+    public void SetAlert(PamojaIna226MaskEnable mask, ushort limit) =>
+        Status.ThrowIfError(_handle.Use(sensor => NativeMethods.pamoja_ina226_set_alert(sensor, mask, limit)));
+
+    /// <summary>Releases the driver and its share of the bus.</summary>
+    public void Dispose() => _handle.Dispose();
+
     /// <summary>Returns the I2C address an INA226's A1 and A0 pin codes select.</summary>
     /// <param name="a1">The a1.</param>
     /// <param name="a0">The a0.</param>
@@ -68,11 +251,23 @@ public static class Ina226
     public static ushort ConfigToRegister(PamojaIna226Config config) =>
         NativeMethods.pamoja_ina226_config_to_register(config);
 
+    /// <summary>Assembles the configuration register from named settings.</summary>
+    /// <param name="config">The settings.</param>
+    /// <returns>The register value.</returns>
+    public static ushort ConfigToRegister(Ina226Config config) =>
+        NativeMethods.pamoja_ina226_config_to_register(config.ToNative());
+
     /// <summary>Returns how often an INA226 in a configuration updates its results.</summary>
     /// <param name="config">The config.</param>
     /// <returns>The value the C ABI computes.</returns>
     public static uint UpdateMicros(PamojaIna226Config config) =>
         NativeMethods.pamoja_ina226_update_micros(config);
+
+    /// <summary>Returns how often an INA226 with named settings updates its results.</summary>
+    /// <param name="config">The settings.</param>
+    /// <returns>The update interval in microseconds.</returns>
+    public static uint UpdateMicros(Ina226Config config) =>
+        NativeMethods.pamoja_ina226_update_micros(config.ToNative());
 
     /// <summary>Parses an INA226 Mask/Enable register value.</summary>
     /// <param name="raw">The raw.</param>
@@ -227,4 +422,53 @@ public static class Ina226
     /// <returns>The value the C ABI computes.</returns>
     public static ushort PowerRegisterFromCurrent(short current, ushort bus) =>
         NativeMethods.pamoja_ina226_power_register_from_current(current, bus);
+
+    /// <summary>An INA226 that is not there, for a bus with nothing plugged in.</summary>
+    /// <remarks>
+    /// A monitor's current and power registers count in steps the calibration sets, so
+    /// <see cref="Reporting"/> takes the same shunt and largest current a driver is given. The
+    /// part carries TI's manufacturer id and the INA226 die id, and its conversion-ready flag
+    /// is set, so every conversion reads as finished.
+    /// </remarks>
+    public static class Sim
+    {
+        /// <summary>The shunt <see cref="Part"/> sits across, in milliohms.</summary>
+        public const uint ShuntMilliohms = 100;
+
+        /// <summary>The largest current <see cref="Part"/> is sized for, in microamps.</summary>
+        public const uint MaxMicroamps = 3_200_000;
+
+        /// <summary>The bus voltage <see cref="Part"/> reports, in microvolts.</summary>
+        public const uint BusMicrovolts = 12_000_000;
+
+        /// <summary>The current <see cref="Part"/> reports, in microamps.</summary>
+        public const int Microamps = 500_000;
+
+        /// <summary>Makes a part carrying <see cref="Microamps"/> at <see cref="BusMicrovolts"/> through the shunt a driver starts with.</summary>
+        /// <param name="address">The address it answers to.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static WordPart Part(byte address) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_ina226_sim_part(address),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated INA226"));
+
+        /// <summary>Makes a part that reads what it is asked to.</summary>
+        /// <param name="address">The address it answers to.</param>
+        /// <param name="shuntMilliohms">The shunt, as the driver is given it.</param>
+        /// <param name="maxMicroamps">The largest current, as the driver is given it.</param>
+        /// <param name="busMicrovolts">The bus voltage it reports.</param>
+        /// <param name="microamps">The current it reports; negative flows the other way through the shunt.</param>
+        /// <returns>The part, to put on a simulated bus.</returns>
+        public static WordPart Reporting(
+            byte address,
+            uint shuntMilliohms,
+            uint maxMicroamps,
+            uint busMicrovolts,
+            int microamps) =>
+            new(NativeHandle.Create(
+                NativeMethods.pamoja_ina226_sim_reporting(address, shuntMilliohms, maxMicroamps, busMicrovolts, microamps),
+                NativeMethods.pamoja_i2c_part_free,
+                "simulated INA226"));
+    }
 }

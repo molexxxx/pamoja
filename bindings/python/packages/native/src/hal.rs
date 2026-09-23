@@ -8,17 +8,62 @@
 //!
 //! A bus kind and a scripted fault cross as plain strings, which the facade turns back into
 //! Python enum members.
+//!
+//! A simulated part is one of three classes, as in Rust: `I2cPart` with registers a byte wide,
+//! `WordPart` with registers sixteen bits wide, and `CommandPart` with commands that leave
+//! replies. A bus takes any of them and gives each back as its own class.
 
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use pyo3_stub_gen::impl_stub_type;
 
 use pamoja_hal::bus::{BusError, BusKind, I2cBus as Bus};
 use pamoja_hal::i2c::{ErrorKind, I2c, NoAcknowledgeSource};
 use pamoja_hal::script::{I2cScript, I2cStep as Step};
-use pamoja_hal::sim::I2cPart as Part;
+use pamoja_hal::sim::{CommandPart as Commands, I2cPart as Part, Part as Any, WordPart as Words};
 
 use crate::PamojaError;
+
+/// Any simulated part, as a bus takes it.
+#[derive(FromPyObject)]
+pub enum AnyPart<'py> {
+    /// A part whose registers are a byte wide.
+    Bytes(PyRef<'py, I2cPart>),
+    /// A part whose registers are sixteen bits wide.
+    Words(PyRef<'py, WordPart>),
+    /// A part that takes commands.
+    Commands(PyRef<'py, CommandPart>),
+}
+
+impl_stub_type!(AnyPart<'_> = I2cPart | WordPart | CommandPart);
+
+impl AnyPart<'_> {
+    /// A copy of the part as the bus holds it.
+    fn copy(&self) -> Any {
+        match self {
+            AnyPart::Bytes(part) => part.inner.clone().into(),
+            AnyPart::Words(part) => part.inner.clone().into(),
+            AnyPart::Commands(part) => part.inner.clone().into(),
+        }
+    }
+}
+
+/// A simulated part given back as the class of part it is.
+///
+/// It lives only until pyo3 turns it into a Python object, so its size does not matter.
+#[derive(IntoPyObject)]
+#[allow(clippy::large_enum_variant)]
+pub enum HeldPart {
+    /// A part whose registers are a byte wide.
+    Bytes(I2cPart),
+    /// A part whose registers are sixteen bits wide.
+    Words(WordPart),
+    /// A part that takes commands.
+    Commands(CommandPart),
+}
+
+impl_stub_type!(HeldPart = I2cPart | WordPart | CommandPart);
 
 /// A part that is not there, answering from 256 registers.
 ///
@@ -61,6 +106,109 @@ impl I2cPart {
             at = at.wrapping_add(1);
         }
         PyBytes::new(py, &bytes)
+    }
+
+    /// The address the part answers to.
+    #[getter]
+    fn address(&self) -> u8 {
+        self.inner.address()
+    }
+
+    /// How many transfers the part has served.
+    #[getter]
+    fn transfers(&self) -> usize {
+        self.inner.transfers()
+    }
+}
+
+/// A part that is not there, answering from 256 registers sixteen bits wide.
+///
+/// A pointer byte names a register and a register travels most significant byte first. Bits
+/// the part sets for itself, such as a conversion-ready flag, are marked with `read_only` and
+/// keep the part's value whatever a driver writes.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct WordPart {
+    pub(crate) inner: Words,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl WordPart {
+    /// A part answering at one address, with every register reading zero.
+    #[new]
+    fn new(address: u8) -> Self {
+        WordPart {
+            inner: Words::new(address),
+        }
+    }
+
+    /// Puts a value in one register, read-only bits included, the way the part itself would.
+    fn set(&mut self, register: u8, value: u16) {
+        self.inner.set(register, value);
+    }
+
+    /// Marks bits of one register as the part's to set: a driver's write leaves them as the
+    /// part holds them.
+    fn read_only(&mut self, register: u8, mask: u16) {
+        self.inner = self.inner.clone().read_only(register, mask);
+    }
+
+    /// What one register holds now, which is what a driver wrote there apart from the
+    /// read-only bits.
+    fn word(&self, register: u8) -> u16 {
+        self.inner.word(register)
+    }
+
+    /// The address the part answers to.
+    #[getter]
+    fn address(&self) -> u8 {
+        self.inner.address()
+    }
+
+    /// How many transfers the part has served.
+    #[getter]
+    fn transfers(&self) -> usize {
+        self.inner.transfers()
+    }
+}
+
+/// A part that is not there, answering commands with the replies it was given.
+///
+/// A write sends a command and any arguments after it; a read takes the reply that command
+/// left, once, padded with `0xFF`. A read with no reply waiting is not acknowledged.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct CommandPart {
+    pub(crate) inner: Commands,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl CommandPart {
+    /// A part answering at one address that has been given no replies yet; a command takes
+    /// `width` bytes.
+    #[new]
+    #[pyo3(signature = (address, width = 2))]
+    fn new(address: u8, width: usize) -> Self {
+        CommandPart {
+            inner: Commands::new(address, width),
+        }
+    }
+
+    /// Answers one command with a reply from now on, in place of any reply given before.
+    fn answer(&mut self, command: Vec<u8>, reply: Vec<u8>) {
+        self.inner.answer(&command, &reply);
+    }
+
+    /// Every write the part has received, oldest first: a command and any arguments after it.
+    #[getter]
+    fn received<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, PyBytes>> {
+        self.inner
+            .received()
+            .iter()
+            .map(|write| PyBytes::new(py, write))
+            .collect()
     }
 
     /// The address the part answers to.
@@ -147,14 +295,14 @@ impl I2cBus {
             .map_err(|error| PamojaError::new_err(error.to_string()))
     }
 
-    /// A bus of simulated parts, each answering at its own address. A later part at an
-    /// address an earlier one holds takes its place.
+    /// A bus of simulated parts of any kind, each answering at its own address. A later part
+    /// at an address an earlier one holds takes its place.
     #[staticmethod]
     #[pyo3(signature = (parts = None))]
-    fn simulated(parts: Option<Vec<PyRef<'_, I2cPart>>>) -> I2cBus {
+    fn simulated(parts: Option<Vec<AnyPart<'_>>>) -> I2cBus {
         let parts = parts.unwrap_or_default();
         I2cBus {
-            inner: Bus::simulated(parts.iter().map(|part| part.inner.clone())),
+            inner: Bus::simulated(parts.iter().map(AnyPart::copy)),
         }
     }
 
@@ -167,11 +315,11 @@ impl I2cBus {
         }
     }
 
-    /// Puts a copy of a part on a simulated bus, in place of any part at its address. Raises
-    /// `PamojaError` for a bus that is not simulated.
-    fn attach(&self, part: PyRef<'_, I2cPart>) -> PyResult<()> {
+    /// Puts a copy of a part of any kind on a simulated bus, in place of any part at its
+    /// address. Raises `PamojaError` for a bus that is not simulated.
+    fn attach(&self, part: AnyPart<'_>) -> PyResult<()> {
         self.inner
-            .attach(part.inner.clone())
+            .attach(part.copy())
             .map(drop)
             .map_err(|error| PamojaError::new_err(error.to_string()))
     }
@@ -222,9 +370,14 @@ impl I2cBus {
     }
 
     /// A copy of what a simulated part holds now, with whatever drivers have written to it,
-    /// or `None` when the bus is not simulated or no part holds the address.
-    fn part(&self, address: u8) -> Option<I2cPart> {
-        self.inner.part(address).map(|inner| I2cPart { inner })
+    /// as the class of part it is, or `None` when the bus is not simulated or no part holds
+    /// the address.
+    fn part(&self, address: u8) -> Option<HeldPart> {
+        self.inner.part::<Any>(address).map(|part| match part {
+            Any::Bytes(inner) => HeldPart::Bytes(I2cPart { inner }),
+            Any::Words(inner) => HeldPart::Words(WordPart { inner: *inner }),
+            Any::Commands(inner) => HeldPart::Commands(CommandPart { inner }),
+        })
     }
 
     /// How many transfers have been made on the bus, by the program and every driver on it,

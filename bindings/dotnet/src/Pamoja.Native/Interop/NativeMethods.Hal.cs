@@ -22,9 +22,59 @@ public static partial class NativeMethods
     /// <summary>A bus kind: a script.</summary>
     public const byte I2cBusScripted = 2;
 
-    /// <summary>Creates a simulated part answering at one address.</summary>
+    /// <summary>A part kind: registers a byte wide.</summary>
+    public const byte I2cPartBytes = 0;
+
+    /// <summary>A part kind: registers sixteen bits wide.</summary>
+    public const byte I2cPartWords = 1;
+
+    /// <summary>A part kind: commands that leave replies.</summary>
+    public const byte I2cPartCommands = 2;
+
+    /// <summary>Creates a simulated part answering at one address from registers a byte wide.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_i2c_part_new(byte address);
+
+    /// <summary>Creates a simulated part answering at one address from registers sixteen bits wide.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_i2c_word_part_new(byte address);
+
+    /// <summary>Creates a simulated part answering at one address that takes commands.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_i2c_command_part_new(byte address, nuint width);
+
+    /// <summary>Returns which kind of part a handle holds.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_i2c_part_kind(IntPtr part);
+
+    /// <summary>Puts a value in one register of a part whose registers are sixteen bits wide.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_i2c_part_set_word(IntPtr part, byte register, ushort value);
+
+    /// <summary>Marks bits of one sixteen-bit register as the part's to set.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_i2c_part_read_only(IntPtr part, byte register, ushort mask);
+
+    /// <summary>Reads what one register of a part whose registers are sixteen bits wide holds.</summary>
+    [LibraryImport(Library)]
+    public static partial ushort pamoja_i2c_part_word(IntPtr part, byte register);
+
+    /// <summary>Gives a part that takes commands the reply one command leaves.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_i2c_part_answer(
+        IntPtr part,
+        ReadOnlySpan<byte> command,
+        nuint commandLen,
+        ReadOnlySpan<byte> reply,
+        nuint replyLen);
+
+    /// <summary>Returns how many writes a part that takes commands has received.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_i2c_part_received_count(IntPtr part);
+
+    /// <summary>Copies one write a part that takes commands received, or returns null.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_i2c_part_received(IntPtr part, nuint index);
 
     /// <summary>Puts bytes in a part, from a register on.</summary>
     [LibraryImport(Library)]

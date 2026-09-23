@@ -21,7 +21,7 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/hal.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/hal.ts):
 
 ```typescript
-import { I2cBus, I2cStep } from '@pamoja/hal'
+import { I2cBus, I2cPart, I2cStep } from '@pamoja/hal'
 import { Bme280, type Bme280Measurement, bme280 } from '@pamoja/sensors'
 
 const BME280 = bme280.addressPrimary
@@ -42,7 +42,8 @@ async function main() {
   // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
   // the driver wrote, so the configuration reads back off the bus.
   await sensor.init()
-  const part = bus.part(BME280)!
+  const part = bus.part(BME280)
+  if (!(part instanceof I2cPart)) throw new Error('no part with byte-wide registers at the address')
   const humidity = bme280.ctrlHumFromBits(part.register(bme280.register.ctrlHum))
   const ctrl = bme280.ctrlMeasFromBits(part.register(bme280.register.ctrlMeas))
   const asleep = ctrl.mode === bme280.mode.sleep

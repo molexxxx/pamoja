@@ -311,7 +311,7 @@ designation = "CRC-8/MAXIM-DOW"
 body = "RevEng CRC catalogue"
 subject = "The 1-Wire check byte, on every DS18B20 scratchpad and ROM code"
 url = "https://reveng.sourceforge.io/crc-catalogue/1-15.htm#crc.cat.crc-8-maxim-dow"
-evidence = "crates/pamoja-sensors/src/ds18b20.rs#L720"
+evidence = "crates/pamoja-sensors/src/ds18b20.rs#L821"
 anchor = "vector"
 
 
@@ -324,7 +324,7 @@ designation = "Sensirion CRC-8"
 body = "Sensirion"
 subject = "The check byte on every SHT3x and SCD4x word"
 url = "https://sensirion.com/products/catalog/SHT31-DIS-B"
-evidence = "crates/pamoja-sensors/src/sht3x.rs#L739"
+evidence = "crates/pamoja-sensors/src/sht3x.rs#L741"
 anchor = "vector"
 note = "The datasheets' own worked examples, including every CRC in the SCD4x command tables."
 
@@ -335,9 +335,20 @@ designation = "Twelve manufacturer datasheets"
 body = "Bosch, Analog Devices, Texas Instruments, Sensirion, NXP"
 subject = "BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, TMP117 and PCA9685"
 url = "https://pamoja.molex.cloud/docs/hardware.html"
-evidence = "crates/pamoja-sensors/src/bme280.rs#L981"
+evidence = "crates/pamoja-sensors/src/bme280.rs#L983"
 anchor = "vector"
 note = "Each driver asserts its datasheet's own worked compensation example. Every document is linked from the hardware page, part by part."
+
+[[entry]]
+key = "w1-therm"
+chapter = "sensing"
+designation = "w1_therm sysfs interface"
+body = "The Linux kernel"
+subject = "The w1_slave file a Linux board serves for each DS18B20 on its 1-Wire bus"
+url = "https://docs.kernel.org/w1/slaves/w1_therm.html"
+evidence = "crates/pamoja-sensors/src/ds18b20.rs#L954"
+anchor = "rule"
+note = "The text is the one w1_slave_show prints in the kernel's drivers/w1/slaves/w1_therm.c, and its millidegrees are the datasheet's temperature rows."
 
 
 # Radio, mesh and gateways

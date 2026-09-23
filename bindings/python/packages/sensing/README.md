@@ -15,7 +15,7 @@ from pamoja.sensing import sensors
 
 | Capability | Module | What it covers |
 | --- | --- | --- |
-| [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `pamoja.sensors` | Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
+| [Sensor drivers](https://pamoja.molex.cloud/docs/guides/sensors.html) | `pamoja.sensors` | Datasheet-anchored drivers for eleven parts, from every language: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117 |
 | [Actuator drivers](https://pamoja.molex.cloud/docs/guides/actuators.html) | `pamoja.actuators` | PCA9685 PWM and servo pulses, and stepper coil sequencing |
 | [Your own device](https://pamoja.molex.cloud/docs/guides/device.html) | `pamoja.core` | A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in |
 

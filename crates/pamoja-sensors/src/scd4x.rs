@@ -44,6 +44,8 @@ pub const FORCED_RECALIBRATION_FAILED: u16 = 0xffff;
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "alloc")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Scd4x, DATA_READY_POLLS, DATA_READY_POLL_MILLIS};

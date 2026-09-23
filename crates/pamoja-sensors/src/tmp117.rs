@@ -13,6 +13,8 @@
 
 #[cfg(feature = "embedded-hal")]
 mod driver;
+#[cfg(feature = "embedded-hal")]
+pub mod sim;
 
 #[cfg(feature = "embedded-hal")]
 pub use driver::{Tmp117, STATUS_POLLS};
@@ -33,7 +35,7 @@ pub mod register {
     pub const EEPROM1: u8 = 0x05;
     /// EEPROM2 scratch register.
     pub const EEPROM2: u8 = 0x06;
-    /// Temperature offset register, added to the result after linearisation.
+    /// Temperature offset register, added to the result after linearization.
     pub const TEMP_OFFSET: u8 = 0x07;
     /// EEPROM3 scratch register.
     pub const EEPROM3: u8 = 0x08;
