@@ -56,3 +56,8 @@ jobs:
 
       - name: Smoke, conformance, and guide tests
         run: npm test
+
+      # The board programs drive real pins and radios, so they are compiled here against the
+      # packages as built, and run only on a board.
+      - name: Compile the board programs
+        run: npm run boards

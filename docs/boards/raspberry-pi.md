@@ -7,10 +7,14 @@ this page holds for any model with that header, from the
 [Pi 5](../hardware.md#raspberry-pi-5) to the
 [Zero 2 W](../hardware.md#raspberry-pi-zero-2-w).
 
-Three programs build this up, and all three are in the package at
+Four programs build this up: a sensor read, a relay and a switch, a LoRa radio,
+and then a whole node that ties them to a profile and a broker. All four are in the
+Rust package at
 [`examples/boards/raspberry-pi`](https://github.com/molexxxx/pamoja/tree/main/examples/boards/raspberry-pi),
-built in CI on every change: a sensor read, a relay and a switch, and then a
-whole node that ties them to a profile and a broker.
+built in CI on every change. The relay and the radio are also in TypeScript, Python,
+and C#, compiled in CI against the packages each language installs. The sensor read and
+the whole node are Rust alone for now, because those bindings cannot yet open an I2C bus
+on a board.
 
 ## The header
 
@@ -199,6 +203,8 @@ input that reports. Wire the relay board's IN to GPIO17 and its own VCC and GND
 to the header's 5V and ground, and wire a limit switch between GPIO27 and a
 ground pin with `gpio=27=ip,pu` in `config.txt`.
 
+### Rust
+
 <!-- snippet: examples/boards/raspberry-pi/src/bin/relay.rs#example -->
 From [`examples/boards/raspberry-pi/src/bin/relay.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/bin/relay.rs):
 
@@ -261,6 +267,178 @@ fn main() -> Result<(), Box<dyn Error>> {
 cargo run --release --bin relay
 ```
 
+### TypeScript
+
+<!-- snippet: bindings/node/boards/raspberry-pi/relay.ts#example -->
+From [`bindings/node/boards/raspberry-pi/relay.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/boards/raspberry-pi/relay.ts):
+
+```typescript
+import { Contact, GpioLine, PinLevel, Switch } from '@pamoja/gpio'
+import { Debounce } from '@pamoja/kit'
+
+// The GPIO chip the header's lines live on. Every current model exposes them here, and the
+// line numbers below are the BCM numbers the documentation and the kernel both use.
+const CHIP = '/dev/gpiochip0'
+const RELAY_LINE = 17
+const SWITCH_LINE = 27
+
+// Taking the line as an output also says what to drive the moment it is taken. Until then
+// every GPIO is an input, so a relay board sees whatever its own pull gives it; driving the
+// resting level immediately is what keeps a vent from opening at boot. Most relay boards
+// energize on a low input, which is what `activeLow` says once so that nothing below this
+// line has to think about the inversion again.
+const relay = Switch.activeLow(GpioLine.openOutput(CHIP, RELAY_LINE, PinLevel.High))
+
+// The switch is wired to pull the line down when it closes, so it is active low too.
+const limit = Contact.activeLow(GpioLine.openInput(CHIP, SWITCH_LINE))
+
+// A mechanical contact bounces for a few milliseconds as it closes. Sampling every 20 ms and
+// requiring three agreeing samples means the state has to hold for 60 ms before it counts,
+// which is longer than the bounce and shorter than a person.
+const settled = new Debounce(3, false)
+let wasClosed = false
+
+console.log(`watching GPIO${SWITCH_LINE}, driving GPIO${RELAY_LINE}; Ctrl-C to stop`)
+setInterval(() => {
+  const closed = settled.update(limit.isAsserted())
+  if (closed !== wasClosed) {
+    console.log(`the limit switch ${closed ? 'closed' : 'opened'}`)
+    // The relay follows the switch. A real vent would run its motor until the limit closes
+    // and then stop; this is the same two calls either way.
+    relay.set(!closed)
+    wasClosed = closed
+  }
+}, 20)
+```
+<!-- end -->
+
+```sh
+npm --prefix bindings/node run boards
+node bindings/node/build/boards/raspberry-pi/relay.js
+```
+
+### Python
+
+<!-- snippet: bindings/python/boards/raspberry_pi/relay.py#example -->
+From [`bindings/python/boards/raspberry_pi/relay.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/boards/raspberry_pi/relay.py):
+
+```python
+import time
+
+from pamoja.gpio import Contact, GpioLine, Level, Switch
+from pamoja.kit import Debounce
+
+# The GPIO chip the header's lines live on. Every current model exposes them here, and the
+# line numbers below are the BCM numbers the documentation and the kernel both use.
+CHIP = "/dev/gpiochip0"
+RELAY_LINE = 17
+SWITCH_LINE = 27
+
+
+def main() -> None:
+    # Taking the line as an output also says what to drive the moment it is taken. Until
+    # then every GPIO is an input, so a relay board sees whatever its own pull gives it;
+    # driving the resting level immediately is what keeps a vent from opening at boot.
+    # Most relay boards energize on a low input, which is what `active_low` says once so
+    # that nothing below this line has to think about the inversion again.
+    relay = Switch.active_low(GpioLine.open_output(CHIP, RELAY_LINE, Level.HIGH))
+
+    # The switch is wired to pull the line down when it closes, so it is active low too.
+    limit = Contact.active_low(GpioLine.open_input(CHIP, SWITCH_LINE))
+
+    # A mechanical contact bounces for a few milliseconds as it closes. Sampling every
+    # 20 ms and requiring three agreeing samples means the state has to hold for 60 ms
+    # before it counts, which is longer than the bounce and shorter than a person.
+    settled = Debounce(3, False)
+    was_closed = False
+
+    print(f"watching GPIO{SWITCH_LINE}, driving GPIO{RELAY_LINE}; Ctrl-C to stop")
+    while True:
+        closed = settled.update(limit.is_asserted())
+        if closed != was_closed:
+            print(f"the limit switch {'closed' if closed else 'opened'}")
+            # The relay follows the switch. A real vent would run its motor until the
+            # limit closes and then stop; this is the same two calls either way.
+            relay.set(not closed)
+            was_closed = closed
+        time.sleep(0.02)
+```
+<!-- end -->
+
+```sh
+python bindings/python/boards/raspberry_pi/relay.py
+```
+
+### C#
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Relay.cs#example -->
+From [`bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Relay.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Relay.cs):
+
+```csharp
+using Pamoja.Gpio;
+using Pamoja.Kit;
+
+namespace Boards.RaspberryPi;
+
+/// <summary>
+/// A relay board on GPIO17 that follows a limit switch on GPIO27, debounced. Wire the relay
+/// board's IN to GPIO17 and its VCC and GND to the header's 5V and ground, and the switch
+/// between GPIO27 and ground with <c>gpio=27=ip,pu</c> in config.txt.
+/// </summary>
+public static class Relay
+{
+    // The GPIO chip the header's lines live on. Every current model exposes them here, and
+    // the line numbers below are the BCM numbers the documentation and the kernel both use.
+    private const string Chip = "/dev/gpiochip0";
+    private const uint RelayLine = 17;
+    private const uint SwitchLine = 27;
+
+    /// <summary>Runs until the process is stopped.</summary>
+    public static void Run()
+    {
+        // Taking the line as an output also says what to drive the moment it is taken.
+        // Until then every GPIO is an input, so a relay board sees whatever its own pull
+        // gives it; driving the resting level immediately is what keeps a vent from opening
+        // at boot. Most relay boards energize on a low input, which is what `ActiveLow`
+        // says once so that nothing below this line has to think about the inversion again.
+        using GpioLine relayLine = GpioLine.OpenOutput(Chip, RelayLine, PinLevel.High);
+        var relay = Switch.ActiveLow(relayLine);
+
+        // The switch is wired to pull the line down when it closes, so it is active low too.
+        using GpioLine switchLine = GpioLine.OpenInput(Chip, SwitchLine);
+        var limit = Contact.ActiveLow(switchLine);
+
+        // A mechanical contact bounces for a few milliseconds as it closes. Sampling every
+        // 20 ms and requiring three agreeing samples means the state has to hold for 60 ms
+        // before it counts, which is longer than the bounce and shorter than a person.
+        using var settled = new Debounce(3, false);
+        bool wasClosed = false;
+
+        Console.WriteLine($"watching GPIO{SwitchLine}, driving GPIO{RelayLine}; Ctrl-C to stop");
+        while (true)
+        {
+            bool closed = settled.Update(limit.IsAsserted());
+            if (closed != wasClosed)
+            {
+                Console.WriteLine($"the limit switch {(closed ? "closed" : "opened")}");
+
+                // The relay follows the switch. A real vent would run its motor until the
+                // limit closes and then stop; this is the same two calls either way.
+                relay.Set(!closed);
+                wasClosed = closed;
+            }
+
+            Thread.Sleep(20);
+        }
+    }
+}
+```
+<!-- end -->
+
+```sh
+dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/relay
+```
+
 Three things in it are the whole lesson. The polarity is stated once, at the
 top, so no line below it inverts anything by hand; a relay board that energizes
 on a high input is a one-word change. The initial level is passed when the line
@@ -286,6 +464,8 @@ power back into the amplifier.
 
 `dtparam=spi=on` makes CS the kernel's own chip select on `/dev/spidev0.0`, and
 the reset line is an ordinary GPIO the driver pulses.
+
+### Rust
 
 <!-- snippet: examples/boards/raspberry-pi/src/bin/radio.rs#example -->
 From [`examples/boards/raspberry-pi/src/bin/radio.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/bin/radio.rs):
@@ -386,6 +566,272 @@ fn decibels(value: Decibels) -> f64 {
 cargo run --release --bin radio
 ```
 
+### TypeScript
+
+<!-- snippet: bindings/node/boards/raspberry-pi/radio.ts#example -->
+From [`bindings/node/boards/raspberry-pi/radio.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/boards/raspberry-pi/radio.ts):
+
+```typescript
+import { LoraRegion, linkBudget, maxTransmitPowerDbm, planFor } from '@pamoja/lora'
+import { DutyCycle, LoraRadio, ReceptionOutcome, sx127x } from '@pamoja/radios'
+
+// The header's first SPI chip select, the GPIO chip its lines are on, and the line the
+// breakout's reset pin is wired to.
+const SPI = '/dev/spidev0.0'
+const CHIP = '/dev/gpiochip0'
+const RESET_LINE = 25
+
+// The channel this node uses, the data rate it sends at, and how long it listens between
+// beacons.
+const FREQUENCY_HZ = 868_100_000
+const DATA_RATE = 3
+const LISTEN_US = 10_000_000
+
+async function main(): Promise<void> {
+  // The regional plan decides the channel's power ceiling and its duty cycle, so no limit
+  // below is a number anyone has to remember.
+  const plan = planFor(LoraRegion.Eu868)
+  const link = plan.linkSettings(DATA_RATE)!
+  const ceilingDbm = plan.maxEirpDbm(FREQUENCY_HZ)
+  const permille = plan.dutyCyclePermille(FREQUENCY_HZ)!
+
+  // A 2.15 dBi whip on half a decibel of pigtail. The antenna's gain counts against the
+  // ceiling and the pigtail's loss counts for it, so the amplifier takes what is left.
+  const whip = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+  const outputDbm = Math.floor(maxTransmitPowerDbm(whip, ceilingDbm))
+
+  // Opening resets the chip and reads its version back, so a wiring mistake is caught here
+  // rather than on the first frame.
+  const radio = LoraRadio.openSx127x(
+    { spi: SPI, gpioChip: CHIP, resetLine: RESET_LINE },
+    { output: sx127x.PaOutput.PaBoost },
+  )
+  await radio.configure({ frequencyHz: FREQUENCY_HZ, link, outputDbm })
+  console.log(
+    `beacon on ${FREQUENCY_HZ} Hz at DR${DATA_RATE}, ${outputDbm} dBm under a ${ceilingDbm} dBm ceiling`,
+  )
+
+  // The duty cycle is the radio's other budget: each frame buys silence in proportion to its
+  // airtime, and the guard says when the next one may go out.
+  const duty = new DutyCycle(permille)
+  const started = process.hrtime.bigint()
+  const nowUs = (): number => Number((process.hrtime.bigint() - started) / 1000n)
+  let reading = 0
+
+  for (;;) {
+    // Listening returns as soon as a frame arrives, and a frame comes with the levels it was
+    // heard at: how strong it was, and how far above the noise.
+    const heard = await radio.receive(LISTEN_US)
+    if (heard.outcome === ReceptionOutcome.Frame) {
+      console.log(
+        `heard  ${heard.payload?.toString()} at ${heard.rssiDbm?.toFixed(0)} dBm, SNR ${heard.snrDb?.toFixed(1)} dB`,
+      )
+    } else if (heard.outcome === ReceptionOutcome.Corrupt) {
+      console.log('heard  a frame whose CRC failed')
+    }
+
+    const now = nowUs()
+    if (duty.ready(now)) {
+      const frame = `pi reading ${reading}`
+      const airtimeUs = await radio.transmit(Buffer.from(frame))
+      duty.transmitted(now, link, frame.length)
+      console.log(`sent   ${frame} in ${airtimeUs} us on air`)
+      reading += 1
+    }
+  }
+}
+
+main().catch((error: Error) => {
+  console.error(error.message)
+  process.exitCode = 1
+})
+```
+<!-- end -->
+
+```sh
+npm --prefix bindings/node run boards
+node bindings/node/build/boards/raspberry-pi/radio.js
+```
+
+### Python
+
+<!-- snippet: bindings/python/boards/raspberry_pi/radio.py#example -->
+From [`bindings/python/boards/raspberry_pi/radio.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/boards/raspberry_pi/radio.py):
+
+```python
+import math
+import time
+
+from pamoja.lora import LinkBudget, plan_for
+from pamoja.radios import DutyCycle, LoraRadio, sx127x
+
+# The header's first SPI chip select, the GPIO chip its lines are on, and the line the
+# breakout's reset pin is wired to.
+SPI = "/dev/spidev0.0"
+CHIP = "/dev/gpiochip0"
+RESET_LINE = 25
+
+# The channel this node uses, the data rate it sends at, and how long it listens between
+# beacons.
+FREQUENCY_HZ = 868_100_000
+DATA_RATE = 3
+LISTEN_US = 10_000_000
+
+
+def main() -> None:
+    # The regional plan decides the channel's power ceiling and its duty cycle, so no limit
+    # below is a number anyone has to remember.
+    plan = plan_for("EU868")
+    link = plan.link_settings(DATA_RATE)
+    ceiling_dbm = plan.max_eirp_dbm(FREQUENCY_HZ)
+    permille = plan.duty_cycle_permille(FREQUENCY_HZ)
+
+    # A 2.15 dBi whip on half a decibel of pigtail. The antenna's gain counts against the
+    # ceiling and the pigtail's loss counts for it, so the amplifier takes what is left.
+    whip = LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
+    output_dbm = math.floor(whip.max_transmit_power_dbm(ceiling_dbm))
+
+    # Opening resets the chip and reads its version back, so a wiring mistake is caught
+    # here rather than on the first frame.
+    radio = LoraRadio.open_sx127x(SPI, CHIP, RESET_LINE, sx127x.PaOutput.PA_BOOST)
+    with radio:
+        radio.configure(FREQUENCY_HZ, link, output_dbm)
+        print(
+            f"beacon on {FREQUENCY_HZ} Hz at DR{DATA_RATE}, "
+            f"{output_dbm} dBm under a {ceiling_dbm} dBm ceiling"
+        )
+
+        # The duty cycle is the radio's other budget: each frame buys silence in proportion
+        # to its airtime, and the guard says when the next one may go out.
+        duty = DutyCycle(permille)
+        started = time.monotonic_ns()
+        reading = 0
+
+        while True:
+            # Listening returns as soon as a frame arrives, and a frame comes with the
+            # levels it was heard at: how strong it was, and how far above the noise.
+            heard = radio.receive(LISTEN_US)
+            if heard.outcome == "Frame":
+                print(
+                    f"heard  {heard.payload.decode(errors='replace')} at "
+                    f"{heard.rssi_dbm:.0f} dBm, SNR {heard.snr_db:.1f} dB"
+                )
+            elif heard.outcome == "Corrupt":
+                print("heard  a frame whose CRC failed")
+
+            now_us = (time.monotonic_ns() - started) // 1000
+            if duty.ready(now_us):
+                frame = f"pi reading {reading}"
+                airtime_us = radio.transmit(frame.encode())
+                duty.transmitted(now_us, link, len(frame))
+                print(f"sent   {frame} in {airtime_us} us on air")
+                reading += 1
+```
+<!-- end -->
+
+```sh
+python bindings/python/boards/raspberry_pi/radio.py
+```
+
+### C#
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Radio.cs#example -->
+From [`bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Radio.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Radio.cs):
+
+```csharp
+using System.Diagnostics;
+using System.Text;
+
+using Pamoja.Lora;
+using Pamoja.Radios;
+
+namespace Boards.RaspberryPi;
+
+/// <summary>
+/// A LoRa radio on the header: an RFM95W breakout on SPI0, beaconing a reading and printing
+/// every frame it hears in between. Wire the breakout's VIN to a 3V3 pin, GND to ground,
+/// SCK to GPIO11, MISO to GPIO9, MOSI to GPIO10, CS to GPIO8 (CE0), and RST to GPIO25, and
+/// screw on an antenna for the band before powering it. Two boards running it hear each
+/// other.
+/// </summary>
+public static class Radio
+{
+    // The header's first SPI chip select, the GPIO chip its lines are on, and the line the
+    // breakout's reset pin is wired to.
+    private const string Spi = "/dev/spidev0.0";
+    private const string Chip = "/dev/gpiochip0";
+    private const uint ResetLine = 25;
+
+    // The channel this node uses, the data rate it sends at, and how long it listens
+    // between beacons.
+    private const uint FrequencyHz = 868_100_000;
+    private const byte DataRate = 3;
+    private static readonly TimeSpan Listen = TimeSpan.FromSeconds(10);
+
+    /// <summary>Runs until the process is stopped.</summary>
+    public static void Run()
+    {
+        // The regional plan decides the channel's power ceiling and its duty cycle, so no
+        // limit below is a number anyone has to remember.
+        using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+        LoraLink link = plan.LinkSettings(DataRate)!;
+        sbyte ceilingDbm = plan.MaxEirpDbm(FrequencyHz);
+        uint permille = plan.DutyCyclePermille(FrequencyHz)!.Value;
+
+        // A 2.15 dBi whip on half a decibel of pigtail. The antenna's gain counts against
+        // the ceiling and the pigtail's loss counts for it, so the amplifier takes what is
+        // left.
+        var whip = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
+        sbyte outputDbm = (sbyte)Math.Floor(whip.MaxTransmitPowerDbm(ceilingDbm));
+
+        // Opening resets the chip and reads its version back, so a wiring mistake is caught
+        // here rather than on the first frame.
+        using LoraRadio radio = LoraRadio.OpenSx127x(
+            new LoraRadioWiring(Spi, Chip, ResetLine), new Sx127xBoard(Sx127xPaOutput.PaBoost));
+        radio.Configure(new LoraRadioConfig(FrequencyHz, link, outputDbm));
+        Console.WriteLine(
+            $"beacon on {FrequencyHz} Hz at DR{DataRate}, {outputDbm} dBm under a {ceilingDbm} dBm ceiling");
+
+        // The duty cycle is the radio's other budget: each frame buys silence in proportion
+        // to its airtime, and the guard says when the next one may go out.
+        using var duty = new RadioDutyCycle(permille);
+        var clock = Stopwatch.StartNew();
+        int reading = 0;
+
+        while (true)
+        {
+            // Listening returns as soon as a frame arrives, and a frame comes with the
+            // levels it was heard at: how strong it was, and how far above the noise.
+            LoraReception heard = radio.Receive(Listen);
+            if (heard.Outcome == LoraReceptionOutcome.Frame)
+            {
+                Console.WriteLine(
+                    $"heard  {Encoding.UTF8.GetString(heard.Payload!)} at {heard.RssiDbm:F0} dBm, SNR {heard.SnrDb:F1} dB");
+            }
+            else if (heard.Outcome == LoraReceptionOutcome.Corrupt)
+            {
+                Console.WriteLine("heard  a frame whose CRC failed");
+            }
+
+            ulong nowUs = (ulong)(clock.Elapsed.Ticks / (TimeSpan.TicksPerMillisecond / 1000));
+            if (duty.Ready(nowUs))
+            {
+                string frame = $"pi reading {reading}";
+                ulong airtimeUs = radio.Transmit(Encoding.UTF8.GetBytes(frame));
+                duty.Transmitted(nowUs, link, frame.Length);
+                Console.WriteLine($"sent   {frame} in {airtimeUs} us on air");
+                reading++;
+            }
+        }
+    }
+}
+```
+<!-- end -->
+
+```sh
+dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/radio
+```
+
 Four things in it are the whole lesson. The regional plan decides the channel's
 power ceiling and its duty cycle, so the program names neither. The link budget
 takes the antenna's gain off that ceiling and adds the pigtail's loss back, which
@@ -397,8 +843,7 @@ the duty-cycle guard hands back as the earliest time the next may go out.
 Two Pis running this hear each other, and each prints the other's frames with the
 RSSI and SNR it heard them at. That pair is the field test the
 [radio page](../radio.md) describes, and the
-[radio guide](../guides/radios.md) opens the same radio from TypeScript, Python,
-and C#.
+[radio guide](../guides/radios.md) walks through every setting it uses.
 
 ## The whole node
 

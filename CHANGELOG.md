@@ -9,6 +9,12 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The Raspberry Pi page's relay and LoRa radio programs in TypeScript, Python, and C#,
+  beside Rust, each with its own run command. They are compiled in CI against the
+  packages each language installs: a `boards` script in Node, a test that loads every
+  Python board program, and a `Pamoja.Boards` project in the .NET solution. The ESP32,
+  RP2040, gateway, and walkthrough pages now say which languages run where and why: a
+  microcontroller runs Rust alone, and the gateway runs as its daemon from any language.
 - A GPIO line opened on a Linux board, in every language: `pamoja_gpio::linux::output`
   and `input` in Rust (the `linux` feature), `pamoja_gpio_line_open_output` and its
   companions in the C ABI, and `GpioLine` in TypeScript, Python, and C#. It opens through

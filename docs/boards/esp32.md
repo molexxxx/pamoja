@@ -14,6 +14,12 @@ stock Rust toolchain targets on its stable channel. This page works through
 the ESP32-C3, the RISC-V part most breakout boards carry, and its two programs
 are the ones built in CI.
 
+The programs here are Rust, and that is the chip rather than a gap. TypeScript,
+Python, and C# run on a host with an operating system, which a microcontroller
+does not have. From those languages an ESP32 node is reached over the link it
+speaks, MQTT or LoRaWAN, and a part wired to a Linux board is driven directly, as
+the [Raspberry Pi page](raspberry-pi.md) shows in all four.
+
 ## The ESP32-C3
 
 From the chip's datasheet: a 32-bit RISC-V single-core processor at up to 160
