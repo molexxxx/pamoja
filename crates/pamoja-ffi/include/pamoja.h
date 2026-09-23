@@ -1,4 +1,8 @@
-/* pamoja C ABI. */
+/* pamoja C ABI.
+ *
+ * An enum the caller passes in, as an argument or as a field of a struct, must hold one of
+ * the values the enum declares. The library reads it as one of those values, and any other
+ * value is undefined behavior. */
 
 #pragma once
 

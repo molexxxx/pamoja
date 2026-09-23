@@ -81,21 +81,24 @@ public sealed class Reporter : IDisposable
     /// <summary>Creates a reporter that ships events at or above a level.</summary>
     /// <param name="threshold">The lowest level to ship.</param>
     /// <exception cref="PamojaException">The native reporter could not be created.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="threshold"/> is not one of the <see cref="TelemetryLevel"/> values.</exception>
     public Reporter(TelemetryLevel threshold = TelemetryLevel.Info)
     {
         _handle = NativeHandle.Create(
-            NativeMethods.pamoja_reporter_new((PamojaTelemetryLevel)threshold),
+            NativeMethods.pamoja_reporter_new((PamojaTelemetryLevel)NamedValue.Require(threshold, nameof(threshold))),
             NativeMethods.pamoja_reporter_free,
             "reporter");
     }
 
     /// <summary>Gets or sets the level this reporter is shipping from.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value set is not one of the <see cref="TelemetryLevel"/> values.</exception>
     public TelemetryLevel Threshold
     {
         get => (TelemetryLevel)_handle.Use(NativeMethods.pamoja_reporter_threshold);
         set => _handle.Use(handle =>
         {
-            NativeMethods.pamoja_reporter_set_threshold(handle, (PamojaTelemetryLevel)value);
+            NativeMethods.pamoja_reporter_set_threshold(
+                handle, (PamojaTelemetryLevel)NamedValue.Require(value, nameof(value)));
             return 0;
         });
     }
@@ -112,14 +115,17 @@ public sealed class Reporter : IDisposable
     /// <summary>Returns the level a link cost calls for.</summary>
     /// <param name="cost">What the link currently costs.</param>
     /// <returns>The lowest level still worth its bytes at that cost.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is not one of the <see cref="LinkCost"/> values.</exception>
     public static TelemetryLevel ThresholdFor(LinkCost cost) =>
-        (TelemetryLevel)NativeMethods.pamoja_link_cost_threshold((PamojaLinkCost)cost);
+        (TelemetryLevel)NativeMethods.pamoja_link_cost_threshold(
+            (PamojaLinkCost)NamedValue.Require(cost, nameof(cost)));
 
     /// <summary>Moves the threshold to match what the link now costs.</summary>
     /// <param name="cost">What the link currently costs.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cost"/> is not one of the <see cref="LinkCost"/> values.</exception>
     public void AdaptTo(LinkCost cost) => _handle.Use(handle =>
     {
-        NativeMethods.pamoja_reporter_adapt_to(handle, (PamojaLinkCost)cost);
+        NativeMethods.pamoja_reporter_adapt_to(handle, (PamojaLinkCost)NamedValue.Require(cost, nameof(cost)));
         return 0;
     });
 
@@ -133,18 +139,21 @@ public sealed class Reporter : IDisposable
     /// The same event when it passed the threshold, or <c>null</c> when it was
     /// counted and dropped.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">The event's level is not one of the <see cref="TelemetryLevel"/> values.</exception>
     public TelemetryEvent? Record(TelemetryEvent telemetryEvent)
     {
         bool shipped = _handle.Use(handle => NativeMethods.pamoja_reporter_record(
-            handle, (PamojaTelemetryLevel)telemetryEvent.Level));
+            handle, (PamojaTelemetryLevel)NamedValue.Require(telemetryEvent.Level, nameof(telemetryEvent))));
         return shipped ? telemetryEvent : null;
     }
 
     /// <summary>Returns how many events have been seen at a level, shipped or not.</summary>
     /// <param name="level">The level to count.</param>
     /// <returns>The number of events recorded at that level.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is not one of the <see cref="TelemetryLevel"/> values.</exception>
     public uint Count(TelemetryLevel level) => _handle.Use(handle =>
-        NativeMethods.pamoja_reporter_count(handle, (PamojaTelemetryLevel)level));
+        NativeMethods.pamoja_reporter_count(
+            handle, (PamojaTelemetryLevel)NamedValue.Require(level, nameof(level))));
 
     /// <summary>Takes a snapshot of the counters to ship in place of the stream.</summary>
     /// <returns>The per-level counts and the shipped and dropped totals.</returns>

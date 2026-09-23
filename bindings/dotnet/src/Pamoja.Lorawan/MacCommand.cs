@@ -245,11 +245,12 @@ public sealed class LorawanMacCommand
     /// <param name="bytes">The options field, or a payload sent on port 0.</param>
     /// <returns>The commands that were readable, in order.</returns>
     /// <exception cref="PamojaException">If the field cannot be read at all.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="direction"/> is not one of the <see cref="LorawanDirection"/> values.</exception>
     public static IReadOnlyList<LorawanMacCommand> Parse(
         LorawanDirection direction,
         ReadOnlySpan<byte> bytes)
     {
-        var native = (PamojaLorawanDirection)direction;
+        var native = (PamojaLorawanDirection)NamedValue.Require(direction, nameof(direction));
         Status.ThrowIfError(NativeMethods.pamoja_lorawan_mac_count(
             native,
             bytes,
@@ -368,10 +369,11 @@ public sealed class LorawanMacCommand
 
     /// <summary>Renders this command as the record the C ABI takes.</summary>
     /// <returns>The record.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><see cref="Direction"/> is not one of the <see cref="LorawanDirection"/> values.</exception>
     public PamojaLorawanMacCommand ToNative() => new()
     {
         Cid = Cid,
-        Direction = (PamojaLorawanDirection)Direction,
+        Direction = (PamojaLorawanDirection)NamedValue.Require(Direction, nameof(Direction)),
         Margin = Margin,
         Gateways = Gateways,
         DataRate = DataRate,

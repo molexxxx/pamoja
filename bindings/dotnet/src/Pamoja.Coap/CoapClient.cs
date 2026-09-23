@@ -59,7 +59,7 @@ public sealed class CoapClientOptions
                 Host = host,
                 Port = Port,
                 Bind = bind,
-                Reliability = (PamojaCoapReliability)Reliability,
+                Reliability = (PamojaCoapReliability)NamedValue.Require(Reliability, nameof(Reliability)),
                 AckTimeoutMs = AckTimeoutMs,
                 MaxRetransmits = MaxRetransmits,
             };
@@ -98,6 +98,7 @@ public sealed class CoapClient : IDisposable
     /// <summary>Creates a disconnected endpoint from the given settings.</summary>
     /// <param name="options">The endpoint settings.</param>
     /// <exception cref="PamojaException">The native endpoint could not be created.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The reliability is not one of the <see cref="Reliability"/> values.</exception>
     public CoapClient(CoapClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

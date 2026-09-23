@@ -21,6 +21,14 @@ its P/Invoke contract (`Pamoja.Native.Interop.NativeMethods`, mirroring the
 generated C header one-to-one), which stays available for anything the facades
 do not cover.
 
+Every package checks an argument before the engine reads it. A key, an
+identifier, or a signature must be its exact width, or the call throws
+`ArgumentException`. An enum argument must be one of its type's named values, or
+the call throws `ArgumentOutOfRangeException`: a C# enum can hold any number, such
+as `(PowerMode)7`, but the engine reads only the values it declares. Code that
+calls `NativeMethods` directly makes the same checks with `FixedWidth.Require` and
+`NamedValue.Require`.
+
 ## By domain
 
 Six of the chapters hold more than one capability, and each is a package of its

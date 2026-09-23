@@ -97,6 +97,7 @@ public sealed class Session : IDisposable
     /// </param>
     /// <param name="role">Whether this device opens the session or answers.</param>
     /// <exception cref="ArgumentException"><paramref name="peerPublicKey"/> is not 32 bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="role"/> is not one of the <see cref="SessionRole"/> values.</exception>
     /// <exception cref="PamojaException">The native session could not be created.</exception>
     public Session(
         AgreementKey local,
@@ -115,7 +116,7 @@ public sealed class Session : IDisposable
                 peer,
                 saltBytes,
                 (nuint)saltBytes.Length,
-                (PamojaSessionRole)role)),
+                (PamojaSessionRole)NamedValue.Require(role, nameof(role)))),
             NativeMethods.pamoja_session_free,
             "session");
     }

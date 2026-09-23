@@ -123,8 +123,10 @@ public readonly record struct PowerPlan(
     /// <summary>Returns the work interval for a mode, in microseconds.</summary>
     /// <param name="mode">The mode to look up.</param>
     /// <returns>The interval in microseconds.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is not one of the <see cref="PowerMode"/> values.</exception>
     public ulong IntervalForUs(PowerMode mode) =>
-        NativeMethods.pamoja_power_plan_interval_for_us(Native, (PamojaPowerMode)mode);
+        NativeMethods.pamoja_power_plan_interval_for_us(
+            Native, (PamojaPowerMode)NamedValue.Require(mode, nameof(mode)));
 
     /// <summary>Returns the work interval at a state of charge, in microseconds.</summary>
     /// <param name="soc">The battery state of charge, from 0 through 1.</param>

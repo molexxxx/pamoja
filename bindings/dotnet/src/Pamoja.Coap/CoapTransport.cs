@@ -12,6 +12,7 @@ public static class CoapTransport
     /// <summary>Creates a transport that reaches a peer over CoAP.</summary>
     /// <param name="options">The endpoint settings.</param>
     /// <returns>The transport, ready to add as a rung.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The reliability is not one of the <see cref="Reliability"/> values.</exception>
     public static Transport Open(CoapClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

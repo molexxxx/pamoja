@@ -1080,6 +1080,12 @@ released together, so one entry covers all of them.
   `new Session`, `new AuditVerifier`, `Audit.VerifyChain`, `Update.VerifyEnvelope`,
   `Update.OpenDelegation`, `GatewayNetwork.Register`, and `LorawanRelayNode.Trust`. Each
   throws `ArgumentException` now, as the other bindings already did.
+- C# passed an enum value its type does not name, such as `(PowerMode)7`, straight to the
+  engine, which reads an enum as one of the values it declares, so the call was undefined
+  behavior. Every call that takes one throws `ArgumentOutOfRangeException` now: in power,
+  telemetry, GPIO, stepper, ROS 2, session, LoRaWAN MAC command, CoAP, and MQTT. The C
+  header says the same of any enum a caller passes in, and `NamedValue.Require` in
+  `Pamoja.Native.Interop` makes the check for code that calls `NativeMethods` directly.
 - Many C# objects read their native pointer without holding it open, so a finalizer running
   during a call, or a `Dispose` on another thread, could free the native object while the call
   still used it: `LoraChannelPlan`, `GatewayNetwork`, every MAVLink class, and the end device

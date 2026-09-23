@@ -53,17 +53,20 @@ public static class Ros2
     /// <summary>Returns the DDS topic prefix a subsystem uses.</summary>
     /// <param name="kind">The subsystem.</param>
     /// <returns><c>rt</c>, <c>rq</c>, or <c>rr</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not one of the <see cref="EntityKind"/> values.</exception>
     public static string PrefixFor(EntityKind kind) =>
         System.Runtime.InteropServices.Marshal.PtrToStringUTF8(
-            NativeMethods.pamoja_ros2_entity_kind_prefix((PamojaEntityKind)kind)) ?? string.Empty;
+            NativeMethods.pamoja_ros2_entity_kind_prefix(
+                (PamojaEntityKind)NamedValue.Require(kind, nameof(kind)))) ?? string.Empty;
 
     /// <summary>Returns the DDS topic a fully qualified name maps onto.</summary>
     /// <param name="fqn">The fully qualified name.</param>
     /// <param name="kind">Which subsystem the name belongs to.</param>
     /// <returns>The DDS topic, or <c>null</c> if the name is not fully qualified.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not one of the <see cref="EntityKind"/> values.</exception>
     public static string? DdsTopic(string fqn, EntityKind kind) =>
         OwnedString.ReadOrNull(
-            NativeMethods.pamoja_ros2_dds_topic(fqn, (PamojaEntityKind)kind));
+            NativeMethods.pamoja_ros2_dds_topic(fqn, (PamojaEntityKind)NamedValue.Require(kind, nameof(kind))));
 
     /// <summary>Percent-mangles a name the way a DDS partition requires.</summary>
     /// <param name="name">The name to mangle.</param>
