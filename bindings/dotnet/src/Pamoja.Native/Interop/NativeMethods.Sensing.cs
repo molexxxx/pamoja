@@ -14,7 +14,7 @@ namespace Pamoja.Native.Interop;
 /// </remarks>
 public static partial class NativeMethods
 {
-    /// <summary>The number of readings a windowed helper keeps.</summary>
+    /// <summary>The most readings a windowed helper keeps, and the number it keeps unless told fewer.</summary>
     public const int WindowCapacity = 32;
 
     /// <summary>The BME280 temperature and pressure calibration block length.</summary>
@@ -417,6 +417,10 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_window_new();
 
+    /// <summary>Creates an empty rolling window keeping up to a capacity, or null for one out of range.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_window_with_capacity(nuint capacity);
+
     /// <summary>Adds a reading to a window, dropping the oldest once full.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_window_push(IntPtr window, float reading);
@@ -428,6 +432,21 @@ public static partial class NativeMethods
     /// <summary>Returns how many readings a window holds before dropping.</summary>
     [LibraryImport(Library)]
     public static partial nuint pamoja_window_capacity(IntPtr window);
+
+    /// <summary>Reports whether a window holds as many readings as it keeps.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_window_is_full(IntPtr window);
+
+    /// <summary>Reads the most recent reading in a window, if it has any.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_window_latest(IntPtr window, out float outValue);
+
+    /// <summary>Reads the oldest reading a window still holds, if it has any.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_window_oldest(IntPtr window, out float outValue);
 
     /// <summary>Reads the mean of a window's readings, if it has any.</summary>
     [LibraryImport(Library)]
@@ -449,7 +468,7 @@ public static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_window_range(IntPtr window, out float outValue);
 
-    /// <summary>Reads the variance of a window's readings, if it has enough.</summary>
+    /// <summary>Reads the population variance of a window's readings, if it has any.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_window_variance(IntPtr window, out float outValue);
@@ -461,6 +480,14 @@ public static partial class NativeMethods
     /// <summary>Creates an empty median filter.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_median_new();
+
+    /// <summary>Creates an empty median filter keeping up to a capacity, or null for one out of range.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_median_with_capacity(nuint capacity);
+
+    /// <summary>Returns how many readings a median filter keeps.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_median_capacity(IntPtr median);
 
     /// <summary>Folds a reading in and returns the median of the window.</summary>
     [LibraryImport(Library)]
@@ -479,6 +506,14 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_trend_new();
 
+    /// <summary>Creates an empty trend estimator keeping up to a capacity, or null for one out of range.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_trend_with_capacity(nuint capacity);
+
+    /// <summary>Returns how many readings a trend estimator keeps.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_trend_capacity(IntPtr trend);
+
     /// <summary>Adds a reading to a trend estimator.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_trend_push(IntPtr trend, float reading);
@@ -495,6 +530,14 @@ public static partial class NativeMethods
     /// <summary>Creates an anomaly detector at a deviation threshold.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_anomaly_new(float sigmas);
+
+    /// <summary>Creates an anomaly detector whose baseline keeps up to a capacity, or null for one out of range.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_anomaly_with_capacity(float sigmas, nuint capacity);
+
+    /// <summary>Returns how many readings an anomaly detector's baseline keeps.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_anomaly_capacity(IntPtr anomaly);
 
     /// <summary>Folds a reading in and reports whether it stands out.</summary>
     [LibraryImport(Library)]

@@ -1,10 +1,12 @@
 //! Generated Python bindings for the goal-named helper math.
 //!
-//! These mirror the `pamoja-kit` Rust API one-to-one. The helpers are synchronous
-//! pure math, so every method here returns its value directly; the ones that
-//! answer "maybe" return `None` rather than raising, because having no answer yet
-//! is an ordinary state and not a failure.
+//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are
+//! Rust only. The helpers are synchronous pure math, so every method here returns its value
+//! directly; the ones that answer "maybe" return `None` rather than raising, because having
+//! no answer yet is an ordinary state and not a failure. A reading that is not a finite
+//! number is ignored by every helper that keeps state, as the Rust crate documents.
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
@@ -72,13 +74,20 @@ pub struct Pid {
 #[pymethods]
 impl Pid {
     /// Creates a controller with the given gains, optionally clamping its output.
+    ///
+    /// Either limit may be given alone; the side left out is open.
     #[new]
     #[pyo3(signature = (kp, ki, kd, *, min=None, max=None))]
     fn new(kp: f32, ki: f32, kd: f32, min: Option<f32>, max: Option<f32>) -> Self {
-        let mut inner = CorePid::new(kp, ki, kd);
-        if let (Some(min), Some(max)) = (min, max) {
-            inner = inner.with_limits(min, max);
-        }
+        let inner = CorePid::new(kp, ki, kd);
+        let inner = if min.is_some() || max.is_some() {
+            inner.with_limits(
+                min.unwrap_or(f32::NEG_INFINITY),
+                max.unwrap_or(f32::INFINITY),
+            )
+        } else {
+            inner
+        };
         Self { inner }
     }
 
@@ -87,7 +96,7 @@ impl Pid {
         self.inner.update(setpoint, measurement, dt)
     }
 
-    /// Clears the accumulated integral and last error.
+    /// Clears the accumulated integral, the last error, and the last output.
     fn reset(&mut self) {
         self.inner.reset();
     }
@@ -124,7 +133,7 @@ impl Thermostat {
         self.inner.update(reading)
     }
 
-    /// Whether the load should currently be on.
+    /// Whether the load is on, as the last reading left it.
     #[getter]
     fn is_on(&self) -> bool {
         self.inner.is_on()
@@ -135,8 +144,8 @@ impl Thermostat {
 /// the release band.
 ///
 /// `update` answers `"set"` the moment the reading crosses the line, `"cleared"` the
-/// moment it comes back past the band, and `None` while nothing changed; the facade's
-/// `Edge` enum names the two.
+/// moment it comes back past the band, and `None` while nothing changed; the facade
+/// wraps the two in its `Edge` enum.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Trigger {
@@ -165,13 +174,10 @@ impl Trigger {
     }
 
     /// Feeds a reading in and returns the edge it caused, or `None` while nothing changed.
-    fn update(&mut self, reading: f32) -> Option<String> {
-        self.inner.update(reading).map(|edge| {
-            match edge {
-                Edge::Set => "set",
-                Edge::Cleared => "cleared",
-            }
-            .to_owned()
+    fn update(&mut self, reading: f32) -> Option<&'static str> {
+        self.inner.update(reading).map(|edge| match edge {
+            Edge::Set => "set",
+            Edge::Cleared => "cleared",
         })
     }
 
@@ -191,6 +197,12 @@ impl Trigger {
     #[getter]
     fn hysteresis(&self) -> f32 {
         self.inner.hysteresis()
+    }
+
+    /// Whether the trigger watches a rising reading, as `above` makes it.
+    #[getter]
+    fn watches_above(&self) -> bool {
+        self.inner.watches_above()
     }
 }
 
@@ -214,8 +226,9 @@ impl Depletion {
 
     /// Records a level and returns the samples left before the threshold.
     ///
-    /// Returns `None` while the level is steady or rising, and on the first
-    /// reading, when no rate of fall is known yet.
+    /// Returns 0 once the level is at or below the threshold, the first reading included,
+    /// and `None` while the level is steady or rising, or on a first reading above it,
+    /// when no rate of fall is known yet.
     fn update(&mut self, level: f32) -> Option<u32> {
         self.inner.update(level)
     }
@@ -263,11 +276,18 @@ pub struct Debounce {
 #[pymethods]
 impl Debounce {
     /// Creates a debouncer needing `samples` agreeing readings to change state.
+    ///
+    /// `samples` is a whole number from 0 to 65535; anything else raises `ValueError`.
     #[new]
-    fn new(samples: u16, initial: bool) -> Self {
-        Self {
+    fn new(samples: i64, initial: bool) -> PyResult<Self> {
+        let samples = u16::try_from(samples).map_err(|_| {
+            PyValueError::new_err(format!(
+                "samples must be a whole number from 0 to 65535, not {samples}"
+            ))
+        })?;
+        Ok(Self {
             inner: CoreDebounce::new(samples, initial),
-        }
+        })
     }
 
     /// Feeds a raw reading in and returns the settled state.
@@ -327,7 +347,7 @@ pub struct Surge {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Surge {
-    /// Creates a detector for rises of at least `limit` between readings.
+    /// Creates a detector for rises of more than `limit` between readings.
     #[staticmethod]
     fn rising(limit: f32) -> Self {
         Self {
@@ -335,7 +355,7 @@ impl Surge {
         }
     }
 
-    /// Creates a detector for falls of at least `limit` between readings.
+    /// Creates a detector for falls of more than `limit` between readings.
     #[staticmethod]
     fn falling(limit: f32) -> Self {
         Self {
@@ -343,7 +363,7 @@ impl Surge {
         }
     }
 
-    /// Feeds a value in and returns the size of a qualifying step, or `None`.
+    /// Feeds a value in and returns the size of a step past the limit, or `None`.
     fn update(&mut self, value: f32) -> Option<f32> {
         self.inner.update(value)
     }
@@ -438,21 +458,36 @@ pub fn bearing_between(
         .bearing_to(Coordinate::new(to_latitude, to_longitude))
 }
 
-/// Suppresses movement within `width` of `center`, so noise does not act.
+/// Holds `value` at `center` while it stays within `width` either side, and passes it
+/// through unchanged once it is further out.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn deadband(value: f32, center: f32, width: f32) -> f32 {
     core_deadband(value, center, width)
 }
 
-/// The capacity every windowed helper here is built at.
+/// The storage every windowed helper here is built with.
 const CAPACITY: usize = 32;
 
-/// The number of readings a windowed helper keeps.
+/// The most readings a windowed helper keeps, and the number it keeps unless told fewer.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn window_capacity() -> usize {
     CAPACITY
+}
+
+/// Reads the capacity a windowed helper was asked for, refusing one below `least`, the
+/// fewest readings the helper can answer from.
+fn capacity_of(capacity: Option<i64>, least: usize) -> PyResult<usize> {
+    let Some(capacity) = capacity else {
+        return Ok(CAPACITY);
+    };
+    match usize::try_from(capacity) {
+        Ok(fits) if (least..=CAPACITY).contains(&fits) => Ok(fits),
+        _ => Err(PyValueError::new_err(format!(
+            "capacity must be a whole number from {least} to {CAPACITY}, not {capacity}"
+        ))),
+    }
 }
 
 /// A rolling window of the most recent readings, with the stats over them.
@@ -465,12 +500,13 @@ pub struct Window {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Window {
-    /// Creates an empty window.
+    /// Creates an empty window that keeps up to `capacity` readings, 32 unless told fewer.
     #[new]
-    fn new() -> Self {
-        Self {
-            inner: CoreWindow::new(),
-        }
+    #[pyo3(signature = (capacity=None))]
+    fn new(capacity: Option<i64>) -> PyResult<Self> {
+        Ok(Self {
+            inner: CoreWindow::with_capacity(capacity_of(capacity, 1)?),
+        })
     }
 
     /// Adds a reading, dropping the oldest once the window is full.
@@ -483,10 +519,26 @@ impl Window {
         self.inner.len()
     }
 
+    /// Whether the window holds as many readings as it keeps.
+    #[getter]
+    fn is_full(&self) -> bool {
+        self.inner.is_full()
+    }
+
     /// How many readings the window holds before it starts dropping.
     #[getter]
     fn capacity(&self) -> usize {
         self.inner.capacity()
+    }
+
+    /// The most recent reading, or ``None`` while the window is empty.
+    fn latest(&self) -> Option<f32> {
+        self.inner.latest()
+    }
+
+    /// The oldest reading still held, or ``None`` while the window is empty.
+    fn oldest(&self) -> Option<f32> {
+        self.inner.oldest()
     }
 
     /// The mean of the readings, or ``None`` while the window is empty.
@@ -504,12 +556,12 @@ impl Window {
         self.inner.max()
     }
 
-    /// The spread between the smallest and largest readings.
+    /// The spread between the smallest and largest readings, or ``None`` while empty.
     fn range(&self) -> Option<f32> {
         self.inner.range()
     }
 
-    /// The variance of the readings, or ``None`` without enough of them.
+    /// The population variance of the readings, 0 for one reading, or ``None`` while empty.
     fn variance(&self) -> Option<f32> {
         self.inner.variance()
     }
@@ -525,12 +577,16 @@ pub struct Median {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Median {
-    /// Creates an empty median filter.
+    /// Creates an empty median filter over up to `capacity` readings, 32 unless told fewer.
+    ///
+    /// A small odd window, such as 5, follows a real change in a few readings; a window of
+    /// 32 follows it 16 readings late.
     #[new]
-    fn new() -> Self {
-        Self {
-            inner: CoreMedian::new(),
-        }
+    #[pyo3(signature = (capacity=None))]
+    fn new(capacity: Option<i64>) -> PyResult<Self> {
+        Ok(Self {
+            inner: CoreMedian::with_capacity(capacity_of(capacity, 1)?),
+        })
     }
 
     /// Folds a reading in and returns the median of the window.
@@ -543,9 +599,15 @@ impl Median {
     fn value(&self) -> Option<f32> {
         self.inner.median()
     }
+
+    /// How many readings the filter keeps.
+    #[getter]
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
 }
 
-/// Fits a line through recent readings, so a slow drift shows before it matters.
+/// Fits a line through recent readings, so a slow drift is visible before it matters.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Trend {
@@ -555,12 +617,15 @@ pub struct Trend {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Trend {
-    /// Creates an empty trend estimator.
+    /// Creates an empty trend estimator over up to `capacity` readings, 32 unless told fewer.
+    ///
+    /// A line needs two readings, so `capacity` is at least 2.
     #[new]
-    fn new() -> Self {
-        Self {
-            inner: CoreTrend::new(),
-        }
+    #[pyo3(signature = (capacity=None))]
+    fn new(capacity: Option<i64>) -> PyResult<Self> {
+        Ok(Self {
+            inner: CoreTrend::with_capacity(capacity_of(capacity, 2)?),
+        })
     }
 
     /// Adds a reading.
@@ -568,14 +633,22 @@ impl Trend {
         self.inner.push(reading);
     }
 
-    /// The fitted slope in units per reading, or ``None`` without enough readings.
+    /// The fitted slope in units per reading, or ``None`` without two readings.
+    ///
+    /// A positive slope is a rising signal.
     #[getter]
     fn slope(&self) -> Option<f32> {
         self.inner.slope()
     }
+
+    /// How many readings the estimator keeps.
+    #[getter]
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
 }
 
-/// Flags a reading that stands out from the ones around it.
+/// Flags a reading that stands out from the ones before it.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct Anomaly {
@@ -585,16 +658,29 @@ pub struct Anomaly {
 #[gen_stub_pymethods]
 #[pymethods]
 impl Anomaly {
-    /// Creates a detector that flags a reading `sigmas` deviations from the mean.
+    /// Creates a detector that flags a reading `sigmas` deviations from the mean of up to
+    /// `capacity` readings before it, 32 unless told fewer.
+    ///
+    /// A spread needs two readings, so `capacity` is at least 2.
     #[new]
-    fn new(sigmas: f32) -> Self {
-        Self {
-            inner: CoreAnomaly::new(sigmas),
-        }
+    #[pyo3(signature = (sigmas, capacity=None))]
+    fn new(sigmas: f32, capacity: Option<i64>) -> PyResult<Self> {
+        Ok(Self {
+            inner: CoreAnomaly::with_capacity(sigmas, capacity_of(capacity, 2)?),
+        })
     }
 
     /// Folds a reading in and reports whether it stands out.
+    ///
+    /// Nothing is flagged before two readings are held; from the third on, a reading can
+    /// be, and one that is not a finite number always is.
     fn check(&mut self, reading: f32) -> bool {
         self.inner.check(reading)
+    }
+
+    /// How many readings the baseline keeps.
+    #[getter]
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
     }
 }

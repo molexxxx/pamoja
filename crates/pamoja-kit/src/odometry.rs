@@ -78,6 +78,9 @@ impl Odometry {
 
     /// Integrates a body motion over a time step and returns the new pose.
     ///
+    /// A speed, rate, or time step that is not a finite number is ignored and the pose
+    /// returned as it stood, so one bad sample cannot poison the pose for good.
+    ///
     /// # Arguments
     ///
     /// * `linear` - the forward speed.
@@ -93,6 +96,8 @@ impl Odometry {
     }
 
     /// Integrates wheel-distance deltas through a differential-drive model.
+    ///
+    /// A distance that is not a finite number is ignored and the pose returned as it stood.
     ///
     /// # Arguments
     ///
@@ -121,7 +126,13 @@ impl Odometry {
     /// * `measured` - the absolute heading in radians.
     /// * `weight` - how strongly to trust the measurement, clamped to `[0, 1]`; zero keeps the
     ///   dead-reckoned heading, one snaps to `measured`.
+    ///
+    /// A measurement that is not a finite number, or a weight that is not a number, leaves the
+    /// heading as it was.
     pub fn fuse_heading(&mut self, measured: f32, weight: f32) {
+        if !measured.is_finite() || weight.is_nan() {
+            return;
+        }
         let w = clamp(weight, 0.0, 1.0);
         let error = wrap_pi(measured - self.pose.theta);
         self.pose.theta = wrap_pi(self.pose.theta + w * error);
@@ -130,6 +141,9 @@ impl Odometry {
     // Advances the pose by an arc of forward distance `distance` and heading change
     // `heading_change`, using the exact integration for a constant-curvature segment.
     fn advance(&mut self, distance: f32, heading_change: f32) {
+        if !distance.is_finite() || !heading_change.is_finite() {
+            return;
+        }
         let theta = self.pose.theta;
         if magnitude(heading_change) < 1e-6 {
             self.pose.x += distance * cosf(theta);
@@ -192,5 +206,20 @@ mod tests {
         odom.fuse_heading(-3.0, 1.0);
         assert!((odom.pose().theta - -3.0).abs() < 1e-6);
         assert!(odom.pose().theta.abs() <= PI);
+    }
+
+    #[test]
+    fn a_sample_that_is_not_a_number_leaves_the_pose_as_it_was() {
+        let mut odometry = Odometry::at_origin();
+        let moved = odometry.integrate(1.0, 0.0, 1.0);
+        assert_eq!(odometry.integrate(f32::NAN, 0.0, 1.0), moved);
+        assert_eq!(odometry.integrate(1.0, 0.0, f32::INFINITY), moved);
+        assert_eq!(
+            odometry.integrate_wheels(f32::NAN, 1.0, &DiffDrive::new(0.5)),
+            moved
+        );
+        odometry.fuse_heading(f32::NAN, 1.0);
+        odometry.fuse_heading(1.0, f32::NAN);
+        assert_eq!(odometry.pose(), moved);
     }
 }

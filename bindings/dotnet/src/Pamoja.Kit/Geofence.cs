@@ -28,7 +28,8 @@ public sealed class Geofence : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_geofence_new(ToNative(center), radiusM),
             NativeMethods.pamoja_geofence_free,
-            "geofence");
+            "geofence",
+            serialized: true);
     }
 
     /// <summary>Feeds a fix in and reports where it sits, including a crossing.</summary>

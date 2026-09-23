@@ -9,6 +9,10 @@
 /// trend the way a bare difference between two samples can. The slope is the ordinary
 /// least-squares estimate, the sum of `(x - mean_x) * (y - mean_y)` over the sum of
 /// `(x - mean_x)` squared, with `x` taken as the sample index 0, 1, 2, and so on.
+/// [`with_capacity`](Trend::with_capacity) keeps fewer than `N`.
+///
+/// A reading that is not a finite number, such as the NaN a failed sensor reports, is not
+/// kept, so it cannot turn the slope into NaN for as long as it stays in the window.
 ///
 /// # Examples
 ///
@@ -25,6 +29,7 @@
 #[derive(Clone, Copy, Debug)]
 pub struct Trend<const N: usize> {
     samples: [f32; N],
+    capacity: usize,
     len: usize,
     next: usize,
 }
@@ -36,8 +41,25 @@ impl<const N: usize> Trend<N> {
     ///
     /// A tracker holding no readings yet.
     pub fn new() -> Self {
+        Self::with_capacity(N)
+    }
+
+    /// Creates an empty trend tracker that keeps at most `capacity` readings.
+    ///
+    /// The storage is still `N` readings; this is how a tracker sized at run time keeps
+    /// fewer.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - the most readings to keep. One above `N` is taken as `N`.
+    ///
+    /// # Returns
+    ///
+    /// A tracker holding no readings yet.
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             samples: [0.0; N],
+            capacity: capacity.min(N),
             len: 0,
             next: 0,
         }
@@ -48,15 +70,22 @@ impl<const N: usize> Trend<N> {
     /// # Arguments
     ///
     /// * `reading` - the latest reading, taken one sample interval after the previous one.
+    ///   One that is not a finite number is not kept.
     pub fn push(&mut self, reading: f32) {
-        if N == 0 {
+        if self.capacity == 0 || !reading.is_finite() {
             return;
         }
         self.samples[self.next] = reading;
-        self.next = (self.next + 1) % N;
-        if self.len < N {
+        self.next = (self.next + 1) % self.capacity;
+        if self.len < self.capacity {
             self.len += 1;
         }
+    }
+
+    /// Returns the most readings the tracker keeps: `N`, or less when made with
+    /// [`with_capacity`](Trend::with_capacity).
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// Returns the trend slope in units per sample, or [`None`] with fewer than two readings.
@@ -89,7 +118,7 @@ impl<const N: usize> Trend<N> {
         Some(covariance / variance_x)
     }
 
-    /// Returns the number of readings currently held, at most `N`.
+    /// Returns the number of readings currently held, at most the capacity.
     pub fn len(&self) -> usize {
         self.len
     }
@@ -101,8 +130,8 @@ impl<const N: usize> Trend<N> {
 
     /// Returns the reading at time position `index`, where `0` is the oldest still held.
     fn ordered(&self, index: usize) -> f32 {
-        let physical = if self.len == N {
-            (self.next + index) % N
+        let physical = if self.len == self.capacity {
+            (self.next + index) % self.capacity
         } else {
             index
         };
@@ -180,5 +209,25 @@ mod tests {
         }
         // The window holds 10, 20, 30 in order: slope 10 per sample.
         assert!(approx(trend.slope().unwrap(), 10.0));
+    }
+
+    #[test]
+    fn a_smaller_capacity_slides_the_same_way() {
+        let mut trend = Trend::<32>::with_capacity(3);
+        for reading in [0.0, 0.0, 0.0, 10.0, 20.0, 30.0] {
+            trend.push(reading);
+        }
+        assert!(approx(trend.slope().unwrap(), 10.0));
+        assert_eq!(trend.capacity(), 3);
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_not_kept() {
+        let mut trend = Trend::<4>::new();
+        for reading in [10.0, f32::NAN, 8.0, f32::NEG_INFINITY, 6.0] {
+            trend.push(reading);
+        }
+        assert_eq!(trend.len(), 3);
+        assert!(approx(trend.slope().unwrap(), -2.0));
     }
 }

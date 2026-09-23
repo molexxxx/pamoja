@@ -10,7 +10,7 @@ public sealed class Ramp : IDisposable
 
     private Ramp(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_ramp_free, "ramp");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_ramp_free, "ramp", serialized: true);
     }
 
     /// <summary>Creates a rate limiter.</summary>

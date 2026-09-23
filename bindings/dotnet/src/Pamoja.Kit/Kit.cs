@@ -10,14 +10,21 @@ namespace Pamoja.Kit;
 /// </remarks>
 public static class Kit
 {
-    /// <summary>Suppresses movement within a band, so noise does not act.</summary>
+    /// <summary>
+    /// The most readings a windowed helper (<see cref="Window"/>, <see cref="Median"/>,
+    /// <see cref="Trend"/>, <see cref="Anomaly"/>) keeps, and the number it keeps unless told fewer.
+    /// </summary>
+    public const int WindowCapacity = NativeMethods.WindowCapacity;
+
+    /// <summary>Holds a reading at the center while it stays within the band, so small wiggle does not act.</summary>
     /// <param name="value">The latest reading.</param>
     /// <param name="center">The value the band sits around.</param>
-    /// <param name="width">The full width of the band.</param>
+    /// <param name="width">
+    /// How far the band reaches either side of <paramref name="center"/>; its magnitude is used.
+    /// </param>
     /// <returns>
-    /// <paramref name="center"/> while the reading is inside the band, and
-    /// otherwise the reading shifted toward the center by half the band width, so
-    /// the output is continuous.
+    /// <paramref name="center"/> while the reading is within <paramref name="width"/> of it,
+    /// and otherwise the reading unchanged.
     /// </returns>
     public static float Deadband(float value, float center, float width) =>
         NativeMethods.pamoja_kit_deadband(value, center, width);

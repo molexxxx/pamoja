@@ -20,7 +20,7 @@ public sealed class Trigger : IDisposable
 
     private Trigger(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_trigger_free, "trigger");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_trigger_free, "trigger", serialized: true);
     }
 
     /// <summary>Creates a trigger that fires when a reading rises above the line and clears once it has fallen below the line by the hysteresis.</summary>
@@ -38,7 +38,7 @@ public sealed class Trigger : IDisposable
         new(NativeMethods.pamoja_trigger_below(threshold, hysteresis));
 
     /// <summary>Feeds a reading in and reports the edge it caused.</summary>
-    /// <param name="reading">The latest measured value.</param>
+    /// <param name="reading">The latest measured value. One that is not a finite number is ignored.</param>
     /// <returns><see cref="Edge.Set"/> or <see cref="Edge.Cleared"/> the moment the state changes, or <c>null</c> while nothing changed.</returns>
     public Edge? Update(float reading) =>
         _handle.Use(handle => NativeMethods.pamoja_trigger_update(handle, reading) switch
@@ -51,6 +51,18 @@ public sealed class Trigger : IDisposable
     /// <summary>Gets whether the condition currently holds.</summary>
     public bool IsSet =>
         _handle.Use(NativeMethods.pamoja_trigger_is_set);
+
+    /// <summary>Gets the line the trigger watches.</summary>
+    public float Threshold =>
+        _handle.Use(NativeMethods.pamoja_trigger_threshold);
+
+    /// <summary>Gets the release band on the far side of the line, as a magnitude.</summary>
+    public float Hysteresis =>
+        _handle.Use(NativeMethods.pamoja_trigger_hysteresis);
+
+    /// <summary>Gets whether the trigger watches a rising reading, as <see cref="Above"/> makes it.</summary>
+    public bool WatchesAbove =>
+        _handle.Use(NativeMethods.pamoja_trigger_watches_above);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

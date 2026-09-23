@@ -238,14 +238,14 @@ impl TwoLinkArm {
     /// # Returns
     ///
     /// `Some((shoulder, elbow))` for a reachable target, or `None` if the target lies outside the
-    /// arm's reach.
+    /// arm's reach, a link has no length, or a coordinate is not a finite number.
     pub fn joints_for(&self, x: f32, y: f32, elbow: Elbow) -> Option<(f32, f32)> {
         let distance_squared = x * x + y * y;
         let distance = sqrtf(distance_squared);
         let (min, max) = self.reach();
         // A tiny tolerance keeps a target exactly on the boundary solvable despite rounding.
         let tolerance = 1e-4;
-        if distance > max + tolerance || distance < min - tolerance {
+        if !(distance <= max + tolerance && distance >= min - tolerance) {
             return None;
         }
 
@@ -370,6 +370,8 @@ mod tests {
         let arm = TwoLinkArm::new(1.0, 1.0);
         assert!(arm.joints_for(5.0, 0.0, Elbow::Up).is_none()); // too far
         assert!(arm.joints_for(0.0, 0.0, Elbow::Up).is_some()); // folded back: reachable (min = 0)
+        assert!(arm.joints_for(f32::NAN, 0.5, Elbow::Up).is_none());
+        assert!(arm.joints_for(0.5, f32::INFINITY, Elbow::Down).is_none());
     }
 
     #[test]

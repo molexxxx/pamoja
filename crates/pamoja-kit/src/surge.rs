@@ -34,7 +34,8 @@ impl Surge {
     ///
     /// # Arguments
     ///
-    /// * `limit` - the largest safe increase per sample; its magnitude is used.
+    /// * `limit` - the largest safe increase per sample; its magnitude is used, and one that
+    ///   is not a number is taken as zero, so every rise is reported.
     ///
     /// # Returns
     ///
@@ -51,7 +52,8 @@ impl Surge {
     ///
     /// # Arguments
     ///
-    /// * `limit` - the largest safe decrease per sample; its magnitude is used.
+    /// * `limit` - the largest safe decrease per sample; its magnitude is used, and one that
+    ///   is not a number is taken as zero, so every fall is reported.
     ///
     /// # Returns
     ///
@@ -66,6 +68,9 @@ impl Surge {
 
     /// Records a reading and reports the rate if it changed too fast.
     ///
+    /// A reading that is not a finite number, such as the NaN a failed sensor reports, is
+    /// ignored: it reports nothing and is not the reading the next one is compared with.
+    ///
     /// # Arguments
     ///
     /// * `value` - the latest reading.
@@ -77,6 +82,9 @@ impl Surge {
     /// `None` if the change is within the limit, is in the other direction, or this is
     /// the first reading.
     pub fn update(&mut self, value: f32) -> Option<f32> {
+        if !value.is_finite() {
+            return None;
+        }
         let exceeded = match self.last {
             Some(previous) => {
                 let change = value - previous;
@@ -94,9 +102,12 @@ impl Surge {
     }
 }
 
-// `f32::abs` lives in `std`, so this `no_std` crate takes the magnitude by hand.
+// The magnitude of a limit, taken by hand because `f32::abs` lives in `std`, with one that
+// is not a number read as zero.
 fn magnitude(value: f32) -> f32 {
-    if value < 0.0 {
+    if value.is_nan() {
+        0.0
+    } else if value < 0.0 {
         -value
     } else {
         value
@@ -141,5 +152,30 @@ mod tests {
         let mut surge = Surge::rising(-0.5);
         surge.update(1.0);
         assert_eq!(surge.update(2.0), Some(1.0));
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_ignored() {
+        let mut flood = Surge::rising(0.5);
+        flood.update(1.0);
+        assert_eq!(flood.update(f32::NAN), None);
+        assert_eq!(flood.update(f32::INFINITY), None);
+        assert_eq!(flood.update(1.25), None);
+        assert_eq!(flood.update(2.0), Some(0.75));
+    }
+
+    #[test]
+    fn a_limit_that_is_not_a_number_reports_every_rise() {
+        let mut flood = Surge::rising(f32::NAN);
+        flood.update(1.0);
+        assert_eq!(flood.update(1.5), Some(0.5));
+        assert_eq!(flood.update(1.0), None);
+    }
+
+    #[test]
+    fn a_change_equal_to_the_limit_is_not_reported() {
+        let mut flood = Surge::rising(0.5);
+        flood.update(1.0);
+        assert_eq!(flood.update(1.5), None);
     }
 }

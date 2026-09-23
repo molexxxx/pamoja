@@ -6,8 +6,10 @@
  * before a tank runs dry, and notice when a tracked point leaves its area.
  *
  * They are synchronous and allocation-free in the core, so the facade re-exports
- * the generated classes rather than wrapping them; the one addition is a runtime
- * {@link Boundary} object, because the generated enum is types-only.
+ * the generated classes rather than wrapping them; the additions are the runtime
+ * {@link Boundary} and {@link Edge} objects, because the generated enums are
+ * types-only. A reading that is not a finite number is ignored by every helper
+ * that keeps state, and an {@link Anomaly} flags it.
  *
  * @packageDocumentation
  */

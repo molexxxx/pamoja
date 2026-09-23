@@ -301,7 +301,7 @@ async def main() -> tuple[list[str], bool, int]:
             await run(rule["then"])
         elif edge == Edge.CLEARED:
             await run(rule["otherwise"])
-        print(f"{reading}: {edge or 'no edge'}, valve {'on' if valve['open'] else 'off'}")
+        print(f"{reading}: {edge.value if edge else 'no edge'}, valve {'on' if valve['open'] else 'off'}")
 
     # The watcher on the other topic heard each edge as the rule published it.
     heard = [(await watcher.recv()).text for _ in range(2)]
@@ -425,7 +425,7 @@ Console.WriteLine($"the valve switched {switches} times");
 ## Reference
 
 <!-- table: reference rules -->
-- Rust: the `Transport` and `Receive` traits in [`pamoja-core`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules)
+- Rust: `Rules` and `RuleEngine` in [`pamoja-profile`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules)
 - TypeScript: [`@pamoja/kit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-rules)
 - Python: [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-rules)
 - C#: [`Pamoja.Kit`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules)

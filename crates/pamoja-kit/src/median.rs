@@ -8,7 +8,12 @@
 /// [`Median`] the right filter when the noise is occasional spikes rather than steady
 /// jitter; for steady jitter reach for [`Smoother`](crate::Smoother) instead. Keep the
 /// window small and odd (3, 5, 7) so there is a single middle reading; with an even `N` the
-/// median is the average of the two middle readings.
+/// median is the average of the two middle readings. A wide window rejects longer bursts
+/// and lags a real step by half its length, so a filter of 32 passes a new level 16
+/// readings late. [`with_capacity`](Median::with_capacity) keeps fewer than `N`.
+///
+/// A reading that is not a finite number, such as the NaN a failed sensor reports, is not
+/// kept.
 ///
 /// # Examples
 ///
@@ -25,6 +30,7 @@
 #[derive(Clone, Copy, Debug)]
 pub struct Median<const N: usize> {
     samples: [f32; N],
+    capacity: usize,
     len: usize,
     next: usize,
 }
@@ -36,8 +42,25 @@ impl<const N: usize> Median<N> {
     ///
     /// A filter holding no readings yet.
     pub fn new() -> Self {
+        Self::with_capacity(N)
+    }
+
+    /// Creates an empty median filter that keeps at most `capacity` readings.
+    ///
+    /// The storage is still `N` readings; this is how a filter sized at run time keeps
+    /// fewer.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - the most readings to keep. One above `N` is taken as `N`.
+    ///
+    /// # Returns
+    ///
+    /// A filter holding no readings yet.
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             samples: [0.0; N],
+            capacity: capacity.min(N),
             len: 0,
             next: 0,
         }
@@ -51,8 +74,9 @@ impl<const N: usize> Median<N> {
     ///
     /// # Returns
     ///
-    /// The median of the readings now in the window. With a zero-length window (`N` is `0`)
-    /// the reading passes through unchanged.
+    /// The median of the readings now in the window. With a zero-length window the reading
+    /// passes through unchanged, and so does one that is not a finite number while the
+    /// window is empty.
     pub fn update(&mut self, reading: f32) -> f32 {
         self.push(reading);
         self.median().unwrap_or(reading)
@@ -62,16 +86,22 @@ impl<const N: usize> Median<N> {
     ///
     /// # Arguments
     ///
-    /// * `reading` - the latest raw reading.
+    /// * `reading` - the latest raw reading. One that is not a finite number is not kept.
     pub fn push(&mut self, reading: f32) {
-        if N == 0 {
+        if self.capacity == 0 || !reading.is_finite() {
             return;
         }
         self.samples[self.next] = reading;
-        self.next = (self.next + 1) % N;
-        if self.len < N {
+        self.next = (self.next + 1) % self.capacity;
+        if self.len < self.capacity {
             self.len += 1;
         }
+    }
+
+    /// Returns the most readings the filter keeps: `N`, or less when made with
+    /// [`with_capacity`](Median::with_capacity).
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// Returns the median of the readings in the window, or [`None`] if it is empty.
@@ -96,7 +126,7 @@ impl<const N: usize> Median<N> {
         }
     }
 
-    /// Returns the number of readings currently held, at most `N`.
+    /// Returns the number of readings currently held, at most the capacity.
     pub fn len(&self) -> usize {
         self.len
     }
@@ -160,5 +190,30 @@ mod tests {
         // The window holds the last three readings, 3, 100, 100: median 100.
         assert_eq!(median.median(), Some(100.0));
         assert_eq!(median.len(), 3);
+    }
+
+    #[test]
+    fn a_smaller_capacity_follows_a_step_sooner() {
+        let mut small = Median::<32>::with_capacity(3);
+        let mut wide = Median::<32>::new();
+        for _ in 0..10 {
+            small.update(10.0);
+            wide.update(10.0);
+        }
+        small.update(20.0);
+        wide.update(20.0);
+        assert_eq!(small.update(20.0), 20.0);
+        assert_eq!(wide.update(20.0), 10.0);
+        assert_eq!(small.capacity(), 3);
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_not_kept() {
+        let mut median = Median::<3>::new();
+        median.update(10.0);
+        assert_eq!(median.update(f32::NAN), 10.0);
+        assert_eq!(median.update(f32::INFINITY), 10.0);
+        assert_eq!(median.len(), 1);
+        assert!(Median::<3>::new().update(f32::NAN).is_nan());
     }
 }

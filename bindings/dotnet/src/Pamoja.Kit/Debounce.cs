@@ -10,7 +10,7 @@ public sealed class Debounce : IDisposable
 
     private Debounce(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_debounce_free, "debouncer");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_debounce_free, "debouncer", serialized: true);
     }
 
     /// <summary>Creates a debouncer at the given settling length.</summary>

@@ -30,7 +30,8 @@ impl Ramp {
     /// # Arguments
     ///
     /// * `start` - the initial value.
-    /// * `max_step` - the largest change allowed per update; its magnitude is used.
+    /// * `max_step` - the largest change allowed per update; its magnitude is used. A step
+    ///   that is not a number holds the ramp still, and an infinite one sets no limit.
     ///
     /// # Returns
     ///
@@ -38,11 +39,13 @@ impl Ramp {
     pub fn new(start: f32, max_step: f32) -> Self {
         Self {
             value: start,
-            max_step: magnitude(max_step),
+            max_step: step(max_step),
         }
     }
 
     /// Moves toward `target` by at most the step and returns the new value.
+    ///
+    /// A target that is not a finite number is ignored and the value returned as it stood.
     ///
     /// # Arguments
     ///
@@ -64,19 +67,23 @@ impl Ramp {
     ///
     /// # Arguments
     ///
-    /// * `target` - the value being approached.
-    /// * `max_step` - the largest change allowed this update; its magnitude is used.
+    /// * `target` - the value being approached. One that is not a finite number is ignored.
+    /// * `max_step` - the largest change allowed this update; its magnitude is used. A step
+    ///   that is not a number holds the ramp still.
     ///
     /// # Returns
     ///
     /// The value after one limited step, equal to `target` once within `max_step` of it.
     pub fn update_capped(&mut self, target: f32, max_step: f32) -> f32 {
-        let step = magnitude(max_step);
+        if !target.is_finite() {
+            return self.value;
+        }
+        let limit = step(max_step);
         let delta = target - self.value;
-        if delta > step {
-            self.value += step;
-        } else if delta < -step {
-            self.value -= step;
+        if delta > limit {
+            self.value += limit;
+        } else if delta < -limit {
+            self.value -= limit;
         } else {
             self.value = target;
         }
@@ -92,15 +99,20 @@ impl Ramp {
     ///
     /// # Arguments
     ///
-    /// * `value` - the new value.
+    /// * `value` - the new value. One that is not a finite number is ignored.
     pub fn set(&mut self, value: f32) {
-        self.value = value;
+        if value.is_finite() {
+            self.value = value;
+        }
     }
 }
 
-// `f32::abs` lives in `std`, so this `no_std` crate takes the magnitude by hand.
-fn magnitude(value: f32) -> f32 {
-    if value < 0.0 {
+// The magnitude of a step, taken by hand because `f32::abs` lives in `std`, with one that is
+// not a number read as zero so the ramp holds still rather than jumping.
+fn step(value: f32) -> f32 {
+    if value.is_nan() {
+        0.0
+    } else if value < 0.0 {
         -value
     } else {
         value
@@ -150,5 +162,25 @@ mod tests {
         assert_eq!(ramp.update_capped(5.0, 0.25), 0.5);
         // A negative cap is treated as its magnitude.
         assert_eq!(ramp.update_capped(5.0, -0.5), 1.0);
+    }
+
+    #[test]
+    fn a_target_that_is_not_a_number_is_ignored() {
+        let mut ramp = Ramp::new(0.0, 2.0);
+        ramp.update(5.0);
+        assert_eq!(ramp.update(f32::NAN), 2.0);
+        assert_eq!(ramp.update(f32::INFINITY), 2.0);
+        ramp.set(f32::NAN);
+        assert_eq!(ramp.value(), 2.0);
+        assert_eq!(ramp.update(5.0), 4.0);
+    }
+
+    #[test]
+    fn a_step_that_is_not_a_number_holds_still_and_an_infinite_one_sets_no_limit() {
+        let mut stuck = Ramp::new(0.0, f32::NAN);
+        assert_eq!(stuck.update(5.0), 0.0);
+        assert_eq!(stuck.update_capped(5.0, f32::NAN), 0.0);
+        let mut free = Ramp::new(0.0, f32::INFINITY);
+        assert_eq!(free.update(5.0), 5.0);
     }
 }

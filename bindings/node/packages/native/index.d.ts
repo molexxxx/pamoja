@@ -43,12 +43,24 @@ export declare class AgreementKey {
   publicKey(): Buffer
 }
 
-/** Flags a reading that stands out from the ones around it. */
+/** Flags a reading that stands out from the ones before it. */
 export declare class Anomaly {
-  /** Creates a detector that flags a reading `sigmas` deviations from the mean. */
-  constructor(sigmas: number)
-  /** Folds a reading in and reports whether it stands out. */
+  /**
+   * Creates a detector that flags a reading `sigmas` deviations from the mean of up to
+   * `capacity` readings before it, 32 unless told fewer.
+   *
+   * A spread needs two readings, so `capacity` is at least 2.
+   */
+  constructor(sigmas: number, capacity?: number | undefined | null)
+  /**
+   * Folds a reading in and reports whether it stands out.
+   *
+   * Nothing is flagged before two readings are held; from the third on, a reading can
+   * be, and one that is not a finite number always is.
+   */
   check(reading: number): boolean
+  /** How many readings the baseline keeps. */
+  get capacity(): number
 }
 
 /** One signed record, chained onto the one before it. */
@@ -452,12 +464,17 @@ export declare class Controller {
 
 /** Stops a flickering input from acting until it has settled. */
 export declare class Debounce {
-  /** Creates a debouncer needing `samples` agreeing readings to change state. */
+  /**
+   * Creates a debouncer needing `samples` agreeing readings to change state.
+   *
+   * `samples` is a whole number from 0 to 65535; anything else is refused rather than
+   * rounded.
+   */
   constructor(samples: number, initial: boolean)
   /** Feeds a raw reading in and returns the settled state. */
   update(raw: boolean): boolean
-  /** Returns the settled state without feeding in a reading. */
-  state(): boolean
+  /** The settled state. */
+  get state(): boolean
 }
 
 /** Warns before a falling level runs out, by projecting its rate of fall. */
@@ -467,8 +484,9 @@ export declare class Depletion {
   /**
    * Records a level and returns the samples left before the threshold.
    *
-   * Returns `null` while the level is steady or rising, and on the first
-   * reading, when no rate of fall is known yet.
+   * Returns 0 once the level is at or below the threshold, the first reading included,
+   * and `null` while the level is steady or rising, or on a first reading above it,
+   * when no rate of fall is known yet.
    */
   update(level: number): number | null
 }
@@ -951,8 +969,8 @@ export declare class Kalman {
   constructor(processNoise: number, measurementNoise: number, initial: number)
   /** Folds a reading in and returns the new estimate. */
   update(reading: number): number
-  /** Returns the current estimate without folding in a reading. */
-  estimate(): number
+  /** The current estimate. */
+  get estimate(): number
 }
 
 /** An ordered set of transports backed by an offline buffer. */
@@ -1993,12 +2011,19 @@ export declare class MavlinkVerifier {
 
 /** Rejects a single wild reading, where an average would let it pull the answer. */
 export declare class Median {
-  /** Creates an empty median filter. */
-  constructor()
+  /**
+   * Creates an empty median filter over up to `capacity` readings, 32 unless told fewer.
+   *
+   * A small odd window, such as 5, follows a real change in a few readings; a window of
+   * 32 follows it 16 readings late.
+   */
+  constructor(capacity?: number | undefined | null)
   /** Folds a reading in and returns the median of the window. */
   update(reading: number): number
   /** The current median, or `null` before the first reading. */
-  value(): number | null
+  get value(): number | null
+  /** How many readings the filter keeps. */
+  get capacity(): number
 }
 
 /** The shape of one message: its id, name, seed, and fields. */
@@ -2493,8 +2518,8 @@ export declare class Ramp {
   constructor(start: number, maxStep: number)
   /** Moves one step toward `target` and returns the new value. */
   update(target: number): number
-  /** Returns the current value. */
-  value(): number
+  /** The current value. */
+  get value(): number
   /** Forces the value without rate limiting. */
   set(value: number): void
 }
@@ -2913,8 +2938,8 @@ export declare class Smoother {
   constructor(weight: number)
   /** Folds a sample in and returns the smoothed value. */
   update(sample: number): number
-  /** Returns the current value, or `null` before the first sample. */
-  value(): number | null
+  /** The current value, or `null` before the first sample. */
+  get value(): number | null
   /** Clears the smoother back to its initial state. */
   reset(): void
 }
@@ -3002,11 +3027,11 @@ export declare class Store {
 
 /** Notices a step change between successive readings, such as a burst pipe. */
 export declare class Surge {
-  /** Creates a detector for rises of at least `limit` between readings. */
+  /** Creates a detector for rises of more than `limit` between readings. */
   static rising(limit: number): Surge
-  /** Creates a detector for falls of at least `limit` between readings. */
+  /** Creates a detector for falls of more than `limit` between readings. */
   static falling(limit: number): Surge
-  /** Feeds a value in and returns the size of a qualifying step, or `null`. */
+  /** Feeds a value in and returns the size of a step past the limit, or `null`. */
   update(value: number): number | null
 }
 
@@ -3018,8 +3043,8 @@ export declare class Thermostat {
   static heating(setpoint: number, hysteresis: number): Thermostat
   /** Feeds a reading in and returns whether the load should be on. */
   update(reading: number): boolean
-  /** Reports the current output without feeding in a reading. */
-  isOn(): boolean
+  /** Whether the load is on, as the last reading left it. */
+  get isOn(): boolean
 }
 
 /** A Texas Instruments TMP117 driven over an I2C bus, converting on demand in one-shot mode. */
@@ -3127,16 +3152,22 @@ export declare class Transport {
 
 /** Fits a line through recent readings, so a slow drift is visible before it matters. */
 export declare class Trend {
-  /** Creates an empty trend estimator. */
-  constructor()
+  /**
+   * Creates an empty trend estimator over up to `capacity` readings, 32 unless told fewer.
+   *
+   * A line needs two readings, so `capacity` is at least 2.
+   */
+  constructor(capacity?: number | undefined | null)
   /** Adds a reading. */
   push(reading: number): void
   /**
-   * The fitted slope in units per reading, or `null` without enough readings.
+   * The fitted slope in units per reading, or `null` without two readings.
    *
    * A positive slope is a rising signal.
    */
-  slope(): number | null
+  get slope(): number | null
+  /** How many readings the estimator keeps. */
+  get capacity(): number
 }
 
 /**
@@ -3157,11 +3188,13 @@ export declare class Trigger {
   /** Feeds a reading in and returns the edge it caused, or `null` while nothing changed. */
   update(reading: number): Edge | null
   /** Whether the condition currently holds. */
-  isSet(): boolean
+  get isSet(): boolean
   /** The line the trigger watches. */
   get threshold(): number
   /** The release band on the far side of the line. */
   get hysteresis(): number
+  /** Whether the trigger watches a rising reading, as `above` makes it. */
+  get watchesAbove(): boolean
 }
 
 /** A device slots, and the rules applied to what is offered for them. */
@@ -3235,25 +3268,31 @@ export declare class Updater {
 
 /** A rolling window of the most recent readings, with the stats over them. */
 export declare class Window {
-  /** Creates an empty window. */
-  constructor()
+  /** Creates an empty window that keeps up to `capacity` readings, 32 unless told fewer. */
+  constructor(capacity?: number | undefined | null)
   /** Adds a reading, dropping the oldest once the window is full. */
   push(reading: number): void
   /** How many readings the window holds. */
   get len(): number
   /** Whether the window is still waiting for its first reading. */
   get isEmpty(): boolean
+  /** Whether the window holds as many readings as it keeps. */
+  get isFull(): boolean
   /** How many readings the window holds before it starts dropping. */
   get capacity(): number
+  /** The most recent reading, or `null` while the window is empty. */
+  latest(): number | null
+  /** The oldest reading still held, or `null` while the window is empty. */
+  oldest(): number | null
   /** The mean of the readings, or `null` while the window is empty. */
   mean(): number | null
   /** The smallest reading, or `null` while the window is empty. */
   min(): number | null
   /** The largest reading, or `null` while the window is empty. */
   max(): number | null
-  /** The spread between the smallest and largest readings. */
+  /** The spread between the smallest and largest readings, or `null` while empty. */
   range(): number | null
-  /** The variance of the readings, or `null` without enough of them. */
+  /** The population variance of the readings, 0 for one reading, or `null` while empty. */
   variance(): number | null
 }
 
@@ -3922,7 +3961,10 @@ export interface Coord {
   longitude: number
 }
 
-/** Suppresses movement within `width` of `center`, so noise does not act. */
+/**
+ * Holds `value` at `center` while it stays within `width` either side, and passes it
+ * through unchanged once it is further out.
+ */
 export declare function deadband(value: number, center: number, width: number): number
 
 /**
@@ -9124,10 +9166,9 @@ export declare const enum Viz {
 }
 
 /**
- * The number of readings a windowed helper keeps.
+ * The most readings a windowed helper keeps, and the number it keeps unless told fewer.
  *
  * The Rust helpers are generic over their capacity, which has no JavaScript
- * equivalent, so these are built at one documented size. The crate's own
- * examples use three to eight readings, so this is headroom rather than a limit.
+ * equivalent, so these are built with room for this many and keep fewer when asked.
  */
 export declare const WINDOW_CAPACITY: number

@@ -31,6 +31,7 @@ pub struct Pid {
     kd: f32,
     integral: f32,
     last_error: Option<f32>,
+    output: f32,
     min: f32,
     max: f32,
 }
@@ -44,16 +45,19 @@ impl Pid {
     /// * `ki` - integral gain.
     /// * `kd` - derivative gain.
     ///
+    /// A gain that is not a finite number is taken as zero.
+    ///
     /// # Returns
     ///
     /// A controller with a cleared history and unbounded output.
     pub fn new(kp: f32, ki: f32, kd: f32) -> Self {
         Self {
-            kp,
-            ki,
-            kd,
+            kp: gain(kp),
+            ki: gain(ki),
+            kd: gain(kd),
             integral: 0.0,
             last_error: None,
+            output: 0.0,
             min: f32::NEG_INFINITY,
             max: f32::INFINITY,
         }
@@ -64,13 +68,16 @@ impl Pid {
     ///
     /// # Arguments
     ///
-    /// * `min` - the lowest output.
-    /// * `max` - the highest output. If `max` is below `min` the two are swapped.
+    /// * `min` - the lowest output. One that is not a number leaves the low side open.
+    /// * `max` - the highest output. One that is not a number leaves the high side open. If
+    ///   `max` is below `min` the two are swapped.
     ///
     /// # Returns
     ///
     /// The controller, for chaining after [`new`](Pid::new).
     pub fn with_limits(mut self, min: f32, max: f32) -> Self {
+        let min = if min.is_nan() { f32::NEG_INFINITY } else { min };
+        let max = if max.is_nan() { f32::INFINITY } else { max };
         if min <= max {
             self.min = min;
             self.max = max;
@@ -88,37 +95,55 @@ impl Pid {
     /// * `setpoint` - the target value.
     /// * `measurement` - the latest measured value.
     /// * `dt` - the time since the previous update, in the unit `ki` and `kd` assume. A
-    ///   value at or below zero skips the integral and derivative updates.
+    ///   value at or below zero, or one that is not a finite number, skips the integral and
+    ///   derivative updates.
+    ///
+    /// A setpoint or measurement that is not a finite number, such as the NaN a failed
+    /// sensor reports, is ignored: the controller keeps its history and returns its previous
+    /// output, where one NaN would otherwise stay in the integral for good.
     ///
     /// # Returns
     ///
     /// The control output, clamped to the configured limits.
     pub fn update(&mut self, setpoint: f32, measurement: f32, dt: f32) -> f32 {
+        if !setpoint.is_finite() || !measurement.is_finite() {
+            return self.output;
+        }
+        let stepped = dt > 0.0 && dt.is_finite();
         let error = setpoint - measurement;
         let derivative = match self.last_error {
-            Some(previous) if dt > 0.0 => (error - previous) / dt,
+            Some(previous) if stepped => (error - previous) / dt,
             _ => 0.0,
         };
         self.last_error = Some(error);
 
-        if dt > 0.0 {
+        if stepped && self.ki != 0.0 {
             self.integral += error * dt;
             // Anti-windup: hold the integral term inside the output range.
-            if self.ki != 0.0 {
-                let term = self.ki * self.integral;
-                let bounded = clamp(term, self.min, self.max);
-                self.integral = bounded / self.ki;
-            }
+            let term = self.ki * self.integral;
+            let bounded = clamp(term, self.min, self.max);
+            self.integral = bounded / self.ki;
         }
 
         let output = self.kp * error + self.ki * self.integral + self.kd * derivative;
-        clamp(output, self.min, self.max)
+        self.output = clamp(output, self.min, self.max);
+        self.output
     }
 
-    /// Clears the integral and derivative history.
+    /// Clears the integral and derivative history, and the output it last returned.
     pub fn reset(&mut self) {
         self.integral = 0.0;
         self.last_error = None;
+        self.output = 0.0;
+    }
+}
+
+// A gain that is not a finite number contributes nothing rather than poisoning the output.
+fn gain(value: f32) -> f32 {
+    if value.is_finite() {
+        value
+    } else {
+        0.0
     }
 }
 
@@ -169,6 +194,32 @@ mod tests {
         // So reversing the error leaves saturation immediately, with no wound-up
         // integral holding the output high.
         assert_eq!(pid.update(-100.0, 0.0, 1.0), -5.0);
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_does_not_poison_the_controller() {
+        let mut pid = Pid::new(2.0, 0.5, 0.1);
+        let before = pid.update(10.0, 7.0, 1.0);
+        assert_eq!(pid.update(10.0, f32::NAN, 1.0), before);
+        assert_eq!(pid.update(10.0, f32::INFINITY, 1.0), before);
+        assert_eq!(pid.update(f32::NAN, 7.0, 1.0), before);
+        assert!(pid.update(10.0, 7.0, 1.0).is_finite());
+        assert!(pid.update(10.0, 7.0, f32::NAN).is_finite());
+        assert!(pid.update(10.0, 7.0, f32::INFINITY).is_finite());
+        assert!(pid.update(10.0, 7.0, 1.0).is_finite());
+    }
+
+    #[test]
+    fn a_limit_that_is_not_a_number_leaves_that_side_open() {
+        let mut pid = Pid::new(1.0, 0.0, 0.0).with_limits(f32::NAN, 5.0);
+        assert_eq!(pid.update(100.0, 0.0, 1.0), 5.0);
+        assert_eq!(pid.update(-100.0, 0.0, 1.0), -100.0);
+    }
+
+    #[test]
+    fn a_gain_that_is_not_a_number_is_taken_as_zero() {
+        let mut pid = Pid::new(2.0, f32::NAN, f32::INFINITY);
+        assert_eq!(pid.update(10.0, 7.0, 1.0), 6.0);
     }
 
     #[test]

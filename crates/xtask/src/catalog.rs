@@ -39,6 +39,11 @@ pub struct Capability {
     /// Pages under `docs/` beside the guide that are not guides themselves, such as a board
     /// page or the bus overview, as paths relative to `docs/`.
     pub pages: Vec<String>,
+    /// For a capability with no crate of its own, the Rust items its guide is written
+    /// against, which its reference line names.
+    pub rust_items: Vec<String>,
+    /// The crate those items live in, `pamoja-core` unless said otherwise.
+    pub rust_crate: Option<String>,
 }
 
 impl Capability {
@@ -101,11 +106,18 @@ impl Catalog {
         for table in tables(&doc, "capability")? {
             let key = string(table, "key", "capability")?;
             let context = format!("capability {key}");
+            let crates = strings(table, "crates", &context)?;
+            let rust_items = optional_strings(table, "rust_items", &context)?;
+            if crates.is_empty() && rust_items.is_empty() {
+                return Err(format!(
+                    "{context} has no crate, so it names the Rust items its guide uses in rust_items"
+                ));
+            }
             capabilities.push(Capability {
                 chapter: string(table, "chapter", &context)?,
                 title: string(table, "title", &context)?,
                 summary: string(table, "summary", &context)?,
-                crates: strings(table, "crates", &context)?,
+                crates,
                 node: string(table, "node", &context)?,
                 python: string(table, "python", &context)?,
                 dotnet: strings(table, "dotnet", &context)?,
@@ -113,6 +125,11 @@ impl Catalog {
                 guides: further(table, &context)?,
                 next: optional_strings(table, "next", &context)?,
                 pages: optional_strings(table, "pages", &context)?,
+                rust_items,
+                rust_crate: table
+                    .get("rust_crate")
+                    .and_then(Item::as_str)
+                    .map(str::to_owned),
                 key,
             });
         }
@@ -847,9 +864,21 @@ impl Catalog {
                 rust.row_url(capability)
             ));
         } else {
+            let home = capability.rust_crate.as_deref().unwrap_or("pamoja-core");
+            let items: Vec<String> = capability
+                .rust_items
+                .iter()
+                .map(|item| format!("`{item}`"))
+                .collect();
+            let named = match items.as_slice() {
+                [only] => only.clone(),
+                [first, second] => format!("{first} and {second}"),
+                [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+                [] => String::new(),
+            };
             lines.push(format!(
-                "- Rust: the `Transport` and `Receive` traits in [`pamoja-core`]({}), [install]({})",
-                rustdoc_url("pamoja-core"),
+                "- Rust: {named} in [`{home}`]({}), [install]({})",
+                rustdoc_url(home),
                 rust.row_url(capability)
             ));
         }
@@ -1753,6 +1782,7 @@ chapter = "field-io"
 title = "Transports"
 summary = "The transport surface"
 crates = []
+rust_items = ["Transport", "Receive"]
 node = "core"
 python = "core"
 dotnet = ["Transport"]
@@ -1774,7 +1804,20 @@ crate = "pamoja"
         let modbus = catalog.capability("modbus").unwrap();
         assert_eq!(modbus.dotnet, ["Modbus", "ModbusFrame"]);
         assert_eq!(modbus.guide.as_deref(), Some("guides/modbus.md"));
-        assert!(catalog.capability("transport").unwrap().guide.is_none());
+        let transport = catalog.capability("transport").unwrap();
+        assert!(transport.guide.is_none());
+        assert_eq!(transport.rust_items, ["Transport", "Receive"]);
+        assert!(transport.rust_crate.is_none());
+    }
+
+    #[test]
+    fn a_capability_with_no_crate_names_its_rust_items() {
+        let bare = SAMPLE.replace("rust_items = [\"Transport\", \"Receive\"]\n", "");
+        let refused = Catalog::parse(&bare).err().unwrap();
+        assert!(
+            refused.contains("capability transport has no crate"),
+            "{refused}"
+        );
     }
 
     #[test]

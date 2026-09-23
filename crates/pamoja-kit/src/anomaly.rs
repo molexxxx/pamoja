@@ -14,6 +14,10 @@ use crate::Window;
 /// With a perfectly flat baseline the spread is zero, so any change at all reads as
 /// anomalous; real sensor noise gives a non-zero baseline, where this is not an issue.
 ///
+/// A reading that is not a finite number, such as the NaN a failed sensor reports, is always
+/// flagged, and is kept out of the baseline so it cannot blind the detector to the readings
+/// after it.
+///
 /// # Examples
 ///
 /// ```
@@ -39,15 +43,37 @@ impl<const N: usize> Anomaly<N> {
     /// # Arguments
     ///
     /// * `sigmas` - the threshold in standard deviations; `3.0` is the common three-sigma
-    ///   rule. Its magnitude is used.
+    ///   rule. Its magnitude is used, and one that is not a number is taken as zero, so the
+    ///   mistake shows as alarms rather than as silence.
     ///
     /// # Returns
     ///
     /// A detector with an empty history.
     pub fn new(sigmas: f32) -> Self {
+        Self::with_capacity(sigmas, N)
+    }
+
+    /// Creates a detector whose baseline keeps at most `capacity` readings.
+    ///
+    /// # Arguments
+    ///
+    /// * `sigmas` - the threshold in standard deviations, as for [`new`](Anomaly::new).
+    /// * `capacity` - the most readings the baseline keeps. One above `N` is taken as `N`.
+    ///
+    /// # Returns
+    ///
+    /// A detector with an empty history.
+    pub fn with_capacity(sigmas: f32, capacity: usize) -> Self {
+        let sigmas = if sigmas.is_nan() {
+            0.0
+        } else if sigmas < 0.0 {
+            -sigmas
+        } else {
+            sigmas
+        };
         Self {
-            window: Window::new(),
-            sigmas: if sigmas < 0.0 { -sigmas } else { sigmas },
+            window: Window::with_capacity(capacity),
+            sigmas,
         }
     }
 
@@ -55,7 +81,9 @@ impl<const N: usize> Anomaly<N> {
     ///
     /// The reading is judged against the window of earlier readings, so the value being
     /// tested does not inflate its own baseline. Until at least two readings have been seen
-    /// there is no spread to judge against, so nothing is flagged.
+    /// there is no spread to judge against, so nothing is flagged: from the third reading
+    /// on, a reading can be. A reading that is not a finite number is always flagged and is
+    /// not kept.
     ///
     /// # Arguments
     ///
@@ -66,6 +94,9 @@ impl<const N: usize> Anomaly<N> {
     /// `true` if `reading` lies more than the configured standard deviations from the mean
     /// of the recent window.
     pub fn check(&mut self, reading: f32) -> bool {
+        if !reading.is_finite() {
+            return true;
+        }
         let anomalous = match self.window.mean() {
             Some(mean) if self.window.len() >= 2 => {
                 let variance = self.window.variance().unwrap_or(0.0);
@@ -86,6 +117,12 @@ impl<const N: usize> Anomaly<N> {
     /// Returns `true` if no readings have been recorded yet.
     pub fn is_empty(&self) -> bool {
         self.window.is_empty()
+    }
+
+    /// Returns the most readings the baseline keeps: `N`, or less when made with
+    /// [`with_capacity`](Anomaly::with_capacity).
+    pub fn capacity(&self) -> usize {
+        self.window.capacity()
     }
 }
 
@@ -127,6 +164,29 @@ mod tests {
         }
         assert!(!watch.check(50.5)); // an ordinary reading
         assert!(watch.check(80.0)); // a far outlier
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_flagged_and_kept_out_of_the_baseline() {
+        let mut watch = Anomaly::<6>::new(3.0);
+        for reading in [50.0, 51.0, 49.0, 50.5, 49.5] {
+            watch.check(reading);
+        }
+        assert!(watch.check(f32::NAN));
+        assert!(watch.check(f32::INFINITY));
+        assert_eq!(watch.len(), 5);
+        assert!(!watch.check(50.5));
+        assert!(watch.check(80.0));
+    }
+
+    #[test]
+    fn a_smaller_capacity_forgets_sooner() {
+        let mut watch = Anomaly::<32>::with_capacity(3.0, 3);
+        for reading in [1.0, -1.0, 1.0, -1.0, 100.0, 101.0, 100.0] {
+            watch.check(reading);
+        }
+        assert_eq!(watch.capacity(), 3);
+        assert!(!watch.check(100.5));
     }
 
     #[test]

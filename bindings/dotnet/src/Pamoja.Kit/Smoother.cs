@@ -10,7 +10,7 @@ public sealed class Smoother : IDisposable
 
     private Smoother(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_smoother_free, "smoother");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_smoother_free, "smoother", serialized: true);
     }
 
     /// <summary>Creates a smoother at the given weight.</summary>

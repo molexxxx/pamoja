@@ -30,7 +30,8 @@ impl Smoother {
     ///
     /// * `weight` - how much the newest sample counts, clamped to `[0.0, 1.0]`.
     ///   `1.0` disables smoothing so the output follows the input; values near
-    ///   `0.0` smooth heavily and react slowly.
+    ///   `0.0` smooth heavily and react slowly. A weight that is not a number is
+    ///   taken as `1.0`.
     ///
     /// # Returns
     ///
@@ -44,7 +45,9 @@ impl Smoother {
 
     /// Folds a new sample into the average and returns the smoothed value.
     ///
-    /// The first sample seeds the average and is returned unchanged.
+    /// The first sample seeds the average and is returned unchanged. A sample that is not a
+    /// finite number, such as the NaN a failed sensor reports, is ignored: the average stays
+    /// where it was and is returned as it stood.
     ///
     /// # Arguments
     ///
@@ -52,8 +55,12 @@ impl Smoother {
     ///
     /// # Returns
     ///
-    /// The smoothed value after including `sample`.
+    /// The smoothed value after including `sample`, or the sample itself when it is not a
+    /// finite number and no real one has arrived yet.
     pub fn update(&mut self, sample: f32) -> f32 {
+        if !sample.is_finite() {
+            return self.value.unwrap_or(sample);
+        }
         let smoothed = match self.value {
             Some(previous) => self.weight * sample + (1.0 - self.weight) * previous,
             None => sample,
@@ -80,10 +87,10 @@ impl Smoother {
 // `f32::clamp` lives in `std`, so this `no_std` crate clamps by hand.
 #[allow(clippy::manual_clamp)]
 fn unit_interval(value: f32) -> f32 {
-    if value < 0.0 {
-        0.0
-    } else if value > 1.0 {
+    if value.is_nan() || value > 1.0 {
         1.0
+    } else if value < 0.0 {
+        0.0
     } else {
         value
     }
@@ -113,6 +120,23 @@ mod tests {
         let mut smoother = Smoother::new(2.0); // clamps to 1.0: no smoothing
         smoother.update(1.0);
         assert!((smoother.update(9.0) - 9.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_sample_that_is_not_a_number_leaves_the_average_where_it_was() {
+        let mut smoother = Smoother::new(0.5);
+        smoother.update(10.0);
+        assert_eq!(smoother.update(f32::NAN), 10.0);
+        assert_eq!(smoother.update(f32::INFINITY), 10.0);
+        assert_eq!(smoother.update(0.0), 5.0);
+        assert!(Smoother::new(0.5).update(f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn a_weight_that_is_not_a_number_follows_the_input() {
+        let mut smoother = Smoother::new(f32::NAN);
+        smoother.update(1.0);
+        assert_eq!(smoother.update(9.0), 9.0);
     }
 
     #[test]

@@ -33,7 +33,8 @@ impl Complementary {
     ///
     /// * `alpha` - the weight on the integrated rate, in `[0.0, 1.0]`; near `1.0` trusts the
     ///   rate and corrects slowly, near `0.0` follows the absolute reading. Clamped to the
-    ///   unit interval.
+    ///   unit interval, and one that is not a number is taken as `0.0`, which follows the
+    ///   absolute reading since that one cannot drift.
     /// * `initial` - the starting estimate.
     ///
     /// # Returns
@@ -48,6 +49,9 @@ impl Complementary {
 
     /// Fuses a rate and an absolute reading over a time step and returns the new estimate.
     ///
+    /// If the rate, the absolute reading, or the time step is not a finite number, such as the
+    /// NaN a failed sensor reports, the update is ignored and the estimate returned as it stood.
+    ///
     /// # Arguments
     ///
     /// * `rate` - the rate of change, such as degrees per second from a gyroscope.
@@ -58,6 +62,9 @@ impl Complementary {
     ///
     /// The fused estimate, `alpha * (estimate + rate * dt) + (1 - alpha) * absolute`.
     pub fn update(&mut self, rate: f32, absolute: f32, dt: f32) -> f32 {
+        if !rate.is_finite() || !absolute.is_finite() || !dt.is_finite() {
+            return self.estimate;
+        }
         let integrated = self.estimate + rate * dt;
         self.estimate = self.alpha * integrated + (1.0 - self.alpha) * absolute;
         self.estimate
@@ -72,7 +79,7 @@ impl Complementary {
 // `f32::clamp` lives in `std`, so this `no_std` crate clamps by hand.
 #[allow(clippy::manual_clamp)]
 fn unit_interval(value: f32) -> f32 {
-    if value < 0.0 {
+    if value.is_nan() || value < 0.0 {
         0.0
     } else if value > 1.0 {
         1.0
@@ -109,5 +116,21 @@ mod tests {
     fn alpha_is_clamped_to_the_unit_interval() {
         let mut filter = Complementary::new(5.0, 0.0); // clamps to 1.0
         assert!((filter.update(4.0, 100.0, 1.0) - 4.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn an_input_that_is_not_a_number_is_ignored() {
+        let mut tilt = Complementary::new(0.98, 0.0);
+        let settled = tilt.update(10.0, 1.0, 0.1);
+        assert_eq!(tilt.update(f32::NAN, 1.0, 0.1), settled);
+        assert_eq!(tilt.update(10.0, f32::INFINITY, 0.1), settled);
+        assert_eq!(tilt.update(10.0, 1.0, f32::NAN), settled);
+        assert!(tilt.update(10.0, 1.0, 0.1).is_finite());
+    }
+
+    #[test]
+    fn an_alpha_that_is_not_a_number_follows_the_absolute_reading() {
+        let mut tilt = Complementary::new(f32::NAN, 0.0);
+        assert_eq!(tilt.update(10.0, 3.0, 0.1), 3.0);
     }
 }

@@ -246,6 +246,22 @@ released together, so one entry covers all of them.
   link, and a message cut short that is refused whole, printing the same seven lines in all
   four languages. Its tables cover the calls on the device and on the gateway in each
   language, the sizes, and what each check says when it fails.
+- The windowed helpers keep as many readings as they are told, in every language. In Rust,
+  `with_capacity` keeps fewer than the const generic `N`. In the other languages the
+  constructor takes a capacity, such as `new Median(5)`, from 1 to 32, or from 2 for a trend
+  or an anomaly baseline, which need two readings to answer, and refuses one it cannot keep:
+  `capacity must be a whole number from 1 to 32, not 0`. Each reports its `capacity`, a
+  window reports whether it is full and its latest and oldest readings, and C# gains
+  `Kit.WindowCapacity`.
+- A trigger reports its threshold and hysteresis in C# and the C ABI, as it did in the other
+  languages, and whether it watches a rising reading in every language.
+- The helpers guide rewritten around a village water system: the tower level read off a 4-20
+  mA loop, filtered and smoothed, a refill pump and its float switch, a low-water alarm, a
+  booster pump held at pressure by a PID behind a soft start, a countdown through a power
+  cut, a leak, a burst main, a flow meter's odd readings, and a tanker truck's district,
+  printing the same twenty lines in all four languages. Its tables cover every helper in each
+  language, what each parameter means and what a value out of range does, the windowed
+  capacities, what a reading that is not a number does to each helper, and how to tune them.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -763,6 +779,15 @@ released together, so one entry covers all of them.
   defaulting to an uplink sent directly, as it does in Python and C#.
 - `LoraChannelPlan.DangerousGetHandle` in C# is `Lease`, which holds the plan open until the
   lease is disposed, so a package building on a plan cannot have it freed mid-call.
+- A helper's state reads as a property in TypeScript, as it does in Python and C#:
+  `smoother.value`, `thermostat.isOn`, `trigger.isSet`, `kalman.estimate`, `debounce.state`,
+  `ramp.value`, `median.value`, and `trend.slope`, where each was a method.
+- `Trigger.update` in Python returns the `Edge` enum, where it returned the enum's string.
+  `Edge` is a `str` enum, so a comparison with `"set"` still holds.
+- `Debounce` in TypeScript refuses a count that is not a whole number from 0 to 65535,
+  `samples must be a whole number from 0 to 65535, not 2.9`, where it cut a fraction and
+  wrapped a negative count to a large one. Python raises `ValueError` with the same words for
+  a count out of range, where it raised `OverflowError`.
 - On the event bus in TypeScript, Python, and C#, only the waits wait. An endpoint's
   `subscribe` and `publish` return at once rather than a promise or a coroutine in
   TypeScript and Python, and C#'s `PublishAsync` is now `Publish`. A wait gives the event
@@ -966,6 +991,36 @@ released together, so one entry covers all of them.
 - `CdrWriter.ToBytes` in C# handed an encoder native code had already consumed back to it when
   called a second time, freeing it again. It throws `PamojaException`, as its documentation
   said. Two threads finishing one `LorawanBlockMic` at once could do the same, and cannot now.
+- One reading that was not a number stayed in a helper for good: a NaN from a failed sensor
+  turned a smoother, a Kalman filter, a PID's integral, a window's mean, a median, or a trend
+  into NaN from then on. Every helper that keeps state ignores such a reading now, in every
+  language. A value helper answers with the value it held, a thermostat or a debouncer keeps
+  its output, a PID returns its last output, a trigger, a surge, or a depletion countdown
+  reports nothing, and an anomaly detector flags the reading and keeps it out of its
+  baseline. A parameter that is not a number falls back to a documented value, such as a
+  smoother weight of 1 or a hysteresis of 0.
+- The motion helpers fail safe on a reading that is not a number. `obstacle_stop` treats a
+  range that is NaN as an obstacle, where it drove on; `WaypointFollower::guide` stops for a
+  lost fix or heading; a `Watchdog` given a time step that is not finite expires; `Limits`
+  eases toward a stop on a command it cannot read; `ServoMap::pulse` sends no pulse and
+  `Esc::pulse` the neutral one for an angle or a throttle that is NaN; and `Odometry` and
+  `Complementary` keep their estimate. `TwoLinkArm::joints_for` refuses a target that is not
+  finite, where it answered with NaN joints.
+- `ServoMap::angle` read a reversed servo's pulse, one whose `min_us` is above its `max_us`,
+  as the angle at one end.
+- A Kalman filter with no process noise and no measurement noise returned NaN from its third
+  reading on. It follows each reading now, as a sensor with no noise should.
+- `Pid` in Python ignored a limit given alone: `Pid(10, 0, 0, max=40)` had no limit at all.
+  It clamps to the one given, and leaves the other side open.
+- The helper objects in C# had no lock, so two threads could reach one at once, which the
+  native side does not allow. Their calls run one at a time now.
+- The documentation of several helpers described something else. A deadband does not shift a
+  reading outside the band; it passes it through. A surge reports a change of more than its
+  limit, not one of at least it. A window's variance is 0 for one reading rather than absent,
+  a depletion countdown reports 0 for a first reading already at the threshold, and an anomaly
+  detector judges from its third reading, not once its window is full. The C ABI's
+  constructors never return null, except a windowed helper's `_with_capacity` given a
+  capacity it cannot keep.
 - An event bus endpoint in TypeScript and Python could not publish or subscribe while its own
   wait for the next event was open: the call waited behind the wait, for good if nothing else
   published. In C#, a publish beside a waiting `NextAsync` reached the native endpoint

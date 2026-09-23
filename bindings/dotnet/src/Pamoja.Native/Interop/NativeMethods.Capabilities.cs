@@ -194,7 +194,7 @@ public static partial class NativeMethods
         float measurement,
         float dt);
 
-    /// <summary>Clears a PID controller's integral and last error.</summary>
+    /// <summary>Clears a PID controller's integral, last error, and last output.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_pid_reset(IntPtr pid);
 
@@ -240,6 +240,19 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_trigger_is_set(IntPtr trigger);
+
+    /// <summary>Reads the line a trigger watches.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_trigger_threshold(IntPtr trigger);
+
+    /// <summary>Reads the release band on the far side of a trigger's line.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_trigger_hysteresis(IntPtr trigger);
+
+    /// <summary>Reports whether a trigger watches a rising reading.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_trigger_watches_above(IntPtr trigger);
 
     /// <summary>Releases a trigger handle. Passing null is a no-op.</summary>
     [LibraryImport(Library)]
@@ -322,15 +335,15 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_ramp_free(IntPtr ramp);
 
-    /// <summary>Creates a detector for rises of at least the given size.</summary>
+    /// <summary>Creates a detector for rises of more than the given size.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_surge_rising(float limit);
 
-    /// <summary>Creates a detector for falls of at least the given size.</summary>
+    /// <summary>Creates a detector for falls of more than the given size.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_surge_falling(float limit);
 
-    /// <summary>Feeds a value to a surge detector, reporting a qualifying step.</summary>
+    /// <summary>Feeds a value to a surge detector, reporting a step past the limit.</summary>
     [LibraryImport(Library)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_surge_update(IntPtr surge, float value, out float outDelta);

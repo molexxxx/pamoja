@@ -10,7 +10,7 @@ public sealed class Kalman : IDisposable
 
     private Kalman(IntPtr handle)
     {
-        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_kalman_free, "Kalman filter");
+        _handle = NativeHandle.Create(handle, NativeMethods.pamoja_kalman_free, "Kalman filter", serialized: true);
     }
 
     /// <summary>Creates a filter from the noise levels and a first guess.</summary>

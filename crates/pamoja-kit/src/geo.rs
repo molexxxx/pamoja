@@ -170,7 +170,8 @@ impl Geofence {
     /// # Arguments
     ///
     /// * `center` - the middle of the safe area.
-    /// * `radius_m` - the radius of the safe area in meters; its magnitude is used.
+    /// * `radius_m` - the radius of the safe area in meters; its magnitude is used. One that
+    ///   is not a number contains nothing.
     ///
     /// # Returns
     ///
@@ -198,6 +199,10 @@ impl Geofence {
 
     /// Records a fix and reports its position relative to the fence.
     ///
+    /// A fix whose latitude or longitude is not a finite number, which a receiver without a
+    /// lock can report, is no fix: it changes nothing and reports the state as it stood,
+    /// [`Boundary::Outside`] before any real fix, and never an exit or an entry.
+    ///
     /// # Arguments
     ///
     /// * `point` - the latest fix.
@@ -207,6 +212,13 @@ impl Geofence {
     /// [`Boundary::Entered`] or [`Boundary::Exited`] on the fix that crosses the
     /// boundary, otherwise [`Boundary::Inside`] or [`Boundary::Outside`].
     pub fn update(&mut self, point: Coordinate) -> Boundary {
+        if !point.latitude.is_finite() || !point.longitude.is_finite() {
+            return if self.inside == Some(true) {
+                Boundary::Inside
+            } else {
+                Boundary::Outside
+            };
+        }
         let now_inside = self.contains(point);
         let boundary = match self.inside {
             Some(true) if !now_inside => Boundary::Exited,
@@ -312,5 +324,20 @@ mod tests {
     fn a_negative_radius_is_treated_as_its_magnitude() {
         let fence = Geofence::new(Coordinate::new(0.0, 0.0), -100.0);
         assert!(fence.contains(Coordinate::new(0.0, 0.0)));
+    }
+
+    #[test]
+    fn a_fix_that_is_not_a_number_is_no_fix() {
+        let mut fence = Geofence::new(Coordinate::new(37.0, -122.0), 100.0);
+        let near = Coordinate::new(37.0005, -122.0);
+        let lost = Coordinate::new(f64::NAN, -122.0);
+        assert_eq!(fence.update(lost), Boundary::Outside);
+        assert_eq!(fence.update(near), Boundary::Inside);
+        assert_eq!(fence.update(lost), Boundary::Inside);
+        assert_eq!(
+            fence.update(Coordinate::new(37.0, f64::INFINITY)),
+            Boundary::Inside
+        );
+        assert_eq!(fence.update(near), Boundary::Inside);
     }
 }

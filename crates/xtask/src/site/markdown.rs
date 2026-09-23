@@ -443,10 +443,10 @@ fn collapse(text: &str) -> String {
 }
 
 /// Inline code for a table cell, escaped, with a break opportunity after each separator a
-/// reader would break at: after `::`, `(`, `,`, and a `.` or `/` that is not the first
-/// character. A narrow column then wraps `I2cBus::open(path)` as `I2cBus::` and
-/// `open(path)`, never inside a name, and a chained setter such as `.bind(address)` keeps
-/// its dot.
+/// reader would break at: after `::`, a `(` that opens an argument list, `,`, and a `.` or
+/// `/` that is not the first character. A narrow column then wraps `I2cBus::open(path)` as
+/// `I2cBus::` and `open(path)`, never inside a name, a call with no arguments such as
+/// `reset()` stays whole, and a chained setter such as `.bind(address)` keeps its dot.
 fn breakable(code: &str) -> String {
     let mut html = String::with_capacity(code.len() + 16);
     let mut chars = code.chars().peekable();
@@ -463,7 +463,8 @@ fn breakable(code: &str) -> String {
         let separator = match c {
             ':' => chars.peek() != Some(&':'),
             '/' | '.' => !leading,
-            '(' | ',' => true,
+            '(' => chars.peek() != Some(&')'),
+            ',' => true,
             _ => false,
         };
         if separator && chars.peek().is_some() {
@@ -581,6 +582,11 @@ mod tests {
             breakable("a.b."),
             "a.<wbr>b.",
             "no break after the last character"
+        );
+        assert_eq!(
+            breakable("window.reset()"),
+            "window.<wbr>reset()",
+            "a call with no arguments stays whole"
         );
     }
 

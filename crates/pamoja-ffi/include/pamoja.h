@@ -285,12 +285,12 @@
 // A part kind: commands, each leaving the reply it was given for a read to take.
 #define PAMOJA_I2C_PART_COMMANDS 2
 
-// The number of readings a windowed helper keeps.
+// The most readings a windowed helper keeps, and the number it keeps unless told
+// fewer.
 //
 // The Rust helpers are generic over their capacity, which cannot cross a C ABI,
-// so the ones here are built at one documented size. The crate's own examples
-// use three to eight readings, so this is headroom rather than a constraint; a
-// caller who needs another size has the Rust crate.
+// so the ones here are built with room for this many; each has a `_with_capacity`
+// constructor that keeps fewer.
 #define PAMOJA_WINDOW_CAPACITY 32
 
 // The family of an SX1261, SX1262, SX1268, or LLCC68.
@@ -9138,16 +9138,18 @@ void pamoja_smoother_free(PamojaSmoother *smoother);
 //
 // # Safety
 //
-// `pid` must be a handle from [`pamoja_pid_new`] that has not already been
+// `pid` must be a handle from a PID constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_pid_free(PamojaPid *pid);
 
 // Releases a trigger handle.
 //
+// Passing null is a no-op.
+//
 // # Safety
 //
 // `trigger` must be a handle from [`pamoja_trigger_above`] or [`pamoja_trigger_below`]
-// that has not already been freed, or null.
+// that has not already been freed, or null. After this call it must not be used again.
 void pamoja_trigger_free(PamojaTrigger *trigger);
 
 // Creates a trigger that fires when a reading rises above the line and clears once it
@@ -9198,13 +9200,47 @@ PamojaEdge pamoja_trigger_update(PamojaTrigger *trigger, float reading);
 // `trigger` must be a live handle from a trigger constructor, or null.
 bool pamoja_trigger_is_set(const PamojaTrigger *trigger);
 
+// Reads the line a trigger watches.
+//
+// # Returns
+//
+// The threshold it was created with, or NaN if `trigger` is null.
+//
+// # Safety
+//
+// `trigger` must be a live handle from a trigger constructor, or null.
+float pamoja_trigger_threshold(const PamojaTrigger *trigger);
+
+// Reads the release band on the far side of a trigger's line.
+//
+// # Returns
+//
+// The hysteresis it was created with, as a magnitude, or NaN if `trigger` is null.
+//
+// # Safety
+//
+// `trigger` must be a live handle from a trigger constructor, or null.
+float pamoja_trigger_hysteresis(const PamojaTrigger *trigger);
+
+// Reports whether a trigger watches a rising reading.
+//
+// # Returns
+//
+// `true` for a trigger from [`pamoja_trigger_above`], and `false` for one from
+// [`pamoja_trigger_below`] or if `trigger` is null.
+//
+// # Safety
+//
+// `trigger` must be a live handle from a trigger constructor, or null.
+bool pamoja_trigger_watches_above(const PamojaTrigger *trigger);
+
 // Releases a thermostat handle.
 //
 // Passing null is a no-op.
 //
 // # Safety
 //
-// `thermostat` must be a handle from [`pamoja_thermostat_cooling`] that has not already been
+// `thermostat` must be a handle from a thermostat constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_thermostat_free(PamojaThermostat *thermostat);
 
@@ -9254,7 +9290,7 @@ void pamoja_ramp_free(PamojaRamp *ramp);
 //
 // # Safety
 //
-// `surge` must be a handle from [`pamoja_surge_rising`] that has not already been
+// `surge` must be a handle from a surge constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_surge_free(PamojaSurge *surge);
 
@@ -9264,7 +9300,7 @@ void pamoja_surge_free(PamojaSurge *surge);
 //
 // # Safety
 //
-// `calibration` must be a handle from [`pamoja_calibration_linear`] that has not already been
+// `calibration` must be a handle from a calibration constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_calibration_free(PamojaCalibration *calibration);
 
@@ -9333,6 +9369,9 @@ PamojaPid *pamoja_pid_new(float kp, float ki, float kd);
 
 // Creates a PID controller whose output is clamped to `[min, max]`.
 //
+// Either side may be infinite, or NaN, to leave it open; a `max` below `min` is
+// swapped with it.
+//
 // # Returns
 //
 // A handle the caller must release with [`pamoja_pid_free`].
@@ -9344,6 +9383,11 @@ PamojaPid *pamoja_pid_new_with_limits(float kp, float ki, float kd, float min, f
 
 // Advances a PID controller by one step.
 //
+// `dt` is the time since the previous step, in the unit the integral and derivative
+// gains assume; one at or below zero, or not a finite number, skips the integral and
+// derivative. A setpoint or measurement that is not a finite number is ignored and the
+// previous output returned.
+//
 // # Returns
 //
 // The control output, or NaN if `pid` is null.
@@ -9353,7 +9397,8 @@ PamojaPid *pamoja_pid_new_with_limits(float kp, float ki, float kd, float min, f
 // `pid` must be a live handle from a PID constructor, or null.
 float pamoja_pid_update(PamojaPid *pid, float setpoint, float measurement, float dt);
 
-// Clears a PID controller's accumulated integral and last error.
+// Clears a PID controller's accumulated integral, its last error, and the output it
+// last returned.
 //
 // # Safety
 //
@@ -9419,9 +9464,11 @@ PamojaDepletion *pamoja_depletion_new(float threshold);
 //
 // # Returns
 //
-// `true` if an estimate is available, having written it to `out_samples`;
-// `false` if the level is steady or rising, if no rate is known yet, or if
-// `depletion` is null.
+// `true` if an estimate is available, having written it to `out_samples`: 0 once
+// the level is at or below the threshold, the first reading included. `false` if
+// the level is steady or rising, on a first reading above the threshold, when no
+// rate is known yet, for a level that is not a finite number, or if `depletion`
+// is null.
 //
 // # Safety
 //
@@ -9535,7 +9582,7 @@ float pamoja_ramp_value(const PamojaRamp *ramp);
 // `ramp` must be a live handle from [`pamoja_ramp_new`], or null.
 void pamoja_ramp_set(PamojaRamp *ramp, float value);
 
-// Creates a detector for rises of at least `limit` between readings.
+// Creates a detector for rises of more than `limit` between readings.
 //
 // # Returns
 //
@@ -9546,7 +9593,7 @@ void pamoja_ramp_set(PamojaRamp *ramp, float value);
 // The returned handle must be freed exactly once.
 PamojaSurge *pamoja_surge_rising(float limit);
 
-// Creates a detector for falls of at least `limit` between readings.
+// Creates a detector for falls of more than `limit` between readings.
 //
 // # Returns
 //
@@ -9561,8 +9608,9 @@ PamojaSurge *pamoja_surge_falling(float limit);
 //
 // # Returns
 //
-// `true` if this reading completed a qualifying step, having written the size of
-// the step to `out_delta`; `false` otherwise or if `surge` is null.
+// `true` if the change since the previous reading went past the limit in the
+// watched direction, having written its size, as a positive number, to `out_delta`;
+// `false` otherwise, on the first reading, or if `surge` is null.
 //
 // # Safety
 //
@@ -9646,12 +9694,12 @@ double pamoja_coordinate_distance_to(PamojaCoordinate from, PamojaCoordinate to)
 // Returns the initial bearing from one coordinate to another, in degrees.
 double pamoja_coordinate_bearing_to(PamojaCoordinate from, PamojaCoordinate to);
 
-// Suppresses movement within `width` of `center`, so noise does not act.
+// Holds a reading at `center` while it stays within `width` either side, so small
+// wiggle around a setpoint does not act.
 //
 // # Returns
 //
-// `center` while `value` is inside the band, and otherwise `value` shifted
-// toward `center` by half the band width, so the output is continuous.
+// `center` while `value` is within `width` of it, and otherwise `value` unchanged.
 float pamoja_kit_deadband(float value, float center, float width);
 
 // Creates an empty rolling window of [`PAMOJA_WINDOW_CAPACITY`] readings.
@@ -9665,13 +9713,25 @@ float pamoja_kit_deadband(float value, float center, float width);
 // The returned handle must be freed exactly once.
 PamojaWindow *pamoja_window_new(void);
 
+// Creates an empty rolling window that keeps up to `capacity` readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_window_free`], or null if
+// `capacity` is not from 1 to [`PAMOJA_WINDOW_CAPACITY`].
+//
+// # Safety
+//
+// A returned handle must be freed exactly once.
+PamojaWindow *pamoja_window_with_capacity(uintptr_t capacity);
+
 // Adds a reading, dropping the oldest once the window is full.
 //
 // Passing null is a no-op.
 //
 // # Safety
 //
-// `window` must be a live handle from [`pamoja_window_new`], or null.
+// `window` must be a live handle from a window constructor, or null.
 void pamoja_window_push(PamojaWindow *window, float reading);
 
 // Returns how many readings a window holds.
@@ -9682,7 +9742,7 @@ void pamoja_window_push(PamojaWindow *window, float reading);
 //
 // # Safety
 //
-// `window` must be a live handle from [`pamoja_window_new`], or null.
+// `window` must be a live handle from a window constructor, or null.
 uintptr_t pamoja_window_len(const PamojaWindow *window);
 
 // Returns how many readings a window holds before it starts dropping.
@@ -9693,8 +9753,43 @@ uintptr_t pamoja_window_len(const PamojaWindow *window);
 //
 // # Safety
 //
-// `window` must be a live handle from [`pamoja_window_new`], or null.
+// `window` must be a live handle from a window constructor, or null.
 uintptr_t pamoja_window_capacity(const PamojaWindow *window);
+
+// Reports whether a window holds as many readings as it keeps.
+//
+// # Returns
+//
+// `true` once the window is full, or `false` before that or if `window` is null.
+//
+// # Safety
+//
+// `window` must be a live handle from a window constructor, or null.
+bool pamoja_window_is_full(const PamojaWindow *window);
+
+// Reads the most recent reading in a window.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with it written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_latest(const PamojaWindow *window, float *out_value);
+
+// Reads the oldest reading a window still holds.
+//
+// # Returns
+//
+// `true` when the window holds a reading, with it written to `out_value`.
+//
+// # Safety
+//
+// `window` must be a live handle or null, and `out_value` must point to a
+// writable `float`.
+bool pamoja_window_oldest(const PamojaWindow *window, float *out_value);
 
 // Reads the mean of a window's readings.
 //
@@ -9744,12 +9839,12 @@ bool pamoja_window_max(const PamojaWindow *window, float *out_value);
 // writable `float`.
 bool pamoja_window_range(const PamojaWindow *window, float *out_value);
 
-// Reads the variance of a window's readings.
+// Reads the population variance of a window's readings.
 //
 // # Returns
 //
-// `true` when the window holds enough readings to have a variance, with it
-// written to `out_value`.
+// `true` when the window holds a reading, with the variance written to
+// `out_value`; one reading has a variance of 0.
 //
 // # Safety
 //
@@ -9763,7 +9858,7 @@ bool pamoja_window_variance(const PamojaWindow *window, float *out_value);
 //
 // # Safety
 //
-// `window` must be a handle from [`pamoja_window_new`] that has not already been
+// `window` must be a handle from a window constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_window_free(PamojaWindow *window);
 
@@ -9781,6 +9876,32 @@ void pamoja_window_free(PamojaWindow *window);
 // The returned handle must be freed exactly once.
 PamojaMedian *pamoja_median_new(void);
 
+// Creates an empty median filter over up to `capacity` readings.
+//
+// A small odd window, such as 5, follows a real change in a few readings; a window
+// of 32 follows it 16 readings late.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_median_free`], or null if
+// `capacity` is not from 1 to [`PAMOJA_WINDOW_CAPACITY`].
+//
+// # Safety
+//
+// A returned handle must be freed exactly once.
+PamojaMedian *pamoja_median_with_capacity(uintptr_t capacity);
+
+// Returns how many readings a median filter keeps.
+//
+// # Returns
+//
+// The capacity, or 0 if `median` is null.
+//
+// # Safety
+//
+// `median` must be a live handle from a median constructor, or null.
+uintptr_t pamoja_median_capacity(const PamojaMedian *median);
+
 // Folds a reading in and returns the median of the window.
 //
 // # Returns
@@ -9789,7 +9910,7 @@ PamojaMedian *pamoja_median_new(void);
 //
 // # Safety
 //
-// `median` must be a live handle from [`pamoja_median_new`], or null.
+// `median` must be a live handle from a median constructor, or null.
 float pamoja_median_update(PamojaMedian *median, float reading);
 
 // Reads the current median without folding in a reading.
@@ -9811,7 +9932,7 @@ bool pamoja_median_value(const PamojaMedian *median, float *out_value);
 //
 // # Safety
 //
-// `median` must be a handle from [`pamoja_median_new`] that has not already been
+// `median` must be a handle from a median constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_median_free(PamojaMedian *median);
 
@@ -9826,21 +9947,45 @@ void pamoja_median_free(PamojaMedian *median);
 // The returned handle must be freed exactly once.
 PamojaTrend *pamoja_trend_new(void);
 
+// Creates an empty trend estimator over up to `capacity` readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_trend_free`], or null if
+// `capacity` is not from 2 to [`PAMOJA_WINDOW_CAPACITY`], since a line needs two
+// readings.
+//
+// # Safety
+//
+// A returned handle must be freed exactly once.
+PamojaTrend *pamoja_trend_with_capacity(uintptr_t capacity);
+
+// Returns how many readings a trend estimator keeps.
+//
+// # Returns
+//
+// The capacity, or 0 if `trend` is null.
+//
+// # Safety
+//
+// `trend` must be a live handle from a trend constructor, or null.
+uintptr_t pamoja_trend_capacity(const PamojaTrend *trend);
+
 // Adds a reading to a trend estimator.
 //
 // Passing null is a no-op.
 //
 // # Safety
 //
-// `trend` must be a live handle from [`pamoja_trend_new`], or null.
+// `trend` must be a live handle from a trend constructor, or null.
 void pamoja_trend_push(PamojaTrend *trend, float reading);
 
 // Reads the slope a trend estimator has fitted, in units per reading.
 //
 // # Returns
 //
-// `true` when there are enough readings to fit a line, with the slope written to
-// `out_value`. A positive slope is a rising signal.
+// `true` once it holds two readings, with the slope written to `out_value`. A
+// positive slope is a rising signal.
 //
 // # Safety
 //
@@ -9854,7 +9999,7 @@ bool pamoja_trend_slope(const PamojaTrend *trend, float *out_value);
 //
 // # Safety
 //
-// `trend` must be a handle from [`pamoja_trend_new`] that has not already been
+// `trend` must be a handle from a trend constructor that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_trend_free(PamojaTrend *trend);
 
@@ -9869,16 +10014,41 @@ void pamoja_trend_free(PamojaTrend *trend);
 // The returned handle must be freed exactly once.
 PamojaAnomaly *pamoja_anomaly_new(float sigmas);
 
-// Folds a reading in and reports whether it stands out from the window.
+// Creates an anomaly detector whose baseline keeps up to `capacity` readings.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_anomaly_free`], or null if
+// `capacity` is not from 2 to [`PAMOJA_WINDOW_CAPACITY`], since a spread needs two
+// readings.
+//
+// # Safety
+//
+// A returned handle must be freed exactly once.
+PamojaAnomaly *pamoja_anomaly_with_capacity(float sigmas, uintptr_t capacity);
+
+// Returns how many readings an anomaly detector's baseline keeps.
+//
+// # Returns
+//
+// The capacity, or 0 if `anomaly` is null.
+//
+// # Safety
+//
+// `anomaly` must be a live handle from an anomaly constructor, or null.
+uintptr_t pamoja_anomaly_capacity(const PamojaAnomaly *anomaly);
+
+// Folds a reading in and reports whether it stands out from the readings before it.
 //
 // # Returns
 //
 // `true` when the reading is further from the mean than the configured number
-// of deviations, or `false` if `anomaly` is null or the window is still filling.
+// of deviations, or is not a finite number. `false` otherwise, before two readings
+// are held, or if `anomaly` is null.
 //
 // # Safety
 //
-// `anomaly` must be a live handle from [`pamoja_anomaly_new`], or null.
+// `anomaly` must be a live handle from an anomaly constructor, or null.
 bool pamoja_anomaly_check(PamojaAnomaly *anomaly, float reading);
 
 // Releases an anomaly detector handle.
@@ -9887,7 +10057,7 @@ bool pamoja_anomaly_check(PamojaAnomaly *anomaly, float reading);
 //
 // # Safety
 //
-// `anomaly` must be a handle from [`pamoja_anomaly_new`] that has not already
+// `anomaly` must be a handle from an anomaly constructor that has not already
 // been freed, or null. After this call it must not be used again.
 void pamoja_anomaly_free(PamojaAnomaly *anomaly);
 
