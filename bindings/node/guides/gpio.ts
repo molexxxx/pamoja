@@ -19,12 +19,13 @@ console.log(`a pump on an active-low relay runs when its line is ${runsOn}`)
 pump.set(true)
 const whileFilling = float.isAsserted()
 const onceFilled = float.isAsserted()
-console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
+const full = (closed: boolean) => (closed ? 'full' : 'not full')
+console.log(`the float reads ${full(whileFilling)}, then ${full(onceFilled)}`)
 
 // The moment the float closes is that line going low, which is a falling edge. A watch
 // armed for the rising one would sleep through the tank filling.
 const closing = pin.triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low)
-console.log(`the float closing is a falling edge on that line: ${closing}`)
+console.log(`the float closing is ${closing ? 'a falling edge' : 'not a falling edge'} on that line`)
 
 // Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
 // driven to are the whole conversation the board saw.
@@ -42,11 +43,13 @@ console.log(`a part at 0x76 is written to as ${hex(toWrite)} and read from as ${
 // Two ranges belong to the specification itself, so a part answering in either is a wiring
 // mistake rather than a device.
 const reserved = i2c.isReserved(i2c.RESERVED_FROM)
-console.log(`${hex(i2c.RESERVED_FROM)} is reserved by the specification: ${reserved}`)
+console.log(`${hex(i2c.RESERVED_FROM)} is ${reserved ? 'reserved by the specification' : 'free for a device'}`)
 
 // And a datasheet quotes SPI's clock polarity and phase as one mode number.
 const clock = spi.clockFor(3)
-console.log(`SPI mode 3 idles high: ${clock.cpol}, samples on the trailing edge: ${clock.cpha}`)
+const idle = clock.cpol ? 'high' : 'low'
+const edge = clock.cpha ? 'trailing' : 'leading'
+console.log(`SPI mode 3 idles ${idle} and samples on the ${edge} edge`)
 // ANCHOR_END: example
 
 assert.equal(runsOn, PinLevel.Low)

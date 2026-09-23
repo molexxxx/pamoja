@@ -307,6 +307,21 @@ released together, so one entry covers all of them.
   build one, what a reaction says, and what each error means.
 - Conformance vectors for profiles built from their parts, a setpoint one and a custom
   one, pinning the manifest bytes in all four languages.
+- The audit log guide breaks the log every way a log gets broken, a record edited, the
+  first left out, two swapped, another device's key, then resumes it after a restart and
+  shows the one change a chain cannot see, records cut from its end, and how an auditor
+  catches that against the device's last reported index, printing the same nine lines in
+  all four languages. Its tables cover what a record holds, what each check catches, the
+  calls in each language, and what each failure says.
+- The secured session guide sends a replayed frame, a frame with its pump id rewritten, a
+  frame that arrives late, and the gateway's reply, printing the same seven lines in all
+  four languages. Its tables cover what crosses the wire, what the session derives and how
+  a nonce is built, what the receiver accepts, the calls in each language, and what each
+  refusal says, led by the reused salt.
+- The telemetry guide walks a node down all four link costs, from its own network to no
+  link at all, and ends on the counts by level, printing the same seven lines in all four
+  languages, with tables of the levels, the link costs, a snapshot, and the calls in each
+  language.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -1000,6 +1015,14 @@ released together, so one entry covers all of them.
   orchestration next, and mission planning, numeric inverse kinematics for
   longer arms, and micro-ROS later, and the hardware lane names its parts. Reach
   points at the bindings rather than listing the four languages again.
+- A telemetry reporter's counters hold at `u32::MAX` rather than wrap, in every language.
+  A node counting a few hundred events a second overflowed a count in about a year, which
+  panicked a debug build and wrapped to a small number in a release one.
+- The GPIO, audit, session, and telemetry guides print the same bytes in every language:
+  where they printed a boolean, Python and C# wrote `True` and `False` beside Rust's and
+  TypeScript's `true` and `false`, and each now says what the value means in words.
+- `Session.Open` in C# names `message.Tag` when a tag is the wrong length, where it named
+  the whole message.
 - `Pose` and `Twist` in C# move from `Pamoja.Sim` to `Pamoja.Kit`, beside the motion
   helpers that take them, and `Pamoja.Sim` takes them from there. In Python, `Pose` is a
   frozen value class that compares by value and can be built, each field 0 unless given,
@@ -1217,6 +1240,14 @@ released together, so one entry covers all of them.
 - A replay that does not repeat reports closed once it runs out, in every language, but
   the C ABI, TypeScript, and C# documentation said it kept returning its last reading. It
   says what happens now, and Python's says it too.
+- The audit log documentation in TypeScript, Python, and C# said signing the index made a
+  record removed from the end of a log detectable. It does not: a log cut short at the end
+  is still a valid chain. The documentation, `verify_chain`'s included, now says to compare
+  the last index and digest with the ones the device last reported, and a test pins the
+  behavior.
+- The telemetry guide example's header gave `--example telemetry` as its run command,
+  which runs an older demo; it is `--example telemetry_guide`.
+- The secured session guide split one sentence across three paragraphs.
 
 ## [0.1.18] - 2026-09-10
 

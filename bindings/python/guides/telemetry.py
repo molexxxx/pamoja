@@ -1,48 +1,67 @@
 """The telemetry guide example; see docs/guides/telemetry.md."""
 
 # ANCHOR: example
-from pamoja.telemetry import Event, Level, LinkCost, Reporter, link_cost_threshold
+from pamoja.telemetry import Event, Level, LinkCost, Reporter
 
-# The node is willing to record everything, then finds out it is reporting over a metered
-# link, which puts the bar at INFO.
+
+def fate(event: Event | None, kept: str) -> str:
+    """What a node does with an event the reporter hands back: on a link it sends it, and
+    with no link it keeps it for when one returns."""
+    return "counted only" if event is None else kept
+
+
+# On the site's own network nothing is held back.
 reporter = Reporter(Level.TRACE)
-reporter.adapt_to(LinkCost.METERED)
-print(f"on a metered link, nothing below {reporter.threshold.value} is sent")
+reporter.adapt_to(LinkCost.FREE)
+tick = reporter.record(Event(Level.DEBUG, "loop.tick"))
+print(f"free      nothing is held back: loop.tick {fate(tick, 'sent')}")
 
-# Routine detail stops going out. A reading and the warning that follows it still do, and
-# a shipped event comes back with the measurement that triggered it.
+# On a metered link the bar rises to Info. Routine detail stops going out; a reading and a
+# warning still do, and a warning carries the measurement that raised it.
+reporter.adapt_to(LinkCost.METERED)
 tick = reporter.record(Event(Level.DEBUG, "loop.tick"))
 reading = reporter.record(Event(Level.INFO, "reading.ok", 4.8))
-print(f"loop.tick sent: {tick is not None}")
-print(f"reading.ok sent: {reading is not None}")
+print(
+    f"metered   nothing below {reporter.threshold.value} is sent: "
+    f"loop.tick {fate(tick, 'sent')}, reading.ok {fate(reading, 'sent')}"
+)
 warned = reporter.record(Event(Level.WARN, "battery.low", 0.18))
-print(f"sent      {warned.code} carrying {warned.value}")
+print(f"metered   {warned.code} sent, carrying {warned.value:.2f}")
 
-# The node falls back to satellite, which raises the bar to WARN. The same reading is no
-# longer worth its bytes; a failure still is.
+# On satellite the bar is Warn: the same reading is no longer worth its bytes, and a
+# failure still is.
 reporter.adapt_to(LinkCost.EXPENSIVE)
-dearer = reporter.record(Event(Level.INFO, "reading.ok", 4.9))
+reading = reporter.record(Event(Level.INFO, "reading.ok", 4.9))
 lost = reporter.record(Event(Level.ERROR, "link.lost"))
-print(f"on satellite, reading.ok sent: {dearer is not None}")
-print(f"on satellite, link.lost sent: {lost is not None}")
+print(
+    f"satellite nothing below {reporter.threshold.value} is sent: "
+    f"reading.ok {fate(reading, 'sent')}, link.lost {fate(lost, 'sent')}"
+)
 
-# Only the stream was thinned, not the counts, so every event is still accounted for and
+# With no link at all only errors are kept, for the link's return.
+reporter.adapt_to(LinkCost.OFFLINE)
+low = reporter.record(Event(Level.WARN, "battery.low", 0.17))
+lost = reporter.record(Event(Level.ERROR, "link.lost"))
+print(
+    f"offline   nothing below {reporter.threshold.value} is kept: "
+    f"battery.low {fate(low, 'kept')}, link.lost {fate(lost, 'kept')}"
+)
+
+# Only the stream was thinned, not the counts, so every event is still accounted for, and
 # the snapshot is what the node ships in place of them.
-counts = reporter.snapshot()
-print(f"of {reporter.total} events, {counts.emitted} went out and {counts.dropped} were counted only")
+snapshot = reporter.snapshot()
+print(
+    f"counts    of {reporter.total} events, {snapshot.emitted} passed the bar and "
+    f"{snapshot.dropped} were counted only"
+)
+print(
+    f"levels    trace {snapshot.trace}, debug {snapshot.debug}, info {snapshot.info}, "
+    f"warn {snapshot.warn}, error {snapshot.error}"
+)
 # ANCHOR_END: example
 
-assert reporter.threshold == Level.WARN
-assert tick is None
-assert reading is not None
+assert reporter.threshold == Level.ERROR
 assert warned.code == "battery.low"
-assert warned.value == 0.18
-assert dearer is None
-assert lost is not None
-assert counts.info == 2
-assert counts.emitted == 3
-assert counts.dropped == 2
-assert reporter.total == 5
-
-# Offline is the last rung: a node with no link at all still keeps its failures.
-assert link_cost_threshold(LinkCost.OFFLINE) == Level.ERROR
+assert snapshot.emitted == 5
+assert snapshot.dropped == 3
+assert reporter.total == 8

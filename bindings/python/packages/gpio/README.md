@@ -41,12 +41,14 @@ print(f"a pump on an active-low relay runs when its line is {runs_on.value}")
 pump.set(True)
 while_filling = float_switch.is_asserted()
 once_filled = float_switch.is_asserted()
-print(f"the float reads full: {while_filling}, then {once_filled}")
+full = {True: "full", False: "not full"}
+print(f"the float reads {full[while_filling]}, then {full[once_filled]}")
 
 # The moment the float closes is that line going low, which is a falling edge. A watch
 # armed for the rising one would sleep through the tank filling.
 closing = pin.triggers(Edge.FALLING, Level.HIGH, Level.LOW)
-print(f"the float closing is a falling edge on that line: {closing}")
+edge = "a falling edge" if closing else "not a falling edge"
+print(f"the float closing is {edge} on that line")
 
 # Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
 # driven to are the whole conversation the board saw.
@@ -63,11 +65,14 @@ print(f"a part at 0x76 is written to as 0x{to_write:02X} and read from as 0x{to_
 # Two ranges belong to the specification itself, so a part answering in either is a wiring
 # mistake rather than a device.
 reserved = i2c.is_reserved(i2c.RESERVED_FROM)
-print(f"0x{i2c.RESERVED_FROM:02X} is reserved by the specification: {reserved}")
+owner = "reserved by the specification" if reserved else "free for a device"
+print(f"0x{i2c.RESERVED_FROM:02X} is {owner}")
 
 # And a datasheet quotes SPI's clock polarity and phase as one mode number.
 clock = spi.clock_for(3)
-print(f"SPI mode 3 idles high: {clock.cpol}, samples on the trailing edge: {clock.cpha}")
+idle = "high" if clock.cpol else "low"
+edge = "trailing" if clock.cpha else "leading"
+print(f"SPI mode 3 idles {idle} and samples on the {edge} edge")
 ```
 
 ## The same capability in every language

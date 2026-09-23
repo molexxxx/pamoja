@@ -32,12 +32,22 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     pump.apply(true).await.expect("the relay takes it");
     let while_filling = float.read().await.expect("the line reads");
     let once_filled = float.read().await.expect("the line reads");
-    println!("the float reads full: {while_filling}, then {once_filled}");
+    let full = |closed: bool| if closed { "full" } else { "not full" };
+    println!(
+        "the float reads {}, then {}",
+        full(while_filling),
+        full(once_filled)
+    );
 
     // The moment the float closes is that line going low, which is a falling edge. A watch
     // armed for the rising one would sleep through the tank filling.
     let closing = Edge::Falling.triggered_by(Level::High, Level::Low);
-    println!("the float closing is a falling edge on that line: {closing}");
+    let edge = if closing {
+        "a falling edge"
+    } else {
+        "not a falling edge"
+    };
+    println!("the float closing is {edge} on that line");
 
     // Full, so the pump stops. Releasing the switch hands the line back, and the levels it
     // was driven to are the whole conversation the board saw.
@@ -58,11 +68,18 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let reserved = Address::seven_bit(RESERVED_FROM)
         .expect("in range")
         .is_reserved();
-    println!("{RESERVED_FROM:#04X} is reserved by the specification: {reserved}");
+    let owner = if reserved {
+        "reserved by the specification"
+    } else {
+        "free for a device"
+    };
+    println!("{RESERVED_FROM:#04X} is {owner}");
 
     // And a datasheet quotes SPI's clock polarity and phase as one mode number.
     let (idles_high, trailing_edge) = Mode::Mode3.cpol_cpha();
-    println!("SPI mode 3 idles high: {idles_high}, samples on the trailing edge: {trailing_edge}");
+    let idle = if idles_high { "high" } else { "low" };
+    let edge = if trailing_edge { "trailing" } else { "leading" };
+    println!("SPI mode 3 idles {idle} and samples on the {edge} edge");
     // ANCHOR_END: example
 
     assert_eq!(runs_on, Level::Low);

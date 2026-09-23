@@ -156,6 +156,11 @@ impl Verifier {
 
 /// Verifies a whole chain of entries from the start against `public`.
 ///
+/// A chain proves nothing is missing before its last entry, not that its last entry is
+/// the last one written: a log cut short at the end is still a valid chain. To catch
+/// that, compare the last entry's index and digest with the ones the device last
+/// reported, in a heartbeat or a telemetry snapshot.
+///
 /// # Arguments
 ///
 /// * `public` - the public identity expected to have signed the log.
@@ -263,5 +268,14 @@ mod tests {
         let e2 = resumed.append(b"r2");
 
         assert!(verify_chain(&public, &[e0, e1, e2]).is_ok());
+    }
+
+    #[test]
+    fn a_chain_cut_short_at_the_end_still_verifies() {
+        let (entries, public) = sample_log();
+        // What is left is a valid chain, so the tail is caught only against what the
+        // device last reported.
+        assert!(verify_chain(&public, &entries[..2]).is_ok());
+        assert_ne!(entries[1].index(), entries[2].index());
     }
 }
