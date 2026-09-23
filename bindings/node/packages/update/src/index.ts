@@ -55,13 +55,6 @@ export {
 export type { Boot, Delegation, Manifest, Progress, SlotRecord, UpdateBlock as Block } from '@pamoja/native'
 
 /**
- * Signs a manifest into the envelope that is offered to a device.
- *
- * @param manifest - What the release says about itself.
- * @param author - The identity signing the release.
- * @returns The signed envelope.
- */
-/**
  * Hashes a complete image, for a publisher filling in a manifest.
  *
  * The manifest commits to a SHA-256 over the image, and this is that hash, so a
@@ -75,6 +68,13 @@ export function imageDigest(image: Uint8Array): Buffer {
   return nativeImageDigest(Buffer.from(image))
 }
 
+/**
+ * Signs a manifest into the envelope that is offered to a device.
+ *
+ * @param manifest - What the release says about itself.
+ * @param author - The identity signing the release.
+ * @returns The signed envelope.
+ */
 export function signManifest(manifest: ManifestFields, author: DeviceIdentity): Buffer {
   return nativeSignManifest(completeManifest(manifest), DeviceIdentity.native(author))
 }

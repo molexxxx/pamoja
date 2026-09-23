@@ -49,23 +49,81 @@ print(f"staged    {fleet.progress().written} of {len(image)} bytes")
 slot = fleet.finish()
 print(f"written   to slot {slot}, leaving the running image alone")
 
+
 # The first boot into a new image is a trial. It reverts on the next boot unless the device
 # confirms that it came up, which is what makes a bad release survivable.
-print(f"booting   {fleet.on_boot().action}")
+def said(decision):
+    if decision.action == BootAction.TRYING:
+        return f"slot {decision.slot} on trial"
+    if decision.action == BootAction.CONFIRMED:
+        return f"slot {decision.slot}, already confirmed"
+    return f"slot {decision.slot} never confirmed, so the device runs slot {decision.fallback} again"
+
+
+decision = fleet.on_boot()
+print(f"booting   {said(decision)}")
 fleet.confirm()
 print(f"confirmed slot {slot} is now {fleet.slot_record(slot).state}")
+
+# The same release offered again would take the device nowhere new, so it is refused as a
+# rollback, and so would any older one.
+try:
+    fleet.stage(envelope, image)
+    print("an old release was accepted, which should never happen")
+except PamojaError as error:
+    print(f"old       refused: {error}")
+
+# The next release goes to the slot the device is not running, slot 0 now. An image damaged
+# on the way still arrives in full, but it does not hash to what was signed.
+upgrade = b"firmware for a flow meter, version three"
+third = Manifest(
+    sequence=3,
+    vendor_id=vendor,
+    class_id=device_class,
+    storage=0,
+    digest=image_digest(upgrade),
+    size=len(upgrade),
+)
+release = sign_manifest(third, publisher)
+damaged = bytes([upgrade[0] ^ 0xFF]) + upgrade[1:]
+try:
+    fleet.stage(release, damaged)
+    print("a damaged image was accepted, which should never happen")
+except PamojaError as error:
+    print(f"corrupt   refused: {error}")
 
 # The same release signed by a key this device is not anchored to gets nowhere.
 impostor = DeviceIdentity.from_seed(bytes([90]) * 32)
 try:
-    fleet.stage(sign_manifest(manifest, impostor), image)
+    fleet.stage(sign_manifest(third, impostor), upgrade)
     print("a forged release was accepted, which should never happen")
 except PamojaError as error:
     print(f"forged    refused: {error}")
+
+# The genuine release stages and boots on trial, but never confirms: the next boot fails it
+# and goes back to the image that worked.
+fleet.stage(release, upgrade)
+trial = fleet.on_boot()
+print(f"booting   {said(trial)}, running sequence {third.sequence}")
+after = fleet.on_boot()
+print(f"reverted  {said(after)}")
+
+# A release that failed cannot be offered again, or a captured image could be replayed; the
+# fix goes out as sequence 4.
+try:
+    fleet.stage(release, upgrade)
+    print("a failed release was accepted again, which should never happen")
+except PamojaError as error:
+    print(f"again     refused: {error}")
 # ANCHOR_END: example
 
 assert manifest.digest == image_digest(image)
 assert opened.digest == manifest.digest
 assert slot == 1
+assert decision.action == BootAction.TRYING
 assert fleet.slot_record(1).state == SlotState.CONFIRMED
-assert fleet.on_boot().action != BootAction.TRYING
+assert trial.action == BootAction.TRYING and trial.slot == 0
+assert after.action == BootAction.REVERTED
+assert (after.slot, after.fallback) == (0, 1)
+assert fleet.slot_record(0).state == SlotState.FAILED
+assert fleet.installed_sequence == 3

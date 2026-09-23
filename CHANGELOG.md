@@ -822,6 +822,12 @@ released together, so one entry covers all of them.
   and the gateway guide gains a second example that prints the same four lines in
   each. A network copies the plan it is built on rather than borrowing it, which is
   what a handle that outlives a call needs.
+- An update taken a piece per call can let go of the updater between pieces.
+  `Staging::detach` gives a `Transfer` that carries the hash of what has arrived, and
+  `Updater::resume_from` takes it up again, checking the release against every rule as
+  `resume_at` does. The hash travels only while the slot holds exactly what the transfer
+  left in it; once the slot has been opened for anything else, its bytes are read back
+  and hashed again.
 
 ### Changed
 
@@ -1027,6 +1033,12 @@ released together, so one entry covers all of them.
   helpers that take them, and `Pamoja.Sim` takes them from there. In Python, `Pose` is a
   frozen value class that compares by value and can be built, each field 0 unless given,
   and `pamoja.sim` returns the same class.
+- The signed update guide follows a release past what a device accepts to what it turns
+  away: the same release again, a damaged image, and another key's signature, then an
+  image that boots and never confirms and is rolled back, and that failed release offered
+  a second time. It prints the same twelve lines in every language, and the page gains a
+  paragraph for each language, tables of the manifest, the slot states, the boot
+  decisions and the calls, and a section on what goes wrong.
 
 ### Fixed
 
@@ -1252,6 +1264,17 @@ released together, so one entry covers all of them.
 - The telemetry guide example's header gave `--example telemetry` as its run command,
   which runs an older demo; it is `--example telemetry_guide`.
 - The secured session guide split one sentence across three paragraphs.
+- The TypeScript, Python, C#, and C updaters read back and hashed every byte already
+  written each time a piece arrived, and again for each progress report, so an image
+  taken in small pieces cost time in proportion to the square of its length: a megabyte
+  in sixteen-byte pieces meant hashing about 34 gigabytes. Each piece now costs only its
+  own bytes.
+- The TypeScript `Updater` read a time that was not a whole number of seconds, such as
+  `NaN` or `-1`, as 0, the start of 1970, so a release past its expiry passed the check,
+  and it cut a fractional sequence short. It refuses both now, as in
+  `now must be a whole number of seconds, not NaN`.
+- The TypeScript `signManifest` had no documentation, because its comment sat above
+  `imageDigest` instead.
 
 ## [0.1.18] - 2026-09-10
 

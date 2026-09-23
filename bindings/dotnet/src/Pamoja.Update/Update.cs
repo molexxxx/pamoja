@@ -69,7 +69,7 @@ public sealed record Manifest(
 /// <summary>A statement, signed by the anchor, that a second key may sign releases.</summary>
 /// <param name="Epoch">
 /// Rises with every rotation, so a retired key cannot be reinstated by replaying
-/// the statement that once authorised it.
+/// the statement that once authorized it.
 /// </param>
 /// <param name="ReleaseKey">The key that may sign manifests while this stands.</param>
 /// <param name="Expires">
@@ -327,9 +327,10 @@ public sealed class Updater : IDisposable
     /// Every check that can be made without the image runs here, so a release that
     /// is not for this device, would roll it back, or does not fit is refused
     /// before a byte of it is accepted. The envelope is remembered until
-    /// <see cref="Finish"/>, and each call after this one reopens the transfer
-    /// from what the slot records, which is the same path a device takes after a
-    /// reset.
+    /// <see cref="Finish"/>, and every call after this one checks it again, so a
+    /// release overtaken or expired while it arrives stops arriving. The hash of
+    /// what has arrived is carried from one call to the next, so an image taken in
+    /// many small pieces costs no more than one taken whole.
     /// </remarks>
     /// <param name="envelope">The signed manifest offered to this device.</param>
     /// <param name="now">

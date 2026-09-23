@@ -73,6 +73,7 @@ pub struct Updater<S> {
     device: Device,
     store: S,
     delegation: Option<Delegation>,
+    opened: u64,
 }
 
 impl<S: SlotStore> Updater<S> {
@@ -91,6 +92,7 @@ impl<S: SlotStore> Updater<S> {
             device,
             store,
             delegation: None,
+            opened: 0,
         }
     }
 
@@ -308,8 +310,12 @@ impl<S: SlotStore> Updater<S> {
     }
 
     /// Clears the target slot and opens it for a transfer starting at zero.
+    ///
+    /// Every opening is counted, so a [`Transfer`] detached before it can tell that
+    /// the bytes it hashed may no longer be the ones in the slot.
     fn open(&mut self, manifest: Manifest) -> Result<Staging<'_, S>> {
         let slot = manifest.storage;
+        self.opened = self.opened.wrapping_add(1);
         self.store.erase(slot)?;
         // Recording the target before any bytes arrive is what makes the transfer
         // resumable: after a reset the device can tell what it was receiving.
@@ -329,6 +335,7 @@ impl<S: SlotStore> Updater<S> {
             verifier: ImageVerifier::new(&manifest),
             manifest,
             offset: 0,
+            opened: self.opened,
         })
     }
 
@@ -357,7 +364,113 @@ impl<S: SlotStore> Updater<S> {
     pub fn resume_at(&mut self, envelope: &[u8], now: Option<u64>) -> Result<Staging<'_, S>> {
         let manifest = Envelope::decode(envelope)?.verify(&self.signing_key()?)?;
         self.check(&manifest, now)?;
+        self.reopen(manifest)
+    }
 
+    /// Continues a transfer from where a detached one stopped, carrying its hash.
+    ///
+    /// Every rule [`resume_at`](Self::resume_at) applies is applied again, so a release
+    /// that has been overtaken, has expired, or is no longer signed by the key in force
+    /// is refused mid-transfer just the same. What changes is the cost: when the slot
+    /// still holds exactly what `transfer` left in it, the hash of those bytes is
+    /// carried along rather than rebuilt by reading them back, so taking an image in
+    /// many small calls costs no more than taking it in one. When the slot has been
+    /// opened for anything since, the transfer falls back to reading it back, and the
+    /// digest check at the end still settles every byte.
+    ///
+    /// # Arguments
+    ///
+    /// * `envelope` - the signed manifest the transfer is fulfilling.
+    /// * `now` - seconds since the Unix epoch, or `None` on a device with no clock.
+    /// * `transfer` - what [`Staging::detach`] returned for the last piece.
+    ///
+    /// # Returns
+    ///
+    /// A [`Staging`] positioned after whatever already arrived.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever [`begin_at`](Self::begin_at) refuses.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_security::DeviceIdentity;
+    /// use pamoja_update::{
+    ///     image_digest, Device, Manifest, MemoryStore, PayloadFormat, Updater, ENVELOPE_MAX,
+    ///     STRUCTURE_VERSION,
+    /// };
+    ///
+    /// const VENDOR: [u8; 16] = [10; 16];
+    /// const SOIL_PROBE: [u8; 16] = [14; 16];
+    ///
+    /// let author = DeviceIdentity::from_seed(&[1u8; 32]);
+    /// let image = b"an image taken one piece per call";
+    /// let manifest = Manifest {
+    ///     structure_version: STRUCTURE_VERSION,
+    ///     sequence: 2,
+    ///     vendor_id: VENDOR,
+    ///     class_id: SOIL_PROBE,
+    ///     format: PayloadFormat::Raw,
+    ///     storage: 1,
+    ///     digest: image_digest(image),
+    ///     size: image.len() as u32,
+    ///     expires: 0,
+    /// };
+    /// let mut buf = [0u8; ENVELOPE_MAX];
+    /// let written = manifest.sign(&author, &mut buf).unwrap();
+    /// let envelope = &buf[..written];
+    ///
+    /// let device = Device {
+    ///     vendor_id: VENDOR,
+    ///     class_id: SOIL_PROBE,
+    ///     anchor: author.public(),
+    /// };
+    /// let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
+    /// updater.provision(0, 1).unwrap();
+    ///
+    /// let mut transfer = updater.begin(envelope).unwrap().detach();
+    /// for piece in image.chunks(8) {
+    ///     let mut staging = updater.resume_from(envelope, None, transfer).unwrap();
+    ///     staging.write(piece).unwrap();
+    ///     transfer = staging.detach();
+    /// }
+    /// let staging = updater.resume_from(envelope, None, transfer).unwrap();
+    /// assert_eq!(staging.finish().unwrap(), 1);
+    /// ```
+    pub fn resume_from(
+        &mut self,
+        envelope: &[u8],
+        now: Option<u64>,
+        transfer: Transfer,
+    ) -> Result<Staging<'_, S>> {
+        let manifest = Envelope::decode(envelope)?.verify(&self.signing_key()?)?;
+        self.check(&manifest, now)?;
+
+        let record = self.store.record(manifest.storage)?;
+        let held = transfer.opened == self.opened
+            && transfer.manifest == manifest
+            && record.state == SlotState::Receiving
+            && record.digest == manifest.digest
+            && record.size == manifest.size
+            && record.written == transfer.offset;
+        if !held {
+            return self.reopen(manifest);
+        }
+
+        Ok(Staging {
+            store: &mut self.store,
+            slot: transfer.slot,
+            manifest,
+            verifier: transfer.verifier,
+            offset: transfer.offset,
+            opened: self.opened,
+        })
+    }
+
+    /// Opens the slot a checked manifest names, continuing a partial transfer of the
+    /// same image by reading back and hashing what the slot already holds.
+    fn reopen(&mut self, manifest: Manifest) -> Result<Staging<'_, S>> {
         let slot = manifest.storage;
         let record = self.store.record(slot)?;
         let resumable = record.state == SlotState::Receiving
@@ -391,6 +504,7 @@ impl<S: SlotStore> Updater<S> {
             verifier,
             manifest,
             offset: record.written,
+            opened: self.opened,
         })
     }
 
@@ -569,6 +683,33 @@ pub struct Staging<'a, S: SlotStore> {
     manifest: Manifest,
     verifier: ImageVerifier,
     offset: u32,
+    opened: u64,
+}
+
+/// A transfer in progress, held apart from its updater between pieces.
+///
+/// A [`Staging`] borrows its updater, which suits code that takes an image in one
+/// loop. Code that takes each piece in a call of its own, such as a binding or an
+/// event loop, [`detach`](Staging::detach)es it between pieces and hands it to
+/// [`Updater::resume_from`] for the next, which carries the hash of what has
+/// arrived instead of reading it back from the slot.
+pub struct Transfer {
+    slot: u8,
+    manifest: Manifest,
+    verifier: ImageVerifier,
+    offset: u32,
+    opened: u64,
+}
+
+impl Transfer {
+    /// Reports how much of the image has arrived.
+    ///
+    /// # Returns
+    ///
+    /// The bytes stored so far and the total the manifest declares.
+    pub fn progress(&self) -> (u32, u32) {
+        (self.offset, self.manifest.size)
+    }
 }
 
 impl<S: SlotStore> Staging<'_, S> {
@@ -640,5 +781,25 @@ impl<S: SlotStore> Staging<'_, S> {
     /// The verified manifest.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// Lets go of the updater, keeping the hash of what has arrived for the next piece.
+    ///
+    /// Hand the result to [`Updater::resume_from`] to continue. After a piece is
+    /// refused, drop the staging instead of detaching it: the refused piece may already
+    /// be counted, so resume with [`Updater::resume_at`], which reads back what the
+    /// slot holds.
+    ///
+    /// # Returns
+    ///
+    /// The transfer, positioned after the last piece written.
+    pub fn detach(self) -> Transfer {
+        Transfer {
+            slot: self.slot,
+            manifest: self.manifest,
+            verifier: self.verifier,
+            offset: self.offset,
+            opened: self.opened,
+        }
     }
 }

@@ -13,8 +13,9 @@ use napi_derive::napi;
 use pamoja_update::{
     Boot as CoreBoot, Delegation as CoreDelegation, Device, Envelope,
     ImageVerifier as CoreVerifier, Manifest as CoreManifest, MemoryStore, PayloadFormat, Refusal,
-    SlotState as CoreSlotState, SlotStore, Updater as CoreUpdater, DELEGATION_MAX, DIGEST_LEN,
-    ENVELOPE_MAX, ID_LEN, MANIFEST_MAX, STRUCTURE_VERSION,
+    SlotState as CoreSlotState, SlotStore, Staging as CoreStaging, Transfer,
+    Updater as CoreUpdater, DELEGATION_MAX, DIGEST_LEN, ENVELOPE_MAX, ID_LEN, MANIFEST_MAX,
+    STRUCTURE_VERSION,
 };
 
 use crate::security::DeviceIdentity;
@@ -87,7 +88,7 @@ pub struct Manifest {
 #[napi(object)]
 pub struct Delegation {
     /// Rises with every rotation, so a retired key cannot be reinstated by
-    /// replaying the statement that once authorised it.
+    /// replaying the statement that once authorized it.
     pub epoch: f64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: Buffer,
@@ -294,7 +295,7 @@ impl ImageVerifier {
     }
 }
 
-/// A device slots, and the rules applied to what is offered for them.
+/// A device's slots, and the rules applied to what is offered for them.
 #[napi]
 pub struct Updater {
     inner: CoreUpdater<MemoryStore>,
@@ -302,9 +303,26 @@ pub struct Updater {
 }
 
 /// The transfer an updater is part-way through, remembered between calls.
+///
+/// The detached transfer carries the hash of what has arrived, so each piece costs
+/// only its own bytes. It is dropped when a piece is refused, and the next call reads
+/// back what the slot holds instead.
 struct Staging {
     envelope: Vec<u8>,
     now: Option<u64>,
+    transfer: Option<Transfer>,
+}
+
+/// Takes up an open transfer, carrying its hash when the slot still holds it.
+fn resume<'a>(
+    inner: &'a mut CoreUpdater<MemoryStore>,
+    open: &mut Staging,
+) -> napi::Result<CoreStaging<'a, MemoryStore>> {
+    match open.transfer.take() {
+        Some(transfer) => inner.resume_from(&open.envelope, open.now, transfer),
+        None => inner.resume_at(&open.envelope, open.now),
+    }
+    .map_err(refusal)
 }
 
 #[napi]
@@ -368,14 +386,15 @@ impl Updater {
     /// so the rollback rule has something to compare against.
     #[napi]
     pub fn provision(&mut self, slot: u8, sequence: f64) -> napi::Result<()> {
-        self.inner.provision(slot, sequence as u64).map_err(refusal)
+        let sequence = whole(sequence, "sequence", "a whole number")?;
+        self.inner.provision(slot, sequence).map_err(refusal)
     }
 
     /// Adopts a delegation, so releases signed by the key it names are accepted.
     #[napi]
     pub fn adopt(&mut self, envelope: Buffer, now: Option<f64>) -> napi::Result<Delegation> {
         self.inner
-            .adopt(envelope.as_ref(), clock(now))
+            .adopt(envelope.as_ref(), clock(now)?)
             .map(|delegation| js_delegation(&delegation))
             .map_err(refusal)
     }
@@ -395,7 +414,7 @@ impl Updater {
     #[napi]
     pub fn stage(&mut self, envelope: Buffer, image: Buffer, now: Option<f64>) -> napi::Result<u8> {
         self.inner
-            .stage_at(envelope.as_ref(), image.as_ref(), clock(now))
+            .stage_at(envelope.as_ref(), image.as_ref(), clock(now)?)
             .map_err(refusal)
     }
 
@@ -404,36 +423,42 @@ impl Updater {
     /// Every check that can be made without the image runs here, so a release
     /// that is not for this device, would roll it back, or does not fit is
     /// refused before a byte of it is accepted. The envelope is remembered until
-    /// {@link finish}, and each call after this one reopens the transfer from
-    /// what the slot records, which is the same path a device takes after a
-    /// reset.
+    /// {@link finish}, and every call after this one checks it again, so a release
+    /// overtaken or expired while it arrives stops arriving. The hash of what has
+    /// arrived is carried from one call to the next, so an image taken in many
+    /// small pieces costs no more than one taken whole.
     #[napi]
     pub fn begin(&mut self, envelope: Buffer, now: Option<f64>) -> napi::Result<u8> {
         let envelope = envelope.to_vec();
-        let now = clock(now);
-        let slot = self
-            .inner
-            .begin_at(&envelope, now)
-            .map(|staging| staging.manifest().storage)
-            .map_err(refusal)?;
-        self.staging = Some(Staging { envelope, now });
+        let now = clock(now)?;
+        let staging = self.inner.begin_at(&envelope, now).map_err(refusal)?;
+        let slot = staging.manifest().storage;
+        let transfer = Some(staging.detach());
+        self.staging = Some(Staging {
+            envelope,
+            now,
+            transfer,
+        });
         Ok(slot)
     }
 
     /// Takes the next piece of an image opened with {@link begin}.
     #[napi]
     pub fn write(&mut self, chunk: Buffer) -> napi::Result<()> {
-        let (envelope, now) = self.open_transfer()?;
-        let mut staging = self.inner.resume_at(&envelope, now).map_err(refusal)?;
-        staging.write(chunk.as_ref()).map_err(refusal)
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let mut staging = resume(&mut self.inner, open)?;
+        staging.write(chunk.as_ref()).map_err(refusal)?;
+        open.transfer = Some(staging.detach());
+        Ok(())
     }
 
     /// Reports how much of an opened image has arrived.
     #[napi]
     pub fn progress(&mut self) -> napi::Result<Progress> {
-        let (envelope, now) = self.open_transfer()?;
-        let staging = self.inner.resume_at(&envelope, now).map_err(refusal)?;
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let staging = resume(&mut self.inner, open)?;
         let (written, total) = staging.progress();
+        open.transfer = Some(staging.detach());
         Ok(Progress { written, total })
     }
 
@@ -442,12 +467,8 @@ impl Updater {
     /// Returns the slot now holding a staged image.
     #[napi]
     pub fn finish(&mut self) -> napi::Result<u8> {
-        let (envelope, now) = self.open_transfer()?;
-        let slot = self
-            .inner
-            .resume_at(&envelope, now)
-            .and_then(|staging| staging.finish())
-            .map_err(refusal)?;
+        let open = self.staging.as_mut().ok_or_else(nothing_open)?;
+        let slot = resume(&mut self.inner, open)?.finish().map_err(refusal)?;
         self.staging = None;
         Ok(slot)
     }
@@ -473,21 +494,28 @@ impl Updater {
     pub fn revert(&mut self) -> napi::Result<u8> {
         self.inner.revert().map_err(refusal)
     }
-
-    /// Borrows the open transfer, refusing when none has been opened.
-    fn open_transfer(&self) -> napi::Result<(Vec<u8>, Option<u64>)> {
-        match &self.staging {
-            Some(staging) => Ok((staging.envelope.clone(), staging.now)),
-            None => Err(napi::Error::from_reason(
-                "no transfer is open; call begin() first",
-            )),
-        }
-    }
 }
 
-/// Turns an optional JavaScript timestamp into the optional the crate takes.
-fn clock(now: Option<f64>) -> Option<u64> {
-    now.map(|now| now as u64)
+/// The error for a piece, a progress report, or a finish with no transfer open.
+fn nothing_open() -> napi::Error {
+    napi::Error::from_reason("no transfer is open; call begin() first")
+}
+
+/// Reads an optional JavaScript timestamp as whole seconds since the Unix epoch.
+fn clock(now: Option<f64>) -> napi::Result<Option<u64>> {
+    now.map(|now| whole(now, "now", "a whole number of seconds"))
+        .transpose()
+}
+
+/// Reads a JavaScript number that has to be a whole, non-negative integer.
+fn whole(value: f64, name: &str, kind: &str) -> napi::Result<u64> {
+    const SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+    if value.fract() != 0.0 || !(0.0..=SAFE_INTEGER).contains(&value) {
+        return Err(napi::Error::from_reason(format!(
+            "{name} must be {kind}, not {value}"
+        )));
+    }
+    Ok(value as u64)
 }
 
 /// Maps a refusal onto the error JavaScript sees, naming the rule it broke.

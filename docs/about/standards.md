@@ -143,7 +143,7 @@ The primitives under device identity, the secured session, and signed updates.
 </header>
 <p class="hw-summary">Each named threat is answered by a test named after it. The SUIT CBOR serialization is a deliberate deviation: draft-ietf-suit-manifest is still a draft.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.rfc-editor.org/info/rfc9124"><span class="hw-main"><b>The document</b><small>RFC 9124</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-update/tests/rules.rs#L356"><span class="hw-main"><b>The test</b><small><code>rules.rs</code> line 356</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-update/tests/rules.rs#L358"><span class="hw-main"><b>The test</b><small><code>rules.rs</code> line 358</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-9019">
@@ -266,7 +266,7 @@ The buses and framings that reach a part on the end of a wire.
 
 ### CRC-16/MODBUS {#crc-16-modbus}
 
-<p class="hw-by">RevEng CRC catalogue</p>
+<p class="hw-by">CRC RevEng</p>
 <p class="hw-summary">The frame check on every Modbus RTU frame</p>
 </header>
 <p class="hw-summary">Check value 0x4B37 over the ASCII digits, plus a real six-byte request frame.</p><div class="hw-foot">
@@ -357,7 +357,7 @@ The buses and framings that reach a part on the end of a wire.
 
 ### CRC-8/MAXIM-DOW {#crc-8-maxim}
 
-<p class="hw-by">RevEng CRC catalogue</p>
+<p class="hw-by">CRC RevEng</p>
 <p class="hw-summary">The 1-Wire check byte, on every DS18B20 scratchpad and ROM code</p>
 </header>
 <div class="hw-foot">
@@ -620,10 +620,10 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 
 ### CRC-16/IBM-3740 {#crc-16-ibm-3740}
 
-<p class="hw-by">RevEng CRC catalogue</p>
+<p class="hw-by">CRC RevEng</p>
 <p class="hw-summary">The integrity check a mesh frame carries</p>
 </header>
-<p class="hw-summary">Check value 0x29B1. Also catalogued as CRC-16/CCITT-FALSE; the bare name CRC-16/CCITT means a different algorithm, KERMIT, which checks 0x2189.</p><div class="hw-foot">
+<p class="hw-summary">Check value 0x29B1. Also listed as CRC-16/CCITT-FALSE; the bare name CRC-16/CCITT means a different algorithm, KERMIT, which checks 0x2189.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://reveng.sourceforge.io/crc-catalogue/16.htm#crc.cat.crc-16-ibm-3740"><span class="hw-main"><b>The document</b><small>CRC-16/IBM-3740</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mesh/src/crc.rs#L100"><span class="hw-main"><b>The test</b><small><code>crc.rs</code> line 100</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
@@ -706,7 +706,7 @@ The protocol a ground station and a flight controller speak.
 
 ### CRC-16/MCRF4XX {#crc-16-mcrf4xx}
 
-<p class="hw-by">RevEng CRC catalogue</p>
+<p class="hw-by">CRC RevEng</p>
 <p class="hw-summary">The frame checksum MAVLink calls X.25 but is not</p>
 </header>
 <p class="hw-summary">Check value 0x6F91, with a second test asserting it is not the X-25 value 0x906E.</p><div class="hw-foot">

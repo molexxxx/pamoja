@@ -2104,7 +2104,7 @@ export const scd4x = {
     performSelfTest: 0x3639,
     /** Restore the factory settings. */
     performFactoryReset: 0x3632,
-    /** Reinitialise from the stored settings. */
+    /** Reinitialize from the stored settings. */
     reinit: 0x3646,
     /** Take one measurement and return to idle. */
     measureSingleShot: 0x219d,

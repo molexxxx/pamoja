@@ -73,18 +73,20 @@ pub fn image_digest(image: &[u8]) -> [u8; DIGEST_LEN] {
 /// # Examples
 ///
 /// ```
-/// use pamoja_update::{ImageVerifier, Manifest, PayloadFormat, STRUCTURE_VERSION};
-/// use sha2::{Digest, Sha256};
+/// use pamoja_update::{image_digest, ImageVerifier, Manifest, PayloadFormat, STRUCTURE_VERSION};
 ///
-/// let image = b"firmware bytes";
+/// const VENDOR: [u8; 16] = [10; 16];
+/// const GATE_CONTROLLER: [u8; 16] = [15; 16];
+///
+/// let image = b"firmware for a gate controller";
 /// let manifest = Manifest {
 ///     structure_version: STRUCTURE_VERSION,
 ///     sequence: 1,
-///     vendor_id: [0; 16],
-///     class_id: [0; 16],
+///     vendor_id: VENDOR,
+///     class_id: GATE_CONTROLLER,
 ///     format: PayloadFormat::Raw,
 ///     storage: 0,
-///     digest: Sha256::digest(image).into(),
+///     digest: image_digest(image),
 ///     size: image.len() as u32,
 ///     expires: 0,
 /// };
@@ -93,7 +95,8 @@ pub fn image_digest(image: &[u8]) -> [u8; DIGEST_LEN] {
 /// for chunk in image.chunks(4) {
 ///     verifier.update(chunk).unwrap();
 /// }
-/// assert!(verifier.finish().is_ok());
+/// let verified = verifier.finish().unwrap();
+/// assert_eq!(verified.size(), manifest.size);
 /// ```
 pub struct ImageVerifier {
     hasher: Sha256,

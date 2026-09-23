@@ -84,18 +84,22 @@ impl PayloadFormat {
 ///
 /// ```
 /// use pamoja_security::DeviceIdentity;
-/// use pamoja_update::{Envelope, Manifest, PayloadFormat, ENVELOPE_MAX};
+/// use pamoja_update::{image_digest, Envelope, Manifest, PayloadFormat, ENVELOPE_MAX};
+///
+/// const VENDOR: [u8; 16] = [10; 16];
+/// const WEATHER_STATION: [u8; 16] = [13; 16];
 ///
 /// let author = DeviceIdentity::from_seed(&[1u8; 32]);
+/// let image = b"release seven of the station firmware";
 /// let manifest = Manifest {
 ///     structure_version: pamoja_update::STRUCTURE_VERSION,
 ///     sequence: 7,
-///     vendor_id: [0xab; 16],
-///     class_id: [0xcd; 16],
+///     vendor_id: VENDOR,
+///     class_id: WEATHER_STATION,
 ///     format: PayloadFormat::Raw,
 ///     storage: 0,
-///     digest: [0x11; 32],
-///     size: 4096,
+///     digest: image_digest(image),
+///     size: image.len() as u32,
 ///     expires: 0,
 /// };
 ///

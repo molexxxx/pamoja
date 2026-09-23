@@ -2072,6 +2072,33 @@ function trustAndOperation() {
     "and one that would roll the device back is refused",
   );
 
+  const upgrade = Buffer.alloc(300, 0x5a);
+  const third = update.signManifest(
+    { ...manifest, sequence: 3, storage: 0, digest: update.imageDigest(upgrade), size: upgrade.length },
+    publisher,
+  );
+  assert.strictEqual(fleet.begin(third), 0, "the next release names the slot not running");
+  fleet.write(upgrade.subarray(0, 200));
+  assert.throws(
+    () => fleet.write(upgrade),
+    /the image is not the size the manifest declares/,
+    "a piece that runs past the declared size is refused",
+  );
+  fleet.write(upgrade.subarray(200));
+  assert.strictEqual(
+    fleet.progress().written,
+    upgrade.length,
+    "and the transfer goes on from what the slot holds",
+  );
+  assert.strictEqual(fleet.finish(), 0, "to an image that matches its manifest");
+  for (const now of [Number.NaN, -1, 1.5]) {
+    assert.throws(
+      () => fleet.stage(third, upgrade, now),
+      { message: `now must be a whole number of seconds, not ${now}` },
+      `a time of ${now} is refused rather than read as some other time`,
+    );
+  }
+
   // How often a node on a battery can afford to do any of the above.
   const plan = new power.PowerPlan(60_000_000, 300_000_000, 3_600_000_000);
   assert.strictEqual(plan.mode(0.9), power.PowerMode.Active, "a healthy charge works normally");

@@ -3475,7 +3475,7 @@ export declare class TwoLinkArm {
   jointsFor(x: number, y: number, elbow: Elbow): Joints | null
 }
 
-/** A device slots, and the rules applied to what is offered for them. */
+/** A device's slots, and the rules applied to what is offered for them. */
 export declare class Updater {
   /**
    * Creates an updater for a device with `slotCount` slots of `slotCapacity`
@@ -3515,9 +3515,10 @@ export declare class Updater {
    * Every check that can be made without the image runs here, so a release
    * that is not for this device, would roll it back, or does not fit is
    * refused before a byte of it is accepted. The envelope is remembered until
-   * {@link finish}, and each call after this one reopens the transfer from
-   * what the slot records, which is the same path a device takes after a
-   * reset.
+   * {@link finish}, and every call after this one checks it again, so a release
+   * overtaken or expired while it arrives stops arriving. The hash of what has
+   * arrived is carried from one call to the next, so an image taken in many
+   * small pieces costs no more than one taken whole.
    */
   begin(envelope: Buffer, now?: number | undefined | null): number
   /** Takes the next piece of an image opened with {@link begin}. */
@@ -4318,7 +4319,7 @@ export declare function decodeManifest(bytes: Buffer): Manifest
 export interface Delegation {
   /**
    * Rises with every rotation, so a retired key cannot be reinstated by
-   * replaying the statement that once authorised it.
+   * replaying the statement that once authorized it.
    */
   epoch: number
   /** The public key that may sign manifests while this delegation stands. */

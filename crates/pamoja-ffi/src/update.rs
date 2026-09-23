@@ -16,8 +16,8 @@ use std::ptr;
 
 use pamoja_update::{
     Boot, Delegation, Device, Envelope, Manifest, MemoryStore, PayloadFormat, Refusal, SlotRecord,
-    SlotState, SlotStore, Updater, DELEGATION_MAX, DIGEST_LEN, ENVELOPE_MAX, ID_LEN, MANIFEST_MAX,
-    STRUCTURE_VERSION,
+    SlotState, SlotStore, Transfer, Updater, DELEGATION_MAX, DIGEST_LEN, ENVELOPE_MAX, ID_LEN,
+    MANIFEST_MAX, STRUCTURE_VERSION,
 };
 use pamoja_update::{ImageVerifier, Verified};
 
@@ -74,7 +74,7 @@ pub struct PamojaManifest {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PamojaDelegation {
     /// Rises with every rotation, so a retired key cannot be reinstated by
-    /// replaying the statement that once authorised it.
+    /// replaying the statement that once authorized it.
     pub epoch: u64,
     /// The public key that may sign manifests while this delegation stands.
     pub release_key: [u8; PAMOJA_KEY_LEN],
@@ -165,7 +165,7 @@ pub struct PamojaImageVerifier {
     verifier: ImageVerifier,
 }
 
-/// An opaque handle to a device slots and the rules applied to them.
+/// An opaque handle to a device's slots and the rules applied to them.
 ///
 /// Create it with [`pamoja_updater_new`] and release it with
 /// [`pamoja_updater_free`].
@@ -175,9 +175,25 @@ pub struct PamojaUpdater {
 }
 
 /// The transfer an updater is part-way through, remembered between calls.
+///
+/// The detached transfer carries the hash of what has arrived, so each piece costs
+/// only its own bytes. It is dropped when a piece is refused, and the next call reads
+/// back what the slot holds instead.
 struct Staging {
     envelope: Vec<u8>,
     now: Option<u64>,
+    transfer: Option<Transfer>,
+}
+
+/// Takes up an open transfer, carrying its hash when the slot still holds it.
+fn resume<'a>(
+    updater: &'a mut Updater<MemoryStore>,
+    open: &mut Staging,
+) -> Result<pamoja_update::Staging<'a, MemoryStore>, Refusal> {
+    match open.transfer.take() {
+        Some(transfer) => updater.resume_from(&open.envelope, open.now, transfer),
+        None => updater.resume_at(&open.envelope, open.now),
+    }
 }
 
 /// Encodes the body of a manifest, which is the part a signature covers.
@@ -602,7 +618,7 @@ pub unsafe extern "C" fn pamoja_image_verifier_free(verifier: *mut PamojaImageVe
     }
 }
 
-/// Creates an updater over a device slots.
+/// Creates an updater over a device's slots.
 ///
 /// # Arguments
 ///
@@ -910,9 +926,10 @@ pub unsafe extern "C" fn pamoja_updater_stage(
 /// a byte of it is accepted.
 ///
 /// The envelope is remembered until [`pamoja_updater_finish`], so the calls that
-/// follow do not repeat it. Each of those reopens the transfer from what the
-/// slot records, which is the same path a device takes after a reset, and is
-/// what lets a transfer survive one.
+/// follow do not repeat it. Each of those checks it again, so a release overtaken
+/// or expired while it arrives stops arriving, and each carries the hash of what
+/// has arrived to the next, so an image taken in many small pieces costs no more
+/// than one taken whole.
 ///
 /// # Arguments
 ///
@@ -951,11 +968,18 @@ pub unsafe extern "C" fn pamoja_updater_begin(
     };
     let now = clock(has_now, now);
 
-    let slot = match (*updater).updater.begin_at(&envelope, now) {
-        Ok(staging) => staging.manifest().storage,
+    let handle = &mut *updater;
+    let staging = match handle.updater.begin_at(&envelope, now) {
+        Ok(staging) => staging,
         Err(refusal) => return refuse(refusal),
     };
-    (*updater).staging = Some(Staging { envelope, now });
+    let slot = staging.manifest().storage;
+    let transfer = Some(staging.detach());
+    handle.staging = Some(Staging {
+        envelope,
+        now,
+        transfer,
+    });
     write_slot(slot, out_slot);
     PamojaStatus::Ok
 }
@@ -990,16 +1014,19 @@ pub unsafe extern "C" fn pamoja_updater_write(
         Ok(chunk) => chunk,
         Err(status) => return status,
     };
-    let Some((envelope, now)) = open_transfer(&*updater) else {
+    let handle = &mut *updater;
+    let Some(open) = open_transfer(&mut handle.staging) else {
         return PamojaStatus::InvalidArgument;
     };
-    match (*updater).updater.resume_at(&envelope, now) {
-        Ok(mut staging) => match staging.write(&chunk) {
-            Ok(()) => PamojaStatus::Ok,
-            Err(refusal) => refuse(refusal),
-        },
-        Err(refusal) => refuse(refusal),
+    let mut staging = match resume(&mut handle.updater, open) {
+        Ok(staging) => staging,
+        Err(refusal) => return refuse(refusal),
+    };
+    if let Err(refusal) = staging.write(&chunk) {
+        return refuse(refusal);
     }
+    open.transfer = Some(staging.detach());
+    PamojaStatus::Ok
 }
 
 /// Reports how much of an opened image has arrived.
@@ -1028,22 +1055,23 @@ pub unsafe extern "C" fn pamoja_updater_progress(
         set_last_error("updater must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    let Some((envelope, now)) = open_transfer(&*updater) else {
+    let handle = &mut *updater;
+    let Some(open) = open_transfer(&mut handle.staging) else {
         return PamojaStatus::InvalidArgument;
     };
-    match (*updater).updater.resume_at(&envelope, now) {
-        Ok(staging) => {
-            let (written, total) = staging.progress();
-            if !out_written.is_null() {
-                *out_written = written;
-            }
-            if !out_total.is_null() {
-                *out_total = total;
-            }
-            PamojaStatus::Ok
-        }
-        Err(refusal) => refuse(refusal),
+    let staging = match resume(&mut handle.updater, open) {
+        Ok(staging) => staging,
+        Err(refusal) => return refuse(refusal),
+    };
+    let (written, total) = staging.progress();
+    open.transfer = Some(staging.detach());
+    if !out_written.is_null() {
+        *out_written = written;
     }
+    if !out_total.is_null() {
+        *out_total = total;
+    }
+    PamojaStatus::Ok
 }
 
 /// Finishes an opened image and marks the slot bootable if it matched.
@@ -1071,16 +1099,14 @@ pub unsafe extern "C" fn pamoja_updater_finish(
         set_last_error("updater must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    let Some((envelope, now)) = open_transfer(&*updater) else {
+    let handle = &mut *updater;
+    let Some(open) = open_transfer(&mut handle.staging) else {
         return PamojaStatus::InvalidArgument;
     };
-    let outcome = match (*updater).updater.resume_at(&envelope, now) {
-        Ok(staging) => staging.finish(),
-        Err(refusal) => Err(refusal),
-    };
+    let outcome = resume(&mut handle.updater, open).and_then(|staging| staging.finish());
     match outcome {
         Ok(slot) => {
-            (*updater).staging = None;
+            handle.staging = None;
             write_slot(slot, out_slot);
             PamojaStatus::Ok
         }
@@ -1371,15 +1397,12 @@ unsafe fn write_verified(verified: &Verified, out_size: *mut u32, out_digest: *m
     }
 }
 
-/// Borrows the envelope an updater is part-way through, if there is one.
-fn open_transfer(updater: &PamojaUpdater) -> Option<(Vec<u8>, Option<u64>)> {
-    match &updater.staging {
-        Some(staging) => Some((staging.envelope.clone(), staging.now)),
-        None => {
-            set_last_error("no transfer is open; call pamoja_updater_begin first".to_owned());
-            None
-        }
+/// Borrows the transfer an updater is part-way through, if there is one.
+fn open_transfer(staging: &mut Option<Staging>) -> Option<&mut Staging> {
+    if staging.is_none() {
+        set_last_error("no transfer is open; call pamoja_updater_begin first".to_owned());
     }
+    staging.as_mut()
 }
 
 /// Rebuilds the Rust manifest from the fields that crossed the boundary.

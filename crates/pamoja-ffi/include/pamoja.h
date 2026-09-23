@@ -2810,7 +2810,7 @@ typedef struct PamojaTrend PamojaTrend;
 // An opaque handle to a threshold with hysteresis that reports its edges.
 typedef struct PamojaTrigger PamojaTrigger;
 
-// An opaque handle to a device slots and the rules applied to them.
+// An opaque handle to a device's slots and the rules applied to them.
 //
 // Create it with [`pamoja_updater_new`] and release it with
 // [`pamoja_updater_free`].
@@ -5404,7 +5404,7 @@ typedef struct {
 // A statement, signed by the anchor, that a second key may sign releases.
 typedef struct {
   // Rises with every rotation, so a retired key cannot be reinstated by
-  // replaying the statement that once authorised it.
+  // replaying the statement that once authorized it.
   uint64_t epoch;
   // The public key that may sign manifests while this delegation stands.
   uint8_t release_key[PAMOJA_KEY_LEN];
@@ -27580,7 +27580,7 @@ PamojaStatus pamoja_image_verifier_finish(PamojaImageVerifier *verifier,
 // already been freed or passed to [`pamoja_image_verifier_finish`], or null.
 void pamoja_image_verifier_free(PamojaImageVerifier *verifier);
 
-// Creates an updater over a device slots.
+// Creates an updater over a device's slots.
 //
 // # Arguments
 //
@@ -27752,9 +27752,10 @@ PamojaStatus pamoja_updater_stage(PamojaUpdater *updater,
 // a byte of it is accepted.
 //
 // The envelope is remembered until [`pamoja_updater_finish`], so the calls that
-// follow do not repeat it. Each of those reopens the transfer from what the
-// slot records, which is the same path a device takes after a reset, and is
-// what lets a transfer survive one.
+// follow do not repeat it. Each of those checks it again, so a release overtaken
+// or expired while it arrives stops arriving, and each carries the hash of what
+// has arrived to the next, so an image taken in many small pieces costs no more
+// than one taken whole.
 //
 // # Arguments
 //

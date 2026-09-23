@@ -5,14 +5,14 @@
 use std::error::Error;
 
 /// A release signed by its publisher, staged into the spare slot on a device anchored to
-/// that publisher, booted on trial and confirmed, and the same release from another key
-/// getting nowhere.
+/// that publisher, booted on trial and confirmed; then the releases a device has to turn
+/// away, and a bad release that boots, never confirms, and is rolled back.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_security::DeviceIdentity;
     use pamoja_update::{
-        image_digest, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState, SlotStore,
-        Updater, ENVELOPE_MAX, STRUCTURE_VERSION,
+        image_digest, Boot, Device, Envelope, Manifest, MemoryStore, PayloadFormat, SlotState,
+        SlotStore, Updater, ENVELOPE_MAX, STRUCTURE_VERSION,
     };
 
     // The publisher's key signs releases; devices in the field are anchored to its public
@@ -76,21 +76,76 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // The first boot into a new image is a trial. It reverts on the next boot unless the
     // device confirms that it came up, which is what makes a bad release survivable.
+    let said = |decision: Boot| match decision {
+        Boot::Trying(slot) => format!("slot {slot} on trial"),
+        Boot::Confirmed(slot) => format!("slot {slot}, already confirmed"),
+        Boot::Reverted { failed, fallback } => {
+            format!("slot {failed} never confirmed, so the device runs slot {fallback} again")
+        }
+    };
     let decision = updater.on_boot().expect("a decision");
-    println!("booting   {}", decision.action());
+    println!("booting   {}", said(decision));
     updater.confirm().expect("it came up");
     let state = updater.store().record(slot).expect("the new slot").state;
     println!("confirmed slot {slot} is now {state:?}");
 
+    // The same release offered again would take the device nowhere new, so it is refused
+    // as a rollback, and so would any older one.
+    match updater.stage(envelope, image) {
+        Ok(_) => println!("an old release was accepted, which should never happen"),
+        Err(error) => println!("old       refused: {error}"),
+    }
+
+    // The next release goes to the slot the device is not running, slot 0 now. An image
+    // damaged on the way still arrives in full, but it does not hash to what was signed.
+    let upgrade = b"firmware for a flow meter, version three";
+    let third = Manifest {
+        sequence: 3,
+        storage: 0,
+        digest: image_digest(upgrade),
+        size: upgrade.len() as u32,
+        ..manifest
+    };
+    let mut buf = [0u8; ENVELOPE_MAX];
+    let written = third.sign(&publisher, &mut buf).expect("a signed release");
+    let release = &buf[..written];
+    let mut damaged = upgrade.to_vec();
+    damaged[0] ^= 0xFF;
+    match updater.stage(release, &damaged) {
+        Ok(_) => println!("a damaged image was accepted, which should never happen"),
+        Err(error) => println!("corrupt   refused: {error}"),
+    }
+
     // The same release signed by a key this device is not anchored to gets nowhere.
     let impostor = DeviceIdentity::from_seed(&[90u8; 32]);
     let mut forged = [0u8; ENVELOPE_MAX];
-    let signed = manifest
+    let signed = third
         .sign(&impostor, &mut forged)
         .expect("a signed release");
-    match updater.stage(&forged[..signed], image) {
+    match updater.stage(&forged[..signed], upgrade) {
         Ok(_) => println!("a forged release was accepted, which should never happen"),
         Err(error) => println!("forged    refused: {error}"),
+    }
+
+    // The genuine release stages and boots on trial, but never confirms: the next boot
+    // fails it and goes back to the image that worked.
+    updater
+        .stage(release, upgrade)
+        .expect("the genuine release");
+    let trial = updater.on_boot().expect("a decision");
+    println!(
+        "booting   {}, running sequence {}",
+        said(trial),
+        third.sequence
+    );
+    let after = updater.on_boot().expect("a decision");
+    println!("reverted  {}", said(after));
+
+    // A release that failed cannot be offered again, or a captured image could be
+    // replayed; the fix goes out as sequence 4.
+    match updater.stage(release, upgrade) {
+        Ok(_) => println!("a failed release was accepted again, which should never happen"),
+        Err(error) => println!("again     refused: {error}"),
     }
     // ANCHOR_END: example
 
@@ -98,7 +153,19 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     assert_eq!(received, total);
     assert_eq!(slot, 1);
     assert_eq!(state, SlotState::Confirmed);
-    assert!(updater.stage(&forged[..signed], image).is_err());
+    assert_eq!(trial, Boot::Trying(0));
+    assert_eq!(
+        after,
+        Boot::Reverted {
+            failed: 0,
+            fallback: 1
+        }
+    );
+    assert_eq!(
+        updater.store().record(0).expect("slot 0").state,
+        SlotState::Failed
+    );
+    assert_eq!(updater.installed_sequence().expect("the slots"), 3);
 
     Ok(())
 }

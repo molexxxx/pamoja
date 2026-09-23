@@ -206,6 +206,28 @@ static void TrustAndOperation()
     {
     }
 
+    byte[] upgrade = Repeat(0x5A, 300);
+    byte[] third = Update.SignManifest(
+        manifest with
+        {
+            Sequence = 3,
+            Storage = 0,
+            Digest = Update.ImageDigest(upgrade),
+            Size = (uint)upgrade.Length,
+        },
+        publisher);
+    Assert(fleet.Begin(third) == 0, "the next release names the slot not running");
+    fleet.Write(upgrade.AsSpan(0, 200));
+    var oversized = Catch<PamojaException>(() => fleet.Write(upgrade));
+    Assert(
+        oversized.Message == "the image is not the size the manifest declares",
+        "a piece that runs past the declared size is refused");
+    fleet.Write(upgrade.AsSpan(200));
+    Assert(
+        fleet.CurrentProgress().Written == upgrade.Length,
+        "and the transfer goes on from what the slot holds");
+    Assert(fleet.Finish() == 0, "to an image that matches its manifest");
+
     // A delegated key signs day to day, so the anchor can stay offline.
     using var anchor = new DeviceIdentity(Repeat(0x41, 32));
     using var releases = new DeviceIdentity(Repeat(0x42, 32));

@@ -1095,6 +1095,26 @@ def test_a_release_stages_in_pieces_and_confirms_once_it_runs():
     with pytest.raises(PamojaError):
         fleet.stage(forged, image)
 
+    upgrade = bytes([0x5A]) * 300
+    third = update.sign_manifest(
+        update.Manifest(
+            sequence=3,
+            vendor_id=vendor,
+            class_id=device_class,
+            storage=0,
+            digest=update.image_digest(upgrade),
+            size=len(upgrade),
+        ),
+        publisher,
+    )
+    assert fleet.begin(third) == 0
+    fleet.write(upgrade[:200])
+    with pytest.raises(PamojaError, match="the image is not the size the manifest declares"):
+        fleet.write(upgrade)
+    fleet.write(upgrade[200:])
+    assert fleet.progress().written == len(upgrade)
+    assert fleet.finish() == 0
+
 
 def test_a_delegated_key_may_sign_releases():
     import hashlib

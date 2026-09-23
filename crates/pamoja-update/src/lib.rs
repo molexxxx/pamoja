@@ -43,8 +43,9 @@
 //! So this crate implements the settled part and serializes it itself, rather
 //! than pinning the SDK to a wire format that can still change. The encoding is
 //! deliberately kept separate from the model, so a SUIT reader can later produce
-//! the same [`Manifest`] without any of the rules around it moving. This is the same kind of considered deviation as the hand-written
-//! MAVLink dialect, and it is recorded here rather than left to be discovered.
+//! the same [`Manifest`] without any of the rules around it moving. This is the
+//! same kind of considered deviation as the hand-written MAVLink dialect, and it
+//! is recorded here rather than left to be discovered.
 //!
 //! # What it defends against
 //!
@@ -53,7 +54,7 @@
 //!
 //! | Threat | Answered by |
 //! | --- | --- |
-//! | `THREAT.IMG.NON_AUTH`, unauthorised firmware | the author's signature, checked before the manifest is parsed |
+//! | `THREAT.IMG.NON_AUTH`, unauthorized firmware | the author's signature, checked before the manifest is parsed |
 //! | `THREAT.IMG.EXPIRED`, a replayed older release | a sequence number that must beat every slot, failed ones included |
 //! | `THREAT.IMG.EXPIRED.OFFLINE`, a stale release aimed at a device that has been out of contact | [`Manifest::expires`], which bounds how long a release stays usable |
 //! | `THREAT.IMG.INCOMPATIBLE`, firmware for another device | authenticated vendor and class identifiers |
@@ -108,6 +109,12 @@
 //! size: larger chunks mean fewer writes and less flash wear, but more to redo
 //! after a reset.
 //!
+//! Code that takes each piece in a call of its own, rather than in one loop over
+//! a [`Staging`], [`detach`](Staging::detach)es the transfer between pieces and
+//! continues with [`Updater::resume_from`]. The hash of what has arrived travels
+//! with the [`Transfer`], so nothing is read back unless the slot was opened for
+//! something else in between.
+//!
 //! # Who may sign
 //!
 //! A device anchors its trust in one key. That anchor can sign releases itself,
@@ -116,7 +123,7 @@
 //!
 //! The second is worth the extra step. The key that signs releases has to be
 //! available every time you cut one, and availability is what eventually gets a
-//! key stolen; an anchor that only comes out to authorise a rotation can live in a
+//! key stolen; an anchor that only comes out to authorize a rotation can live in a
 //! safe. Rotating means issuing a delegation with a higher epoch, which retires
 //! the previous key rather than adding to it.
 //!
@@ -134,10 +141,14 @@
 //! ```
 //! use pamoja_security::DeviceIdentity;
 //! use pamoja_update::{
-//!     Boot, Device, Manifest, MemoryStore, PayloadFormat, Updater, ENVELOPE_MAX,
-//!     STRUCTURE_VERSION,
+//!     image_digest, Boot, Device, Manifest, MemoryStore, PayloadFormat, Updater,
+//!     ENVELOPE_MAX, STRUCTURE_VERSION,
 //! };
-//! use sha2::{Digest, Sha256};
+//!
+//! // Sixteen bytes each that a vendor assigns itself, naming who builds the
+//! // firmware and which kind of device it runs on.
+//! const VENDOR: [u8; 16] = [10; 16];
+//! const WATER_PUMP: [u8; 16] = [12; 16];
 //!
 //! let author = DeviceIdentity::from_seed(&[1u8; 32]);
 //! let image = b"version two of the firmware";
@@ -145,11 +156,11 @@
 //! let manifest = Manifest {
 //!     structure_version: STRUCTURE_VERSION,
 //!     sequence: 2,
-//!     vendor_id: [0xab; 16],
-//!     class_id: [0xcd; 16],
+//!     vendor_id: VENDOR,
+//!     class_id: WATER_PUMP,
 //!     format: PayloadFormat::Raw,
 //!     storage: 1,
-//!     digest: Sha256::digest(image).into(),
+//!     digest: image_digest(image),
 //!     size: image.len() as u32,
 //!     expires: 0,
 //! };
@@ -158,8 +169,8 @@
 //!
 //! // The device trusts one author and knows what it is.
 //! let device = Device {
-//!     vendor_id: [0xab; 16],
-//!     class_id: [0xcd; 16],
+//!     vendor_id: VENDOR,
+//!     class_id: WATER_PUMP,
 //!     anchor: author.public(),
 //! };
 //! let mut updater = Updater::new(device, MemoryStore::new(2, 4096));
@@ -191,5 +202,5 @@ pub use manifest::{
 };
 pub use slots::{MemoryStore, SlotRecord, SlotState, SlotStore};
 pub use trust::{Delegation, DELEGATION_MAX};
-pub use update::{Boot, Device, Staging, Updater};
+pub use update::{Boot, Device, Staging, Transfer, Updater};
 pub use verify::{image_digest, ImageVerifier, Verified};
