@@ -548,11 +548,13 @@ public static class Update
     /// <param name="envelope">The signed envelope.</param>
     /// <param name="publicKey">The key expected to have signed it.</param>
     /// <returns>The verified manifest.</returns>
+    /// <exception cref="ArgumentException"><paramref name="publicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">The signature is not from that key.</exception>
     public static Manifest VerifyEnvelope(
         ReadOnlySpan<byte> envelope,
         ReadOnlySpan<byte> publicKey)
     {
+        FixedWidth.Require(publicKey, DeviceIdentity.KeyLength, nameof(publicKey));
         Status.ThrowIfError(NativeMethods.pamoja_envelope_verify(
             envelope, (nuint)envelope.Length, publicKey, out PamojaManifest manifest));
         return FromNative(manifest);
@@ -594,11 +596,13 @@ public static class Update
     /// <param name="envelope">The signed delegation envelope.</param>
     /// <param name="anchorPublicKey">The anchor key.</param>
     /// <returns>The verified delegation.</returns>
+    /// <exception cref="ArgumentException"><paramref name="anchorPublicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">The delegation is not from the anchor.</exception>
     public static Delegation OpenDelegation(
         ReadOnlySpan<byte> envelope,
         ReadOnlySpan<byte> anchorPublicKey)
     {
+        FixedWidth.Require(anchorPublicKey, DeviceIdentity.KeyLength, nameof(anchorPublicKey));
         Status.ThrowIfError(NativeMethods.pamoja_delegation_open(
             envelope,
             (nuint)envelope.Length,

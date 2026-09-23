@@ -70,6 +70,7 @@ catch (PamojaException error)
 Assert(!await client.IsConnectedAsync(), "a failed connect should leave the client disconnected");
 
 Identity();
+NativeSafety();
 Codecs();
 Helpers();
 FieldIo();
@@ -716,6 +717,78 @@ static void Identity()
         () => DeviceIdentity.VerifyMessage(new byte[31], device.SignMessage("21.5")),
         "publicKey must be exactly 32 bytes",
         "a signed message needs the whole key too");
+}
+
+// A fixed-width argument is refused before native code reads it, a handle stays open for
+// the length of each call, and a handle native code consumed cannot be consumed again.
+static void NativeSafety()
+{
+    using var node = new AgreementKey(Repeat(0x01, 32));
+    ExpectArgument(
+        () => new Session(node, new byte[16], Repeat(0x05, 16), SessionRole.Initiator).Dispose(),
+        "peerPublicKey must be exactly 32 bytes",
+        "a short peer key is refused");
+    ExpectArgument(
+        () => new AuditVerifier(new byte[31]).Dispose(),
+        "publicKey must be exactly 32 bytes",
+        "an audit verifier needs the whole key");
+    ExpectArgument(
+        () => Audit.VerifyChain(new byte[31], []),
+        "publicKey must be exactly 32 bytes",
+        "so does checking a chain");
+    ExpectArgument(
+        () => Update.VerifyEnvelope([], new byte[16]),
+        "publicKey must be exactly 32 bytes",
+        "an envelope's key is checked before the envelope");
+    ExpectArgument(
+        () => Update.OpenDelegation([], new byte[16]),
+        "anchorPublicKey must be exactly 32 bytes",
+        "and a delegation's anchor");
+
+    using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
+    using var site = new GatewayNetwork(plan, 0x00002A);
+    ExpectArgument(
+        () => site.Register(new byte[7], new byte[8], new byte[16]),
+        "devEui must be exactly 8 bytes",
+        "a short device EUI is refused");
+    ExpectArgument(
+        () => site.Register(new byte[8], new byte[8], new byte[15]),
+        "appKey must be exactly 16 bytes",
+        "and a short root key");
+
+    using var credentials = new LorawanDevice(Repeat(0x41, 8), Repeat(0x22, 8), Repeat(0x33, 16));
+    LorawanDeviceSettings settings = new(2, 14) { LowestHz = 863_000_000, HighestHz = 870_000_000 };
+    using LorawanRelayNode relay = LorawanRelayNode.OverTheAir(plan, credentials, settings);
+    ExpectArgument(
+        () => relay.Trust(0, new LorawanTrustedDevice(0x26010002, new byte[15])),
+        "RootWorSKey must be exactly 16 bytes",
+        "a relay refuses a short device key");
+
+    var writer = new CdrWriter();
+    writer.WriteInt32(1);
+    Assert(writer.ToBytes().Length > 0, "an encoder hands over its bytes");
+    Refuses(() => writer.ToBytes(), "an encoder hands its bytes over once");
+
+    using var mic = new LorawanBlockMic(Repeat(0x11, 16), 0, 0, new byte[4], 0);
+    Assert(mic.Finish().Length == 4, "a block code finishes");
+    Refuses(() => mic.Finish(), "and finishes once");
+
+    using var builder = new MavlinkSchemaBuilder(50_000, "PAMOJA_PROBE");
+    builder.Field("value", MavlinkFieldType.UInt8);
+    using MavlinkSchema shape = builder.Build();
+    Refuses(() => builder.Build(), "a schema builder builds once");
+
+    MavlinkFrame frame = Mavlink.Frame(new MavlinkHeader(1, 1, 0), 0, new byte[9]);
+    Assert(frame.MessageId == 0, "a heartbeat frame reads back");
+    frame.Dispose();
+    try
+    {
+        _ = frame.MessageId;
+        Fail("a disposed frame should not reach native code");
+    }
+    catch (ObjectDisposedException)
+    {
+    }
 }
 
 // Runs a call that must refuse a wrong-length argument, and checks what it says.

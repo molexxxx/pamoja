@@ -185,8 +185,12 @@ public sealed class CdrWriter : IDisposable
     /// <exception cref="PamojaException">The encoder was already spent.</exception>
     public byte[] ToBytes()
     {
-        IntPtr writer = _handle.DangerousGetHandle();
-        _handle.SetHandleAsInvalid();
+        if (_handle.IsClosed)
+        {
+            throw new PamojaException("this encoder was already spent");
+        }
+
+        IntPtr writer = _handle.Take("this encoder is in use");
         return NativeBuffer.Read(NativeMethods.pamoja_cdr_writer_into_bytes(writer));
     }
 

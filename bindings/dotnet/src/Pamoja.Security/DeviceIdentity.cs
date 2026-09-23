@@ -37,11 +37,7 @@ public sealed class DeviceIdentity : IDisposable
     /// <exception cref="PamojaException">The native identity could not be created.</exception>
     public DeviceIdentity(ReadOnlySpan<byte> seed)
     {
-        if (seed.Length != KeyLength)
-        {
-            throw new ArgumentException(
-                $"seed must be exactly {KeyLength} bytes", nameof(seed));
-        }
+        FixedWidth.Require(seed, KeyLength, nameof(seed));
 
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_device_identity_new(seed, (nuint)seed.Length),
@@ -95,8 +91,8 @@ public sealed class DeviceIdentity : IDisposable
         ReadOnlySpan<byte> payload,
         ReadOnlySpan<byte> signature)
     {
-        RequireLength(publicKey, KeyLength, nameof(publicKey));
-        RequireLength(signature, SignatureLength, nameof(signature));
+        FixedWidth.Require(publicKey, KeyLength, nameof(publicKey));
+        FixedWidth.Require(signature, SignatureLength, nameof(signature));
         PamojaStatus status = NativeMethods.pamoja_public_identity_verify(
             publicKey, payload, (nuint)payload.Length, signature);
 
@@ -135,7 +131,7 @@ public sealed class DeviceIdentity : IDisposable
     /// <exception cref="PamojaException">The key is not a valid public key.</exception>
     public static string FingerprintOf(ReadOnlySpan<byte> publicKey)
     {
-        RequireLength(publicKey, KeyLength, nameof(publicKey));
+        FixedWidth.Require(publicKey, KeyLength, nameof(publicKey));
         byte[] hex = new byte[FingerprintLength];
         Status.ThrowIfError(
             NativeMethods.pamoja_public_identity_fingerprint(publicKey, hex));
@@ -149,25 +145,9 @@ public sealed class DeviceIdentity : IDisposable
     public byte[] Sign(ReadOnlySpan<byte> payload)
     {
         byte[] signature = new byte[SignatureLength];
-        int length = payload.Length;
-
-        // The payload cannot be captured by a lambda because it is a span, so the
-        // ref-counted call is written out here rather than going through Use.
-        bool added = false;
-        try
-        {
-            _handle.DangerousAddRef(ref added);
-            Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign(
-                _handle.DangerousGetHandle(), payload, (nuint)length, signature));
-        }
-        finally
-        {
-            if (added)
-            {
-                _handle.DangerousRelease();
-            }
-        }
-
+        using NativeLease identity = _handle.Lease();
+        Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign(
+            identity.Pointer, payload, (nuint)payload.Length, signature));
         return signature;
     }
 
@@ -183,22 +163,10 @@ public sealed class DeviceIdentity : IDisposable
     /// <exception cref="PamojaException">The native call failed.</exception>
     public byte[] SignMessage(ReadOnlySpan<byte> payload)
     {
-        int length = payload.Length;
-        bool added = false;
-        try
-        {
-            _handle.DangerousAddRef(ref added);
-            Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign_message(
-                _handle.DangerousGetHandle(), payload, (nuint)length, out IntPtr buffer));
-            return OwnedBuffer.Take(buffer);
-        }
-        finally
-        {
-            if (added)
-            {
-                _handle.DangerousRelease();
-            }
-        }
+        using NativeLease identity = _handle.Lease();
+        Status.ThrowIfError(NativeMethods.pamoja_device_identity_sign_message(
+            identity.Pointer, payload, (nuint)payload.Length, out IntPtr buffer));
+        return OwnedBuffer.Take(buffer);
     }
 
     /// <summary>Signs text and returns one message carrying both.</summary>
@@ -223,7 +191,7 @@ public sealed class DeviceIdentity : IDisposable
     /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[]? VerifyMessage(ReadOnlySpan<byte> publicKey, ReadOnlySpan<byte> message)
     {
-        RequireLength(publicKey, KeyLength, nameof(publicKey));
+        FixedWidth.Require(publicKey, KeyLength, nameof(publicKey));
         PamojaStatus status = NativeMethods.pamoja_public_identity_verify_message(
             publicKey, message, (nuint)message.Length, out IntPtr buffer);
         if (status == PamojaStatus.Auth)
@@ -233,19 +201,6 @@ public sealed class DeviceIdentity : IDisposable
 
         Status.ThrowIfError(status);
         return OwnedBuffer.Take(buffer);
-    }
-
-    /// <summary>Refuses a fixed-width argument of the wrong length before native code reads it.</summary>
-    /// <param name="value">The argument.</param>
-    /// <param name="length">The length the native call reads.</param>
-    /// <param name="name">The argument's name, for the exception.</param>
-    /// <exception cref="ArgumentException"><paramref name="value"/> is not <paramref name="length"/> bytes.</exception>
-    private static void RequireLength(ReadOnlySpan<byte> value, int length, string name)
-    {
-        if (value.Length != length)
-        {
-            throw new ArgumentException($"{name} must be exactly {length} bytes", name);
-        }
     }
 
     /// <summary>Signs text, encoded as UTF-8.</summary>

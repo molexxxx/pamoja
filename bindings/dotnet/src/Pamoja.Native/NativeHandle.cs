@@ -158,6 +158,36 @@ public sealed class NativeHandle : SafeHandle
         }
     }
 
+    /// <summary>Holds the handle open until the lease is disposed.</summary>
+    /// <remarks>
+    /// A native call that takes a span cannot go through <see cref="Use{TResult}"/>, since a
+    /// lambda cannot capture one, so it leases the pointer instead:
+    /// <c>using NativeLease lease = handle.Lease();</c>. On a serialized handle the lease
+    /// holds the handle's turn as well.
+    /// </remarks>
+    /// <returns>The lease, whose pointer stays valid until it is disposed.</returns>
+    /// <exception cref="ObjectDisposedException">The handle was already released.</exception>
+    public NativeLease Lease()
+    {
+        _gate?.Wait();
+        bool added = false;
+        try
+        {
+            DangerousAddRef(ref added);
+            return new NativeLease(this, DangerousGetHandle());
+        }
+        catch
+        {
+            if (added)
+            {
+                DangerousRelease();
+            }
+
+            _gate?.Release();
+            throw;
+        }
+    }
+
     /// <summary>Hands the pointer to a native call that takes ownership of it.</summary>
     /// <remarks>
     /// This handle never releases the pointer afterwards. A call still running on a
@@ -200,6 +230,13 @@ public sealed class NativeHandle : SafeHandle
         return true;
     }
 
+    /// <summary>Ends a lease, releasing the handle and, on a serialized handle, its turn.</summary>
+    internal void EndLease()
+    {
+        DangerousRelease();
+        _gate?.Release();
+    }
+
     /// <summary>Runs a native call with the handle held open, outside the gate.</summary>
     private TResult Invoke<TResult>(Func<IntPtr, TResult> call)
     {
@@ -217,6 +254,27 @@ public sealed class NativeHandle : SafeHandle
             }
         }
     }
+}
+
+/// <summary>A native pointer held open until the lease is disposed.</summary>
+public readonly ref struct NativeLease
+{
+    private readonly NativeHandle? _handle;
+
+    /// <summary>Records a lease <see cref="NativeHandle.Lease"/> has already taken.</summary>
+    /// <param name="handle">The handle held open.</param>
+    /// <param name="pointer">Its pointer.</param>
+    internal NativeLease(NativeHandle handle, IntPtr pointer)
+    {
+        _handle = handle;
+        Pointer = pointer;
+    }
+
+    /// <summary>Gets the pointer, valid until the lease is disposed.</summary>
+    public IntPtr Pointer { get; }
+
+    /// <summary>Releases the handle, and its turn on a serialized handle.</summary>
+    public void Dispose() => _handle?.EndLease();
 }
 
 /// <summary>A native call that reports whether it produced a value, and writes it.</summary>

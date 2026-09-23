@@ -74,7 +74,7 @@ public static class LorawanPackages
     /// <param name="rootKey">The device's <c>GenAppKey</c> on 1.0.x, or its <c>AppKey</c> on 1.1.</param>
     /// <param name="lorawan11">Whether to use the 1.1 scheme, which starts from another constant.</param>
     /// <returns>The sixteen-byte <c>McRootKey</c>.</returns>
-    /// <exception cref="PamojaException">The key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">The key was not sixteen bytes.</exception>
     public static byte[] McRootKey(ReadOnlySpan<byte> rootKey, bool lorawan11 = false)
     {
         byte[] key = new byte[16];
@@ -88,7 +88,7 @@ public static class LorawanPackages
     /// <summary>Derives the key a multicast group's key travels under.</summary>
     /// <param name="mcRootKey">What <see cref="McRootKey"/> derived.</param>
     /// <returns>The sixteen-byte <c>McKEKey</c>.</returns>
-    /// <exception cref="PamojaException">The key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">The key was not sixteen bytes.</exception>
     public static byte[] McKeKey(ReadOnlySpan<byte> mcRootKey)
     {
         byte[] key = new byte[16];
@@ -102,7 +102,7 @@ public static class LorawanPackages
     /// <param name="mcKeKey">What <see cref="McKeKey"/> derived.</param>
     /// <param name="wrapped">The wrapped key the command carried.</param>
     /// <returns>The group key.</returns>
-    /// <exception cref="PamojaException">Either value was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">Either value was not sixteen bytes.</exception>
     public static byte[] McKey(ReadOnlySpan<byte> mcKeKey, ReadOnlySpan<byte> wrapped)
     {
         byte[] key = new byte[16];
@@ -117,7 +117,7 @@ public static class LorawanPackages
     /// <param name="mcKeKey">The device's key encryption key.</param>
     /// <param name="mcKey">The group key to wrap.</param>
     /// <returns>The wrapped key a setup command carries.</returns>
-    /// <exception cref="PamojaException">Either key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">Either key was not sixteen bytes.</exception>
     public static byte[] WrapMcKey(ReadOnlySpan<byte> mcKeKey, ReadOnlySpan<byte> mcKey)
     {
         byte[] wrapped = new byte[16];
@@ -132,7 +132,7 @@ public static class LorawanPackages
     /// <param name="mcKey">The group key.</param>
     /// <param name="mcAddr">The address the group answers to.</param>
     /// <returns>The group's <c>McAppSKey</c>.</returns>
-    /// <exception cref="PamojaException">The key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">The key was not sixteen bytes.</exception>
     public static byte[] McAppSKey(ReadOnlySpan<byte> mcKey, uint mcAddr)
     {
         byte[] key = new byte[16];
@@ -147,7 +147,7 @@ public static class LorawanPackages
     /// <param name="mcKey">The group key.</param>
     /// <param name="mcAddr">The address the group answers to.</param>
     /// <returns>The group's <c>McNwkSKey</c>.</returns>
-    /// <exception cref="PamojaException">The key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">The key was not sixteen bytes.</exception>
     public static byte[] McNwkSKey(ReadOnlySpan<byte> mcKey, uint mcAddr)
     {
         byte[] key = new byte[16];
@@ -161,7 +161,7 @@ public static class LorawanPackages
     /// <summary>Derives the key that signs a data block, TS004-2.0.0 section 3.3.</summary>
     /// <param name="rootKey">The device's root key.</param>
     /// <returns>The sixteen-byte <c>DataBlockIntKey</c>.</returns>
-    /// <exception cref="PamojaException">The key was not sixteen bytes.</exception>
+    /// <exception cref="ArgumentException">The key was not sixteen bytes.</exception>
     public static byte[] DataBlockIntKey(ReadOnlySpan<byte> rootKey)
     {
         byte[] key = new byte[16];
@@ -365,7 +365,7 @@ public sealed class LorawanBlockMic : IDisposable
     /// <param name="fragIndex">Which session.</param>
     /// <param name="descriptor">The four bytes the server described the block with.</param>
     /// <param name="blockLen">The block's length in bytes, padding excluded.</param>
-    /// <exception cref="PamojaException">The key or the descriptor was the wrong length.</exception>
+    /// <exception cref="ArgumentException">The key or the descriptor was the wrong length.</exception>
     public LorawanBlockMic(
         ReadOnlySpan<byte> dataBlockIntKey,
         ushort sessionCnt,
@@ -420,13 +420,9 @@ public sealed class LorawanBlockMic : IDisposable
         }
 
         byte[] code = new byte[4];
-        _handle.Use(mic =>
-        {
-            Status.ThrowIfError(NativeMethods.pamoja_lorawan_block_mic_finish(mic, code));
-        });
-        // The native call consumed the handle, so releasing it again would be a double free.
+        IntPtr mic = _handle.Take("this code is in use");
         _finished = true;
-        _handle.SetHandleAsInvalid();
+        Status.ThrowIfError(NativeMethods.pamoja_lorawan_block_mic_finish(mic, code));
         return code;
     }
 

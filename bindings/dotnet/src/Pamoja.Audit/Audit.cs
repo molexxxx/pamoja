@@ -163,9 +163,11 @@ public sealed class AuditVerifier : IDisposable
 
     /// <summary>Creates a verifier for a chain signed by one public key.</summary>
     /// <param name="publicKey">The 32-byte key the records were signed with.</param>
+    /// <exception cref="ArgumentException"><paramref name="publicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">The key is not a valid public key.</exception>
     public AuditVerifier(ReadOnlySpan<byte> publicKey)
     {
+        FixedWidth.Require(publicKey, DeviceIdentity.KeyLength, nameof(publicKey));
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_audit_verifier_new(publicKey),
             NativeMethods.pamoja_audit_verifier_free,
@@ -196,6 +198,7 @@ public static class Audit
     /// <summary>Checks a whole chain that has already arrived.</summary>
     /// <param name="publicKey">The 32-byte key the records were signed with.</param>
     /// <param name="entries">The records, in the order they were written.</param>
+    /// <exception cref="ArgumentException"><paramref name="publicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">
     /// The chain does not hold: a record whose signature fails, or one that does
     /// not follow the record before it. The message says which.
@@ -203,6 +206,7 @@ public static class Audit
     public static void VerifyChain(ReadOnlySpan<byte> publicKey, IReadOnlyList<AuditEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        FixedWidth.Require(publicKey, DeviceIdentity.KeyLength, nameof(publicKey));
 
         IntPtr[] handles = new IntPtr[entries.Count];
         for (int at = 0; at < entries.Count; at++)

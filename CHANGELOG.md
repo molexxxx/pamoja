@@ -761,6 +761,8 @@ released together, so one entry covers all of them.
   JSON has no way to write, where the core refused the text with a parser error.
 - `LoraChannelPlan.maxPayload` in TypeScript takes the data rate first and the table second,
   defaulting to an uplink sent directly, as it does in Python and C#.
+- `LoraChannelPlan.DangerousGetHandle` in C# is `Lease`, which holds the plan open until the
+  lease is disposed, so a package building on a plan cannot have it freed mid-call.
 - On the event bus in TypeScript, Python, and C#, only the waits wait. An endpoint's
   `subscribe` and `publish` return at once rather than a promise or a coroutine in
   TypeScript and Python, and C#'s `PublishAsync` is now `Publish`. A wait gives the event
@@ -948,6 +950,22 @@ released together, so one entry covers all of them.
   key shorter than 32 bytes or a signature shorter than 64, since the native call reads a
   fixed length. They throw `ArgumentException` now, and `VerifyMessage` returns null only for
   a message that fails its check, throwing for any other failure.
+- Seven more C# calls read past the end of a short key or identifier for the same reason:
+  `new Session`, `new AuditVerifier`, `Audit.VerifyChain`, `Update.VerifyEnvelope`,
+  `Update.OpenDelegation`, `GatewayNetwork.Register`, and `LorawanRelayNode.Trust`. Each
+  throws `ArgumentException` now, as the other bindings already did.
+- Many C# objects read their native pointer without holding it open, so a finalizer running
+  during a call, or a `Dispose` on another thread, could free the native object while the call
+  still used it: `LoraChannelPlan`, `GatewayNetwork`, every MAVLink class, and the end device
+  and relay constructors that take a plan. Every native call now holds its handle for the
+  length of the call, and a call on a disposed object throws `ObjectDisposedException`.
+- C# objects whose native state changes with each call had no lock, so two threads could
+  reach one at once, which the native side does not allow: `GatewayNetwork`, `LoraRadio`, and
+  the MAVLink dialect, parser, signer, verifier, message, mission sender and receiver, and
+  command tracker. Their calls run one at a time now.
+- `CdrWriter.ToBytes` in C# handed an encoder native code had already consumed back to it when
+  called a second time, freeing it again. It throws `PamojaException`, as its documentation
+  said. Two threads finishing one `LorawanBlockMic` at once could do the same, and cannot now.
 - An event bus endpoint in TypeScript and Python could not publish or subscribe while its own
   wait for the next event was open: the call waited behind the wait, for good if nothing else
   published. In C#, a publish beside a waiting `NextAsync` reached the native endpoint

@@ -134,7 +134,7 @@ public sealed class LoraRadio : IDisposable
 
     private LoraRadio(IntPtr radio)
     {
-        _handle = new NativeHandle(radio, NativeMethods.pamoja_lora_radio_free);
+        _handle = new NativeHandle(radio, NativeMethods.pamoja_lora_radio_free, serialized: true);
         Family = NativeMethods.pamoja_lora_radio_family(radio) == NativeMethods.LoraRadioSx126x
             ? LoraRadioFamily.Sx126x
             : LoraRadioFamily.Sx127x;
@@ -229,22 +229,10 @@ public sealed class LoraRadio : IDisposable
     /// <exception cref="PamojaException">The radio is unconfigured, or the chip did not answer.</exception>
     public ulong Transmit(ReadOnlySpan<byte> payload)
     {
-        bool added = false;
-        try
-        {
-            _handle.DangerousAddRef(ref added);
-            PamojaStatus status = NativeMethods.pamoja_lora_radio_transmit(
-                _handle.DangerousGetHandle(), payload, (nuint)payload.Length, out ulong airtimeUs);
-            NativeStatus.ThrowIfError(status);
-            return airtimeUs;
-        }
-        finally
-        {
-            if (added)
-            {
-                _handle.DangerousRelease();
-            }
-        }
+        using NativeLease radio = _handle.Lease();
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_lora_radio_transmit(
+            radio.Pointer, payload, (nuint)payload.Length, out ulong airtimeUs));
+        return airtimeUs;
     }
 
     /// <summary>Listens for one frame.</summary>
@@ -274,20 +262,11 @@ public sealed class LoraRadio : IDisposable
     public LoraReception TakeFrame()
     {
         byte[] buffer = new byte[FrameMax];
-        PamojaLoraRadioReception reception = default;
-        bool added = false;
-        try
+        PamojaLoraRadioReception reception;
+        using (NativeLease radio = _handle.Lease())
         {
-            _handle.DangerousAddRef(ref added);
             NativeStatus.ThrowIfError(NativeMethods.pamoja_lora_radio_take_frame(
-                _handle.DangerousGetHandle(), buffer, (nuint)buffer.Length, out reception));
-        }
-        finally
-        {
-            if (added)
-            {
-                _handle.DangerousRelease();
-            }
+                radio.Pointer, buffer, (nuint)buffer.Length, out reception));
         }
 
         return Heard(buffer, reception);
@@ -369,26 +348,15 @@ public sealed class LoraRadio : IDisposable
     /// <returns>What the native call returned.</returns>
     private PamojaStatus Listening(byte[] buffer, ulong timeoutUs, ref PamojaLoraRadioReception reception)
     {
-        bool added = false;
-        try
-        {
-            _handle.DangerousAddRef(ref added);
-            PamojaStatus status = NativeMethods.pamoja_lora_radio_receive(
-                _handle.DangerousGetHandle(),
-                buffer,
-                (nuint)buffer.Length,
-                timeoutUs,
-                out PamojaLoraRadioReception heard);
-            reception = heard;
-            return status;
-        }
-        finally
-        {
-            if (added)
-            {
-                _handle.DangerousRelease();
-            }
-        }
+        using NativeLease radio = _handle.Lease();
+        PamojaStatus status = NativeMethods.pamoja_lora_radio_receive(
+            radio.Pointer,
+            buffer,
+            (nuint)buffer.Length,
+            timeoutUs,
+            out PamojaLoraRadioReception heard);
+        reception = heard;
+        return status;
     }
 
     /// <summary>Reads how a reception ended, copying out the payload of a frame.</summary>
