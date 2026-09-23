@@ -23,11 +23,62 @@ pub const PAMOJA_PCA9685_CHANNELS: u8 = 16;
 /// How many counts a PCA9685 period is divided into.
 pub const PAMOJA_PCA9685_COUNTS: u16 = 4096;
 
+/// The address a PCA9685 answers at with its six address pins low.
+pub const PAMOJA_PCA9685_DEFAULT_ADDRESS: u8 = 0x40;
+
+/// How long the oscillator takes to run once woken, in microseconds.
+pub const PAMOJA_PCA9685_OSCILLATOR_STARTUP_MICROS: u32 = 500;
+
+/// Mode register 1: restart, clock, auto-increment, sleep, and the addresses answered.
+pub const PAMOJA_PCA9685_REGISTER_MODE1: u8 = 0x00;
+/// Mode register 2: how the outputs are wired and when they change.
+pub const PAMOJA_PCA9685_REGISTER_MODE2: u8 = 0x01;
+/// The first of channel 0's four registers; channel n starts four registers on per channel.
+pub const PAMOJA_PCA9685_REGISTER_LED0_ON_L: u8 = 0x06;
+/// The first of the four ALL_LED registers, which load every channel at once.
+pub const PAMOJA_PCA9685_REGISTER_ALL_LED_ON_L: u8 = 0xFA;
+/// The prescaler that sets the PWM frequency, writable only while the part sleeps.
+pub const PAMOJA_PCA9685_REGISTER_PRE_SCALE: u8 = 0xFE;
+
+/// MODE1's RESTART bit: set when the part slept with a channel running, cleared by a written 1.
+pub const PAMOJA_PCA9685_MODE1_RESTART: u8 = 0x80;
+/// MODE1's EXTCLK bit: the prescaler divides the EXTCLK pin rather than the oscillator.
+pub const PAMOJA_PCA9685_MODE1_EXTCLK: u8 = 0x40;
+/// MODE1's auto-increment bit: the register pointer moves on after each byte.
+pub const PAMOJA_PCA9685_MODE1_AUTO_INCREMENT: u8 = 0x20;
+/// MODE1's SLEEP bit: the oscillator is off and PRE_SCALE takes a write.
+pub const PAMOJA_PCA9685_MODE1_SLEEP: u8 = 0x10;
+
+/// The power-on value of MODE1: asleep, answering the All Call address.
+pub const PAMOJA_PCA9685_MODE1_RESET: u8 = 0x11;
+/// The power-on value of MODE2: totem-pole outputs.
+pub const PAMOJA_PCA9685_MODE2_RESET: u8 = 0x04;
+/// The power-on value of PRE_SCALE: 200 Hz on the internal oscillator.
+pub const PAMOJA_PCA9685_PRE_SCALE_RESET: u8 = 0x1E;
+/// The smallest value the part loads into PRE_SCALE, about 1526 Hz.
+pub const PAMOJA_PCA9685_PRE_SCALE_MIN: u8 = 3;
+
 // The header generator does not read the crates this one depends on, so these
 // carry their value rather than the name of the constant that defines it.
 const _: () = assert!(PAMOJA_PCA9685_INTERNAL_OSC_HZ == pca9685::INTERNAL_OSC_HZ);
 const _: () = assert!(PAMOJA_PCA9685_CHANNELS == pca9685::CHANNELS);
 const _: () = assert!(PAMOJA_PCA9685_COUNTS == pca9685::COUNTS);
+const _: () = assert!(PAMOJA_PCA9685_DEFAULT_ADDRESS == pca9685::DEFAULT_I2C_ADDRESS);
+const _: () =
+    assert!(PAMOJA_PCA9685_OSCILLATOR_STARTUP_MICROS == pca9685::OSCILLATOR_STARTUP_MICROS);
+const _: () = assert!(PAMOJA_PCA9685_REGISTER_MODE1 == pca9685::register::MODE1);
+const _: () = assert!(PAMOJA_PCA9685_REGISTER_MODE2 == pca9685::register::MODE2);
+const _: () = assert!(PAMOJA_PCA9685_REGISTER_LED0_ON_L == pca9685::register::LED0_ON_L);
+const _: () = assert!(PAMOJA_PCA9685_REGISTER_ALL_LED_ON_L == pca9685::register::ALL_LED_ON_L);
+const _: () = assert!(PAMOJA_PCA9685_REGISTER_PRE_SCALE == pca9685::register::PRE_SCALE);
+const _: () = assert!(PAMOJA_PCA9685_MODE1_RESTART == pca9685::mode1::RESTART);
+const _: () = assert!(PAMOJA_PCA9685_MODE1_EXTCLK == pca9685::mode1::EXTCLK);
+const _: () = assert!(PAMOJA_PCA9685_MODE1_AUTO_INCREMENT == pca9685::mode1::AUTO_INCREMENT);
+const _: () = assert!(PAMOJA_PCA9685_MODE1_SLEEP == pca9685::mode1::SLEEP);
+const _: () = assert!(PAMOJA_PCA9685_MODE1_RESET == pca9685::MODE1_RESET);
+const _: () = assert!(PAMOJA_PCA9685_MODE2_RESET == pca9685::MODE2_RESET);
+const _: () = assert!(PAMOJA_PCA9685_PRE_SCALE_RESET == pca9685::PRE_SCALE_RESET);
+const _: () = assert!(PAMOJA_PCA9685_PRE_SCALE_MIN == pca9685::PRE_SCALE_MIN);
 
 /// A PCA9685 channel's four register bytes.
 ///
@@ -60,7 +111,7 @@ pub enum PamojaStepDirection {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PamojaStepDrive {
-    /// One coil energised at a time: four steps, least torque and least power.
+    /// One coil energized at a time: four steps, least torque and least power.
     Wave = 0,
     /// Two adjacent coils at a time: four steps, most torque.
     FullStep = 1,

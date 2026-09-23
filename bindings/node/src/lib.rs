@@ -19,6 +19,8 @@ pub fn version() -> String {
 // over the test target.
 #[cfg(feature = "actuators")]
 pub mod actuators;
+#[cfg(feature = "actuators")]
+pub mod actuators_driver;
 #[cfg(feature = "audit")]
 pub mod audit;
 #[cfg(feature = "bus")]

@@ -15,7 +15,7 @@ use pamoja_actuators::{pca9685, stepper};
 /// A stepper drive pattern, trading torque, smoothness, and resolution.
 #[napi(string_enum)]
 pub enum StepDrive {
-    /// One coil energised at a time: four steps, least torque and least power.
+    /// One coil energized at a time: four steps, least torque and least power.
     Wave,
     /// Two adjacent coils at a time: four steps, most torque.
     FullStep,

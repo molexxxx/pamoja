@@ -2009,6 +2009,46 @@ export declare class Opt3001 {
   get configuration(): Opt3001Configuration
 }
 
+/** An NXP PCA9685 on an I2C bus, driving sixteen PWM outputs. */
+export declare class Pca9685 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * channel is loaded.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Pca9685Settings | undefined | null)
+  /**
+   * Programs the prescale and the output wiring with the oscillator asleep, wakes it, waits
+   * the 500 us it needs, and restarts the channels.
+   */
+  init(): Promise<void>
+  /**
+   * Loads one channel with the four register bytes the `pwm` builders make, initializing
+   * the part first if `init` has not run. Rejects a channel past 15.
+   */
+  setChannel(channel: number, pwm: Buffer): Promise<void>
+  /** Loads every channel with the same four bytes in one transfer. */
+  setAll(pwm: Buffer): Promise<void>
+  /** Stops the oscillator; the channels keep their settings. */
+  sleep(): Promise<void>
+  /**
+   * Wakes the oscillator, waits the 500 us it needs, and restarts the channels that were
+   * running before the sleep.
+   */
+  wake(): Promise<void>
+  /**
+   * Sends the general-call software reset, which returns every PCA9685 on the bus to its
+   * power-on state. It goes to address 0x00, which nothing on a simulated bus answers.
+   */
+  softwareReset(): Promise<void>
+  /** The prescale value the driver writes for its frequency. */
+  get prescale(): number
+  /**
+   * The frequency the part runs at once the prescaler has rounded the one asked for, in
+   * hertz.
+   */
+  get frequency(): number
+}
+
 /** Holds a value at a setpoint by trading off present, past, and predicted error. */
 export declare class Pid {
   /** Creates a controller with the given proportional, integral, derivative gains. */
@@ -6972,8 +7012,53 @@ export declare const PCA9685_CHANNELS: number
 /** How many counts a PCA9685 period is divided into. */
 export declare const PCA9685_COUNTS: number
 
+/** The address a PCA9685 answers at with its six address pins low. */
+export declare const PCA9685_DEFAULT_ADDRESS: number
+
 /** The PCA9685's internal oscillator frequency, in hertz. */
 export declare const PCA9685_INTERNAL_OSC_HZ: number
+
+/** MODE1's auto-increment bit. */
+export declare const PCA9685_MODE1_AUTO_INCREMENT: number
+
+/** MODE1's EXTCLK bit. */
+export declare const PCA9685_MODE1_EXTCLK: number
+
+/** The power-on value of MODE1. */
+export declare const PCA9685_MODE1_RESET: number
+
+/** MODE1's RESTART bit. */
+export declare const PCA9685_MODE1_RESTART: number
+
+/** MODE1's SLEEP bit. */
+export declare const PCA9685_MODE1_SLEEP: number
+
+/** The power-on value of MODE2. */
+export declare const PCA9685_MODE2_RESET: number
+
+/** How long the oscillator takes to run once woken, in microseconds. */
+export declare const PCA9685_OSCILLATOR_STARTUP_MICROS: number
+
+/** The smallest value the part loads into PRE_SCALE. */
+export declare const PCA9685_PRE_SCALE_MIN: number
+
+/** The power-on value of PRE_SCALE, 200 Hz on the internal oscillator. */
+export declare const PCA9685_PRE_SCALE_RESET: number
+
+/** The first of the four registers that load every channel at once. */
+export declare const PCA9685_REGISTER_ALL_LED_ON_L: number
+
+/** The first of channel 0's four registers. */
+export declare const PCA9685_REGISTER_LED0_ON_L: number
+
+/** Mode register 1. */
+export declare const PCA9685_REGISTER_MODE1: number
+
+/** Mode register 2. */
+export declare const PCA9685_REGISTER_MODE2: number
+
+/** The prescaler, writable only while the part sleeps. */
+export declare const PCA9685_REGISTER_PRE_SCALE: number
 
 /** Returns the first of a PCA9685 channel's four consecutive registers. */
 export declare function pca9685ChannelRegister(channel: number): number
@@ -6983,6 +7068,29 @@ export declare function pca9685FrequencyForPrescale(prescale: number, oscHz: num
 
 /** Returns the prescale value that sets a PCA9685 update rate. */
 export declare function pca9685PrescaleForFrequency(updateRateHz: number, oscHz: number): number
+
+/**
+ * How a PCA9685 driver programs the part. A field left out keeps the part's own power-on
+ * setting: 200 Hz on the internal oscillator with totem-pole outputs.
+ */
+export interface Pca9685Settings {
+  /** The PWM frequency every channel shares, in hertz; 50 for hobby servos. */
+  frequencyHz?: number
+  /** The clock the prescaler divides, in hertz, for a board that drives EXTCLK. */
+  oscillatorHz?: number
+  /** Totem-pole outputs when true, open-drain when false. */
+  totemPole?: boolean
+  /** Invert the output logic, for a board with no external driver. */
+  inverted?: boolean
+  /** Change the outputs on each register write's acknowledge rather than on the stop. */
+  changeOnAck?: boolean
+}
+
+/**
+ * A simulated PCA9685 as it powers up: asleep at 200 Hz with every output off, keeping its
+ * datasheet's rules for writes, reads, and its register pointer.
+ */
+export declare function pca9685SimPart(address: number): I2cPart
 
 /** The signal transition that triggers a pin interrupt. */
 export declare const enum PinEdge {
@@ -7644,7 +7752,7 @@ export declare const enum StepDirection {
 
 /** A stepper drive pattern, trading torque, smoothness, and resolution. */
 export declare const enum StepDrive {
-  /** One coil energised at a time: four steps, least torque and least power. */
+  /** One coil energized at a time: four steps, least torque and least power. */
   Wave = 'Wave',
   /** Two adjacent coils at a time: four steps, most torque. */
   FullStep = 'FullStep',

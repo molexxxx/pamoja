@@ -71,7 +71,7 @@ hal = ["dep:pamoja-hal", "pamoja-hal/linux"]
 # The decoders, the drivers that run over a bus with a simulated part for each, and the
 # kernel's 1-Wire thermometer files.
 sensors = ["dep:pamoja-sensors", "hal", "pamoja-sensors/alloc", "pamoja-sensors/linux"]
-actuators = ["dep:pamoja-actuators"]
+actuators = ["dep:pamoja-actuators", "hal"]
 lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
 # The SX126x and SX127x command sets and decoders, the duty-cycle guard, and a radio opened

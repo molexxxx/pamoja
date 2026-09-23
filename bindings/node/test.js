@@ -98,7 +98,8 @@ async function main() {
   sensingAndActuation();
   laterSensors();
   await buses();
-await sensorDrivers();
+  await sensorDrivers();
+  await actuatorDrivers();
   radioAndReach();
   relayedReach();
   broadcastUpdates();
@@ -473,6 +474,31 @@ async function sensorDrivers() {
   );
   assert.strictEqual(s.Ds18b20Thermometer.forSerial("000005e2fdc3").serial, "000005e2fdc3");
   assert.strictEqual(s.Ds18b20Thermometer.at("/tmp/w1_slave").serial, null, "a bare file has no serial");
+}
+
+// The PCA9685 driven over a simulated part that keeps its datasheet's rules: the prescale for
+// 50 Hz only lands while the part sleeps, a servo channel reads back as loaded, one ALL_LED
+// write reaches every channel, and a channel the part does not have is refused.
+async function actuatorDrivers() {
+  const { I2cBus } = hal;
+  const { Pca9685, pca9685, pwm } = actuators;
+  const address = pca9685.defaultAddress;
+  const bus = I2cBus.simulated([pca9685.sim.part(address)]);
+  const board = new Pca9685(bus, address, { frequencyHz: 50 });
+  assert.strictEqual(board.prescale, 121, "round(25 MHz / 4096 / 50) - 1");
+  await board.setChannel(0, pwm.servo(1500));
+  assert.strictEqual(bus.waitedMicros, pca9685.oscillatorStartupMicros, "the oscillator's start-up");
+  let part = bus.part(address);
+  assert.strictEqual(part.register(pca9685.register.preScale), 121);
+  assert.strictEqual(part.register(pca9685.register.mode1), pca9685.mode1.autoIncrement);
+  const first = pca9685.channelRegister(0);
+  const loaded = [0, 1, 2, 3].map((offset) => part.register(first + offset));
+  assert.deepStrictEqual(Buffer.from(loaded), pwm.servo(1500), "the servo channel reads back");
+  await board.setAll(pwm.fullOff());
+  part = bus.part(address);
+  assert.strictEqual(part.register(pca9685.channelRegister(15) + 3), 0x10, "every channel off");
+  await assert.rejects(board.setChannel(16, pwm.fullOn()), /sixteen channels/);
+  await assert.rejects(board.softwareReset(), /nothing answered at 0x00/);
 }
 
 // The seven parts added after the first four: a datasheet figure each, and the

@@ -1,6 +1,6 @@
 # @pamoja/actuators
 
-PCA9685 PWM and servo pulses, and stepper coil sequencing. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+A PCA9685 driver for servos, LEDs, and valves in every language, and stepper coil sequencing. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/actuators.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -12,7 +12,7 @@ PCA9685 PWM and servo pulses, and stepper coil sequencing. One capability of [pa
 npm install @pamoja/actuators
 ```
 
-This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine, and `@pamoja/hal`. `npm install pamoja` is the whole framework in one package.
 
 ## Example
 

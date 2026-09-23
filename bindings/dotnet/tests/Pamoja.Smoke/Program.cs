@@ -77,6 +77,7 @@ SensingAndActuation();
 LaterSensors();
 Buses();
 SensorDrivers();
+ActuatorDrivers();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1316,6 +1317,45 @@ static void Buses()
         Assert(OperatingSystem.IsLinux(), "only Linux gets as far as the file");
         Assert(refused.Message.StartsWith("/dev/i2c-pamoja-absent: ", StringComparison.Ordinal), "the refusal names the file");
     }
+}
+
+// The PCA9685 driven over a simulated part that keeps its datasheet's rules: the prescale for
+// 50 Hz only lands while the part sleeps, a servo channel reads back as loaded, one ALL_LED
+// write reaches every channel, and a channel the part does not have is refused.
+static void ActuatorDrivers()
+{
+    const byte Address = Pca9685.DefaultAddress;
+    using (I2cPart fresh = Pca9685.Sim.Part(Address))
+    {
+        Assert(fresh.Register(Pca9685.Register.Mode1) == Pca9685.Mode1Reset, "MODE1 at power-up");
+        Assert(fresh.Register(Pca9685.Register.PreScale) == Pca9685.PreScaleReset, "200 Hz at power-up");
+    }
+
+    using I2cPart part = Pca9685.Sim.Part(Address);
+    using I2cBus bus = I2cBus.Simulated(part);
+    using var board = new Pca9685(bus, Address, frequencyHz: 50);
+    Assert(board.Prescale == 121, "round(25 MHz / 4096 / 50) - 1");
+    byte[] center = Pwm.Servo(1_500);
+    board.SetChannel(0, center);
+    Assert(bus.WaitedMicros == Pca9685.OscillatorStartupMicros, "the oscillator's start-up");
+
+    using (I2cPart held = bus.Part<I2cPart>(Address)!)
+    {
+        Assert(held.Register(Pca9685.Register.PreScale) == 121, "the prescale landed while asleep");
+        Assert(held.Register(Pca9685.Register.Mode1) == Pca9685.Mode1.AutoIncrement, "awake, RESTART cleared");
+        byte first = Pca9685.ChannelRegister(0);
+        byte[] loaded = [held.Register(first), held.Register((byte)(first + 1)), held.Register((byte)(first + 2)), held.Register((byte)(first + 3))];
+        Assert(loaded.SequenceEqual(center), "the servo channel reads back");
+    }
+
+    board.SetAll(Pwm.FullOff());
+    using (I2cPart held = bus.Part<I2cPart>(Address)!)
+    {
+        Assert(held.Register((byte)(Pca9685.ChannelRegister(15) + 3)) == 0x10, "every channel off");
+    }
+
+    Refuses(() => board.SetChannel(16, Pwm.FullOn()), "a channel the part does not have");
+    Refuses(() => board.SoftwareReset(), "nothing on a simulated bus answers the general call");
 }
 
 // Every I2C part's driver against its simulated twin, all on one bus at the addresses a

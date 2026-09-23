@@ -6,9 +6,10 @@ dimmable lights, or the inputs of a motor driver run off a single I2C device. A
 four-wire stepper turns by energizing its coils in a repeating pattern. Both are
 exact arithmetic against a datasheet, and both fail quietly when a constant is
 wrong: a servo that buzzes against its endstop, a motor that hums without
-turning. pamoja works out the register bytes and the coil patterns and writes
-nothing, so the same code runs on a gateway, on a microcontroller, or in a test
-with nothing wired to it.
+turning. pamoja works out the register bytes and the coil patterns, and its
+drivers write them: a PCA9685 over an I2C bus from every language, and a stepper
+through its pins from Rust. The arithmetic needs no bus at all, so the same code
+runs on a gateway, on a microcontroller, or in a test with nothing wired to it.
 
 ## What the example does
 

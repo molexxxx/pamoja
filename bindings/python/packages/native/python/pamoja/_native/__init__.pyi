@@ -169,6 +169,7 @@ __all__ = [
     "Opt3001",
     "Opt3001Config",
     "Opt3001Reading",
+    "Pca9685",
     "Pid",
     "Pose",
     "PowerPlan",
@@ -480,6 +481,7 @@ __all__ = [
     "pca9685_frequency_for_prescale",
     "pca9685_limits",
     "pca9685_prescale_for_frequency",
+    "pca9685_sim_part",
     "pin_edge_triggered_by",
     "pin_level_from_bool",
     "pin_level_inverted",
@@ -8390,6 +8392,57 @@ class Opt3001Reading:
         """
 
 @typing.final
+class Pca9685:
+    r"""
+    An NXP PCA9685 on an I2C bus, driving sixteen PWM outputs.
+    """
+    @property
+    def prescale(self) -> builtins.int:
+        r"""
+        The prescale value the driver writes for its frequency.
+        """
+    @property
+    def frequency(self) -> builtins.float:
+        r"""
+        The frequency the part runs at once the prescaler has rounded the one asked for, in
+        hertz.
+        """
+    def __new__(cls, bus: I2cBus, address: builtins.int, frequency_hz: builtins.int = 200, oscillator_hz: builtins.int = 25000000, totem_pole: builtins.bool = True, inverted: builtins.bool = False, change_on_ack: builtins.bool = False) -> Pca9685:
+        r"""
+        A driver for the part at `address` on `bus`, at the part's own 200 Hz on its internal
+        oscillator with totem-pole outputs unless given otherwise. Nothing is sent until `init`
+        or the first channel is loaded.
+        """
+    def init(self) -> None:
+        r"""
+        Programs the prescale and the output wiring with the oscillator asleep, wakes it,
+        waits the 500 us it needs, and restarts the channels.
+        """
+    def set_channel(self, channel: builtins.int, pwm: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Loads one channel with the four register bytes the `pwm` builders make, initializing
+        the part first if `init` has not run. Raises for a channel past 15.
+        """
+    def set_all(self, pwm: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Loads every channel with the same four bytes in one transfer.
+        """
+    def sleep(self) -> None:
+        r"""
+        Stops the oscillator; the channels keep their settings.
+        """
+    def wake(self) -> None:
+        r"""
+        Wakes the oscillator, waits the 500 us it needs, and restarts the channels that were
+        running before the sleep.
+        """
+    def software_reset(self) -> None:
+        r"""
+        Sends the general-call software reset, which returns every PCA9685 on the bus to its
+        power-on state. It goes to address 0x00, which nothing on a simulated bus answers.
+        """
+
+@typing.final
 class Pid:
     r"""
     Holds a value at a setpoint by trading off present, past, and predicted error.
@@ -11724,6 +11777,12 @@ def pca9685_limits() -> tuple[builtins.int, builtins.int, builtins.int]:
 def pca9685_prescale_for_frequency(update_rate_hz: builtins.int, osc_hz: builtins.int) -> builtins.int:
     r"""
     Returns the prescale value that sets a PCA9685 update rate.
+    """
+
+def pca9685_sim_part(address: builtins.int) -> I2cPart:
+    r"""
+    A simulated PCA9685 as it powers up: asleep at 200 Hz with every output off, keeping its
+    datasheet's rules for writes, reads, and its register pointer.
     """
 
 def pin_edge_triggered_by(edge: builtins.str, before: builtins.str, after: builtins.str) -> builtins.bool:
