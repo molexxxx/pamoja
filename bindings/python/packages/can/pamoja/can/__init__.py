@@ -2,15 +2,19 @@
 
 CAN is how the moving parts of a machine talk to each other: motor controllers,
 servos, battery management, and the engines and farm equipment that speak J1939 on
-top of it. This is the identifier and payload layer; the controller hardware
-handles the wire itself.
+top of it. :class:`CanBus` is one node on a bus, simulated or a kernel interface
+through SocketCAN, and the rest is the identifier and payload layer; the controller
+hardware handles the wire itself.
 """
 
 from __future__ import annotations
 
+import enum
 from enum import IntEnum
+from typing import Iterable
 
-from pamoja._native import CanFrame, J1939Message, Signals
+from pamoja._native import CanBus as _NativeBus
+from pamoja._native import CanFilter, CanFrame, J1939Message, Signals
 from pamoja._native import can_dlc_to_len as _dlc_to_len
 from pamoja._native import can_fd_frame as _fd_frame
 from pamoja._native import can_frame as _frame
@@ -24,6 +28,9 @@ from pamoja._native import j1939_limits as _limits
 __all__ = [
     "BROADCAST_ADDRESS",
     "NOT_AVAILABLE",
+    "CanBus",
+    "CanBusKind",
+    "CanFilter",
     "CanFrame",
     "J1939Message",
     "Priority",
@@ -171,3 +178,119 @@ def broadcast_j1939(priority: int, pgn: int, source: int) -> int:
     :returns: The 29-bit identifier.
     """
     return _j1939_broadcast(priority, pgn, source)
+
+
+class CanBusKind(str, enum.Enum):
+    """What a node's bus is."""
+
+    #: A kernel CAN interface reached through SocketCAN.
+    DEVICE = "Device"
+    #: A bus inside the program.
+    SIMULATED = "Simulated"
+
+
+class CanBus:
+    """One node's place on a CAN bus.
+
+    :meth:`open` opens a kernel interface such as ``can0`` through SocketCAN on a Linux board,
+    once it is up with ``ip link set can0 up type can bitrate 250000``. :meth:`simulated` makes
+    a bus inside the program, and :meth:`join` puts another node on the same bus. A node hears
+    every frame the others send and none of its own, and keeps only the frames its filters
+    pass. A send and a receive release the interpreter while the bus is busy; a receive on a
+    simulated bus with nothing waiting returns ``None`` at once and counts its timeout in
+    :attr:`waited_micros`.
+
+    >>> engine = CanBus.simulated()
+    >>> gateway = engine.join()
+    >>> engine.send(frame(0x20A, bytes([0x01, 0xF4])))
+    >>> list(gateway.receive(timeout=0.01).data)
+    [1, 244]
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, native: _NativeBus) -> None:
+        """Wrap a native node; use :meth:`open` or :meth:`simulated` instead."""
+        self._native = native
+
+    @classmethod
+    def open(cls, interface: str) -> CanBus:
+        """Open a kernel CAN interface through SocketCAN, as one node on its bus.
+
+        :param interface: ``can0`` for the first controller, ``vcan0`` for a virtual one.
+        :returns: The node.
+        :raises PamojaError: Anywhere but Linux, or when the interface does not exist.
+        """
+        return cls(_NativeBus.open(interface))
+
+    @classmethod
+    def simulated(cls) -> CanBus:
+        """A new bus inside the program, with this node the first on it.
+
+        :returns: The node.
+        """
+        return cls(_NativeBus.simulated())
+
+    def join(self) -> CanBus:
+        """Put another node on the same bus.
+
+        :returns: The new node.
+        """
+        return CanBus(self._native.join())
+
+    @property
+    def kind(self) -> CanBusKind:
+        """What the bus is."""
+        return CanBusKind(self._native.kind)
+
+    @property
+    def interface(self) -> str | None:
+        """The kernel interface the node is on, or ``None`` on a simulated bus."""
+        return self._native.interface
+
+    def send(self, frame: CanFrame) -> None:
+        """Send a frame to every other node on the bus.
+
+        :param frame: The frame.
+        :raises PamojaError: When the kernel refuses the frame.
+        """
+        self._native.send(frame)
+
+    def receive(self, timeout: float) -> CanFrame | None:
+        """Take the next frame the node keeps, waiting up to ``timeout`` for one.
+
+        :param timeout: How long to wait, in seconds.
+        :returns: The frame, or ``None`` when the timeout passed with nothing.
+        :raises PamojaError: When the interface fails.
+        """
+        if not timeout >= 0:
+            raise ValueError("a time must be zero or more seconds")
+        return self._native.receive(round(timeout * 1_000_000))
+
+    def set_filters(self, filters: Iterable[CanFilter]) -> None:
+        """Keep only the frames that pass at least one of the filters, from now on.
+
+        An empty list keeps nothing; :meth:`clear_filters` keeps everything again.
+
+        :param filters: ``CanFilter.pgn(61444)``, ``CanFilter.exact(0x20A)``, and the like.
+        """
+        self._native.set_filters(list(filters))
+
+    def clear_filters(self) -> None:
+        """Keep every frame again, as a node does when it joins."""
+        self._native.clear_filters()
+
+    @property
+    def sent(self) -> int:
+        """How many frames the node has sent."""
+        return self._native.sent
+
+    @property
+    def received(self) -> int:
+        """How many frames the node has received."""
+        return self._native.received
+
+    @property
+    def waited_micros(self) -> int:
+        """How long receives have waited without a frame, whether or not the process slept."""
+        return self._native.waited_micros

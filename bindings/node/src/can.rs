@@ -7,9 +7,14 @@
 //! A frame is a small value rather than a resource, so it crosses as a plain
 //! object; the identifier a J1939 message decodes to does the same, with a
 //! `destination` of `null` for a broadcast rather than a flag to check first.
+//! A `CanBus` is a node on a bus, simulated or a kernel interface, whose sends and
+//! receives run on a worker thread.
 
-use napi::bindgen_prelude::Buffer;
+use std::time::Duration;
+
+use napi::bindgen_prelude::{spawn_blocking, Buffer};
 use napi_derive::napi;
+use pamoja_can::bus::{BusError, CanBus, CanBusKind, Filter, OpenError};
 use pamoja_can::{
     dlc_to_len, len_to_dlc, priority, CanError, CanId, Frame, J1939Id, Signals, BROADCAST_ADDRESS,
     NOT_AVAILABLE,
@@ -236,4 +241,202 @@ fn identifier(id: u32, extended: bool) -> CanId {
 /// Maps a framing error onto a thrown exception.
 fn to_napi(error: CanError) -> napi::Error {
     napi::Error::from_reason(error.to_string())
+}
+
+/// What a node's bus is.
+#[napi(string_enum, js_name = "CanBusKind")]
+pub enum CanBusKindName {
+    /// A kernel CAN interface reached through SocketCAN.
+    Device,
+    /// A bus inside the program.
+    Simulated,
+}
+
+/// A frame a node keeps: one whose identifier, masked, equals `id`, masked, and whose format is
+/// the filter's.
+#[napi(object)]
+pub struct CanFilter {
+    /// The identifier to match.
+    pub id: u32,
+    /// The identifier bits that have to match.
+    pub mask: u32,
+    /// Whether the identifier is a 29-bit extended one.
+    pub extended: bool,
+}
+
+impl From<Filter> for CanFilter {
+    fn from(filter: Filter) -> Self {
+        CanFilter {
+            id: filter.id().raw(),
+            mask: filter.mask(),
+            extended: filter.id().is_extended(),
+        }
+    }
+}
+
+fn filter_of(filter: &CanFilter) -> Filter {
+    Filter::new(identifier(filter.id, filter.extended), filter.mask)
+}
+
+/// A filter that passes one identifier and nothing else.
+#[napi]
+pub fn can_filter_exact(id: u32, extended: bool) -> CanFilter {
+    Filter::exact(identifier(id, extended)).into()
+}
+
+/// A filter that passes one J1939 parameter group at any priority, from any source, and for an
+/// addressed group, to any destination.
+#[napi]
+pub fn can_filter_pgn(pgn: u32) -> CanFilter {
+    Filter::pgn(pgn).into()
+}
+
+/// Whether a frame with an identifier passes a filter.
+#[napi]
+pub fn can_filter_matches(filter: CanFilter, id: u32, extended: bool) -> bool {
+    filter_of(&filter).matches(identifier(id, extended))
+}
+
+/// Rebuilds a frame from the plain object JavaScript holds.
+fn frame_of(frame: &CanFrame) -> napi::Result<Frame> {
+    let id = identifier(frame.id, frame.extended);
+    let built = if frame.remote {
+        Ok(Frame::remote(id, usize::from(frame.len)))
+    } else if frame.fd {
+        Frame::fd(id, frame.data.as_ref())
+    } else {
+        Frame::new(id, frame.data.as_ref())
+    };
+    built.map_err(to_napi)
+}
+
+/// One node's place on a CAN bus.
+///
+/// `CanBus.open(interface)` opens a kernel CAN interface, such as `can0`, through SocketCAN on a
+/// Linux board and throws anywhere else. `CanBus.simulated()` makes a bus inside the program,
+/// and `join()` puts another node on the same bus. A node hears every frame the others send and
+/// none of its own, and keeps only the frames its filters pass. `send` and `receive` return
+/// promises; a receive on a simulated bus with nothing waiting resolves at once with `null` and
+/// counts its timeout in `waitedMicros`.
+#[napi(js_name = "CanBus")]
+pub struct CanBusNode {
+    inner: CanBus,
+}
+
+fn open_error(error: OpenError) -> napi::Error {
+    napi::Error::from_reason(error.to_string())
+}
+
+fn bus_error(error: BusError) -> napi::Error {
+    napi::Error::from_reason(error.to_string())
+}
+
+fn finished(error: impl std::fmt::Display) -> napi::Error {
+    napi::Error::from_reason(format!("the bus call did not finish: {error}"))
+}
+
+#[napi]
+impl CanBusNode {
+    /// Opens a kernel CAN interface through SocketCAN, as one node on its bus. Bring the
+    /// interface up first, with `ip link set can0 up type can bitrate 250000`.
+    #[napi(factory)]
+    pub fn open(interface: String) -> napi::Result<Self> {
+        CanBus::open(&interface)
+            .map(|inner| CanBusNode { inner })
+            .map_err(open_error)
+    }
+
+    /// A new bus inside the program, with this node the first on it.
+    #[napi(factory)]
+    pub fn simulated() -> Self {
+        CanBusNode {
+            inner: CanBus::simulated(),
+        }
+    }
+
+    /// Puts another node on the same bus.
+    #[napi]
+    pub fn join(&self) -> napi::Result<CanBusNode> {
+        self.inner
+            .join()
+            .map(|inner| CanBusNode { inner })
+            .map_err(open_error)
+    }
+
+    /// What the bus is.
+    #[napi(getter)]
+    pub fn kind(&self) -> CanBusKindName {
+        match self.inner.kind() {
+            CanBusKind::Device => CanBusKindName::Device,
+            CanBusKind::Simulated => CanBusKindName::Simulated,
+        }
+    }
+
+    /// The kernel interface the node is on, or `null` on a simulated bus.
+    #[napi(getter)]
+    pub fn interface(&self) -> Option<String> {
+        self.inner.interface()
+    }
+
+    /// Sends a frame to every other node on the bus.
+    #[napi]
+    pub async fn send(&self, frame: CanFrame) -> napi::Result<()> {
+        let frame = frame_of(&frame)?;
+        let bus = self.inner.clone();
+        spawn_blocking(move || bus.send(&frame))
+            .await
+            .map_err(finished)?
+            .map_err(bus_error)
+    }
+
+    /// Resolves with the next frame the node keeps, waiting up to `timeoutMs` for one, or with
+    /// `null` when the timeout passed with nothing.
+    #[napi]
+    pub async fn receive(&self, timeout_ms: f64) -> napi::Result<Option<CanFrame>> {
+        if !(timeout_ms.is_finite() && timeout_ms >= 0.0) {
+            return Err(napi::Error::from_reason(
+                "a time must be a finite number of milliseconds, zero or more",
+            ));
+        }
+        let timeout = Duration::from_secs_f64(timeout_ms / 1_000.0);
+        let bus = self.inner.clone();
+        let frame = spawn_blocking(move || bus.receive(timeout))
+            .await
+            .map_err(finished)?
+            .map_err(bus_error)?;
+        Ok(frame.map(describe))
+    }
+
+    /// Keeps only the frames that pass at least one of the filters, from now on; an empty list
+    /// keeps nothing.
+    #[napi]
+    pub fn set_filters(&self, filters: Vec<CanFilter>) -> napi::Result<()> {
+        let filters: Vec<Filter> = filters.iter().map(filter_of).collect();
+        self.inner.set_filters(&filters).map_err(bus_error)
+    }
+
+    /// Keeps every frame again, as a node does when it joins.
+    #[napi]
+    pub fn clear_filters(&self) -> napi::Result<()> {
+        self.inner.clear_filters().map_err(bus_error)
+    }
+
+    /// How many frames the node has sent.
+    #[napi(getter)]
+    pub fn sent(&self) -> f64 {
+        self.inner.sent() as f64
+    }
+
+    /// How many frames the node has received.
+    #[napi(getter)]
+    pub fn received(&self) -> f64 {
+        self.inner.received() as f64
+    }
+
+    /// How long receives on the node have waited without a frame, in microseconds, whether or
+    /// not the process slept through it.
+    #[napi(getter, js_name = "waitedMicros")]
+    pub fn waited_micros(&self) -> f64 {
+        self.inner.waited_micros() as f64
+    }
 }

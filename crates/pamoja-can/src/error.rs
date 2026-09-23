@@ -14,9 +14,11 @@ pub enum CanError {
 impl core::fmt::Display for CanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            CanError::DataTooLong => f.write_str("can frame data exceeds the maximum length"),
+            CanError::DataTooLong => f.write_str(
+                "the data is longer than the frame carries: 8 bytes for classic CAN, 64 for CAN FD",
+            ),
             CanError::InvalidFdLength => {
-                f.write_str("can-fd data length is not a valid frame length")
+                f.write_str("CAN FD carries 0 to 8 bytes, then only 12, 16, 20, 24, 32, 48, or 64")
             }
         }
     }

@@ -3,13 +3,17 @@
  *
  * CAN is how the moving parts of a machine talk to each other: motor controllers,
  * servos, battery management, and the engines and farm equipment that speak J1939
- * on top of it. This is the identifier and payload layer; the controller hardware
- * handles the wire itself.
+ * on top of it. {@link CanBus} is one node on a bus, simulated or a kernel interface
+ * through SocketCAN, and the rest is the identifier and payload layer; the controller
+ * hardware handles the wire itself.
  *
  * @packageDocumentation
  */
 
 import {
+  CanBus,
+  type CanBusKind as CanBusKindName,
+  type CanFilter,
   type CanFrame,
   J1939_BROADCAST_ADDRESS,
   J1939_NOT_AVAILABLE,
@@ -19,6 +23,9 @@ import {
   Signals,
   canDlcToLen,
   canFdFrame,
+  canFilterExact,
+  canFilterMatches,
+  canFilterPgn,
   canFrame,
   canLenToDlc,
   canRemoteFrame,
@@ -29,6 +36,66 @@ import {
 
 export { type CanFrame, Signals }
 
+/**
+ * One node's place on a CAN bus. `CanBus.open(interface)` opens a kernel interface such as
+ * `can0` through SocketCAN on a Linux board, once it is up with
+ * `ip link set can0 up type can bitrate 250000`, and throws anywhere else.
+ * `CanBus.simulated()` makes a bus inside the program, and `join()` puts another node on the
+ * same bus. A node hears every frame the others send and none of its own, and keeps only the
+ * frames its filters pass: `setFilters([...])` with {@link filterPgn} or {@link filterExact},
+ * an empty list for none, and `clearFilters()` for all. `send(frame)` and
+ * `receive(timeoutMs)` return promises and run on a worker thread; a receive on a simulated bus
+ * with nothing waiting resolves at once with `null` and counts its timeout in `waitedMicros`.
+ */
+export { CanBus }
+
+/** A frame a node keeps: one whose identifier, masked, equals `id`, masked, of the same format. */
+export type { CanFilter }
+
+/** What a node's bus is. */
+export const CanBusKind = {
+  /** A kernel CAN interface reached through SocketCAN. */
+  Device: 'Device' as CanBusKindName,
+  /** A bus inside the program. */
+  Simulated: 'Simulated' as CanBusKindName,
+} as const
+
+/** One of the {@link CanBusKind} values. */
+export type CanBusKind = CanBusKindName
+
+/**
+ * A filter that passes one identifier and nothing else.
+ *
+ * @param id - The identifier.
+ * @param extended - Whether it is a 29-bit extended identifier.
+ * @returns The filter.
+ */
+export function filterExact(id: number, extended = false): CanFilter {
+  return canFilterExact(id, extended)
+}
+
+/**
+ * A filter that passes one J1939 parameter group at any priority, from any source, and for an
+ * addressed group, to any destination.
+ *
+ * @param pgn - The parameter group number.
+ * @returns The filter.
+ */
+export function filterPgn(pgn: number): CanFilter {
+  return canFilterPgn(pgn)
+}
+
+/**
+ * Whether a frame with an identifier passes a filter.
+ *
+ * @param filter - The filter.
+ * @param id - The frame's identifier.
+ * @param extended - Whether it is a 29-bit extended identifier.
+ * @returns `true` when the formats agree and the masked bits are equal.
+ */
+export function filterMatches(filter: CanFilter, id: number, extended = false): boolean {
+  return canFilterMatches(filter, id, extended)
+}
 /** The byte a J1939 sender writes for a signal it is not reporting. */
 export const NOT_AVAILABLE = J1939_NOT_AVAILABLE
 

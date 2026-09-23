@@ -4,82 +4,150 @@
 
 use std::error::Error;
 
-/// An engine broadcasting its speed and a gateway asking a gearbox a question: both
-/// identifiers built from the fields the standard names, and the payload addressed by the
-/// signals inside it.
+/// A standby generator's J1939 bus: the engine controller broadcasting its speed, a monitoring
+/// gateway keeping only that, a service laptop hearing everything, and a coolant sensor speaking
+/// plain CAN beside them, all on one simulated bus.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
-    use pamoja_can::{priority, CanId, Frame, J1939Id, Signals};
+    use std::time::Duration;
 
-    // The nodes on this bus, by the address each answers to, and the two parameter groups
-    // in play. J1939 publishes both, so naming them is what makes the traffic readable.
+    use pamoja_can::bus::{CanBus, Filter};
+    use pamoja_can::{priority, CanError, CanId, Frame, J1939Id, Signals, NOT_AVAILABLE};
+
+    // The nodes by the address each answers to, and the two parameter groups in play.
     const ENGINE: u8 = 0;
     const GATEWAY: u8 = 1;
-    const GEARBOX: u8 = 33;
     const ENGINE_CONTROLLER_1: u32 = 61_444; // carries engine speed
     const REQUEST: u32 = 59_904; // asks another node for a parameter group
 
     // Where engine speed sits inside that group, and the scale the standard fixes for it.
-    // Naming both is what stops a sender and a receiver disagreeing about either.
     const ENGINE_SPEED_AT: usize = 3;
     const RPM_PER_BIT: f64 = 0.125;
 
-    // J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
-    // group, and the address of whatever sent it. A broadcast has no destination, so it
-    // is its own constructor rather than a magic address a caller has to know.
+    // J1939 keeps its addressing inside the 29-bit identifier: a priority, the parameter group,
+    // and the sender's address. A broadcast names no destination.
     let speed_id = J1939Id::broadcast(priority::CONTROL, ENGINE_CONTROLLER_1, ENGINE);
-    let (group, sent_at) = (speed_id.pgn(), speed_id.priority());
-    println!("broadcast pgn {group} at priority {sent_at}");
+    println!(
+        "engine speed 0x{:08X}: pgn {} at priority {}, from node {ENGINE} to every node",
+        speed_id.to_id().raw(),
+        speed_id.pgn(),
+        speed_id.priority()
+    );
 
-    // A parameter group below the PDU1 limit is addressed rather than broadcast, so those
-    // eight identifier bits carry a destination instead of extending the group number.
-    let request_id = J1939Id::from_parts(priority::DEFAULT, REQUEST, GATEWAY, GEARBOX);
-    let asked_for = request_id.pgn();
-    println!("request   pgn {asked_for} addressed to node {GEARBOX}");
+    // A reading starts with every signal marked not available, and the engine writes only its
+    // speed.
+    let reading = |rpm: f64| -> Result<Frame, CanError> {
+        let mut signals = Signals::new();
+        signals.set_u16(ENGINE_SPEED_AT, (rpm / RPM_PER_BIT) as u16);
+        Frame::new(speed_id.to_id(), signals.as_bytes())
+    };
+    let rpm_of = |frame: &Frame| {
+        let raw = frame
+            .signals()
+            .and_then(|signals| signals.u16(ENGINE_SPEED_AT));
+        raw.map(|raw| f64::from(raw) * RPM_PER_BIT)
+    };
+    let first = reading(1500.0)?;
+    let unreported = first
+        .data()
+        .iter()
+        .filter(|&&byte| byte == NOT_AVAILABLE)
+        .count();
+    println!(
+        "payload      {:.1} rpm in bytes {} and {}, the other {unreported} not available",
+        rpm_of(&first).unwrap_or_default(),
+        ENGINE_SPEED_AT + 1,
+        ENGINE_SPEED_AT + 2
+    );
 
-    // Reading one back off the bus is the same thing in reverse, so a receiver never
-    // unpacks 29 bits by hand.
-    let heard = J1939Id::from_id(request_id.to_id()).expect("an extended identifier");
-    let (from, to) = (heard.source(), heard.destination().unwrap());
-    println!("heard     from node {from} for node {to}");
+    // Four nodes on one bus with nothing plugged in. On a Linux board each is
+    // CanBus::open("can0"), and nothing after this statement changes.
+    let engine = CanBus::simulated();
+    let gateway = engine.join()?;
+    let laptop = engine.join()?;
+    let sensor = engine.join()?;
 
-    // The payload. Every signal starts marked not available, and this controller reports
-    // only engine speed, so that is the only one it writes.
-    let mut reported = Signals::new();
-    reported.set_u16(ENGINE_SPEED_AT, (1000.0 / RPM_PER_BIT) as u16);
-    let frame = Frame::new(speed_id.to_id(), reported.as_bytes()).expect("eight bytes fit");
+    // The gateway keeps engine speed and nothing else; the laptop keeps everything.
+    gateway.set_filters(&[Filter::pgn(ENGINE_CONTROLLER_1)])?;
 
-    // The receiving node reads the same offset back, so neither end slices the payload.
-    let signals = frame.signals().expect("a J1939 frame carries eight bytes");
-    let rpm = f64::from(signals.u16(ENGINE_SPEED_AT).expect("engine speed")) * RPM_PER_BIT;
-    println!("engine    {rpm} rpm, carried in {} bytes", frame.dlc());
+    // Two engine readings, and between them the coolant sensor, which speaks plain CAN: its
+    // level in percent on the 11-bit identifier 0x120.
+    engine.send(&first)?;
+    sensor.send(&Frame::new(CanId::standard(0x120), &[87])?)?;
+    engine.send(&reading(1512.5)?)?;
 
-    // Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
-    // classic frame still refuses a ninth byte.
-    let wide = Frame::fd(speed_id.to_id(), &[0; 32]).expect("a CAN-FD length");
-    println!("32 bytes carries length code {}", wide.dlc());
-    match Frame::new(speed_id.to_id(), &[0; 9]) {
-        Ok(_) => println!("a classic frame took nine bytes, which should never happen"),
-        Err(error) => println!("classic   refused nine bytes: {error}"),
+    // Every node hears every frame but its own, and keeps what its filters pass.
+    while let Some(frame) = gateway.receive(Duration::from_millis(10))? {
+        let from = J1939Id::from_id(frame.id()).map(|id| id.source());
+        println!(
+            "gateway      {:.1} rpm from node {}",
+            rpm_of(&frame).unwrap_or_default(),
+            from.unwrap_or_default()
+        );
+    }
+    let on_the_bus = engine.sent() + sensor.sent();
+    println!(
+        "gateway      kept {} of the {on_the_bus} frames on the bus",
+        gateway.received()
+    );
+    let mut heard = Vec::new();
+    while let Some(frame) = laptop.receive(Duration::from_millis(10))? {
+        heard.push(frame);
+    }
+    if let Some(plain) = heard
+        .iter()
+        .find(|frame| J1939Id::from_id(frame.id()).is_none())
+    {
+        println!(
+            "laptop       heard {}, among them 0x{:03X}, an 11-bit identifier and no J1939 message",
+            heard.len(),
+            plain.id().raw()
+        );
     }
 
-    // J1939 never rides an 11-bit identifier, so a standard frame is not one of its
-    // messages however its bits happen to line up.
-    let short_id = J1939Id::from_id(CanId::standard(291));
-    println!("an 11-bit identifier is J1939: {}", short_id.is_some());
+    // A request is addressed rather than broadcast: below the PDU1 limit, eight bits of the
+    // identifier name the node it is for.
+    let request_id = J1939Id::from_parts(priority::DEFAULT, REQUEST, GATEWAY, ENGINE);
+    println!(
+        "request      pgn {} from node {} to node {}",
+        request_id.pgn(),
+        request_id.source(),
+        request_id.destination().unwrap_or_default()
+    );
+
+    // The engine goes quiet. A receive waits for a frame up to its timeout; on a simulated bus
+    // it returns at once and counts the wait instead of sleeping through it.
+    let before = gateway.waited_micros();
+    let quiet = gateway.receive(Duration::from_millis(500))?;
+    println!(
+        "silent       {} frames in {} ms, counted and not slept",
+        usize::from(quiet.is_some()),
+        (gateway.waited_micros() - before) / 1_000
+    );
+
+    // Above eight bytes CAN FD encodes a length in steps, and a classic frame refuses a ninth
+    // byte.
+    let wide = Frame::fd(speed_id.to_id(), &[0; 32])?;
+    println!(
+        "fd           32 bytes travel at data length code {}",
+        wide.dlc()
+    );
+    if let Err(error) = Frame::new(speed_id.to_id(), &[0; 9]) {
+        println!("classic      refused nine bytes: {error}");
+    }
     // ANCHOR_END: example
 
-    assert_eq!(speed_id.priority(), priority::CONTROL);
-    assert_eq!(speed_id.pgn(), ENGINE_CONTROLLER_1);
-    assert!(speed_id.is_broadcast() && speed_id.destination().is_none());
-    assert_eq!(request_id.pgn(), REQUEST);
-    assert_eq!(request_id.destination(), Some(GEARBOX));
-    assert_eq!(heard.source(), GATEWAY);
-    assert_eq!(rpm, 1000.0);
-    assert_eq!(frame.dlc(), 8);
+    assert_eq!(speed_id.to_id().raw(), 0x0CF0_0400);
+    assert_eq!(unreported, 6);
+    assert_eq!(gateway.received(), 2);
+    assert_eq!(heard.len(), 3);
+    assert_eq!(request_id.destination(), Some(ENGINE));
+    assert!(quiet.is_none());
     assert_eq!(wide.dlc(), 13);
-    assert!(Frame::new(speed_id.to_id(), &[0; 9]).is_err());
-    assert_eq!(short_id, None);
+    assert_eq!(
+        Frame::new(speed_id.to_id(), &[0; 9]),
+        Err(CanError::DataTooLong)
+    );
 
     Ok(())
 }

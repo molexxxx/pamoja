@@ -102,7 +102,7 @@ pamoja-dashboard = { path = "../crates/pamoja-dashboard", default-features = fal
 pamoja-routing = { path = "../crates/pamoja-routing", features = ["alloc"] }
 pamoja-serial = { path = "../crates/pamoja-serial" }
 pamoja-modbus = { path = "../crates/pamoja-modbus", features = ["port"] }
-pamoja-can = { path = "../crates/pamoja-can" }
+pamoja-can = { path = "../crates/pamoja-can", features = ["bus"] }
 pamoja-gpio = { path = "../crates/pamoja-gpio", features = ["linux"] }
 pamoja-hal = { path = "../crates/pamoja-hal" }
 pamoja-sensors = { path = "../crates/pamoja-sensors", features = ["linux"] }

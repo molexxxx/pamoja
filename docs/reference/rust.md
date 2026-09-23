@@ -203,7 +203,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-can">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><code class="pkg-import">pamoja-can</code><p>CAN 2.0 and CAN-FD frames with 11- and 29-bit identifiers, plus J1939 decode and compose</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/can.html">CAN and J1939</a><code class="pkg-import">pamoja-can</code><p>CAN 2.0 and CAN FD frames with 11- and 29-bit identifiers, J1939 decode and compose, and a node on a bus, simulated or a Linux interface through SocketCAN</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-can</code><button class="copy" type="button" data-copy="cargo add pamoja-can" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

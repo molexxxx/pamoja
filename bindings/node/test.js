@@ -100,6 +100,7 @@ async function main() {
   await buses();
   await serialPorts();
   await modbusClients();
+  await canBuses();
   await sensorDrivers();
   await actuatorDrivers();
   await stepperDrivers();
@@ -614,6 +615,55 @@ async function modbusClients() {
   assert.throws(() => new ModbusServer(0), /broadcast/);
   assert.strictEqual(meter.answer(modbus.readHoldingRegisters(18, 109, 1)), null);
   assert.ok(meter.answer(modbus.readHoldingRegisters(17, 109, 1)).length > 0);
+}
+// A CAN bus as SocketCAN behaves: every node hears every frame but its own, keeps what its
+// filters pass, and a receive with nothing waiting resolves at once and counts its timeout.
+async function canBuses() {
+  const { CanBus, CanBusKind, filterPgn, filterExact, filterMatches, broadcastJ1939, frame, fdFrame, remoteFrame } = can;
+  const speed = broadcastJ1939(3, 61444, 0x00);
+  const engine = CanBus.simulated();
+  const gateway = engine.join();
+  const laptop = gateway.join();
+  assert.strictEqual(engine.kind, CanBusKind.Simulated);
+  assert.strictEqual(engine.interface, null);
+
+  gateway.setFilters([filterPgn(61444)]);
+  await engine.send(frame(0x20a, Buffer.from([1, 2])));
+  await engine.send(frame(speed, Buffer.alloc(8, 0xff), true));
+  await engine.send(fdFrame(0x123, Buffer.alloc(32, 0xa5)));
+  await engine.send(remoteFrame(0x301, 4));
+
+  const kept = await gateway.receive(10);
+  assert.strictEqual(kept.id, speed);
+  assert.strictEqual(kept.extended, true);
+  assert.strictEqual(await gateway.receive(10), null);
+
+  const heard = [];
+  let next;
+  while ((next = await laptop.receive(0)) !== null) heard.push(next);
+  assert.deepStrictEqual(heard.map((f) => [f.id, f.fd, f.remote, f.len]), [
+    [0x20a, false, false, 2],
+    [speed, false, false, 8],
+    [0x123, true, false, 32],
+    [0x301, false, true, 4],
+  ]);
+  assert.strictEqual(await engine.receive(250), null, "a node does not hear itself");
+  assert.strictEqual(engine.waitedMicros, 250000);
+  assert.deepStrictEqual([engine.sent, gateway.received, laptop.received], [4, 1, 4]);
+
+  gateway.setFilters([]);
+  await engine.send(frame(speed, Buffer.alloc(8), true));
+  assert.strictEqual(await gateway.receive(0), null, "an empty filter list keeps nothing");
+  gateway.clearFilters();
+  await engine.send(frame(0x20a, Buffer.from([3])));
+  assert.ok(await gateway.receive(0));
+
+  const exact = filterExact(0x20a);
+  assert.ok(filterMatches(exact, 0x20a));
+  assert.ok(!filterMatches(exact, 0x20a, true));
+  if (process.platform !== "linux") {
+    assert.throws(() => CanBus.open("can0"), /only Linux/);
+  }
 }
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
 // drivers' own tests, with every wait counted rather than slept.

@@ -173,6 +173,56 @@ export declare class Calibration {
 }
 
 /**
+ * One node's place on a CAN bus.
+ *
+ * `CanBus.open(interface)` opens a kernel CAN interface, such as `can0`, through SocketCAN on a
+ * Linux board and throws anywhere else. `CanBus.simulated()` makes a bus inside the program,
+ * and `join()` puts another node on the same bus. A node hears every frame the others send and
+ * none of its own, and keeps only the frames its filters pass. `send` and `receive` return
+ * promises; a receive on a simulated bus with nothing waiting resolves at once with `null` and
+ * counts its timeout in `waitedMicros`.
+ */
+export declare class CanBus {
+  /**
+   * Opens a kernel CAN interface through SocketCAN, as one node on its bus. Bring the
+   * interface up first, with `ip link set can0 up type can bitrate 250000`.
+   */
+  static open(interface: string): CanBus
+  /** A new bus inside the program, with this node the first on it. */
+  static simulated(): CanBus
+  /** Puts another node on the same bus. */
+  join(): CanBus
+  /** What the bus is. */
+  get kind(): CanBusKind
+  /** The kernel interface the node is on, or `null` on a simulated bus. */
+  get interface(): string | null
+  /** Sends a frame to every other node on the bus. */
+  send(frame: CanFrame): Promise<void>
+  /**
+   * Resolves with the next frame the node keeps, waiting up to `timeoutMs` for one, or with
+   * `null` when the timeout passed with nothing.
+   */
+  receive(timeoutMs: number): Promise<CanFrame | null>
+  /**
+   * Keeps only the frames that pass at least one of the filters, from now on; an empty list
+   * keeps nothing.
+   */
+  setFilters(filters: Array<CanFilter>): void
+  /** Keeps every frame again, as a node does when it joins. */
+  clearFilters(): void
+  /** How many frames the node has sent. */
+  get sent(): number
+  /** How many frames the node has received. */
+  get received(): number
+  /**
+   * How long receives on the node have waited without a frame, in microseconds, whether or
+   * not the process slept through it.
+   */
+  get waitedMicros(): number
+}
+export type CanBusNode = CanBus
+
+/**
  * A CDR decoder, which reads primitives back in the order they were written.
  *
  * Reading past the end returns `null` rather than throwing, because a short
@@ -3449,11 +3499,44 @@ export declare const enum BoundaryState {
   Entered = 'Entered',
 }
 
+/** What a node's bus is. */
+export declare const enum CanBusKind {
+  /** A kernel CAN interface reached through SocketCAN. */
+  Device = 'Device',
+  /** A bus inside the program. */
+  Simulated = 'Simulated',
+}
+
 /** Returns the payload length a data length code encodes. */
 export declare function canDlcToLen(dlc: number): number
 
 /** Builds a CAN-FD frame, which carries up to 64 bytes at the discrete CAN-FD lengths. */
 export declare function canFdFrame(id: number, extended: boolean, data: Buffer): CanFrame
+
+/**
+ * A frame a node keeps: one whose identifier, masked, equals `id`, masked, and whose format is
+ * the filter's.
+ */
+export interface CanFilter {
+  /** The identifier to match. */
+  id: number
+  /** The identifier bits that have to match. */
+  mask: number
+  /** Whether the identifier is a 29-bit extended one. */
+  extended: boolean
+}
+
+/** A filter that passes one identifier and nothing else. */
+export declare function canFilterExact(id: number, extended: boolean): CanFilter
+
+/** Whether a frame with an identifier passes a filter. */
+export declare function canFilterMatches(filter: CanFilter, id: number, extended: boolean): boolean
+
+/**
+ * A filter that passes one J1939 parameter group at any priority, from any source, and for an
+ * addressed group, to any destination.
+ */
+export declare function canFilterPgn(pgn: number): CanFilter
 
 /** Builds a classic CAN 2.0 frame, which carries up to eight bytes. */
 export declare function canFrame(id: number, extended: boolean, data: Buffer): CanFrame

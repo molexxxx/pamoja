@@ -10,6 +10,7 @@ var programs = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["raspberry-pi/rig"] = () => { Rig.Run(); return Task.CompletedTask; },
     ["raspberry-pi/uart"] = () => { Uart.Run(); return Task.CompletedTask; },
     ["raspberry-pi/modbus"] = () => { ModbusScan.Run(); return Task.CompletedTask; },
+    ["raspberry-pi/can"] = () => { CanMonitor.Run(); return Task.CompletedTask; },
     ["raspberry-pi/radio"] = () => { Radio.Run(); return Task.CompletedTask; },
 };
 

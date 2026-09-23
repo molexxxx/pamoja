@@ -216,6 +216,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "can")]
     {
         m.add_class::<can::CanFrame>()?;
+        m.add_class::<can::CanFilter>()?;
+        m.add_class::<can::CanBusNode>()?;
         m.add_class::<can::CanSignals>()?;
         m.add_class::<can::J1939Message>()?;
         m.add_function(wrap_pyfunction!(can::can_frame, m)?)?;

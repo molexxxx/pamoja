@@ -117,6 +117,23 @@ released together, so one entry covers all of them.
   eight functions and their limits, unit addresses, the timing at each speed, the client's
   two waits, the exceptions in the order a device checks them, the client's settings in
   each language, wiring a line, and what each error means.
+- A node on a CAN bus, in every language. `pamoja_can::bus::CanBus` (the `bus` feature) is a
+  node on a bus simulated inside the program, or with the `linux` feature, a SocketCAN socket
+  on a kernel interface such as `can0`, carrying classic, extended, remote, and CAN FD
+  frames in the kernel's own layouts. `join` puts another node on the same bus; a node hears
+  every frame the others send and none of its own, as a SocketCAN socket does, and keeps the
+  ones its filters pass: `Filter::exact`, `Filter::pgn` for one J1939 parameter group from
+  any source, or any identifier and mask, with the frame format always part of the match. A
+  receive on a simulated bus with nothing waiting returns at once and counts its timeout.
+  CI runs the SocketCAN path against the kernel's virtual CAN interface. TypeScript,
+  Python, and C# get `CanBus` and `CanFilter` in their `can` packages, with `send` and
+  `receive` on a worker thread in Node.
+- The CAN guide rewritten around a standby generator's J1939 bus, an engine controller, a
+  gateway that filters for engine speed, a service laptop, and a sensor speaking plain CAN,
+  printing the same ten lines in all four languages, with a Raspberry Pi monitor in each that
+  listens to a real bus through an MCP2515. Its tables cover the kinds of frame, the data
+  length code, the fields inside a J1939 identifier, filters, what a SocketCAN socket does by
+  default, the kinds of bus, the calls in each language, and what each error means.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -626,6 +643,8 @@ released together, so one entry covers all of them.
 - A request for more values than one frame carries says so for a read as well as a write.
 - `ModbusError` gains `UnitOutOfRange`, for a server made at the broadcast address or a
   reserved one, so a `match` over it needs the new arm.
+- A CAN frame that does not fit says what fits: eight bytes for classic CAN and 64 for CAN FD,
+  or the lengths CAN FD carries above eight.
 - A simulated bus hands a part back as whichever kind it is. In Rust `I2cBus::part` is
   generic over the kind, `bus.part::<I2cPart>(address)`; in TypeScript and Python it
   returns the part as it is; in C# `bus.Part(address)` returns a `SimulatedPart` and
