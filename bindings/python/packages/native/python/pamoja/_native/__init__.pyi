@@ -10173,9 +10173,24 @@ class Store:
         record is never lost without the caller being told.
         """
     @staticmethod
-    def file(dir: builtins.str) -> Store:
+    def file(dir: builtins.str, capacity: builtins.int = 0) -> Store:
         r"""
         Opens a buffer backed by a directory, so it survives a restart.
+        
+        A record a power cut interrupted mid-write is never seen, and one written
+        before the cut is found again when the directory is reopened. `capacity` is
+        the most records to hold, or 0 for no bound; a full store refuses the next
+        append, which keeps a long outage from filling the disk.
+        """
+    def drain_to(self, transport: PyTransport, topic: builtins.str) -> typing.Any:
+        r"""
+        Drains the buffer onto a transport, publishing each record to `topic`,
+        oldest first, and returns how many went out.
+        
+        Each record leaves the buffer only once the transport has taken it, so a
+        send that fails raises the transport's error and leaves that record and
+        every one after it buffered, in order, for the next drain. The transport is
+        driven, not consumed.
         """
     def append(self, record: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
         r"""

@@ -11,7 +11,7 @@
 
 use std::sync::{Arc, Mutex as SyncMutex};
 
-use crate::transport::bytes_of;
+use crate::transport::{bytes_of, Transport};
 use napi::bindgen_prelude::Buffer;
 use napi::Either;
 use napi_derive::napi;
@@ -143,14 +143,43 @@ impl Store {
 
     /// Opens a buffer backed by a directory, so it survives a restart.
     ///
+    /// A record a power cut interrupted mid-write is never seen, and one written
+    /// before the cut is found again when the directory is reopened.
+    ///
     /// @param dir - the directory to hold records in; it is created if missing.
+    /// @param capacity - the most records to hold, or omitted for no bound. A full
+    ///   store refuses the next append, which keeps a long outage from filling the
+    ///   disk.
     #[napi(factory)]
-    pub fn file(dir: String) -> napi::Result<Self> {
-        FileStore::open(dir)
+    pub fn file(dir: String, capacity: Option<u32>) -> napi::Result<Self> {
+        let opened = match capacity {
+            Some(capacity) if capacity != 0 => {
+                FileStore::open_with_capacity(dir, capacity as usize)
+            }
+            _ => FileStore::open(dir),
+        };
+        opened
             .map(|store| Self {
                 inner: SyncMutex::new(Some(SharedStore::new(StoreKind::File(store)))),
             })
             .map_err(to_napi)
+    }
+
+    /// Drains the buffer onto a transport, publishing each record to `topic`,
+    /// oldest first, and resolves with how many went out.
+    ///
+    /// Each record leaves the buffer only once the transport has taken it, so a
+    /// send that fails rejects with the transport's error and leaves that record
+    /// and every one after it buffered, in order, for the next drain. The
+    /// transport is driven, not consumed.
+    #[napi]
+    pub async fn drain_to(&self, transport: &Transport, topic: String) -> napi::Result<u32> {
+        let mut store = self.borrow()?;
+        let mut link = transport.hold().await?;
+        let forwarded = pamoja_sync::drain_to(&mut store, &mut *link, &topic)
+            .await
+            .map_err(to_napi)?;
+        Ok(u32::try_from(forwarded).unwrap_or(u32::MAX))
     }
 
     /// Adds a record to the end of the buffer: bytes, or text such as a reading

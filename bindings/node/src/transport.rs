@@ -568,6 +568,13 @@ impl Transport {
         }
     }
 
+    /// Waits for the transport's turn and holds it for a caller that drives it from
+    /// elsewhere in the binding, such as a store draining onto it.
+    pub(crate) async fn hold(&self) -> napi::Result<tokio::sync::MappedMutexGuard<'_, Kind>> {
+        let guard = self.inner.lock().await;
+        tokio::sync::MutexGuard::try_map(guard, Option::as_mut).map_err(|_| spent())
+    }
+
     /// Takes the transport, leaving this handle spent. A call still running on the transport
     /// holds the lock, so it cannot be handed on mid-call.
     pub(crate) fn take(&self) -> napi::Result<Kind> {

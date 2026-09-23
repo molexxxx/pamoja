@@ -47,7 +47,7 @@ Each module name opens its reference.
 | `pamoja-mqtt` | [`pamoja.mqtt`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mqtt.html) | An MQTT client with the topic and wildcard rules, as the core transport |
 | `pamoja-coap` | [`pamoja.coap`](https://pamoja.molex.cloud/docs/reference/python/pamoja/coap.html) | A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe |
 | `pamoja-loopback` | [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html) | An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker |
-| `pamoja-sync` | [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
+| `pamoja-sync` | [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) | Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns |
 | `pamoja-ladder` | [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html) | Cheapest reachable link first, buffering to a store when every link is down |
 | `pamoja-bus` | [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) | An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss |
 | `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |

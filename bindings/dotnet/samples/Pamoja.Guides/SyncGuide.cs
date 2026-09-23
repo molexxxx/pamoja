@@ -1,6 +1,6 @@
-using System.Text;
-
 using Pamoja;
+using Pamoja.Core;
+using Pamoja.Loopback;
 using Pamoja.Sync;
 
 using static Guides.Guide;
@@ -11,56 +11,90 @@ namespace Guides;
 public static class SyncGuide
 {
     /// <summary>Runs the example.</summary>
-    /// <returns>A task that completes once the queue has drained.</returns>
+    /// <returns>A task that completes once the backlog has reached the gateway.</returns>
     public static async Task RunAsync()
     {
         // ANCHOR: example
-        // A node with nowhere to send buffers its readings. This queue is held in memory,
-        // so it lasts as long as the process; Store.File(dir) is the same queue on disk,
-        // which is what a node uses to survive a reboot with its backlog intact.
-        using var outbox = Store.Memory();
-        foreach (string reading in new[] { "20.1", "20.4", "20.2" })
+        const string Topic = "apiary/hive-3/weight";
+
+        // The scale logs its weight to a queue on its SD card, bounded so a long
+        // outage cannot fill the card. The directory is the queue, so the scale can
+        // lose power at any moment and lose nothing it logged.
+        DirectoryInfo dir = Directory.CreateTempSubdirectory("pamoja-hive-");
+        Store outbox = Store.File(dir.FullName, 3);
+        foreach (string weight in new[] { "41.2", "41.5", "40.9" })
         {
-            await outbox.AppendAsync(reading);
+            await outbox.AppendAsync(weight);
         }
 
-        Console.WriteLine($"queued    {await outbox.CountAsync()} readings with no link");
+        int logged = await outbox.CountAsync();
+        Console.WriteLine($"hive      logged {logged} weights with no link, the most its store holds");
 
-        // Peek reads the oldest record without taking it, so a send that fails part-way
-        // leaves the queue exactly as it was.
-        string oldest = (await outbox.PeekTextAsync())!;
-        Console.WriteLine(
-            $"oldest    {oldest} and still {await outbox.CountAsync()} held");
-
-        // The link returns and the queue drains oldest first, in the order the readings
-        // were taken rather than the order they happen to come back off a buffer.
-        List<string> drained = [];
-        while (await outbox.PopTextAsync() is { } record)
-        {
-            drained.Add(record);
-        }
-
-        Console.WriteLine($"drained   {string.Join(", ", drained)}");
-
-        // A bounded queue refuses the append that would overflow it. A full store is
-        // backpressure the caller is told about, not a reading dropped behind its back.
-        using var bounded = Store.Memory(2);
-        await bounded.AppendAsync("20.1");
-        await bounded.AppendAsync("20.4");
+        // A full store refuses the next weight rather than dropping one it already
+        // holds.
         try
         {
-            await bounded.AppendAsync("20.2");
-            Console.WriteLine("a full queue took a third reading, which should never happen");
+            await outbox.AppendAsync("41.1");
         }
         catch (PamojaException error)
         {
-            Console.WriteLine($"full      refused the third reading: {error.Message}");
+            Console.WriteLine($"hive      was refused a 4th: {error.Message}");
         }
+
+        // The scale reboots. Its queue is the directory, so it comes back whole and
+        // in order.
+        outbox.Dispose();
+        outbox = Store.File(dir.FullName, 3);
+        int held = await outbox.CountAsync();
+        string oldest = (await outbox.PeekTextAsync())!;
+        Console.WriteLine($"hive      restarted and still holds {held}, oldest first: {oldest}");
+
+        // The cellular uplink carries one weight, then drops. A weight leaves the
+        // queue only once a link has taken it, so what the uplink never took stays,
+        // in order.
+        using var cellular = new LoopbackBroker();
+        using Transport uplink = Transport.Degraded(cellular.Rung(), up: 1, down: 10);
+        await uplink.ConnectAsync();
+        int forwarded = 0;
+        try
+        {
+            await outbox.DrainToAsync(uplink, Topic);
+        }
+        catch (PamojaException error)
+        {
+            forwarded = held - await outbox.CountAsync();
+            Console.WriteLine($"uplink    forwarded {forwarded}, then failed: {error.Message}");
+        }
+
+        int left = await outbox.CountAsync();
+        string next = (await outbox.PeekTextAsync())!;
+        Console.WriteLine($"hive      still holds {left}, oldest first: {next}");
+
+        // The beekeeper's gateway comes within reach, and the scale drains the rest
+        // onto it.
+        using var visit = new LoopbackBroker();
+        using LoopbackTransport gateway = visit.Link();
+        await gateway.ConnectAsync();
+        await gateway.SubscribeAsync(Topic);
+        using Transport toGateway = visit.Rung();
+        await toGateway.ConnectAsync();
+        await outbox.DrainToAsync(toGateway, Topic);
+        var took = new List<string>();
+        for (int weight = 0; weight < left; weight++)
+        {
+            took.Add((await gateway.ReceiveAsync())!.Text);
+        }
+
+        Console.WriteLine($"gateway   took {string.Join(", ", took)} when the beekeeper came by");
+        int empty = await outbox.CountAsync();
+        Console.WriteLine($"hive      holds {empty} once the backlog is through");
+
+        outbox.Dispose();
+        dir.Delete(recursive: true);
         // ANCHOR_END: example
 
-        Expect(oldest == "20.1", "peek reads the oldest record");
-        Expect(drained.SequenceEqual(["20.1", "20.4", "20.2"]), "drained oldest first");
-        Expect(await outbox.CountAsync() == 0, "leaving the queue empty");
-        Expect(await bounded.CountAsync() == 2, "and a full queue keeps what it took");
+        Expect((logged, held, forwarded, left, empty) == (3, 3, 1, 2, 0), "the counts along the way");
+        Expect(oldest == "41.2" && next == "41.5", "the queue kept its order");
+        Expect(took.SequenceEqual(new[] { "41.5", "40.9" }), "the gateway took the rest in order");
     }
 }

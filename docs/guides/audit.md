@@ -248,7 +248,7 @@ catch (PamojaException error)
 <!-- table: next audit -->
 - [Device identity](security.md): ed25519 device identity.
 - [Signed updates](update.md): Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own.
-- [Store and forward](sync.md): Offline-first queues.
+- [Store and forward](sync.md): Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns.
 - Also in Trust and operation: [Secured session](session.md), [Power](power.md), [Telemetry](telemetry.md).
 <!-- end -->
 

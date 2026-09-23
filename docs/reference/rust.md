@@ -428,7 +428,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-sync">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><code class="pkg-import">pamoja-sync</code><p>Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/sync.html">Store and forward</a><code class="pkg-import">pamoja-sync</code><p>Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-sync</code><button class="copy" type="button" data-copy="cargo add pamoja-sync" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

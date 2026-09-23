@@ -1952,6 +1952,27 @@ async function asyncTransports() {
     "a full store tells the caller rather than dropping something",
   );
 
+  // A file store is bounded too, survives reopening, and drains onto a transport,
+  // keeping in order whatever the transport did not take.
+  const folder = require("node:fs").mkdtempSync(
+    require("node:path").join(require("node:os").tmpdir(), "pamoja-store-"),
+  );
+  const onDisk = sync.Store.file(folder, 2);
+  await onDisk.append("a");
+  await onDisk.append("b");
+  await assert.rejects(() => onDisk.append("c"), /store is at capacity/);
+  const reopened = sync.Store.file(folder, 2);
+  assert.strictEqual(await reopened.len(), 2, "the records survive reopening");
+  const dropping = transport.Transport.degraded(broker.rung(), { up: 1, down: 5 });
+  await dropping.connect();
+  await assert.rejects(() => reopened.drainTo(dropping, "outbox"), /link unreachable/);
+  assert.strictEqual(await reopened.peekText(), "b", "the record the link refused stays");
+  const steady = broker.rung();
+  await steady.connect();
+  assert.strictEqual(await reopened.drainTo(steady, "outbox"), 1);
+  assert.strictEqual(await reopened.len(), 0);
+  require("node:fs").rmSync(folder, { recursive: true });
+
   // With no rung, a ladder buffers rather than losing the reading.
   const offline = new ladder.Ladder(sync.Store.memory());
   assert.strictEqual(

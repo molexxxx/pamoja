@@ -278,7 +278,7 @@ public static partial class NativeMethods
 
     /// <summary>Opens a buffer backed by a directory.</summary>
     [LibraryImport(Library)]
-    public static partial IntPtr pamoja_store_file(IntPtr dir);
+    public static partial IntPtr pamoja_store_file(IntPtr dir, nuint capacity);
 
     /// <summary>Adds a record to the end of a buffer.</summary>
     [LibraryImport(Library)]

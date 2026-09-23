@@ -207,6 +207,18 @@ released together, so one entry covers all of them.
   matching C ABI calls. Every link on it, links a ladder owns included, fails to connect,
   send, or subscribe with `transport error: the broker is out of reach` until it is back, so
   a test takes a network away from a node without reaching into the node.
+- A file store can be bounded, as a memory store could: `FileStore::open_with_capacity(dir,
+  n)` in Rust, `Store.file(dir, n)` in TypeScript and Python, `Store.File(dir, n)` in C#, and a
+  capacity on `pamoja_store_file`. An append that would take it past the bound is refused with
+  `io error: store is at capacity`, which keeps a long outage from filling an SD card.
+- A store drains onto a transport in TypeScript and Python, as it did in Rust and C#:
+  `store.drainTo(transport, topic)` and `store.drain_to(transport, topic)` send every record
+  to one topic, oldest first, removing each only once the transport has taken it.
+- The store-and-forward guide rewritten around a hive scale in a remote apiary: weights queue
+  on a bounded file store with no link, survive a reboot, stay in order through a drain that
+  loses its uplink part-way, and reach the beekeeper's gateway later, printing the same seven
+  lines in all four languages. Its tables cover the two stores, the calls in each language,
+  how the file store keeps a record through a power cut, and what each error means.
 - The transport ladder guide rewritten around a fishing vessel whose reports go ashore over
   harbor wifi, the coast's cellular network, or a satellite as each falls out of reach, a
   backlog held through a storm, and orders from shore, printing the same nine lines in all
@@ -723,6 +735,8 @@ released together, so one entry covers all of them.
 - An event bus holds at most 1,048,576 events, `pamoja_bus::MAX_CAPACITY`, and a larger
   capacity is lowered to it rather than allocated. Its documentation now says a capacity is
   rounded up to the next power of two, which the channel underneath always did.
+- `pamoja_store_file` takes a capacity after the directory, 0 for no bound, as
+  `pamoja_store_memory` does.
 - A ladder's receive in TypeScript and C# gives the message rather than a message or null,
   since a ladder with nothing to listen on reports `resource is closed` rather than ending.
 - An exception from a link written in Python reaches the caller as its message,
@@ -891,6 +905,12 @@ released together, so one entry covers all of them.
 - `new EventBus(-1)` in TypeScript reached the native side as a capacity of about four
   billion events and ended the process trying to allocate it. It now throws
   `a capacity must be 0 or more`.
+- A file store append that had returned could be lost to a power cut on Linux, because the
+  rename that put the record in place was never flushed to the directory. On Unix systems the
+  directory is now flushed after each append. A record a power cut interrupted mid-write left
+  a `.rec.tmp` file behind for good; opening the store now deletes it.
+- `Store.Memory` in C# took a negative capacity as no bound. It throws
+  `ArgumentOutOfRangeException`, as `Store.File` does.
 - A method of a link written in TypeScript that threw before returning, rather than
   returning a rejected promise, ended the Node process. The call now fails with the
   method's message.
