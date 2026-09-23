@@ -20,12 +20,13 @@ gateway = AgreementKey(bytes([9]) * 32)
 salt = os.urandom(16)
 uplink = Session(node, gateway.public_key, salt, Role.INITIATOR)
 downlink = Session(gateway, node.public_key, salt, Role.RESPONDER)
-print("both sides derived a key without sending one")
+print("agreed    both sides derived a key without sending one")
 
 # The pump id is authenticated but not encrypted, so a router still reads it while any
 # change to it fails the tag.
 sealed = uplink.seal(b"flow=41.2", b"pump-3")
-print(f"sealed    the reading is no longer readable: {sealed.ciphertext != b'flow=41.2'}")
+hidden = "still" if sealed.ciphertext == b"flow=41.2" else "no longer"
+print(f"sealed    counter {sealed.counter}, and what goes on the wire is {hidden} the reading")
 print(f"opened    {downlink.open(sealed, b'pump-3').decode()}")
 
 # The anti-replay window refuses a counter it has already accepted, so a frame captured
@@ -35,6 +36,28 @@ try:
     print("a replayed frame was accepted, which should never happen")
 except PamojaError as error:
     print(f"replay    refused: {error}")
+
+# A router that rewrites the pump id breaks the tag, so the gateway refuses the frame rather
+# than file the reading under the wrong pump. A frame that fails to open leaves its counter
+# unused.
+later = uplink.seal(b"flow=41.3", b"pump-3")
+try:
+    downlink.open(later, b"pump-4")
+    print("a rewritten pump id was accepted, which should never happen")
+except PamojaError as error:
+    print(f"altered   refused: {error}")
+
+# Radio frames can arrive out of order. The window accepts any counter it has not seen
+# among the 64 below the newest, so the frame that was held up still opens.
+newest = uplink.seal(b"flow=41.5", b"pump-3")
+first = downlink.open(newest, b"pump-3").decode()
+second = downlink.open(later, b"pump-3").decode()
+print(f"late      counter {newest.counter} opened first, then counter {later.counter}: {first}, then {second}")
+
+# The gateway answers on the same session. Its frames carry the other direction in their
+# nonce, so a reply can never be taken for, or replayed as, one from the node.
+order = downlink.seal(b"valve=close", b"pump-3")
+print(f"reply     {uplink.open(order, b'pump-3').decode()}, sealed by the gateway and opened by the node")
 # ANCHOR_END: example
 
 assert sealed.ciphertext != b"flow=41.2"

@@ -92,8 +92,9 @@ public sealed class AuditEntry : IDisposable
 /// A log that can be edited after the fact proves nothing. Each record here is
 /// signed and carries the hash of the one before it, so altering a record,
 /// dropping one, or reordering two breaks the chain at that point and at every
-/// point after it. The index is part of what is signed, which is what makes a
-/// record removed from the end detectable too.
+/// point after it. A chain cut short at the end is still a valid chain, so to
+/// catch that, compare its last index and digest with the ones the device last
+/// reported.
 /// </remarks>
 public sealed class AuditLog : IDisposable
 {

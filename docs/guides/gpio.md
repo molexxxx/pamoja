@@ -91,12 +91,22 @@ println!("a pump on an active-low relay runs when its line is {runs_on:?}");
 pump.apply(true).await.expect("the relay takes it");
 let while_filling = float.read().await.expect("the line reads");
 let once_filled = float.read().await.expect("the line reads");
-println!("the float reads full: {while_filling}, then {once_filled}");
+let full = |closed: bool| if closed { "full" } else { "not full" };
+println!(
+    "the float reads {}, then {}",
+    full(while_filling),
+    full(once_filled)
+);
 
 // The moment the float closes is that line going low, which is a falling edge. A watch
 // armed for the rising one would sleep through the tank filling.
 let closing = Edge::Falling.triggered_by(Level::High, Level::Low);
-println!("the float closing is a falling edge on that line: {closing}");
+let edge = if closing {
+    "a falling edge"
+} else {
+    "not a falling edge"
+};
+println!("the float closing is {edge} on that line");
 
 // Full, so the pump stops. Releasing the switch hands the line back, and the levels it
 // was driven to are the whole conversation the board saw.
@@ -117,11 +127,18 @@ println!("a part at 0x76 is written to as {to_write:#04X} and read from as {to_r
 let reserved = Address::seven_bit(RESERVED_FROM)
     .expect("in range")
     .is_reserved();
-println!("{RESERVED_FROM:#04X} is reserved by the specification: {reserved}");
+let owner = if reserved {
+    "reserved by the specification"
+} else {
+    "free for a device"
+};
+println!("{RESERVED_FROM:#04X} is {owner}");
 
 // And a datasheet quotes SPI's clock polarity and phase as one mode number.
 let (idles_high, trailing_edge) = Mode::Mode3.cpol_cpha();
-println!("SPI mode 3 idles high: {idles_high}, samples on the trailing edge: {trailing_edge}");
+let idle = if idles_high { "high" } else { "low" };
+let edge = if trailing_edge { "trailing" } else { "leading" };
+println!("SPI mode 3 idles {idle} and samples on the {edge} edge");
 ```
 <!-- end -->
 
@@ -154,12 +171,13 @@ console.log(`a pump on an active-low relay runs when its line is ${runsOn}`)
 pump.set(true)
 const whileFilling = float.isAsserted()
 const onceFilled = float.isAsserted()
-console.log(`the float reads full: ${whileFilling}, then ${onceFilled}`)
+const full = (closed: boolean) => (closed ? 'full' : 'not full')
+console.log(`the float reads ${full(whileFilling)}, then ${full(onceFilled)}`)
 
 // The moment the float closes is that line going low, which is a falling edge. A watch
 // armed for the rising one would sleep through the tank filling.
 const closing = pin.triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low)
-console.log(`the float closing is a falling edge on that line: ${closing}`)
+console.log(`the float closing is ${closing ? 'a falling edge' : 'not a falling edge'} on that line`)
 
 // Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
 // driven to are the whole conversation the board saw.
@@ -177,11 +195,13 @@ console.log(`a part at 0x76 is written to as ${hex(toWrite)} and read from as ${
 // Two ranges belong to the specification itself, so a part answering in either is a wiring
 // mistake rather than a device.
 const reserved = i2c.isReserved(i2c.RESERVED_FROM)
-console.log(`${hex(i2c.RESERVED_FROM)} is reserved by the specification: ${reserved}`)
+console.log(`${hex(i2c.RESERVED_FROM)} is ${reserved ? 'reserved by the specification' : 'free for a device'}`)
 
 // And a datasheet quotes SPI's clock polarity and phase as one mode number.
 const clock = spi.clockFor(3)
-console.log(`SPI mode 3 idles high: ${clock.cpol}, samples on the trailing edge: ${clock.cpha}`)
+const idle = clock.cpol ? 'high' : 'low'
+const edge = clock.cpha ? 'trailing' : 'leading'
+console.log(`SPI mode 3 idles ${idle} and samples on the ${edge} edge`)
 ```
 <!-- end -->
 
@@ -213,12 +233,14 @@ print(f"a pump on an active-low relay runs when its line is {runs_on.value}")
 pump.set(True)
 while_filling = float_switch.is_asserted()
 once_filled = float_switch.is_asserted()
-print(f"the float reads full: {while_filling}, then {once_filled}")
+full = {True: "full", False: "not full"}
+print(f"the float reads {full[while_filling]}, then {full[once_filled]}")
 
 # The moment the float closes is that line going low, which is a falling edge. A watch
 # armed for the rising one would sleep through the tank filling.
 closing = pin.triggers(Edge.FALLING, Level.HIGH, Level.LOW)
-print(f"the float closing is a falling edge on that line: {closing}")
+edge = "a falling edge" if closing else "not a falling edge"
+print(f"the float closing is {edge} on that line")
 
 # Full, so the pump stops. Releasing the switch hands the line back, and the levels it was
 # driven to are the whole conversation the board saw.
@@ -235,11 +257,14 @@ print(f"a part at 0x76 is written to as 0x{to_write:02X} and read from as 0x{to_
 # Two ranges belong to the specification itself, so a part answering in either is a wiring
 # mistake rather than a device.
 reserved = i2c.is_reserved(i2c.RESERVED_FROM)
-print(f"0x{i2c.RESERVED_FROM:02X} is reserved by the specification: {reserved}")
+owner = "reserved by the specification" if reserved else "free for a device"
+print(f"0x{i2c.RESERVED_FROM:02X} is {owner}")
 
 # And a datasheet quotes SPI's clock polarity and phase as one mode number.
 clock = spi.clock_for(3)
-print(f"SPI mode 3 idles high: {clock.cpol}, samples on the trailing edge: {clock.cpha}")
+idle = "high" if clock.cpol else "low"
+edge = "trailing" if clock.cpha else "leading"
+print(f"SPI mode 3 idles {idle} and samples on the {edge} edge")
 ```
 <!-- end -->
 
@@ -270,12 +295,14 @@ Console.WriteLine($"a pump on an active-low relay runs when its line is {runsOn}
 pump.Set(true);
 bool whileFilling = floatSwitch.IsAsserted();
 bool onceFilled = floatSwitch.IsAsserted();
-Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
+static string Full(bool closed) => closed ? "full" : "not full";
+Console.WriteLine($"the float reads {Full(whileFilling)}, then {Full(onceFilled)}");
 
 // The moment the float closes is that line going low, which is a falling edge. A
 // watch armed for the rising one would sleep through the tank filling.
 bool closing = Pin.Triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low);
-Console.WriteLine($"the float closing is a falling edge on that line: {closing}");
+string edge = closing ? "a falling edge" : "not a falling edge";
+Console.WriteLine($"the float closing is {edge} on that line");
 
 // Full, so the pump stops. Releasing the switch hands the line back, and the levels
 // it was driven to are the whole conversation the board saw.
@@ -295,13 +322,14 @@ Console.WriteLine(
 // Two ranges belong to the specification itself, so a part answering in either is
 // a wiring mistake rather than a device.
 bool reserved = I2c.IsReserved(I2c.ReservedFrom);
-Console.WriteLine(
-    $"0x{I2c.ReservedFrom:X2} is reserved by the specification: {reserved}");
+string owner = reserved ? "reserved by the specification" : "free for a device";
+Console.WriteLine($"0x{I2c.ReservedFrom:X2} is {owner}");
 
 // And a datasheet quotes SPI's clock polarity and phase as one mode number.
 SpiClock clock = Spi.ClockFor(3);
-Console.WriteLine(
-    $"SPI mode 3 idles high: {clock.Cpol}, samples on the trailing edge: {clock.Cpha}");
+string idle = clock.Cpol ? "high" : "low";
+string sampling = clock.Cpha ? "trailing" : "leading";
+Console.WriteLine($"SPI mode 3 idles {idle} and samples on the {sampling} edge");
 ```
 <!-- end -->
 

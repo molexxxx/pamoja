@@ -25,40 +25,51 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/TelemetryGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/TelemetryGuide.cs):
 
 ```csharp
-// The node is willing to record everything, then finds out it is reporting over a
-// metered link, which puts the bar at Info.
-using var reporter = new Reporter(TelemetryLevel.Trace);
-reporter.AdaptTo(LinkCost.Metered);
-Console.WriteLine($"on a metered link, nothing below {reporter.Threshold} is sent");
+// What a node does with an event the reporter hands back: on a link it sends it,
+// and with no link it keeps it for when one returns.
+static string Fate(TelemetryEvent? evt, string kept) => evt is null ? "counted only" : kept;
 
-// Routine detail stops going out. A reading and the warning that follows it still
-// do, and a shipped event comes back with the measurement that triggered it.
-TelemetryEvent? tick =
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Debug, "loop.tick"));
+// On the site's own network nothing is held back.
+using var reporter = new Reporter(TelemetryLevel.Trace);
+reporter.AdaptTo(LinkCost.Free);
+TelemetryEvent? tick = reporter.Record(new TelemetryEvent(TelemetryLevel.Debug, "loop.tick"));
+Console.WriteLine($"free      nothing is held back: loop.tick {Fate(tick, "sent")}");
+
+// On a metered link the bar rises to Info. Routine detail stops going out; a
+// reading and a warning still do, and a warning carries the measurement that
+// raised it.
+reporter.AdaptTo(LinkCost.Metered);
+tick = reporter.Record(new TelemetryEvent(TelemetryLevel.Debug, "loop.tick"));
 TelemetryEvent? reading =
     reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.8f));
-Console.WriteLine($"loop.tick sent: {tick is not null}");
-Console.WriteLine($"reading.ok sent: {reading is not null}");
+Console.WriteLine(
+    $"metered   nothing below {reporter.Threshold} is sent: loop.tick {Fate(tick, "sent")}, reading.ok {Fate(reading, "sent")}");
 TelemetryEvent warned =
     reporter.Record(new TelemetryEvent(TelemetryLevel.Warn, "battery.low", 0.18f))!.Value;
-Console.WriteLine($"sent      {warned.Code} carrying {warned.Value}");
+Console.WriteLine(Invariant($"metered   {warned.Code} sent, carrying {warned.Value:F2}"));
 
-// The node falls back to satellite, which raises the bar to Warn. The same reading
-// is no longer worth its bytes; a failure still is.
+// On satellite the bar is Warn: the same reading is no longer worth its bytes, and
+// a failure still is.
 reporter.AdaptTo(LinkCost.Expensive);
-TelemetryEvent? dearer =
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.9f));
-TelemetryEvent? lost =
-    reporter.Record(new TelemetryEvent(TelemetryLevel.Error, "link.lost"));
-Console.WriteLine($"on satellite, reading.ok sent: {dearer is not null}");
-Console.WriteLine($"on satellite, link.lost sent: {lost is not null}");
+reading = reporter.Record(new TelemetryEvent(TelemetryLevel.Info, "reading.ok", 4.9f));
+TelemetryEvent? lost = reporter.Record(new TelemetryEvent(TelemetryLevel.Error, "link.lost"));
+Console.WriteLine(
+    $"satellite nothing below {reporter.Threshold} is sent: reading.ok {Fate(reading, "sent")}, link.lost {Fate(lost, "sent")}");
+
+// With no link at all only errors are kept, for the link's return.
+reporter.AdaptTo(LinkCost.Offline);
+TelemetryEvent? low = reporter.Record(new TelemetryEvent(TelemetryLevel.Warn, "battery.low", 0.17f));
+lost = reporter.Record(new TelemetryEvent(TelemetryLevel.Error, "link.lost"));
+Console.WriteLine(
+    $"offline   nothing below {reporter.Threshold} is kept: battery.low {Fate(low, "kept")}, link.lost {Fate(lost, "kept")}");
 
 // Only the stream was thinned, not the counts, so every event is still accounted
-// for and the snapshot is what the node ships in place of them.
-TelemetrySnapshot counts = reporter.Snapshot();
+// for, and the snapshot is what the node ships in place of them.
+TelemetrySnapshot snapshot = reporter.Snapshot();
 Console.WriteLine(
-    $"of {reporter.Total} events, {counts.Emitted} went out and {counts.Dropped}"
-    + " were counted only");
+    $"counts    of {reporter.Total} events, {snapshot.Emitted} passed the bar and {snapshot.Dropped} were counted only");
+Console.WriteLine(
+    $"levels    trace {snapshot.Trace}, debug {snapshot.Debug}, info {snapshot.Info}, warn {snapshot.Warn}, error {snapshot.Error}");
 ```
 
 ## The same capability in every language

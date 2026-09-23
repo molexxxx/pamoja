@@ -163,7 +163,7 @@ public sealed class Session : IDisposable
         PamojaSealed header = new()
         {
             Counter = message.Counter,
-            Tag = PamojaTag.From(message.Tag, nameof(message)),
+            Tag = PamojaTag.From(message.Tag, "message.Tag"),
         };
         Status.ThrowIfError(_handle.Use(handle => NativeMethods.pamoja_session_open(
             handle,

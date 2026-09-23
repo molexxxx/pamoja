@@ -133,7 +133,9 @@ impl Reporter {
     /// Records an event, returning it to ship if it clears the threshold.
     ///
     /// The event is counted whether or not it is shipped, so the aggregate counts
-    /// stay complete even while detail is held back.
+    /// stay complete even while detail is held back. A count that reaches `u32::MAX`
+    /// stays there rather than wrapping to zero, so a node that runs for years reports
+    /// a full counter, never a small one.
     ///
     /// # Arguments
     ///
@@ -144,9 +146,10 @@ impl Reporter {
     /// `Some(event)` if it should be shipped, or `None` if it was dropped by the
     /// threshold.
     pub fn record(&mut self, event: Event) -> Option<Event> {
-        self.counts[event.level as usize] += 1;
+        let count = &mut self.counts[event.level as usize];
+        *count = count.saturating_add(1);
         if event.level >= self.threshold {
-            self.emitted += 1;
+            self.emitted = self.emitted.saturating_add(1);
             Some(event)
         } else {
             None
@@ -170,9 +173,11 @@ impl Reporter {
     ///
     /// # Returns
     ///
-    /// The total count.
+    /// The total count, held at `u32::MAX` once it gets there.
     pub fn total(&self) -> u32 {
-        self.counts.iter().sum()
+        self.counts
+            .iter()
+            .fold(0u32, |total, count| total.saturating_add(*count))
     }
 
     /// Returns how many events passed the threshold and were shipped.
@@ -190,7 +195,7 @@ impl Reporter {
     ///
     /// The dropped count.
     pub fn dropped(&self) -> u32 {
-        self.total() - self.emitted
+        self.total().saturating_sub(self.emitted)
     }
 
     /// Returns a snapshot of the counters to ship in place of the raw stream.
@@ -257,5 +262,21 @@ mod tests {
         assert_eq!(snapshot.by_level[Level::Warn as usize], 1);
         assert_eq!(snapshot.emitted, 2); // info and warn
         assert_eq!(snapshot.dropped, 1); // trace
+    }
+
+    #[test]
+    fn a_full_counter_holds_rather_than_wrapping() {
+        let mut reporter = Reporter::new(Level::Info);
+        reporter.counts = [0, u32::MAX - 1, u32::MAX - 1, 0, 0];
+        reporter.emitted = u32::MAX - 1;
+        reporter.record(Event::debug("d"));
+        reporter.record(Event::debug("d"));
+        reporter.record(Event::info("i"));
+        reporter.record(Event::info("i"));
+        assert_eq!(reporter.count(Level::Debug), u32::MAX);
+        assert_eq!(reporter.count(Level::Info), u32::MAX);
+        assert_eq!(reporter.emitted(), u32::MAX);
+        assert_eq!(reporter.total(), u32::MAX);
+        assert_eq!(reporter.dropped(), 0);
     }
 }

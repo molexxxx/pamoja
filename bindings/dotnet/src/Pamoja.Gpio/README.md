@@ -39,12 +39,14 @@ Console.WriteLine($"a pump on an active-low relay runs when its line is {runsOn}
 pump.Set(true);
 bool whileFilling = floatSwitch.IsAsserted();
 bool onceFilled = floatSwitch.IsAsserted();
-Console.WriteLine($"the float reads full: {whileFilling}, then {onceFilled}");
+static string Full(bool closed) => closed ? "full" : "not full";
+Console.WriteLine($"the float reads {Full(whileFilling)}, then {Full(onceFilled)}");
 
 // The moment the float closes is that line going low, which is a falling edge. A
 // watch armed for the rising one would sleep through the tank filling.
 bool closing = Pin.Triggers(PinEdge.Falling, PinLevel.High, PinLevel.Low);
-Console.WriteLine($"the float closing is a falling edge on that line: {closing}");
+string edge = closing ? "a falling edge" : "not a falling edge";
+Console.WriteLine($"the float closing is {edge} on that line");
 
 // Full, so the pump stops. Releasing the switch hands the line back, and the levels
 // it was driven to are the whole conversation the board saw.
@@ -64,13 +66,14 @@ Console.WriteLine(
 // Two ranges belong to the specification itself, so a part answering in either is
 // a wiring mistake rather than a device.
 bool reserved = I2c.IsReserved(I2c.ReservedFrom);
-Console.WriteLine(
-    $"0x{I2c.ReservedFrom:X2} is reserved by the specification: {reserved}");
+string owner = reserved ? "reserved by the specification" : "free for a device";
+Console.WriteLine($"0x{I2c.ReservedFrom:X2} is {owner}");
 
 // And a datasheet quotes SPI's clock polarity and phase as one mode number.
 SpiClock clock = Spi.ClockFor(3);
-Console.WriteLine(
-    $"SPI mode 3 idles high: {clock.Cpol}, samples on the trailing edge: {clock.Cpha}");
+string idle = clock.Cpol ? "high" : "low";
+string sampling = clock.Cpha ? "trailing" : "leading";
+Console.WriteLine($"SPI mode 3 idles {idle} and samples on the {sampling} edge");
 ```
 
 ## The same capability in every language

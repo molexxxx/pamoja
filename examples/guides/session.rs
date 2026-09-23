@@ -4,8 +4,9 @@
 
 use std::error::Error;
 
-/// A node and a gateway agreeing a key neither of them sent, then a reading crossing the
-/// link sealed, arriving intact, and being refused when it is replayed.
+/// A node and a gateway agreeing a key neither of them sent, then readings crossing the link
+/// sealed: one arriving intact, one replayed, one with its pump id rewritten, one arriving
+/// late, and the gateway's reply.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_session::{AgreementKey, Role, Session};
@@ -25,15 +26,20 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     getrandom::fill(&mut salt).expect("the system random source");
     let mut uplink = Session::establish(&node, &gateway.public(), &salt, Role::Initiator);
     let mut downlink = Session::establish(&gateway, &node.public(), &salt, Role::Responder);
-    println!("both sides derived a key without sending one");
+    println!("agreed    both sides derived a key without sending one");
 
     // The pump id is authenticated but not encrypted, so a router still reads it while any
     // change to it fails the tag. Sealing replaces the plaintext in the buffer it is given.
     let mut frame = *b"flow=41.2";
     let sealed = uplink.seal(&mut frame, b"pump-3");
+    let hidden = if frame != *b"flow=41.2" {
+        "no longer"
+    } else {
+        "still"
+    };
     println!(
-        "sealed    the reading is no longer readable: {}",
-        frame != *b"flow=41.2"
+        "sealed    counter {}, and what goes on the wire is {hidden} the reading",
+        sealed.counter
     );
 
     // The gateway opens it back into the same buffer.
@@ -49,9 +55,51 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         Ok(()) => println!("a replayed frame was accepted, which should never happen"),
         Err(error) => println!("replay    refused: {error}"),
     }
+
+    // A router that rewrites the pump id breaks the tag, so the gateway refuses the frame
+    // rather than file the reading under the wrong pump. A frame that fails to open leaves
+    // its counter unused.
+    let mut later = *b"flow=41.3";
+    let later_sealed = uplink.seal(&mut later, b"pump-3");
+    let mut rewritten = later;
+    match downlink.open(&later_sealed, &mut rewritten, b"pump-4") {
+        Ok(()) => println!("a rewritten pump id was accepted, which should never happen"),
+        Err(error) => println!("altered   refused: {error}"),
+    }
+
+    // Radio frames can arrive out of order. The window accepts any counter it has not seen
+    // among the 64 below the newest, so the frame that was held up still opens.
+    let mut newest = *b"flow=41.5";
+    let newest_sealed = uplink.seal(&mut newest, b"pump-3");
+    downlink
+        .open(&newest_sealed, &mut newest, b"pump-3")
+        .expect("the newest frame");
+    downlink
+        .open(&later_sealed, &mut later, b"pump-3")
+        .expect("a late frame inside the window");
+    println!(
+        "late      counter {} opened first, then counter {}: {}, then {}",
+        newest_sealed.counter,
+        later_sealed.counter,
+        String::from_utf8_lossy(&newest),
+        String::from_utf8_lossy(&later)
+    );
+
+    // The gateway answers on the same session. Its frames carry the other direction in
+    // their nonce, so a reply can never be taken for, or replayed as, one from the node.
+    let mut order = *b"valve=close";
+    let order_sealed = downlink.seal(&mut order, b"pump-3");
+    uplink
+        .open(&order_sealed, &mut order, b"pump-3")
+        .expect("the gateway's reply");
+    println!(
+        "reply     {}, sealed by the gateway and opened by the node",
+        String::from_utf8_lossy(&order)
+    );
     // ANCHOR_END: example
 
     assert_eq!(&frame, b"flow=41.2");
+    assert_eq!(&later, b"flow=41.3");
     assert!(downlink.open(&sealed, &mut replayed, b"pump-3").is_err());
 
     Ok(())

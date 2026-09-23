@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 
 using Pamoja;
 using Pamoja.Session;
@@ -32,15 +33,15 @@ public static class SessionGuide
         byte[] salt = RandomNumberGenerator.GetBytes(16);
         using var uplink = new Session(node, gateway.PublicKey, salt, SessionRole.Initiator);
         using var downlink = new Session(gateway, node.PublicKey, salt, SessionRole.Responder);
-        Console.WriteLine("both sides derived a key without sending one");
+        Console.WriteLine("agreed    both sides derived a key without sending one");
 
         // The pump id is authenticated but not encrypted, so a router still reads it while
         // any change to it fails the tag.
         SealedMessage reading = uplink.Seal("flow=41.2"u8, "pump-3"u8);
-        bool hidden = !reading.Ciphertext.SequenceEqual("flow=41.2"u8.ToArray());
-        Console.WriteLine($"sealed    the reading is no longer readable: {hidden}");
+        string hidden = reading.Ciphertext.SequenceEqual("flow=41.2"u8.ToArray()) ? "still" : "no longer";
+        Console.WriteLine($"sealed    counter {reading.Counter}, and what goes on the wire is {hidden} the reading");
         byte[] opened = downlink.Open(reading, "pump-3"u8);
-        Console.WriteLine($"opened    {System.Text.Encoding.UTF8.GetString(opened)}");
+        Console.WriteLine($"opened    {Encoding.UTF8.GetString(opened)}");
 
         // The anti-replay window refuses a counter it has already accepted, so a frame
         // captured off the air and sent again is not delivered a second time.
@@ -53,9 +54,36 @@ public static class SessionGuide
         {
             Console.WriteLine($"replay    refused: {error.Message}");
         }
+
+        // A router that rewrites the pump id breaks the tag, so the gateway refuses the
+        // frame rather than file the reading under the wrong pump. A frame that fails to
+        // open leaves its counter unused.
+        SealedMessage later = uplink.Seal("flow=41.3"u8, "pump-3"u8);
+        try
+        {
+            downlink.Open(later, "pump-4"u8);
+            Console.WriteLine("a rewritten pump id was accepted, which should never happen");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"altered   refused: {error.Message}");
+        }
+
+        // Radio frames can arrive out of order. The window accepts any counter it has not
+        // seen among the 64 below the newest, so the frame that was held up still opens.
+        SealedMessage newest = uplink.Seal("flow=41.5"u8, "pump-3"u8);
+        string first = Encoding.UTF8.GetString(downlink.Open(newest, "pump-3"u8));
+        string second = Encoding.UTF8.GetString(downlink.Open(later, "pump-3"u8));
+        Console.WriteLine($"late      counter {newest.Counter} opened first, then counter {later.Counter}: {first}, then {second}");
+
+        // The gateway answers on the same session. Its frames carry the other direction in
+        // their nonce, so a reply can never be taken for, or replayed as, one from the node.
+        SealedMessage order = downlink.Seal("valve=close"u8, "pump-3"u8);
+        string answer = Encoding.UTF8.GetString(uplink.Open(order, "pump-3"u8));
+        Console.WriteLine($"reply     {answer}, sealed by the gateway and opened by the node");
         // ANCHOR_END: example
 
-        Expect(hidden, "the reading does not travel in the clear");
+        Expect(hidden == "no longer", "the reading does not travel in the clear");
         Expect(opened.SequenceEqual("flow=41.2"u8.ToArray()), "the gateway recovers it");
     }
 }
