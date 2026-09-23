@@ -216,7 +216,7 @@ title = "Hardware and sensors"
 lead = "Talk to the cheap, salvageable parts the field already runs on, by name instead of by pin."
 tags = [
   { text = "Modbus / RS485", state = "ships", crate = "pamoja-modbus" },
-  { text = "CAN / J1939", state = "ships", crate = "pamoja-can" },
+  { text = "CAN / J1939, SocketCAN", state = "ships", crate = "pamoja-can" },
   { text = "serial (SLIP / COBS)", state = "ships", crate = "pamoja-serial" },
   { text = "GPIO / I2C / SPI", state = "ships", crate = "pamoja-gpio" },
   { text = "buses (embedded-hal, 1-Wire, serial ports)", state = "ships", crate = "pamoja-hal" },
@@ -234,7 +234,6 @@ tags = [
   { text = "IR temperature (MLX90614)", state = "next" },
   { text = "load cells (HX711)", state = "next" },
   { text = "9-axis IMU (MPU9250)", state = "next" },
-  { text = "Linux CAN I/O (socketcan)", state = "next" },
   { text = "humidity (DHT22)", state = "later" },
   { text = "gas and VOC (MQ series, SGP40, BME680)", state = "later" },
   { text = "AC energy metering (PZEM-004T)", state = "later" },

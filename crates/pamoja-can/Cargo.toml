@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-can"
-description = "CAN bus framing for pamoja: classic CAN 2.0 and CAN-FD frames with 11-bit and 29-bit identifiers and the discrete CAN-FD length encoding, plus J1939 identifier decoding for trucks, tractors, and gensets, no_std and allocation-free. The framing half ahead of the CAN controller."
+description = "CAN for pamoja: classic CAN 2.0 and CAN FD frames with 11-bit and 29-bit identifiers and CAN FD's length encoding, J1939 identifiers and signals for trucks, tractors, and gensets, no_std and allocation-free, and a node on a bus with identifier and J1939 filters, simulated in the program or a Linux interface through SocketCAN."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,22 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+# A node on a CAN bus: a bus simulated inside the program, and with `linux`, a kernel
+# interface through SocketCAN. The frames and J1939 need neither and stay no_std.
+bus = []
+linux = ["bus", "dep:nix", "dep:libc"]
+
+# The raw socket SocketCAN is reached through, and the kernel's frame layouts. Already in the
+# graph through pamoja-hal.
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.31", optional = true, default-features = false, features = ["socket", "poll", "net"] }
+libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 # Property tests feed the identifier and length decoders arbitrary values: they must

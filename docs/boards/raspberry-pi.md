@@ -1133,6 +1133,8 @@ toolchain for C.
   GPIO15, checked with one jumper wire, and which UART each model puts there.
 - [Modbus RTU](../guides/modbus.md#on-a-board), for an RS485 line through a USB
   adapter, and a scan that lists every device on it.
+- [CAN and J1939](../guides/can.md#on-a-board), for a CAN bus through an MCP2515 on
+  the SPI bus, and a monitor that names each J1939 message it hears.
 - [Your own device](../guides/device.md), for a part pamoja has never heard of.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,

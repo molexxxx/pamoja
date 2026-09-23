@@ -566,6 +566,61 @@ def test_a_serial_port_carries_bytes_over_every_kind_of_line():
             SerialPort.open("/dev/serial0", SerialSettings(115_200))
 
 
+def test_a_can_bus_carries_frames_the_way_socketcan_does():
+    from pamoja.can import (
+        CanBus,
+        CanBusKind,
+        CanFilter,
+        broadcast_j1939,
+        fd_frame,
+        frame,
+        remote_frame,
+    )
+
+    speed = broadcast_j1939(3, 61_444, 0x00)
+    engine = CanBus.simulated()
+    gateway = engine.join()
+    laptop = gateway.join()
+    assert engine.kind is CanBusKind.SIMULATED
+    assert engine.interface is None
+
+    gateway.set_filters([CanFilter.pgn(61_444)])
+    engine.send(frame(0x20A, bytes([1, 2])))
+    engine.send(frame(speed, bytes([0xFF] * 8), extended=True))
+    engine.send(fd_frame(0x123, bytes([0xA5] * 32)))
+    engine.send(remote_frame(0x301, 4))
+
+    kept = gateway.receive(timeout=0.01)
+    assert (kept.id, kept.extended) == (speed, True)
+    assert gateway.receive(timeout=0.01) is None
+
+    heard = []
+    while (received := laptop.receive(timeout=0)) is not None:
+        heard.append((received.id, received.fd, received.remote, received.len))
+    assert heard == [
+        (0x20A, False, False, 2),
+        (speed, False, False, 8),
+        (0x123, True, False, 32),
+        (0x301, False, True, 4),
+    ]
+    assert engine.receive(timeout=0.25) is None, "a node does not hear itself"
+    assert engine.waited_micros == 250_000
+    assert (engine.sent, gateway.received, laptop.received) == (4, 1, 4)
+
+    gateway.set_filters([])
+    engine.send(frame(speed, bytes(8), extended=True))
+    assert gateway.receive(timeout=0) is None, "an empty filter list keeps nothing"
+    gateway.clear_filters()
+    engine.send(frame(0x20A, bytes([3])))
+    assert gateway.receive(timeout=0) is not None
+
+    exact = CanFilter.exact(0x20A)
+    assert exact.matches(0x20A)
+    assert not exact.matches(0x20A, extended=True)
+    if sys.platform != "linux":
+        with pytest.raises(PamojaError, match="only Linux"):
+            CanBus.open("can0")
+
 def test_a_modbus_client_polls_devices_on_a_simulated_line():
     from pamoja.hal import Parity, SerialSettings
     from pamoja.modbus import (

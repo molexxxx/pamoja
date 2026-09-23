@@ -1,6 +1,8 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, feature = "bus")), no_std)]
+// The crate doc links the bus types, which a build without the `bus` feature lacks.
+#![cfg_attr(not(feature = "bus"), allow(rustdoc::broken_intra_doc_links))]
 
-//! CAN bus framing for the pamoja SDK.
+//! CAN for the pamoja SDK: the frames, J1939, and a node on a bus.
 //!
 //! CAN is the bus that connects the moving parts of a machine: motor controllers, servos,
 //! battery management, and the engines, gensets, and farm equipment that speak J1939 on
@@ -8,7 +10,7 @@
 //! short, noisy two-wire link, which is why it is the SDK's path to actuators and to the
 //! diesel-and-hydraulic world of rural machinery.
 //!
-//! This crate is the byte layer for that, with no controller and no allocation:
+//! The byte layer needs no controller and no allocation:
 //!
 //! - [`CanId`] - a standard 11-bit or extended 29-bit identifier, always masked to width.
 //! - [`Frame`] - a classic CAN 2.0 frame, a CAN-FD frame at the discrete CAN-FD lengths,
@@ -16,10 +18,17 @@
 //!   CAN-FD uses above eight bytes.
 //! - [`J1939Id`] - the priority, parameter group, and addresses J1939 packs into a 29-bit
 //!   identifier, decoded from one and composed back into one.
+//! - [`Signals`] - the eight data bytes of a J1939 frame, read and written by the offsets
+//!   its parameter group publishes, starting every signal as not available.
 //!
 //! The controller hardware handles the wire itself (arbitration, bit timing, the frame
 //! CRC); this is the identifier and payload layer above it, the part an application
-//! actually reasons about. Driving a real controller arrives with the hardware-I/O layer.
+//! actually reasons about.
+//!
+//! With the `bus` feature, [`bus::CanBus`] is one node's place on a bus: a bus simulated
+//! inside the program, or with the `linux` feature, a kernel interface such as `can0`
+//! through SocketCAN. A node hears every frame the others send and none of its own, and keeps
+//! the ones its [`bus::Filter`]s pass, by identifier or by J1939 parameter group.
 //!
 //! # Examples
 //!
@@ -36,6 +45,8 @@
 //! assert!(message.is_broadcast());
 //! ```
 
+#[cfg(feature = "bus")]
+pub mod bus;
 mod error;
 mod frame;
 mod id;

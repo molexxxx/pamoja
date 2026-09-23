@@ -28,6 +28,8 @@ __all__ = [
     "Bmp280Reading",
     "BootDecision",
     "Calibration",
+    "CanBus",
+    "CanFilter",
     "CanFrame",
     "CdrReader",
     "CdrWriter",
@@ -1459,6 +1461,119 @@ class Calibration:
     def apply(self, raw: builtins.float) -> builtins.float:
         r"""
         Converts a raw reading into calibrated units.
+        """
+
+@typing.final
+class CanBus:
+    r"""
+    One node's place on a CAN bus: a kernel interface through SocketCAN on a Linux board, or a
+    bus inside the program.
+    
+    A node hears every frame the others send and none of its own, and keeps only the frames its
+    filters pass. A send and a receive release the interpreter while the bus is busy; a receive
+    on a simulated bus with nothing waiting returns `None` at once and counts its timeout in
+    `waited_micros`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What the bus is: `"Device"` or `"Simulated"`.
+        """
+    @property
+    def interface(self) -> typing.Optional[builtins.str]:
+        r"""
+        The kernel interface the node is on, or `None` on a simulated bus.
+        """
+    @property
+    def sent(self) -> builtins.int:
+        r"""
+        How many frames the node has sent.
+        """
+    @property
+    def received(self) -> builtins.int:
+        r"""
+        How many frames the node has received.
+        """
+    @property
+    def waited_micros(self) -> builtins.int:
+        r"""
+        How long receives on the node have waited without a frame, in microseconds, whether or
+        not the process slept through it.
+        """
+    @staticmethod
+    def open(interface: builtins.str) -> CanBus:
+        r"""
+        Opens a kernel CAN interface, such as `can0`, through SocketCAN. Raises `PamojaError`
+        anywhere but Linux, and when the interface does not exist or cannot be bound.
+        """
+    @staticmethod
+    def simulated() -> CanBus:
+        r"""
+        A new bus inside the program, with this node the first on it.
+        """
+    def join(self) -> CanBus:
+        r"""
+        Puts another node on the same bus.
+        """
+    def send(self, frame: CanFrame) -> None:
+        r"""
+        Sends a frame to every other node on the bus.
+        """
+    def receive(self, timeout_micros: builtins.int) -> typing.Optional[CanFrame]:
+        r"""
+        Takes the next frame the node keeps, waiting up to `timeout_micros` for one, or returns
+        `None` when the timeout passed with nothing.
+        """
+    def set_filters(self, filters: typing.Sequence[CanFilter]) -> None:
+        r"""
+        Keeps only the frames that pass at least one of the filters, from now on; an empty list
+        keeps nothing.
+        """
+    def clear_filters(self) -> None:
+        r"""
+        Keeps every frame again, as a node does when it joins.
+        """
+
+@typing.final
+class CanFilter:
+    r"""
+    A frame a node keeps: one whose identifier, masked, equals `id`, masked, and whose format is
+    the filter's.
+    """
+    @property
+    def id(self) -> builtins.int:
+        r"""
+        The identifier to match.
+        """
+    @property
+    def mask(self) -> builtins.int:
+        r"""
+        The identifier bits that have to match.
+        """
+    @property
+    def extended(self) -> builtins.bool:
+        r"""
+        Whether the identifier is a 29-bit extended one.
+        """
+    def __new__(cls, id: builtins.int, mask: builtins.int, extended: builtins.bool = False) -> CanFilter:
+        r"""
+        A filter on the identifier bits a mask selects; bits outside the identifier's width are
+        dropped.
+        """
+    @staticmethod
+    def exact(id: builtins.int, extended: builtins.bool = False) -> CanFilter:
+        r"""
+        A filter that passes one identifier and nothing else.
+        """
+    @staticmethod
+    def pgn(pgn: builtins.int) -> CanFilter:
+        r"""
+        A filter that passes one J1939 parameter group at any priority, from any source, and for
+        an addressed group, to any destination.
+        """
+    def matches(self, id: builtins.int, extended: builtins.bool = False) -> builtins.bool:
+        r"""
+        Whether a frame with an identifier passes the filter.
         """
 
 @typing.final

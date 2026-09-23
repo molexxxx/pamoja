@@ -193,7 +193,9 @@ drive the pair, and a Raspberry Pi or a Pico needs a controller and transceiver
 together, such as an MCP2515 over SPI.
 
 pamoja: [`pamoja-can`](guides/can.md) carries classic and FD frames with both
-identifier widths, the FD length encoding, and J1939 identifier decoding.
+identifier widths, the FD length encoding, J1939 identifiers and signals, and a node on
+a bus: a Linux interface through SocketCAN, or a bus simulated inside the program, with
+filters by identifier or by J1939 parameter group.
 Sources: [ISO 11898-1:2024](https://www.iso.org/standard/86384.html), whose
 own text is paid, and the SAE J1939 document set under
 [J1939_202603](https://www.sae.org/standards/content/j1939_202603/).

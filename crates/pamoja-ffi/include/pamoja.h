@@ -96,6 +96,12 @@
 // The priority that yields to everything else on the bus.
 #define PAMOJA_J1939_PRIORITY_LOWEST 7
 
+// A bus kind: a kernel CAN interface reached through SocketCAN.
+#define PAMOJA_CAN_BUS_DEVICE 0
+
+// A bus kind: a bus inside the program.
+#define PAMOJA_CAN_BUS_SIMULATED 1
+
 // The protocol version every datagram starts with.
 #define PAMOJA_GATEWAY_PROTOCOL_VERSION 2
 
@@ -2321,6 +2327,9 @@ typedef struct PamojaBuffer PamojaBuffer;
 // An opaque handle to a raw-to-units calibration.
 typedef struct PamojaCalibration PamojaCalibration;
 
+// A node on a CAN bus. Opaque; release it with [`pamoja_can_bus_free`].
+typedef struct PamojaCanBus PamojaCanBus;
+
 // An opaque handle to a CAN frame.
 //
 // Read it with the `pamoja_can_frame_*` calls, then release it with
@@ -2835,6 +2844,17 @@ typedef struct {
   // The eight data bytes, in wire order.
   uint8_t bytes[8];
 } PamojaJ1939Signals;
+
+// A frame a node keeps: one whose identifier, masked, equals `id`, masked, and whose format
+// is the filter's.
+typedef struct {
+  // The identifier to match.
+  uint32_t id;
+  // The identifier bits that have to match.
+  uint32_t mask;
+  // `1` for an extended 29-bit identifier, `0` for a standard 11-bit one.
+  uint8_t extended;
+} PamojaCanFilter;
 
 // The settings a CoAP endpoint is built from.
 typedef struct {
@@ -6239,6 +6259,194 @@ bool pamoja_can_signals_u8(PamojaJ1939Signals signals, uintptr_t at, uint8_t *ou
 //
 // `out_value` must point to a writable `uint16_t`.
 bool pamoja_can_signals_u16(PamojaJ1939Signals signals, uintptr_t at, uint16_t *out_value);
+
+// Makes a new bus inside the program, with the returned node the first on it.
+//
+// # Returns
+//
+// The node, which the caller releases with [`pamoja_can_bus_free`].
+PamojaCanBus *pamoja_can_bus_simulated(void);
+
+// Opens a kernel CAN interface through SocketCAN, as one node on its bus.
+//
+// # Arguments
+//
+// * `interface` - the interface, such as `can0` or `vcan0`, as UTF-8.
+// * `out_bus` - receives the node.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::Unsupported`] anywhere but Linux;
+// [`PamojaStatus::Io`] when the interface does not exist or cannot be bound; or
+// [`PamojaStatus::InvalidArgument`] for a null argument. The reason is in the last error
+// message.
+//
+// # Safety
+//
+// `interface` must be a NUL-terminated string or null, and `out_bus` a writable pointer or
+// null.
+PamojaStatus pamoja_can_bus_open(const char *interface, PamojaCanBus **out_bus);
+
+// Puts another node on the same bus: another socket on the same interface, or another node on
+// the same simulated bus.
+//
+// # Arguments
+//
+// * `bus` - a node on the bus.
+// * `out_bus` - receives the new node.
+//
+// # Returns
+//
+// As [`pamoja_can_bus_open`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_bus` a writable pointer or null.
+PamojaStatus pamoja_can_bus_join(const PamojaCanBus *bus, PamojaCanBus **out_bus);
+
+// Returns what a node's bus is: [`PAMOJA_CAN_BUS_DEVICE`] or [`PAMOJA_CAN_BUS_SIMULATED`],
+// which a null handle also reports.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uint8_t pamoja_can_bus_kind(const PamojaCanBus *bus);
+
+// Sends a frame to every other node on the bus.
+//
+// # Arguments
+//
+// * `bus` - the node.
+// * `frame` - the frame, which stays the caller's.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument; or
+// [`PamojaStatus::Io`] when the kernel refuses the frame, with the reason in the last error
+// message.
+//
+// # Safety
+//
+// `bus` and `frame` must be live handles or null.
+PamojaStatus pamoja_can_bus_send(const PamojaCanBus *bus, const PamojaCanFrame *frame);
+
+// Takes the next frame the node keeps, waiting up to a timeout for one.
+//
+// # Arguments
+//
+// * `bus` - the node.
+// * `timeout_micros` - how long to wait.
+// * `out_frame` - receives a new frame handle, which the caller releases with
+//   [`pamoja_can_frame_free`](crate::can::pamoja_can_frame_free), or null when the timeout
+//   passed with nothing.
+//
+// # Returns
+//
+// As [`pamoja_can_bus_send`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `out_frame` a writable pointer or null.
+PamojaStatus pamoja_can_bus_receive(const PamojaCanBus *bus,
+                                    uint64_t timeout_micros,
+                                    PamojaCanFrame **out_frame);
+
+// Keeps only the frames that pass at least one of the filters, from now on. An empty list
+// keeps nothing.
+//
+// # Arguments
+//
+// * `bus` - the node.
+// * `filters` - the filters.
+// * `len` - how many, at most 512.
+//
+// # Returns
+//
+// As [`pamoja_can_bus_send`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null, and `filters` must point to `len` readable filters.
+PamojaStatus pamoja_can_bus_set_filters(const PamojaCanBus *bus,
+                                        const PamojaCanFilter *filters,
+                                        uintptr_t len);
+
+// Keeps every frame again, as a node does when it joins.
+//
+// # Returns
+//
+// As [`pamoja_can_bus_send`].
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+PamojaStatus pamoja_can_bus_clear_filters(const PamojaCanBus *bus);
+
+// Returns how many frames a node has sent, or 0 for a null handle.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uintptr_t pamoja_can_bus_sent(const PamojaCanBus *bus);
+
+// Returns how many frames a node has received, or 0 for a null handle.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uintptr_t pamoja_can_bus_received(const PamojaCanBus *bus);
+
+// Returns how long receives on a node have waited without a frame, in microseconds, whether
+// or not the process slept through it, or 0 for a null handle.
+//
+// # Safety
+//
+// `bus` must be a live handle or null.
+uint64_t pamoja_can_bus_waited_micros(const PamojaCanBus *bus);
+
+// Releases a node; it leaves the bus. A null pointer is ignored.
+//
+// # Safety
+//
+// `bus` must be a handle that has not been freed, or null.
+void pamoja_can_bus_free(PamojaCanBus *bus);
+
+// A filter that passes one identifier and nothing else.
+//
+// # Arguments
+//
+// * `id` - the identifier.
+// * `extended` - whether it is a 29-bit extended identifier.
+//
+// # Returns
+//
+// The filter.
+PamojaCanFilter pamoja_can_filter_exact(uint32_t id, bool extended);
+
+// A filter that passes one J1939 parameter group at any priority, from any source, and for
+// an addressed group, to any destination.
+//
+// # Arguments
+//
+// * `pgn` - the parameter group number.
+//
+// # Returns
+//
+// The filter.
+PamojaCanFilter pamoja_can_filter_pgn(uint32_t pgn);
+
+// Reports whether a frame with an identifier passes a filter.
+//
+// # Arguments
+//
+// * `filter` - the filter.
+// * `id` - the frame's identifier.
+// * `extended` - whether it is a 29-bit extended identifier.
+//
+// # Returns
+//
+// `true` when the frame formats agree and the masked bits are equal.
+bool pamoja_can_filter_matches(PamojaCanFilter filter, uint32_t id, bool extended);
 
 // Creates a disconnected CoAP endpoint from the given settings.
 //

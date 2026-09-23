@@ -67,6 +67,8 @@ pub mod audit;
 pub mod bus;
 #[cfg(feature = "can")]
 pub mod can;
+#[cfg(feature = "can")]
+pub mod can_bus;
 #[cfg(feature = "coap")]
 pub mod coap;
 #[cfg(feature = "codec")]

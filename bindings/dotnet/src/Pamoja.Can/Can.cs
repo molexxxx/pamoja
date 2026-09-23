@@ -118,10 +118,36 @@ public static class Can
     public static uint ComposeJ1939(byte priority, uint pgn, byte source, byte destination = 0) =>
         NativeMethods.pamoja_can_j1939_compose(priority, pgn, source, destination);
 
+    /// <summary>Builds the native handle for a frame, which the caller releases.</summary>
+    /// <param name="frame">The frame.</param>
+    /// <returns>The handle.</returns>
+    /// <exception cref="PamojaException">The frame's payload does not fit its kind.</exception>
+    internal static IntPtr ToNative(CanFrame frame)
+    {
+        IntPtr native;
+        if (frame.Remote)
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_can_frame_remote(
+                frame.Id, frame.Extended, (nuint)frame.Length, out native));
+        }
+        else if (frame.Fd)
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_can_frame_fd(
+                frame.Id, frame.Extended, frame.Data, (nuint)frame.Data.Length, out native));
+        }
+        else
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_can_frame_new(
+                frame.Id, frame.Extended, frame.Data, (nuint)frame.Data.Length, out native));
+        }
+
+        return native;
+    }
+
     /// <summary>Reads every field out of a native frame handle and releases it.</summary>
     /// <param name="frame">The handle a native constructor produced.</param>
     /// <returns>The frame as a value, so callers never hold a native resource.</returns>
-    private static CanFrame Describe(IntPtr frame)
+    internal static CanFrame Describe(IntPtr frame)
     {
         try
         {

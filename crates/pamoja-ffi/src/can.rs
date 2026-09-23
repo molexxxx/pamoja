@@ -25,7 +25,7 @@ use crate::{read_bytes, set_last_error, PamojaStatus};
 /// Read it with the `pamoja_can_frame_*` calls, then release it with
 /// [`pamoja_can_frame_free`].
 pub struct PamojaCanFrame {
-    frame: Frame,
+    pub(crate) frame: Frame,
 }
 
 /// The fields J1939 packs into an extended CAN identifier.

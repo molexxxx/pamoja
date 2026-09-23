@@ -64,7 +64,8 @@ codec = ["dep:pamoja-codec"]
 kit = ["dep:pamoja-kit"]
 serial = ["dep:pamoja-serial"]
 modbus = ["dep:pamoja-modbus", "pamoja-modbus/port", "hal"]
-can = ["dep:pamoja-can"]
+# The frames, J1939, and a node on a bus: simulated, or a kernel interface through SocketCAN.
+can = ["dep:pamoja-can", "pamoja-can/linux"]
 gpio = ["dep:pamoja-gpio", "pamoja-gpio/linux"]
 # One I2C bus over the kernel's adapter, simulated parts, or a script.
 hal = ["dep:pamoja-hal", "pamoja-hal/linux"]

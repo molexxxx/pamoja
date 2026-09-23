@@ -81,6 +81,7 @@ ActuatorDrivers();
 StepperDrivers();
 SerialPorts();
 ModbusClients();
+CanBuses();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1468,6 +1469,53 @@ static void ModbusClients()
     AssertThrows(() => new ModbusServer(0), "the broadcast address is no device");
     Assert(meter.Answer(Modbus.ReadHoldingRegisters(18, 109, 1)) is null, "another unit's frame gets silence");
     Assert(meter.Answer(Modbus.ReadHoldingRegisters(17, 109, 1)) is { Length: > 0 }, "its own frame gets an answer");
+}
+// A CAN bus as SocketCAN behaves: every node hears every frame but its own, keeps what its
+// filters pass, and a receive with nothing waiting returns at once and counts its timeout.
+static void CanBuses()
+{
+    uint speed = Can.BroadcastJ1939(J1939Priority.Control, 61_444, 0x00);
+    using CanBus engine = CanBus.Simulated();
+    using CanBus gateway = engine.Join();
+    using CanBus laptop = gateway.Join();
+    Assert(engine.Kind == CanBusKind.Simulated, "a simulated bus");
+
+    gateway.SetFilters(CanFilter.Pgn(61_444));
+    engine.Send(Can.Frame(0x20A, [1, 2]));
+    engine.Send(Can.Frame(speed, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], extended: true));
+    engine.Send(Can.FdFrame(0x123, new byte[32]));
+    engine.Send(Can.RemoteFrame(0x301, 4));
+
+    CanFrame? kept = gateway.Receive(TimeSpan.FromMilliseconds(10));
+    Assert(kept is { Extended: true } && kept.Id == speed, "the gateway keeps engine speed");
+    Assert(gateway.Receive(TimeSpan.FromMilliseconds(10)) is null, "and nothing else");
+
+    var heard = new List<CanFrame>();
+    while (laptop.Receive(TimeSpan.Zero) is { } received)
+    {
+        heard.Add(received);
+    }
+
+    Assert(heard.Count == 4, "the laptop hears every frame");
+    Assert(heard[2].Fd && heard[2].Length == 32, "a CAN FD frame arrives whole");
+    Assert(heard[3].Remote && heard[3].Length == 4, "a remote frame keeps the length it asks for");
+    Assert(engine.Receive(TimeSpan.FromMilliseconds(250)) is null, "a node does not hear itself");
+    Assert(engine.WaitedMicros == 250_000, "the timeout is counted");
+    Assert(engine.Sent == 4 && gateway.Received == 1 && laptop.Received == 4, "the counts");
+
+    gateway.SetFilters();
+    engine.Send(Can.Frame(speed, new byte[8], extended: true));
+    Assert(gateway.Receive(TimeSpan.Zero) is null, "an empty filter list keeps nothing");
+    gateway.ClearFilters();
+    engine.Send(Can.Frame(0x20A, [3]));
+    Assert(gateway.Receive(TimeSpan.Zero) is not null, "and clearing keeps everything");
+
+    CanFilter exact = CanFilter.Exact(0x20A);
+    Assert(exact.Matches(0x20A) && !exact.Matches(0x20A, extended: true), "a filter keeps its format");
+    if (!OperatingSystem.IsLinux())
+    {
+        AssertThrows(() => CanBus.Open("can0"), "only Linux opens an interface");
+    }
 }
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
 // drivers' own tests, with every wait counted rather than slept.

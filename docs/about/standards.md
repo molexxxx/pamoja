@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">58 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">59 standards registered, 34 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -233,7 +233,7 @@ The wire formats readings and manifests are written in.
 
 The buses and framings that reach a part on the end of a wire.
 
-<nav class="hw-index" aria-label="Field I/O index"><a href="#rfc-1055">RFC 1055, STD 47</a><a href="#cobs">Cheshire and Baker 1999</a><a href="#crc-16-modbus">CRC-16/MODBUS</a><a href="#modbus-application">MODBUS Application Protocol Specification V1.1b3</a><a href="#modbus-serial">Modbus over Serial Line V1.02</a><a href="#iso-11898-1">ISO 11898-1:2024</a><a href="#sae-j1939-21">SAE J1939-21</a><a href="#um10204">UM10204 Rev. 7.0</a><a href="#crc-8-maxim">CRC-8/MAXIM-DOW</a></nav>
+<nav class="hw-index" aria-label="Field I/O index"><a href="#rfc-1055">RFC 1055, STD 47</a><a href="#cobs">Cheshire and Baker 1999</a><a href="#crc-16-modbus">CRC-16/MODBUS</a><a href="#modbus-application">MODBUS Application Protocol Specification V1.1b3</a><a href="#modbus-serial">Modbus over Serial Line V1.02</a><a href="#iso-11898-1">ISO 11898-1:2024</a><a href="#sae-j1939-21">SAE J1939-21</a><a href="#linux-socketcan">SocketCAN, the Linux kernel's CAN documentation</a><a href="#um10204">UM10204 Rev. 7.0</a><a href="#crc-8-maxim">CRC-8/MAXIM-DOW</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="rfc-1055">
 <header class="hw-head">
@@ -324,6 +324,19 @@ The buses and framings that reach a part on the end of a wire.
 <p class="hw-summary">Real published PGNs, including EEC1 at 61444 and the request PGN at 59904.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.sae.org/standards/content/j1939/21_202409/"><span class="hw-main"><b>The document</b><small>SAE J1939-21</small><small class="hw-note">sae.org serves a JavaScript shell to a scripted client, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-can/src/j1939.rs#L226"><span class="hw-main"><b>The test</b><small><code>j1939.rs</code> line 226</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="linux-socketcan">
+<header class="hw-head">
+
+### SocketCAN, the Linux kernel's CAN documentation {#linux-socketcan}
+
+<p class="hw-by">The Linux kernel</p>
+<p class="hw-summary">The raw CAN socket: its frame layouts, its receive filters, and which frames a socket hears</p>
+</header>
+<p class="hw-summary">Run in CI against the kernel's own virtual CAN interface: classic, extended, remote, and CAN FD frames, a filter by J1939 parameter group, and no echo of a node's own frames.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.kernel.org/networking/can.html"><span class="hw-main"><b>The document</b><small>SocketCAN, the Linux kernel's CAN documentation</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Live implementation</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-can/src/bus.rs#L692"><span class="hw-main"><b>The test</b><small><code>bus.rs</code> line 692</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="um10204">

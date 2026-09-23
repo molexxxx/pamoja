@@ -330,6 +330,18 @@ manual_check = "sae.org serves a JavaScript shell to a scripted client, so a per
 note = "Real published PGNs, including EEC1 at 61444 and the request PGN at 59904."
 
 [[entry]]
+key = "linux-socketcan"
+chapter = "field-io"
+designation = "SocketCAN, the Linux kernel's CAN documentation"
+body = "The Linux kernel"
+subject = "The raw CAN socket: its frame layouts, its receive filters, and which frames a socket hears"
+url = "https://docs.kernel.org/networking/can.html"
+evidence = "crates/pamoja-can/src/bus.rs"
+at = "fn a_virtual_interface_carries_every_kind_of_frame_between_two_sockets"
+anchor = "interop"
+note = "Run in CI against the kernel's own virtual CAN interface: classic, extended, remote, and CAN FD frames, a filter by J1939 parameter group, and no echo of a node's own frames."
+
+[[entry]]
 key = "um10204"
 chapter = "field-io"
 designation = "UM10204 Rev. 7.0"

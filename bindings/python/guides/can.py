@@ -1,8 +1,13 @@
-"""The CAN and J1939 guide example; see docs/guides/can.md."""
+"""The CAN and J1939 guide example: a standby generator's bus, with the engine controller
+broadcasting its speed, a monitoring gateway keeping only that, a service laptop hearing
+everything, and a coolant sensor speaking plain CAN; see docs/guides/can.md."""
 
 # ANCHOR: example
 from pamoja.can import (
     NOT_AVAILABLE,
+    CanBus,
+    CanFilter,
+    CanFrame,
     Priority,
     broadcast_j1939,
     compose_j1939,
@@ -14,68 +19,102 @@ from pamoja.can import (
 )
 from pamoja.core import PamojaError
 
-# The nodes on this bus, by the address each answers to, and the two parameter groups
-# in play. J1939 publishes both, so naming them is what makes the traffic readable.
+# The nodes by the address each answers to, and the two parameter groups in play.
 ENGINE = 0
 GATEWAY = 1
-GEARBOX = 33
 ENGINE_CONTROLLER_1 = 61_444  # carries engine speed
 REQUEST = 59_904  # asks another node for a parameter group
 
 # Where engine speed sits inside that group, and the scale the standard fixes for it.
-# Naming both is what stops a sender and a receiver disagreeing about either.
 ENGINE_SPEED_AT = 3
 RPM_PER_BIT = 0.125
 
-# J1939 keeps its addressing inside the CAN identifier: a priority, the parameter
-# group, and the address of whatever sent it. A broadcast has no destination, so it is
-# its own constructor rather than a magic address a caller has to know.
+
+def reading(speed_id: int, rpm: float) -> CanFrame:
+    """A reading: every signal marked not available but the engine's speed."""
+    reported = signals()
+    reported.set_u16(ENGINE_SPEED_AT, int(rpm / RPM_PER_BIT))
+    return frame(speed_id, reported.bytes, extended=True)
+
+
+def rpm_of(received: CanFrame) -> float:
+    """The engine speed a reading carries."""
+    return (signals_from(received.data).u16(ENGINE_SPEED_AT) or 0) * RPM_PER_BIT
+
+
+# J1939 keeps its addressing inside the 29-bit identifier: a priority, the parameter group, and
+# the sender's address. A broadcast names no destination.
 speed_id = broadcast_j1939(Priority.CONTROL, ENGINE_CONTROLLER_1, ENGINE)
 speed = decode_j1939(speed_id)
-print(f"broadcast pgn {speed.pgn} at priority {speed.priority}")
+print(
+    f"engine speed 0x{speed_id:08X}: pgn {speed.pgn} at priority {speed.priority}, "
+    f"from node {ENGINE} to every node"
+)
 
-# A parameter group below the PDU1 limit is addressed rather than broadcast, so those
-# eight identifier bits carry a destination instead of extending the group number.
-request_id = compose_j1939(Priority.DEFAULT, REQUEST, GATEWAY, GEARBOX)
-print(f"request   pgn {decode_j1939(request_id).pgn} addressed to node {GEARBOX}")
+first = reading(speed_id, 1500)
+unreported = sum(1 for byte in first.data if byte == NOT_AVAILABLE)
+print(
+    f"payload      {rpm_of(first):.1f} rpm in bytes {ENGINE_SPEED_AT + 1} and "
+    f"{ENGINE_SPEED_AT + 2}, the other {unreported} not available"
+)
 
-# Reading one back off the bus is the same thing in reverse, so a receiver never
-# unpacks 29 bits by hand.
-heard = decode_j1939(request_id)
-print(f"heard     from node {heard.source} for node {heard.destination}")
+# Four nodes on one bus with nothing plugged in. On a Linux board each is
+# CanBus.open("can0"), and nothing after this statement changes.
+engine = CanBus.simulated()
+gateway = engine.join()
+laptop = engine.join()
+sensor = engine.join()
 
-# The payload. Every signal starts marked not available, and this controller reports
-# only engine speed, so that is the only one it writes.
-reported = signals()
-reported.set_u16(ENGINE_SPEED_AT, int(1000 / RPM_PER_BIT))
-eec1 = frame(speed_id, reported.bytes, extended=True)
+# The gateway keeps engine speed and nothing else; the laptop keeps everything.
+gateway.set_filters([CanFilter.pgn(ENGINE_CONTROLLER_1)])
 
-# The receiving node reads the same offset back, so neither end slices the payload.
-rpm = signals_from(eec1.data).u16(ENGINE_SPEED_AT) * RPM_PER_BIT
-print(f"engine    {rpm} rpm, carried in {eec1.dlc} bytes")
+# Two engine readings, and between them the coolant sensor, which speaks plain CAN: its level
+# in percent on the 11-bit identifier 0x120.
+engine.send(first)
+sensor.send(frame(0x120, bytes([87])))
+engine.send(reading(speed_id, 1512.5))
 
-# Above eight bytes CAN-FD encodes the length in steps rather than exactly, and a
-# classic frame still refuses a ninth byte.
-print(f"32 bytes carries length code {fd_frame(speed_id, bytes(32), extended=True).dlc}")
+# Every node hears every frame but its own, and keeps what its filters pass.
+while (kept := gateway.receive(timeout=0.01)) is not None:
+    source = decode_j1939(kept.id, kept.extended).source
+    print(f"gateway      {rpm_of(kept):.1f} rpm from node {source}")
+on_the_bus = engine.sent + sensor.sent
+print(f"gateway      kept {gateway.received} of the {on_the_bus} frames on the bus")
+heard = []
+while (received := laptop.receive(timeout=0.01)) is not None:
+    heard.append(received)
+plain = next((f for f in heard if decode_j1939(f.id, f.extended) is None), None)
+if plain is not None:
+    print(
+        f"laptop       heard {len(heard)}, among them 0x{plain.id:03X}, "
+        "an 11-bit identifier and no J1939 message"
+    )
+
+# A request is addressed rather than broadcast: below the PDU1 limit, eight bits of the
+# identifier name the node it is for.
+request = decode_j1939(compose_j1939(Priority.DEFAULT, REQUEST, GATEWAY, ENGINE))
+print(f"request      pgn {request.pgn} from node {request.source} to node {request.destination}")
+
+# The engine goes quiet. A receive waits for a frame up to its timeout; on a simulated bus it
+# returns at once and counts the wait instead of sleeping through it.
+before = gateway.waited_micros
+quiet = gateway.receive(timeout=0.5)
+waited = (gateway.waited_micros - before) // 1_000
+print(f"silent       {0 if quiet is None else 1} frames in {waited} ms, counted and not slept")
+
+# Above eight bytes CAN FD encodes a length in steps, and a classic frame refuses a ninth byte.
+wide = fd_frame(speed_id, bytes(32), extended=True)
+print(f"fd           32 bytes travel at data length code {wide.dlc}")
 try:
     frame(speed_id, bytes(9), extended=True)
-    print("a classic frame took nine bytes, which should never happen")
 except PamojaError as error:
-    print(f"classic   refused nine bytes: {error}")
-
-# J1939 never rides an 11-bit identifier, so a standard frame is not one of its
-# messages however its bits happen to line up.
-print(f"an 11-bit identifier is J1939: {decode_j1939(291, extended=False) is not None}")
+    print(f"classic      refused nine bytes: {error}")
 # ANCHOR_END: example
 
-assert speed.priority == Priority.CONTROL
-assert speed.pgn == ENGINE_CONTROLLER_1
-assert speed.broadcast and speed.destination is None
-assert heard.pgn == REQUEST
-assert heard.destination == GEARBOX
-assert heard.source == GATEWAY
-assert rpm == 1000.0
-assert eec1.dlc == 8
-assert fd_frame(speed_id, bytes(32), extended=True).dlc == 13
-assert decode_j1939(291, extended=False) is None
-assert reported.u8(0) == NOT_AVAILABLE, "every signal this controller does not report"
+assert speed_id == 0x0CF00400
+assert unreported == 6
+assert gateway.received == 2
+assert len(heard) == 3
+assert request.destination == ENGINE
+assert quiet is None
+assert wide.dlc == 13
