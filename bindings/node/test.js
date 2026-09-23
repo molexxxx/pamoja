@@ -2135,6 +2135,33 @@ async function asyncTransports() {
   await assert.rejects(() => quiet.recv(20), /no message arrived/, "so does a quiet link");
   await assert.rejects(() => offline.recv(20), /no message arrived/, "and a quiet ladder");
 
+  // A CoAP server takes readings on its filters and refuses other paths, and sends a
+  // command while another call waits for a reading.
+  const coapGateway = new coap.CoapServer("127.0.0.1:0");
+  await coapGateway.connect();
+  await coapGateway.subscribe("sensors/#");
+  await coapGateway.send("commands/valve", "closed");
+  const coapNode = new coap.CoapClient({
+    host: "127.0.0.1",
+    port: coapGateway.localPort,
+    ackTimeoutMs: 200,
+  });
+  await coapNode.connect();
+  await coapNode.subscribe("commands/valve");
+  assert.strictEqual((await coapNode.recv(2000)).text, "closed", "the state on registering");
+  assert.strictEqual(coapGateway.observers("commands/valve"), 1);
+  const awaitedReading = coapGateway.recv(5000);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await coapGateway.send("commands/valve", "open");
+  assert.strictEqual((await coapNode.recv(2000)).text, "open", "a command beside a waiting receive");
+  await coapNode.send("sensors/1/temperature", "21.5");
+  assert.strictEqual((await awaitedReading).topic, "sensors/1/temperature");
+  await assert.rejects(() => coapNode.send("pumps/1", "on"), /4\.04 Not Found/);
+  await assert.rejects(() => coapGateway.recv(20), /no message arrived/);
+  await coapNode.disconnect();
+  await coapGateway.disconnect();
+  assert.ok(!coapGateway.isConnected);
+
   // One publisher, many subscribers, in one process.
   const hub = new bus.EventBus(8);
   const first = await hub.subscribe();

@@ -1214,6 +1214,36 @@ def test_a_transport_is_driven_directly_one_call_at_a_time():
     asyncio.run(run())
 
 
+def test_a_coap_server_takes_readings_and_sends_commands_while_listening():
+    from pamoja.coap import CoapClient, CoapServer
+
+    async def run():
+        gateway = CoapServer("127.0.0.1:0")
+        await gateway.connect()
+        await gateway.subscribe("sensors/#")
+        await gateway.send("commands/valve", "closed")
+        node = CoapClient(host="127.0.0.1", port=gateway.local_port, ack_timeout_ms=200)
+        await node.connect()
+        await node.subscribe("commands/valve")
+        assert (await asyncio.wait_for(node.recv(), 2)).text == "closed"
+        assert gateway.observers("commands/valve") == 1
+
+        waiting = asyncio.ensure_future(gateway.recv())
+        await asyncio.sleep(0.05)
+        await gateway.send("commands/valve", "open")
+        assert (await asyncio.wait_for(node.recv(), 2)).text == "open"
+        await node.send("sensors/1/temperature", "21.5")
+        assert (await asyncio.wait_for(waiting, 5)).topic == "sensors/1/temperature"
+
+        with pytest.raises(PamojaError, match="4.04 Not Found"):
+            await node.send("pumps/1", "on")
+        await node.disconnect()
+        await gateway.disconnect()
+        assert gateway.is_connected is False
+
+    asyncio.run(run())
+
+
 def test_every_subscriber_sees_a_published_event():
     from pamoja import bus
 

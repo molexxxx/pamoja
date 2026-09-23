@@ -853,11 +853,11 @@ The protocols a node speaks to a broker or a server.
 ### RFC 7252 {#rfc-7252}
 
 <p class="hw-by">IETF</p>
-<p class="hw-summary">CoAP: the message types, the code space and the Uri-Path option</p>
+<p class="hw-summary">CoAP: the message types, retransmission, deduplication, Reset, and the response codes</p>
 </header>
-<div class="hw-foot">
+<p class="hw-summary">Sections 4.2 to 4.5 and 5.3.1, and table 6. Beside it, a Reset and a 4.04 fail a confirmable send, and a ping is answered with a Reset.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.rfc-editor.org/info/rfc7252"><span class="hw-main"><b>The document</b><small>RFC 7252</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Round trip only</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/tests/roundtrip.rs#L99"><span class="hw-main"><b>The test</b><small><code>roundtrip.rs</code> line 99</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/tests/server.rs#L285"><span class="hw-main"><b>The test</b><small><code>server.rs</code> line 285</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-7641">
@@ -866,11 +866,11 @@ The protocols a node speaks to a broker or a server.
 ### RFC 7641 {#rfc-7641}
 
 <p class="hw-by">IETF</p>
-<p class="hw-summary">Observing a CoAP resource, so a server pushes a change</p>
+<p class="hw-summary">Observing a CoAP resource: registration, notifications by token, freshness, and cancelling with a Reset</p>
 </header>
-<div class="hw-foot">
+<p class="hw-summary">The freshness conditions of section 3.4, including the 24-bit wrap and the 128-second rule.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.rfc-editor.org/info/rfc7641"><span class="hw-main"><b>The document</b><small>RFC 7641</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Round trip only</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/src/lib.rs#L349"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 349</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-coap/src/lib.rs#L801"><span class="hw-main"><b>The test</b><small><code>lib.rs</code> line 801</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>

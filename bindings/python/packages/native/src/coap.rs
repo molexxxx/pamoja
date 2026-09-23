@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use pamoja_coap::{CoapConfig, CoapTransport, Reliability};
+use pamoja_coap::{CoapConfig, CoapPublisher, CoapTransport, Reliability};
 use pamoja_core::{Receive, Transport};
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
@@ -115,6 +115,112 @@ impl CoapClient {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut transport = inner.lock().await;
             transport.disconnect().await.map_err(to_pyerr)
+        })
+    }
+}
+
+/// A CoAP server: the end that nodes send their readings to and observe their
+/// commands on.
+///
+/// A PUT or POST to a path matching one of its `subscribe` filters is answered
+/// 2.04 Changed and delivered to `recv`, and one to any other path 4.04 Not Found.
+/// `send` sets a resource's state, which a GET reads and every observer is
+/// notified of. `send` does not wait for a `recv` that is waiting, so a gateway
+/// sends commands while it listens for readings.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct CoapServer {
+    server: Arc<Mutex<pamoja_coap::CoapServer>>,
+    publisher: CoapPublisher,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl CoapServer {
+    /// Creates a server that will listen on a local address, such as `0.0.0.0:5683`,
+    /// or port 0 for a free one.
+    #[new]
+    fn new(bind: String) -> Self {
+        let server = pamoja_coap::CoapServer::new(bind);
+        let publisher = server.publisher();
+        Self {
+            server: Arc::new(Mutex::new(server)),
+            publisher,
+        }
+    }
+
+    /// Binds the socket and starts answering requests.
+    fn connect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.server);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut server = inner.lock().await;
+            server.connect().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Takes the readings sent to the paths a filter matches, with `+` for one
+    /// level and `#` for the rest.
+    fn subscribe<'py>(&self, py: Python<'py>, filter: String) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.server);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut server = inner.lock().await;
+            server.subscribe(&filter).await.map_err(to_pyerr)
+        })
+    }
+
+    /// Sets a resource's state and notifies every observer of it.
+    fn send<'py>(
+        &self,
+        py: Python<'py>,
+        path: String,
+        payload: Payload,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let publisher = self.publisher.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            publisher
+                .publish(&path, &payload.into_bytes())
+                .await
+                .map_err(to_pyerr)
+        })
+    }
+
+    /// Waits for the next reading sent to a path the server takes.
+    fn recv<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.server);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut server = inner.lock().await;
+            let received = server.recv().await.map_err(to_pyerr)?;
+            Ok(received.map(|message| Message {
+                topic: message.topic,
+                payload: message.payload,
+            }))
+        })
+    }
+
+    /// Counts the clients observing a resource.
+    fn observers(&self, path: &str) -> usize {
+        self.publisher.observers(path)
+    }
+
+    /// The port the server listens on, which names the one the system chose for
+    /// port 0, or `None` while it is not connected.
+    #[getter]
+    fn local_port(&self) -> Option<u16> {
+        self.publisher.local_addr().map(|address| address.port())
+    }
+
+    /// Whether the server holds a bound socket.
+    #[getter]
+    fn is_connected(&self) -> bool {
+        self.publisher.is_connected()
+    }
+
+    /// Closes the socket, keeping the resources and filters.
+    fn disconnect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.server);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut server = inner.lock().await;
+            server.disconnect().await.map_err(to_pyerr)
         })
     }
 }

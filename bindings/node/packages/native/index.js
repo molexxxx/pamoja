@@ -794,6 +794,7 @@ module.exports.CanBusNode = nativeBinding.CanBusNode
 module.exports.CdrReader = nativeBinding.CdrReader
 module.exports.CdrWriter = nativeBinding.CdrWriter
 module.exports.CoapClient = nativeBinding.CoapClient
+module.exports.CoapServer = nativeBinding.CoapServer
 module.exports.CobsDecoder = nativeBinding.CobsDecoder
 module.exports.CommandPart = nativeBinding.CommandPart
 module.exports.CommandProtocol = nativeBinding.CommandProtocol

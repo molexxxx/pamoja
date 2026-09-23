@@ -30,7 +30,11 @@ public sealed class CoapClientOptions
     /// <summary>Gets whether requests are acknowledged and retried.</summary>
     public Reliability Reliability { get; init; } = Reliability.Confirmable;
 
-    /// <summary>Gets how long to wait for an acknowledgment, in milliseconds.</summary>
+    /// <summary>Gets how long to wait for the first acknowledgment, in milliseconds.</summary>
+    /// <remarks>
+    /// Zero selects RFC 7252's two seconds. Each wait after the first doubles, and the RFC
+    /// forbids a first wait shorter than two seconds on a network without congestion control.
+    /// </remarks>
     public uint AckTimeoutMs { get; init; }
 
     /// <summary>Gets how many times to retransmit an unacknowledged request.</summary>

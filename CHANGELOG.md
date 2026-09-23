@@ -155,6 +155,20 @@ released together, so one entry covers all of them.
   node's two-day backlog refused for its size while the node stays connected, each printing
   the same lines in all four languages. The standards register adds MQTT 3.1.1, anchored to
   its own filter examples.
+- A CoAP server, the gateway end of a CoAP link, in every language. `pamoja_coap::CoapServer`
+  implements the transport traits: its `subscribe` names the paths it takes readings on, a PUT or
+  POST to one of them is answered 2.04 Changed and delivered to `recv`, and one to any other path
+  4.04 Not Found. Its `send` sets a resource's state, which a GET reads and every observer is
+  notified of, as RFC 7641 describes. It answers a retransmitted confirmable request again
+  without taking it twice for the 247 seconds of RFC 7252's exchange lifetime, answers a ping
+  with a Reset, drops an observer that resets a notification, and counts a resource's
+  observers. `CoapPublisher` sets states from another task while a receive waits, so in
+  TypeScript, Python, and C# the server's `send` runs beside a waiting `recv`.
+- The CoAP guide rewritten around an orchard: a gateway takes moisture readings from the rows
+  and holds the irrigation valve, which a row observes and sees open, printing the same ten
+  lines in all four languages. Its tables cover the client's settings, the calls on each end,
+  the two ways to send, the retransmission schedule, what the server answers, and what each
+  error means.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -658,6 +672,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The CoAP client follows RFC 7252 where it had cut corners. The first wait for an
+  acknowledgment is drawn between two and three seconds rather than fixed (section 4.2), the
+  first message id is random rather than 0 (section 4.4), and each request's token is four
+  random bytes rather than a count from 0 (section 5.3.1). Registering an observation of a path
+  again reuses its token, which a server takes as renewing it (RFC 7641 section 4.1). A send
+  that ran out of retransmissions says `no acknowledgment after 5 transmissions` rather than
+  naming a message id.
 - An MQTT client checks a topic to publish to and a filter against the rules of MQTT 3.1.1
   section 4.7 before anything is sent, and says what is wrong, where a wildcard in a topic
   used to fail with `Failed to send mqtt requests to eventloop`.
@@ -806,6 +827,21 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A confirmable CoAP request the server reset, or answered with a 4.xx or 5.xx code such as 4.04
+  Not Found, counted as delivered. It fails now with the code and its RFC 7252 name, and with
+  the server's diagnostic when one came back.
+- A CoAP notification from a server that follows RFC 7641 arrived with an empty topic, since
+  the client read the path from the notification, which carries only its registration's token.
+  The client now delivers each notification under the path it observed, answers one whose token
+  it does not know with a Reset, drops one older than the newest it has had, and fails a
+  registration the server answered without observing. The test server had echoed the path back,
+  which hid it.
+- On the documentation site, code in a table cell that starts with a dot, such as a chained
+  setter like `.max_retransmits(n)`, could wrap after that dot and leave it alone on a line.
+  A leading dot now stays with its name, as a leading slash already did.
+- A CoAP client stopped receiving for good once a datagram it sent found no one listening,
+  because the operating system reports that on the socket's next receive, which ended the loop.
+  It keeps listening, and a send no longer fails on that report.
 - The C# binding could reach one native transport, store, ladder, or simulated device from
   two thread-pool calls at once, such as a receive still waiting while a send ran, or a
   ladder taking a transport another call was using, which the native side does not allow.

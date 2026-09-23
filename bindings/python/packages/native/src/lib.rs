@@ -833,6 +833,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "coap")]
     {
         m.add_class::<coap::CoapClient>()?;
+        m.add_class::<coap::CoapServer>()?;
     }
     #[cfg(feature = "loopback")]
     {
