@@ -338,15 +338,26 @@ fn host_error(error: NapiError) -> Error {
 /// if it returned a promise. A host with a `recv` method is asked for messages from
 /// a task that starts at `connect` and calls it again as soon as it settles,
 /// queueing what it delivers, so a receive through pamoja is cancel-safe whatever
-/// the method does.
+/// the method does. A `recv` that throws ends the task, and the next receive
+/// reports what it threw.
 pub(crate) struct HostTransport {
     connect: Handler<NoArgs, Ignored>,
     send: Handler<FnArgs<(String, Buffer)>, Ignored>,
     subscribe: Handler<String, Ignored>,
-    recv: Option<Arc<Handler<NoArgs, Option<TransportMessage>>>>,
+    recv: Option<Arc<Handler<NoArgs, Option<DeliveredMessage>>>>,
     connected: bool,
-    inbox: Option<mpsc::UnboundedReceiver<Message>>,
+    inbox: Option<mpsc::UnboundedReceiver<Result<Message>>>,
     pump: Option<JoinHandle<()>>,
+}
+
+/// What a link's `recv` hands back: the topic a message arrived on, and its
+/// payload as bytes or as text.
+#[napi(object)]
+pub struct DeliveredMessage {
+    /// The topic the message arrived on.
+    pub topic: String,
+    /// The payload: bytes, or text such as a command written out.
+    pub payload: Either<Buffer, String>,
 }
 
 impl HostTransport {
@@ -363,7 +374,8 @@ impl HostTransport {
         })
     }
 
-    /// Starts the task that asks the host for messages until it answers `null`.
+    /// Starts the task that asks the host for messages until it answers `null` or
+    /// throws, queueing a throw as the last thing it delivers.
     fn start_pump(&mut self) {
         let Some(recv) = self.recv.as_ref().map(Arc::clone) else {
             return;
@@ -375,15 +387,17 @@ impl HostTransport {
         self.inbox = Some(receiver);
         self.pump = Some(tokio::spawn(async move {
             loop {
-                let next = match recv.call_async(NoArgs).await {
+                let next = match recv.call_async_catch(NoArgs).await {
                     Ok(settled) => settled.await,
                     Err(error) => Err(error),
                 };
-                let Ok(Some(message)) = next else {
-                    break;
+                let delivered = match next {
+                    Ok(Some(message)) => Ok(Message::new(message.topic, bytes_of(message.payload))),
+                    Ok(None) => break,
+                    Err(error) => Err(host_error(error)),
                 };
-                let message = Message::new(message.topic, message.payload.to_vec());
-                if sender.send(message).is_err() {
+                let failed = delivered.is_err();
+                if sender.send(delivered).is_err() || failed {
                     break;
                 }
             }
@@ -402,7 +416,7 @@ impl Drop for HostTransport {
 impl CoreTransport for HostTransport {
     async fn connect(&mut self) -> Result<()> {
         self.connect
-            .call_async(NoArgs)
+            .call_async_catch(NoArgs)
             .await
             .map_err(host_error)?
             .await
@@ -418,7 +432,7 @@ impl CoreTransport for HostTransport {
         }
         let args = FnArgs::from((topic.to_owned(), Buffer::from(payload.to_vec())));
         self.send
-            .call_async(args)
+            .call_async_catch(args)
             .await
             .map_err(host_error)?
             .await
@@ -431,7 +445,7 @@ impl CoreTransport for HostTransport {
             return Err(Error::Closed);
         }
         self.subscribe
-            .call_async(topic.to_owned())
+            .call_async_catch(topic.to_owned())
             .await
             .map_err(host_error)?
             .await
@@ -446,7 +460,7 @@ impl Receive for HostTransport {
             return Err(Error::Closed);
         }
         match self.inbox.as_mut() {
-            Some(inbox) => Ok(inbox.recv().await),
+            Some(inbox) => inbox.recv().await.transpose(),
             None => Ok(None),
         }
     }
@@ -493,15 +507,34 @@ pub(crate) fn bytes_of(payload: Either<Buffer, String>) -> Vec<u8> {
 /// stop the receive behind it, which would then take that message, so the limit
 /// has to live here.
 pub(crate) async fn within<T>(
-    timeout_ms: Option<u32>,
+    timeout_ms: Option<f64>,
     receive: impl Future<Output = napi::Result<T>>,
 ) -> napi::Result<T> {
-    let Some(limit) = timeout_ms else {
+    let Some(limit) = limit_of(timeout_ms)? else {
         return receive.await;
     };
-    tokio::time::timeout(std::time::Duration::from_millis(u64::from(limit)), receive)
-        .await
-        .map_err(|_| napi::Error::from_reason(format!("no message arrived within {limit} ms")))?
+    tokio::time::timeout(limit, receive).await.map_err(|_| {
+        napi::Error::from_reason(format!(
+            "no message arrived within {} ms",
+            limit.as_millis()
+        ))
+    })?
+}
+
+/// Reads a time limit given in milliseconds, rounding a fraction up.
+///
+/// JavaScript hands a negative number to an unsigned parameter as a very large
+/// one, so a limit is taken as a number and checked here instead.
+pub(crate) fn limit_of(timeout_ms: Option<f64>) -> napi::Result<Option<std::time::Duration>> {
+    match timeout_ms {
+        None => Ok(None),
+        Some(limit) if limit >= 0.0 => {
+            Ok(Some(std::time::Duration::from_millis(limit.ceil() as u64)))
+        }
+        Some(_) => Err(napi::Error::from_reason(
+            "a time limit must be 0 ms or more",
+        )),
+    }
 }
 
 /// Which faults a degraded link injects, each off unless named.
@@ -580,14 +613,16 @@ impl Transport {
     ///
     /// `handlers` needs `connect()`, `send(topic, payload)`, and
     /// `subscribe(topic)`, each returning a promise or nothing. A `recv()` that
-    /// resolves to a message, or to `null` once the link has ended, makes it a
-    /// link that delivers: it is called again as soon as it settles, from the
-    /// moment the transport connects. Without `recv` the transport only sends,
-    /// and a ladder never listens on it. The methods are called on `handlers`,
-    /// so a class instance works as it is.
+    /// resolves to a message, `{ topic, payload }` with the payload as a buffer or
+    /// text, or to `null` once the link has ended, makes it a link that delivers:
+    /// it is called again as soon as it settles, from the moment the transport
+    /// connects. A `recv` that throws ends the link until the next connect, and the
+    /// next receive rejects with what it threw. Without `recv` the transport only
+    /// sends, and a ladder never listens on it. The methods are called on
+    /// `handlers`, so a class instance works as it is.
     #[napi(
         factory,
-        ts_args_type = "handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): TransportMessage | null | undefined | Promise<TransportMessage | null | undefined> }"
+        ts_args_type = "handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): DeliveredMessage | null | undefined | Promise<DeliveredMessage | null | undefined> }"
     )]
     pub fn from_handlers(handlers: Object) -> napi::Result<Self> {
         Ok(Self::wrap(Kind::Host(HostTransport::new(&handlers)?)))
@@ -672,7 +707,7 @@ impl Transport {
     /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
     /// waits for the next receive. Without it the receive waits as long as it takes.
     #[napi]
-    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<f64>) -> napi::Result<Option<TransportMessage>> {
         let inner = Arc::clone(&self.inner);
         within(timeout_ms, async move {
             let mut held = inner.lock().await;

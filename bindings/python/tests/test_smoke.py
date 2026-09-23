@@ -1162,6 +1162,51 @@ def test_a_handler_that_raises_reports_its_reason():
     asyncio.run(run())
 
 
+def test_a_recv_that_raises_is_reported_once_and_ends_the_link():
+    from pamoja import core
+
+    class Flaky:
+        def __init__(self):
+            self.inbox = asyncio.Queue()
+
+        def connect(self):
+            pass
+
+        def send(self, topic, payload):
+            raise ConnectionError("no signal")
+
+        def subscribe(self, topic):
+            pass
+
+        async def recv(self):
+            arrived = await self.inbox.get()
+            if isinstance(arrived, Exception):
+                raise arrived
+            return arrived
+
+    async def run():
+        flaky = Flaky()
+        link = core.Transport.from_handlers(flaky)
+        await link.connect()
+        with pytest.raises(PamojaError, match="^transport error: no signal$"):
+            await link.send("sensors/1", "21.5")
+
+        flaky.inbox.put_nowait(("commands/1", "open"))
+        assert (await asyncio.wait_for(link.recv(), 5)).text == "open"
+
+        flaky.inbox.put_nowait(ConnectionResetError("the modem lost its session"))
+        with pytest.raises(PamojaError, match="the modem lost its session"):
+            await asyncio.wait_for(link.recv(), 5)
+        assert await asyncio.wait_for(link.recv(), 5) is None
+
+        await link.connect()
+        flaky.inbox.put_nowait(("commands/1", 42))
+        with pytest.raises(PamojaError, match="recv must return a Message"):
+            await asyncio.wait_for(link.recv(), 5)
+
+    asyncio.run(run())
+
+
 def test_a_spent_transport_cannot_be_added_twice():
     from pamoja import core, ladder, loopback, sync
 
@@ -1249,13 +1294,56 @@ def test_every_subscriber_sees_a_published_event():
 
     async def run():
         hub = bus.EventBus(8)
-        first = await hub.subscribe()
-        second = await hub.subscribe()
+        first = hub.subscribe()
+        second = hub.subscribe()
 
-        await hub.publish(b"battery.low")
+        hub.publish(b"battery.low")
 
         assert await first.next_event() == b"battery.low"
         assert await second.next_event() == b"battery.low"
+
+    asyncio.run(run())
+
+
+def test_an_endpoint_publishes_while_its_own_wait_is_open():
+    from pamoja import bus
+
+    async def run():
+        heater = bus.EventBus(8)
+        waiting = heater.next_text()
+        await asyncio.sleep(0.05)
+        heater.publish("heater.off")
+        assert await asyncio.wait_for(waiting, 5) == "heater.off"
+
+    asyncio.run(run())
+
+
+def test_a_publisher_counts_who_it_reached_and_a_reader_counts_what_it_lost():
+    import threading
+
+    from pamoja import bus
+
+    async def run():
+        power = bus.EventPublisher(2)
+        assert power.publish("0") == 0
+        lagging = power.subscribe()
+        sampler = power.publisher()
+        for sample in range(1, 6):
+            assert sampler.publish(str(sample)) == 1
+        assert await lagging.next_text() == "4"
+        assert lagging.missed == 3
+        assert await lagging.next_text() == "5"
+
+        try:
+            await asyncio.wait_for(lagging.next_text(), 0.03)
+            raise AssertionError("a quiet endpoint must time out")
+        except asyncio.TimeoutError:
+            pass
+
+        from_thread = threading.Thread(target=lambda: power.publish("6"))
+        from_thread.start()
+        from_thread.join()
+        assert await lagging.next_text() == "6"
 
     asyncio.run(run())
 

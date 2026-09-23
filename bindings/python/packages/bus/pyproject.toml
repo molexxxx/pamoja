@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pamoja-bus"
 version = "0.1.18"
-description = "An in-memory typed publish and subscribe event bus."
+description = "An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss."
 readme = "README.md"
 license = { text = "MIT" }
 license-files = ["LICENSE-MIT"]

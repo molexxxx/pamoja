@@ -461,11 +461,11 @@ next = ["mqtt", "lora", "sync"]
 key = "bus"
 chapter = "transports"
 title = "Event bus"
-summary = "An in-memory typed publish and subscribe event bus"
+summary = "An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss"
 crates = ["pamoja-bus"]
 node = "bus"
 python = "bus"
-dotnet = ["EventBus"]
+dotnet = ["EventBus", "EventPublisher"]
 guide = "guides/bus.md"
 next = ["rules", "device", "loopback"]
 

@@ -144,7 +144,9 @@ released together, so one entry covers all of them.
   receive raced against a timer kept running after the race and took the next message
   itself. The C ABI gains `pamoja_transport_recv_within` and its counterparts for the
   loopback link, the ladder, and the MQTT and CoAP clients. Rust and Python already stop
-  waiting without a loss, through `tokio::time::timeout` and `asyncio.wait_for`.
+  waiting without a loss, through `tokio::time::timeout` and `asyncio.wait_for`. A negative
+  limit throws `a time limit must be 0 ms or more` in TypeScript, where it would otherwise
+  reach the native side as a wait of about 49 days.
 - An MQTT packet limit: `MqttConfig::max_packet_size`, `maxPacketSize`, `max_packet_size`,
   and `MaxPacketSize`, 10,240 bytes each way unless set, as before. A send whose packet would
   be larger is refused before anything leaves, with the size it would have been.
@@ -169,6 +171,33 @@ released together, so one entry covers all of them.
   lines in all four languages. Its tables cover the client's settings, the calls on each end,
   the two ways to send, the retransmission schedule, what the server answers, and what each
   error means.
+- A publish-only handle on the event bus, in every language. `pamoja_bus::EventPublisher`
+  makes a bus with no subscribers yet, or comes from any endpoint's `publisher()`. It has no
+  buffer to fill, it clones into every task and callback that announces, and its `publish`
+  returns at once with how many subscribers it reached. TypeScript, Python, and C# get it as
+  `EventPublisher`, and publishing never waits in any of them, so a callback on another
+  thread publishes without an event loop.
+- An event bus endpoint counts the events it lost by falling behind: `missed()` in Rust,
+  `missed` in TypeScript and Python, and `Missed` in C#. TypeScript and C# get a wait with a
+  time limit, `next(timeoutMs)` and `nextText(timeoutMs)`, and `NextAsync(limit)` and
+  `NextTextAsync(limit)`, which gives up without taking the next event. The C ABI gains
+  `pamoja_event_bus_publisher`, `pamoja_event_bus_next_within`, `pamoja_event_bus_missed`,
+  and the `pamoja_event_publisher_*` calls.
+- The event bus guide rewritten around a solar weather station: a power monitor and a wind
+  sampler announce to a heater, a logger, and a radio that joins late, printing the same
+  eight lines in all four languages. Its tables cover the handles and the calls in each
+  language, what an endpoint and a publisher each do, how far an endpoint can fall behind
+  for a given capacity, and what each error means.
+- A link written in TypeScript, Python, or C# may hand over a message whose payload is text.
+  A TypeScript `recv` resolves with `{ topic, payload }`, the payload a `Buffer` or a string,
+  typed as `DeliveredMessage`; a Python `recv` may return a `(topic, payload)` pair with a text
+  payload; and C# gains `new TransportMessage(topic, text)`. Python gains `TransportHandlers`
+  and `ReceivingTransportHandlers` in `pamoja.core`, the shape of a link for a type checker.
+- The own-link guide rewritten around a moored buoy with a cellular modem and a satellite
+  messenger that pamoja has never heard of, on one ladder, printing the same eight lines in
+  all four languages: a reading out, a command back, a refused send passed to the satellite,
+  a lost session reported, and a reconnect. Its tables cover the contract in each language
+  and what a ladder does with what a link does.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -672,6 +701,17 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- On the event bus in TypeScript, Python, and C#, only the waits wait. An endpoint's
+  `subscribe` and `publish` return at once rather than a promise or a coroutine in
+  TypeScript and Python, and C#'s `PublishAsync` is now `Publish`. A wait gives the event
+  rather than an event or null, since an endpoint keeps its bus open and a wait never sees
+  it close. `pamoja_event_bus_next` takes its endpoint by shared pointer.
+- An event bus holds at most 1,048,576 events, `pamoja_bus::MAX_CAPACITY`, and a larger
+  capacity is lowered to it rather than allocated. Its documentation now says a capacity is
+  rounded up to the next power of two, which the channel underneath always did.
+- An exception from a link written in Python reaches the caller as its message,
+  `transport error: no signal`, as in the other languages, rather than with its type in
+  front; one with no message names its type.
 - The CoAP client follows RFC 7252 where it had cut corners. The first wait for an
   acknowledgment is drawn between two and three seconds rather than fixed (section 4.2), the
   first message id is random rather than 0 (section 4.4), and each request's token is four
@@ -827,6 +867,23 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- An event bus endpoint in TypeScript and Python could not publish or subscribe while its own
+  wait for the next event was open: the call waited behind the wait, for good if nothing else
+  published. In C#, a publish beside a waiting `NextAsync` reached the native endpoint
+  alongside it, which the native side does not allow. Publishing and subscribing now run at
+  once beside a wait, in every language.
+- `new EventBus(-1)` in TypeScript reached the native side as a capacity of about four
+  billion events and ended the process trying to allocate it. It now throws
+  `a capacity must be 0 or more`.
+- A method of a link written in TypeScript that threw before returning, rather than
+  returning a rejected promise, ended the Node process. The call now fails with the
+  method's message.
+- A link written in TypeScript, Python, or C#, or through the C ABI, whose receive failed
+  went silent: its receiving side ended with nothing reported, and a ladder with no other
+  listening link said only `resource is closed`. The next receive now reports the failure,
+  and the link has ended after it until it connects again. A Python `recv` returning a
+  `(topic, payload)` pair with a text payload ended the link the same way, and the pair is now
+  taken; a malformed message from a TypeScript or Python `recv` now reports why.
 - A confirmable CoAP request the server reset, or answered with a 4.xx or 5.xx code such as 4.04
   Not Found, counted as delivered. It fails now with the code and its RFC 7252 name, and with
   the server's diagnostic when one came back.

@@ -13,9 +13,9 @@
  */
 
 export { Transport } from '@pamoja/native'
-export type { TransportMessage } from '@pamoja/native'
+export type { DeliveredMessage, TransportMessage } from '@pamoja/native'
 
-import type { TransportMessage } from '@pamoja/native'
+import type { DeliveredMessage } from '@pamoja/native'
 
 /**
  * The operations a link written in JavaScript supplies to stand as a transport.
@@ -24,21 +24,26 @@ import type { TransportMessage } from '@pamoja/native'
  * radio, or a cloud client, and hand it to `Transport.fromHandlers`. The result
  * composes like any transport: as a ladder rung, under a fault injector, or
  * driven directly. Each method may return a promise or a plain value, and is
- * called on the object, so a class instance works as it is.
+ * called on the object, so a class instance works as it is. A method that throws
+ * or rejects fails the call that reached it, with the message it threw.
  */
 export interface TransportHandlers {
-  /** Establishes the link. */
+  /** Establishes the link. Called again on every reconnect. */
   connect(): void | Promise<void>
   /** Publishes a payload to a topic. */
   send(topic: string, payload: Buffer): void | Promise<void>
-  /** Subscribes to a topic filter, in the syntax the link understands. */
+  /**
+   * Subscribes to a topic filter, in the syntax the link understands. A ladder
+   * places its filters again each time the link reconnects.
+   */
   subscribe(topic: string): void | Promise<void>
   /**
    * Waits for the next message on a subscribed topic, or resolves to `null`
    * once the link has ended. Present, it is called again as soon as it settles,
    * from the moment the transport connects, and what it delivers is queued for
-   * the receiving side. Absent, the link only sends and a ladder never listens
-   * on it.
+   * the receiving side. One that throws ends the link until the next connect, and
+   * the next receive rejects with what it threw. Absent, the link only sends and
+   * a ladder never listens on it.
    */
-  recv?(): TransportMessage | null | undefined | Promise<TransportMessage | null | undefined>
+  recv?(): DeliveredMessage | null | undefined | Promise<DeliveredMessage | null | undefined>
 }

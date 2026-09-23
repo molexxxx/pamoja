@@ -4,53 +4,83 @@
 
 use std::error::Error;
 
-/// Parts of one node talking to each other without holding references to each other, and
-/// what happens to a subscriber that falls too far behind.
+/// The parts of one weather station talking over one bus: a power monitor, a wind
+/// sampler, a heater, a logger, and a radio, none of them holding a reference to
+/// another, and what happens to the part that falls behind.
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
-    use pamoja_bus::BroadcastBus;
+    use std::time::Duration;
+
+    use pamoja_bus::EventPublisher;
     use pamoja_core::EventBus;
 
-    // A sampler announces something and whatever cares picks it up, with neither side
-    // holding a reference to the other. This is how the parts of one node are wired.
-    let hub: BroadcastBus<&str> = BroadcastBus::new(8);
-    let mut control = hub.subscribe();
-    let mut logger = hub.subscribe();
+    // The station's wiring makes one bus and hands each part what it needs: a
+    // publisher to announce, an endpoint to listen. No part holds a reference to
+    // another, so any of them can be replaced without touching the rest.
+    let bus: EventPublisher<String> = EventPublisher::new(2);
+    let power = bus.publisher();
+    let sampler = bus.publisher();
+    let mut heater = bus.subscribe();
+    let mut logger = bus.subscribe();
 
-    hub.publish("battery.low").await.expect("published");
-    let to_control = control.next_event().await?.expect("an event");
-    let to_logger = logger.next_event().await?.expect("an event");
-    println!("control saw {to_control}, the logger saw {to_logger}");
+    // One announcement reaches every part that listens, and each reads its own copy.
+    let reached = power.publish("battery.low".into());
+    println!("power     handed battery.low to {reached} parts");
+    let heater_took = heater.next_event().await?.expect("an event");
+    println!("heater    took {heater_took}");
+    let logger_took = logger.next_event().await?.expect("an event");
+    println!("logger    took {logger_took}");
 
-    // A subscriber taken later starts from the next event, so it never sees what went out
-    // before it existed.
-    let mut late = hub.subscribe();
-    hub.publish("link.up").await.expect("published");
-    let first_seen = late.next_event().await?.expect("an event");
-    println!("the late subscriber's first event is {first_seen}");
+    // Publishing never waits, even while the part's own wait is open, and a part
+    // hears what it publishes. The wait borrows the endpoint, so in Rust the heater
+    // announces through a publisher of its own.
+    let heater_says = heater.publisher();
+    let (heard, _) = tokio::join!(heater.next_event(), async {
+        heater_says.publish("heater.off".into())
+    });
+    let heard = heard?.expect("an event");
+    println!("heater    heard its own {heard}, sent while it waited");
 
-    // The buffer is per subscriber and bounded, so one further behind than the capacity
-    // drops what it missed and resumes with the most recent events. A slow reader costs
-    // itself, not the publisher.
-    let slow: BroadcastBus<u8> = BroadcastBus::new(2);
-    let mut reader = slow.subscribe();
-    for count in 0..5u8 {
-        slow.publish(count).await.expect("published");
+    // A part that joins late sees only what is published after it subscribes. There
+    // is no history to replay.
+    let mut radio = bus.subscribe();
+    power.publish("battery.ok".into());
+    let first = radio.next_event().await?.expect("an event");
+    println!("radio     joined late, so the first event it sees is {first}");
+
+    // Each endpoint buffers two events. The logger, busy writing to flash, falls
+    // behind while the sampler publishes five readings: it loses the oldest events,
+    // resumes with the newest, and counts what it lost.
+    for reading in 0..5 {
+        sampler.publish(format!("wind {reading}"));
     }
-    let resumed = reader.next_event().await?.expect("an event");
-    println!("after five events into a buffer of two, the reader resumes at {resumed}");
+    let resumed = logger.next_event().await?.expect("an event");
+    let missed = logger.missed();
+    println!("logger    missed {missed} and resumes at {resumed}");
+    let newest = logger.next_event().await?.expect("an event");
+    println!("logger    then took {newest}");
+
+    // A wait with a limit gives up without taking anything, so a part can do other
+    // work between events and lose nothing by it.
+    let quiet = Duration::from_millis(50);
+    match tokio::time::timeout(quiet, logger.next_event()).await {
+        Ok(_) => println!("logger    took an event no one published, which should never happen"),
+        Err(_) => println!(
+            "logger    heard nothing more within {} ms",
+            quiet.as_millis()
+        ),
+    }
     // ANCHOR_END: example
 
-    assert_eq!(to_control, "battery.low");
-    assert_eq!(to_logger, "battery.low");
-    assert_eq!(first_seen, "link.up");
-    assert_eq!(
-        control.next_event().await.expect("an event"),
-        Some("link.up")
-    );
-    assert_eq!(resumed, 3);
-    assert_eq!(reader.next_event().await.expect("an event"), Some(4));
+    assert_eq!(reached, 2);
+    assert_eq!(heater_took, "battery.low");
+    assert_eq!(logger_took, "battery.low");
+    assert_eq!(heard, "heater.off");
+    assert_eq!(first, "battery.ok");
+    assert_eq!(missed, 5);
+    assert_eq!(resumed, "wind 3");
+    assert_eq!(newest, "wind 4");
 
     Ok(())
 }

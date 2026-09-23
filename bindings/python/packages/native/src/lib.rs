@@ -851,6 +851,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "bus")]
     {
         m.add_class::<bus::EventBus>()?;
+        m.add_class::<bus::EventPublisher>()?;
     }
     #[cfg(feature = "sim")]
     {

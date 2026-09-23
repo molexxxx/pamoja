@@ -6,9 +6,11 @@
  * sampler can announce a reading and whatever cares about readings picks it up.
  *
  * A subscriber only sees events published after it existed, so subscribe before
- * publishing anything it needs to see.
+ * publishing anything it needs to see. An `EventBus` endpoint publishes and
+ * receives; an `EventPublisher` only publishes, so a part that announces and
+ * never reads holds one of those.
  *
  * @packageDocumentation
  */
 
-export { EventBus } from '@pamoja/native'
+export { EventBus, EventPublisher } from '@pamoja/native'

@@ -565,35 +565,97 @@ export declare class DutyCycle {
 /**
  * One endpoint on an event bus.
  *
- * An endpoint both publishes and receives. Each subscriber needs its own, taken
- * with `subscribe`, because an endpoint only sees events published after it
- * existed.
+ * An endpoint both publishes and receives, and it receives what it publishes
+ * itself. Each subscriber needs its own, taken with `subscribe`, because an
+ * endpoint only sees events published after it existed. Only `next` and
+ * `nextText` wait: publishing and subscribing return at once, even while a
+ * `next` on the same endpoint is waiting.
  */
 export declare class EventBus {
   /**
    * Creates an event bus.
    *
    * @param capacity - how many events a slow subscriber may fall behind
-   *   before it starts missing them.
+   *   before it starts missing them, rounded up to the next power of two and
+   *   at most 1048576; 64 when not given.
    */
-  constructor(capacity: number)
+  constructor(capacity?: number | undefined | null)
   /**
    * Takes another endpoint on the same bus.
    *
    * The new endpoint sees events published from now on, not those already
    * sent, so subscribe before publishing anything it needs to see.
    */
-  subscribe(): Promise<EventBus>
-  /** Publishes an event to every subscriber: bytes, or text such as an event name. */
-  publish(event: Buffer | string): Promise<void>
-  /** Waits for the next event on this endpoint, or `null` once the bus closes. */
-  next(): Promise<Buffer | null>
+  subscribe(): EventBus
   /**
-   * Waits for the next event as text, or `null` once the bus closes.
+   * Takes a publish-only handle on the same bus, for a part that announces and
+   * never reads.
+   */
+  publisher(): EventPublisher
+  /**
+   * Publishes an event to every subscriber, this endpoint included: bytes, or
+   * text such as an event name.
+   *
+   * It never waits: a subscriber that has fallen behind loses its oldest event
+   * rather than holding up the publisher.
+   */
+  publish(event: Buffer | string): void
+  /**
+   * Waits for the next event on this endpoint.
+   *
+   * @param timeoutMs - how long to wait before throwing; the next event is then
+   *   left for the next call. Without it, the wait lasts until an event arrives.
+   */
+  next(timeoutMs?: number | undefined | null): Promise<Buffer>
+  /**
+   * Waits for the next event as text.
    *
    * Throws if the event is not UTF-8 text.
+   *
+   * @param timeoutMs - how long to wait before throwing; the next event is then
+   *   left for the next call. Without it, the wait lasts until an event arrives.
    */
-  nextText(): Promise<string | null>
+  nextText(timeoutMs?: number | undefined | null): Promise<string>
+  /**
+   * How many events this endpoint lost by falling behind, as of its last
+   * completed wait.
+   */
+  get missed(): number
+}
+
+/**
+ * A publish-only handle to an event bus.
+ *
+ * It has no queue of its own, so a part that only announces never fills a
+ * buffer it does not read, and publishing from it returns how many subscribers
+ * the event was handed to.
+ */
+export declare class EventPublisher {
+  /**
+   * Creates a bus with no subscribers yet, and a publisher on it.
+   *
+   * @param capacity - how many events a slow subscriber may fall behind
+   *   before it starts missing them, rounded up to the next power of two and
+   *   at most 1048576; 64 when not given.
+   */
+  constructor(capacity?: number | undefined | null)
+  /**
+   * Hands an event to every current subscriber: bytes, or text such as an
+   * event name.
+   *
+   * It never waits.
+   *
+   * @returns How many subscribers the event was handed to; an event published
+   *   while no one is subscribed is dropped, and this is 0.
+   */
+  publish(event: Buffer | string): number
+  /**
+   * Subscribes to the bus, returning an endpoint that sees events published
+   * from now on.
+   */
+  subscribe(): EventBus
+  /** Takes another publisher on the same bus, for another part that announces. */
+  publisher(): EventPublisher
 }
 
 /** The network side of one site: what a server does with what a gateway forwarded. */
@@ -2965,13 +3027,15 @@ export declare class Transport {
    *
    * `handlers` needs `connect()`, `send(topic, payload)`, and
    * `subscribe(topic)`, each returning a promise or nothing. A `recv()` that
-   * resolves to a message, or to `null` once the link has ended, makes it a
-   * link that delivers: it is called again as soon as it settles, from the
-   * moment the transport connects. Without `recv` the transport only sends,
-   * and a ladder never listens on it. The methods are called on `handlers`,
-   * so a class instance works as it is.
+   * resolves to a message, `{ topic, payload }` with the payload as a buffer or
+   * text, or to `null` once the link has ended, makes it a link that delivers:
+   * it is called again as soon as it settles, from the moment the transport
+   * connects. A `recv` that throws ends the link until the next connect, and the
+   * next receive rejects with what it threw. Without `recv` the transport only
+   * sends, and a ladder never listens on it. The methods are called on
+   * `handlers`, so a class instance works as it is.
    */
-  static fromHandlers(handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): TransportMessage | null | undefined | Promise<TransportMessage | null | undefined> }): Transport
+  static fromHandlers(handlers: { connect(): void | Promise<void>; send(topic: string, payload: Buffer): void | Promise<void>; subscribe(topic: string): void | Promise<void>; recv?(): DeliveredMessage | null | undefined | Promise<DeliveredMessage | null | undefined> }): Transport
   /**
    * Wraps a transport so its next `failures` sends fail.
    *
@@ -3843,6 +3907,17 @@ export interface Delegation {
    * epoch, or `0` to never expire.
    */
   expires: number
+}
+
+/**
+ * What a link's `recv` hands back: the topic a message arrived on, and its
+ * payload as bytes or as text.
+ */
+export interface DeliveredMessage {
+  /** The topic the message arrived on. */
+  topic: string
+  /** The payload: bytes, or text such as a command written out. */
+  payload: Buffer | string
 }
 
 /** What became of a message handed to a ladder. */

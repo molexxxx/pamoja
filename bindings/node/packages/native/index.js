@@ -806,6 +806,7 @@ module.exports.Dialect = nativeBinding.Dialect
 module.exports.Ds18b20Thermometer = nativeBinding.Ds18b20Thermometer
 module.exports.DutyCycle = nativeBinding.DutyCycle
 module.exports.EventBus = nativeBinding.EventBus
+module.exports.EventPublisher = nativeBinding.EventPublisher
 module.exports.GatewayNetwork = nativeBinding.GatewayNetwork
 module.exports.Geofence = nativeBinding.Geofence
 module.exports.GpioLine = nativeBinding.GpioLine

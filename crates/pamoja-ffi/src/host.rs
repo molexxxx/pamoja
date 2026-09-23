@@ -25,8 +25,11 @@
 //!   [`pamoja_message_new`], stores it in `out_message`, and returns
 //!   [`PamojaStatus::Ok`]; it stores null and returns [`PamojaStatus::Ok`] once
 //!   the link has ended and no further messages will arrive, which stops the
-//!   calls. Because it runs on its own thread, it may overlap with the other
-//!   three callbacks.
+//!   calls. A failure status stops them too, and the next receive through
+//!   pamoja reports that failure, with the text set by
+//!   [`pamoja_last_error_set`]. The next `connect` starts the calls again.
+//!   Because it runs on its own thread, it may overlap with the other three
+//!   callbacks.
 //! - `release` is optional. It is called once, after the transport is dropped and
 //!   after every callback still running has returned, so it may free whatever
 //!   `user_data` points at.
@@ -147,7 +150,7 @@ fn c_topic(topic: &str) -> Result<CString> {
 pub struct CallbackTransport {
     host: Arc<Host>,
     connected: bool,
-    inbox: Option<mpsc::UnboundedReceiver<Message>>,
+    inbox: Option<mpsc::UnboundedReceiver<Result<Message>>>,
     pump: Option<JoinHandle<()>>,
 }
 
@@ -158,7 +161,8 @@ impl CallbackTransport {
         self.host.callbacks.recv.is_some()
     }
 
-    /// Starts the thread that asks the host for messages until the link ends.
+    /// Starts the thread that asks the host for messages until the link ends or
+    /// `recv` fails, queueing a failure as the last thing it delivers.
     fn start_pump(&mut self) {
         let Some(recv) = self.host.callbacks.recv else {
             return;
@@ -183,10 +187,13 @@ impl CallbackTransport {
                     outcome(status).map(|()| delivered)
                 })
                 .await;
-                let Ok(Ok(Some(message))) = next else {
-                    break;
+                let delivered = match next {
+                    Ok(Ok(Some(message))) => Ok(message),
+                    Ok(Ok(None)) => break,
+                    Ok(Err(error)) | Err(error) => Err(error),
                 };
-                if sender.send(message).is_err() {
+                let failed = delivered.is_err();
+                if sender.send(delivered).is_err() || failed {
                     break;
                 }
             }
@@ -261,17 +268,20 @@ impl Receive for CallbackTransport {
     /// # Returns
     ///
     /// `Some(message)` for the next queued message; `None` once the host reported
-    /// the link ended, or at once for a host with no `recv`.
+    /// the link ended or after a failure was reported, or at once for a host with
+    /// no `recv`.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Closed`] if the transport is not connected.
+    /// Returns [`Error::Closed`] if the transport is not connected, and once the
+    /// failure the host's `recv` reported, after which it is called no more until
+    /// the next connect.
     async fn recv(&mut self) -> Result<Option<Message>> {
         if !self.connected {
             return Err(Error::Closed);
         }
         match self.inbox.as_mut() {
-            Some(inbox) => Ok(inbox.recv().await),
+            Some(inbox) => inbox.recv().await.transpose(),
             None => Ok(None),
         }
     }
@@ -407,7 +417,7 @@ mod tests {
         connects: Mutex<usize>,
         sent: Mutex<Vec<(String, Vec<u8>)>>,
         filters: Mutex<Vec<String>>,
-        inbox: Mutex<VecDeque<Option<Message>>>,
+        inbox: Mutex<VecDeque<std::result::Result<Option<Message>, &'static str>>>,
         ready: Condvar,
         refuse_sends: AtomicBool,
         released: Arc<AtomicBool>,
@@ -415,7 +425,12 @@ mod tests {
 
     impl FakeHost {
         fn deliver(&self, next: Option<Message>) {
-            self.inbox.lock().expect("inbox").push_back(next);
+            self.inbox.lock().expect("inbox").push_back(Ok(next));
+            self.ready.notify_all();
+        }
+
+        fn fail(&self, reason: &'static str) {
+            self.inbox.lock().expect("inbox").push_back(Err(reason));
             self.ready.notify_all();
         }
     }
@@ -461,7 +476,7 @@ mod tests {
             inbox = host.ready.wait(inbox).expect("inbox");
         }
         *out_message = match inbox.pop_front().expect("non-empty") {
-            Some(message) => {
+            Ok(Some(message)) => {
                 let topic = CString::new(message.topic).expect("topic");
                 pamoja_message_new(
                     topic.as_ptr(),
@@ -469,7 +484,12 @@ mod tests {
                     message.payload.len(),
                 )
             }
-            None => ptr::null_mut(),
+            Ok(None) => ptr::null_mut(),
+            Err(reason) => {
+                let reason = CString::new(reason).expect("static");
+                pamoja_last_error_set(reason.as_ptr());
+                return PamojaStatus::Transport;
+            }
         };
         PamojaStatus::Ok
     }
@@ -598,6 +618,40 @@ mod tests {
                 PamojaStatus::Ok
             );
             assert!(message.is_null());
+            pamoja_transport_free(transport);
+        }
+    }
+
+    #[test]
+    fn a_failed_recv_is_reported_once_and_the_next_connect_listens_again() {
+        unsafe {
+            let (host, callbacks, _released) = fake_host(true);
+            let transport = pamoja_transport_from_callbacks(&callbacks, host.cast());
+            assert_eq!(pamoja_transport_connect(transport), PamojaStatus::Ok);
+
+            (*host).fail("the modem lost its session");
+            let mut message = ptr::null_mut();
+            assert_eq!(
+                pamoja_transport_recv(transport, &mut message),
+                PamojaStatus::Transport
+            );
+            assert_eq!(last_error(), "transport error: the modem lost its session");
+            assert_eq!(
+                pamoja_transport_recv(transport, &mut message),
+                PamojaStatus::Ok
+            );
+            assert!(message.is_null());
+
+            assert_eq!(pamoja_transport_connect(transport), PamojaStatus::Ok);
+            (*host).deliver(Some(Message::new("commands/interval", b"900")));
+            assert_eq!(
+                pamoja_transport_recv(transport, &mut message),
+                PamojaStatus::Ok
+            );
+            assert!(!message.is_null());
+            pamoja_message_free(message);
+
+            (*host).deliver(None);
             pamoja_transport_free(transport);
         }
     }

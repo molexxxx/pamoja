@@ -49,7 +49,7 @@ Each module name opens its reference.
 | `pamoja-loopback` | [`pamoja.loopback`](https://pamoja.molex.cloud/docs/reference/python/pamoja/loopback.html) | An in-process transport with topic matching and a fault injector, for testing with no broker |
 | `pamoja-sync` | [`pamoja.sync`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sync.html) | Offline-first queues: in memory, and a crash-safe on-disk queue that survives power loss |
 | `pamoja-ladder` | [`pamoja.ladder`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ladder.html) | Cheapest reachable link first, buffering to a store when every link is down |
-| `pamoja-bus` | [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) | An in-memory typed publish and subscribe event bus |
+| `pamoja-bus` | [`pamoja.bus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/bus.html) | An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss |
 | `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version |
 | `pamoja-core` | [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html) | A link pamoja does not ship, written in your language against the transport contract and composed like any other |
 | `pamoja-sim` | [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) | Noisy and replay sensors, a recording actuator, and a simulated robot that dead-reckons its pose |

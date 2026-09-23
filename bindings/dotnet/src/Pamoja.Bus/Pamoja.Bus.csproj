@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Bus</PackageId>
     <AssemblyName>Pamoja.Bus</AssemblyName>
     <RootNamespace>Pamoja.Bus</RootNamespace>
-    <Description>An in-memory typed publish and subscribe event bus.</Description>
+    <Description>An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss.</Description>
     <PackageTags>pamoja;iot;robotics;bus</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/bus.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,7 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Pamoja.Codec/Pamoja.Codec.csproj" />
     <ProjectReference Include="../Pamoja.Native/Pamoja.Native.csproj" />
   </ItemGroup>
 

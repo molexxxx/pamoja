@@ -2387,10 +2387,17 @@ typedef struct PamojaDs18b20Thermometers PamojaDs18b20Thermometers;
 
 // An opaque handle to one endpoint on an event bus.
 //
-// A handle both publishes and receives. Each subscriber needs its own, taken
-// with [`pamoja_event_bus_subscribe`], because a handle only sees events
-// published after it existed.
+// A handle both publishes and receives, and it receives what it publishes
+// itself. Each subscriber needs its own, taken with
+// [`pamoja_event_bus_subscribe`], because a handle only sees events published
+// after it existed.
 typedef struct PamojaEventBus PamojaEventBus;
+
+// An opaque handle that publishes to a bus and has no queue of its own.
+//
+// A part that only announces holds one of these rather than an endpoint, so it
+// never fills a buffer it does not read.
+typedef struct PamojaEventPublisher PamojaEventPublisher;
 
 // An opaque handle to the frames one call to a streaming decoder completed.
 //
@@ -5936,7 +5943,8 @@ PamojaStatus pamoja_audit_verify_chain(const uint8_t *public_key,
 // # Arguments
 //
 // * `capacity` - how many events a slow subscriber may fall behind before it
-//   starts missing them.
+//   starts missing them, rounded up to the next power of two and at most
+//   1048576.
 //
 // # Returns
 //
@@ -5963,7 +5971,26 @@ PamojaEventBus *pamoja_event_bus_new(uintptr_t capacity);
 // or null.
 PamojaEventBus *pamoja_event_bus_subscribe(const PamojaEventBus *bus);
 
-// Publishes an event to every subscriber.
+// Takes a publish-only handle on the same bus.
+//
+// # Arguments
+//
+// * `bus` - an existing endpoint on the bus.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_event_publisher_free`], or
+// null if `bus` is null.
+//
+// # Safety
+//
+// `bus` must be a live handle, or null.
+PamojaEventPublisher *pamoja_event_bus_publisher(const PamojaEventBus *bus);
+
+// Publishes an event to every subscriber, this endpoint included.
+//
+// The call never waits: a subscriber that has fallen behind loses its oldest
+// event rather than holding up the publisher.
 //
 // # Arguments
 //
@@ -5973,8 +6000,7 @@ PamojaEventBus *pamoja_event_bus_subscribe(const PamojaEventBus *bus);
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`] once every subscriber has been handed the event, or
-// [`PamojaStatus::Closed`] if the bus has shut down.
+// [`PamojaStatus::Ok`] once every subscriber has been handed the event.
 //
 // # Safety
 //
@@ -5986,20 +6012,69 @@ PamojaStatus pamoja_event_bus_publish(const PamojaEventBus *bus,
 
 // Waits for the next event on this endpoint.
 //
+// The endpoint holds a publisher of its own, so the bus stays open while it
+// exists and the call waits until an event arrives. Two calls on one endpoint
+// take turns.
+//
 // # Arguments
 //
 // * `bus` - the endpoint to receive on.
-// * `out_event` - receives a buffer handle, or null when the bus has closed.
+// * `out_event` - receives a buffer handle the caller must release with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free).
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`] on success. A null `out_event` with an `Ok` status means
-// the bus closed rather than that anything failed.
+// [`PamojaStatus::Ok`] on success.
 //
 // # Safety
 //
 // `bus` must be a live handle and `out_event` must be writable.
-PamojaStatus pamoja_event_bus_next(PamojaEventBus *bus, PamojaBuffer **out_event);
+PamojaStatus pamoja_event_bus_next(const PamojaEventBus *bus, PamojaBuffer **out_event);
+
+// Waits for the next event on this endpoint, giving up after a time limit.
+//
+// A wait that runs out takes no event, so the next one published is left for
+// the next call.
+//
+// # Arguments
+//
+// * `bus` - the endpoint to receive on.
+// * `timeout_ms` - how long to wait, in milliseconds, including any wait for
+//   another call on this endpoint to finish. A limit too far off to schedule
+//   waits as [`pamoja_event_bus_next`] does.
+// * `out_event` - receives a buffer handle the caller must release with
+//   [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null when the time
+//   ran out.
+// * `out_timed_out` - receives `true` when the time ran out.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] whether an event arrived or the time ran out.
+//
+// # Safety
+//
+// `bus` must be a live handle, and `out_event` and `out_timed_out` must be
+// writable.
+PamojaStatus pamoja_event_bus_next_within(const PamojaEventBus *bus,
+                                          uint64_t timeout_ms,
+                                          PamojaBuffer **out_event,
+                                          bool *out_timed_out);
+
+// Counts the events this endpoint lost by falling behind.
+//
+// # Arguments
+//
+// * `bus` - the endpoint to ask.
+//
+// # Returns
+//
+// How many events were dropped from this endpoint's buffer before it read
+// them, as of its last completed wait, or 0 if `bus` is null.
+//
+// # Safety
+//
+// `bus` must be a live handle, or null.
+uint64_t pamoja_event_bus_missed(const PamojaEventBus *bus);
 
 // Releases an event bus endpoint.
 //
@@ -6009,10 +6084,95 @@ PamojaStatus pamoja_event_bus_next(PamojaEventBus *bus, PamojaBuffer **out_event
 //
 // # Safety
 //
-// `bus` must be a handle from [`pamoja_event_bus_new`] or
-// [`pamoja_event_bus_subscribe`] that has not already been freed, or null.
-// After this call it must not be used again.
+// `bus` must be a handle from [`pamoja_event_bus_new`],
+// [`pamoja_event_bus_subscribe`], or [`pamoja_event_publisher_subscribe`] that
+// has not already been freed, or null. After this call it must not be used
+// again.
 void pamoja_event_bus_free(PamojaEventBus *bus);
+
+// Creates a bus with no subscribers yet, and a publisher on it.
+//
+// # Arguments
+//
+// * `capacity` - how many events a slow subscriber may fall behind before it
+//   starts missing them, rounded up to the next power of two and at most
+//   1048576.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_event_publisher_free`].
+PamojaEventPublisher *pamoja_event_publisher_new(uintptr_t capacity);
+
+// Hands an event to every current subscriber.
+//
+// The call never waits, and it may be made from any thread.
+//
+// # Arguments
+//
+// * `publisher` - the publisher.
+// * `payload` - the event bytes.
+// * `payload_len` - the length of `payload`.
+// * `out_reached` - receives how many subscribers the event was handed to; an
+//   event published while no one is subscribed is dropped, and this is 0.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] on success.
+//
+// # Safety
+//
+// `publisher` must be a live handle, `payload` must point to at least
+// `payload_len` readable bytes or be null when that length is 0, and
+// `out_reached` must be writable.
+PamojaStatus pamoja_event_publisher_publish(const PamojaEventPublisher *publisher,
+                                            const uint8_t *payload,
+                                            uintptr_t payload_len,
+                                            uintptr_t *out_reached);
+
+// Subscribes to the bus a publisher publishes on.
+//
+// # Arguments
+//
+// * `publisher` - the publisher.
+//
+// # Returns
+//
+// An endpoint that receives events published from now on, which the caller must
+// release with [`pamoja_event_bus_free`], or null if `publisher` is null.
+//
+// # Safety
+//
+// `publisher` must be a live handle, or null.
+PamojaEventBus *pamoja_event_publisher_subscribe(const PamojaEventPublisher *publisher);
+
+// Takes another publisher on the same bus, for another part that announces.
+//
+// # Arguments
+//
+// * `publisher` - an existing publisher on the bus.
+//
+// # Returns
+//
+// A handle with a lifetime of its own, which the caller must release with
+// [`pamoja_event_publisher_free`], or null if `publisher` is null.
+//
+// # Safety
+//
+// `publisher` must be a live handle, or null.
+PamojaEventPublisher *pamoja_event_publisher_clone(const PamojaEventPublisher *publisher);
+
+// Releases a publisher.
+//
+// The bus stays open for the endpoints still on it.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `publisher` must be a handle from [`pamoja_event_publisher_new`],
+// [`pamoja_event_publisher_clone`], or [`pamoja_event_bus_publisher`] that has not
+// already been freed, or null. After this call it must not be used again.
+void pamoja_event_publisher_free(PamojaEventPublisher *publisher);
 
 // Builds a classic CAN 2.0 frame.
 //

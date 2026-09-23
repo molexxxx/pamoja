@@ -9,6 +9,14 @@ namespace Pamoja.Core;
 /// <param name="Payload">The raw payload bytes.</param>
 public sealed record TransportMessage(string Topic, byte[] Payload)
 {
+    /// <summary>Creates a message whose payload is text, such as a command written out.</summary>
+    /// <param name="topic">The topic it was published to.</param>
+    /// <param name="text">The payload, sent as UTF-8.</param>
+    public TransportMessage(string topic, string text)
+        : this(topic, System.Text.Encoding.UTF8.GetBytes(text))
+    {
+    }
+
     /// <summary>Gets the payload as text: words, or a number written out.</summary>
     public string Text => System.Text.Encoding.UTF8.GetString(Payload);
 
