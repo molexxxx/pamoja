@@ -466,6 +466,12 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The ros-bridge CI job now selects `rmw_zenoh` and runs the interop test that publishes
+  a `Twist` from a ROS 2 node into a plain pamoja Zenoh peer, so the claim that the bridge
+  is checked against `rmw_zenoh` is backed by a passing run. The test had carried a note
+  blaming its publisher's lifetime for a failure; it passes as written once the RMW is told
+  not to wait for a router and both peers scout by multicast, which is how `cargo xtask ros`
+  has run it.
 - `relay::t_offset_ms` now takes the end of a wake-on-radio frame's preamble
   rather than a time on air and a symbol time. An end device works out when its
   relay scanned by taking the offset off the end of its preamble, so that is where
