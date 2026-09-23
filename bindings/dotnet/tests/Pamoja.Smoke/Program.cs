@@ -382,6 +382,37 @@ static async Task AsyncTransports()
     {
     }
 
+    // A shipped link goes on as an uplink too, and a broker out of reach refuses its
+    // links, a ladder's among them, until it is back.
+    using var near = new LoopbackBroker();
+    using var far = new LoopbackBroker();
+    using LoopbackTransport ashore = far.Link();
+    await ashore.ConnectAsync();
+    await ashore.SubscribeAsync("reports");
+    using var reach = new Ladder(Store.Memory());
+    reach.Rung(near.Rung());
+    reach.Uplink(far.Rung());
+    await reach.ConnectAsync();
+    await reach.SubscribeAsync("orders");
+    near.Reachable = false;
+    Assert(!near.Reachable, "the broker says it is out of reach");
+    Assert(await reach.SendAsync("reports", "1") == Delivery.Sent, "the uplink carried it");
+    Assert((await ashore.ReceiveAsync(TimeSpan.FromSeconds(5)))?.Text == "1", "ashore");
+    await ashore.SendAsync("orders", "stop");
+    try
+    {
+        await reach.ReceiveAsync(TimeSpan.FromMilliseconds(20));
+        Fail("an uplink is never listened on");
+    }
+    catch (TimeoutException)
+    {
+    }
+
+    far.Reachable = false;
+    Assert(await reach.SendAsync("reports", "2") == Delivery.Buffered, "every link out of reach");
+    near.Reachable = true;
+    Assert(await reach.FlushAsync() == 1, "the backlog went out once a link was back");
+
     // A handler that throws reports its reason to the caller.
     using var failing = Transport.FromHandlers(new RefusingLink());
     await failing.ConnectAsync();

@@ -249,7 +249,7 @@ Console.WriteLine(
 ## Where next
 
 <!-- table: next sim -->
-- [Loopback](loopback.md): An in-process transport with topic matching and a fault injector, for testing with no broker.
+- [Loopback](loopback.md): An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker.
 - [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
 - [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
 - Also in Transports and testing: [MQTT](mqtt.md), [CoAP](coap.md), [Store and forward](sync.md), [Transport ladder](ladder.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md).

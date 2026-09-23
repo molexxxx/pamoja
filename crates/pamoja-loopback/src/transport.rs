@@ -82,6 +82,7 @@ impl LoopbackTransport {
 
 impl Transport for LoopbackTransport {
     async fn connect(&mut self) -> Result<()> {
+        self.broker.in_reach()?;
         let (sender, receiver) = mpsc::unbounded_channel();
         self.broker.register(Arc::clone(&self.filters), sender);
         self.incoming = Some(receiver);
@@ -92,6 +93,7 @@ impl Transport for LoopbackTransport {
         if self.incoming.is_none() {
             return Err(Error::Closed);
         }
+        self.broker.in_reach()?;
         self.broker.publish(&Message::new(topic, payload));
         Ok(())
     }
@@ -100,6 +102,7 @@ impl Transport for LoopbackTransport {
         if self.incoming.is_none() {
             return Err(Error::Closed);
         }
+        self.broker.in_reach()?;
         self.filters
             .lock()
             .expect("filters lock")
@@ -261,6 +264,38 @@ mod tests {
         subscriber.send("t", b"here").await.expect("send");
         let message = subscriber.recv().await.expect("recv").expect("a message");
         assert_eq!(message.payload, b"here");
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_broker_refuses_its_links_until_it_is_back() {
+        let broker = LoopbackBroker::new();
+        let mut listener = LoopbackTransport::new(broker.clone());
+        let mut node = LoopbackTransport::new(broker.clone());
+        listener.connect().await.expect("connect");
+        node.connect().await.expect("connect");
+        listener.subscribe("t").await.expect("subscribe");
+
+        broker.set_reachable(false);
+        assert!(!broker.is_reachable());
+        for refused in [
+            node.send("t", b"lost").await,
+            node.subscribe("u").await,
+            LoopbackTransport::new(broker.clone()).connect().await,
+        ] {
+            match refused {
+                Err(Error::Transport(reason)) => assert_eq!(reason, "the broker is out of reach"),
+                other => panic!("an unreachable broker allowed {other:?}"),
+            }
+        }
+        assert!(node.is_connected(), "an outage keeps the connection");
+
+        broker.set_reachable(true);
+        node.send("t", b"back").await.expect("send");
+        let message = listener.recv().await.expect("recv").expect("a message");
+        assert_eq!(
+            message.payload, b"back",
+            "nothing sent during the outage arrives"
+        );
     }
 
     #[tokio::test]

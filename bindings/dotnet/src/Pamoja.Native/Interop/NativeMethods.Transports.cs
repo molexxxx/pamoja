@@ -208,6 +208,17 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_loopback_broker_new();
 
+    /// <summary>Takes a broker out of reach, or brings it back.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_loopback_broker_set_reachable(
+        IntPtr broker,
+        [MarshalAs(UnmanagedType.U1)] bool reachable);
+
+    /// <summary>Reports whether a broker is in reach.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_loopback_broker_is_reachable(IntPtr broker);
+
     /// <summary>Releases a broker handle.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_loopback_broker_free(IntPtr broker);
@@ -307,6 +318,10 @@ public static partial class NativeMethods
     /// <summary>Adds a rung to a ladder.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_ladder_rung(IntPtr ladder, IntPtr transport);
+
+    /// <summary>Adds a rung that only sends to a ladder.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ladder_uplink(IntPtr ladder, IntPtr transport);
 
     /// <summary>Connects every rung of a ladder.</summary>
     [LibraryImport(Library)]

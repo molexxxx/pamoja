@@ -2066,6 +2066,29 @@ async function asyncTransports() {
   assert.deepStrictEqual(carried, ["21.6"], "an uplink carries sends");
   await assert.rejects(() => oneWay.recv(), /closed/, "and is never listened on");
 
+  // A shipped link goes on as an uplink too, and a broker out of reach refuses its
+  // links, a ladder's among them, until it is back.
+  const near = new loopback.LoopbackBroker();
+  const far = new loopback.LoopbackBroker();
+  const ashore = far.link();
+  await ashore.connect();
+  await ashore.subscribe("reports");
+  const reach = new ladder.Ladder(sync.Store.memory());
+  await reach.rung(near.rung());
+  await reach.uplink(far.rung());
+  await reach.connect();
+  await reach.subscribe("orders");
+  near.reachable = false;
+  assert.strictEqual(near.reachable, false);
+  assert.strictEqual(await reach.send("reports", "1"), ladder.Delivery.Sent);
+  assert.strictEqual((await ashore.recv(5000)).text, "1", "the uplink carried it");
+  await ashore.send("orders", "stop");
+  await assert.rejects(() => reach.recv(20), /no message arrived/, "an uplink is never listened on");
+  far.reachable = false;
+  assert.strictEqual(await reach.send("reports", "2"), ladder.Delivery.Buffered);
+  near.reachable = true;
+  assert.strictEqual(await reach.flush(), 1, "the backlog went out once a link was back");
+
   // A handler that throws reports its reason, and a handler set missing a method
   // is refused up front.
   const refusing = new ladder.Ladder(sync.Store.memory());

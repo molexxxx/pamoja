@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/loopback",
   "version": "0.1.18",
-  "description": "An in-process transport with topic matching and a fault injector, for testing with no broker.",
+  "description": "An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

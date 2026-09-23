@@ -198,6 +198,20 @@ released together, so one entry covers all of them.
   all four languages: a reading out, a command back, a refused send passed to the satellite,
   a lost session reported, and a reconnect. Its tables cover the contract in each language
   and what a ladder does with what a link does.
+- A ladder takes any link as an uplink in TypeScript, Python, and C#, as `uplink` does in
+  Rust: `ladder.uplink(transport)` and `ladder.Uplink(transport)`, and
+  `pamoja_ladder_uplink` in the C ABI. Before, only a link written without a receive went on
+  as one.
+- A loopback broker can be taken out of reach and brought back: `set_reachable` and
+  `is_reachable` in Rust, `reachable` in TypeScript and Python, `Reachable` in C#, and the
+  matching C ABI calls. Every link on it, links a ladder owns included, fails to connect,
+  send, or subscribe with `transport error: the broker is out of reach` until it is back, so
+  a test takes a network away from a node without reaching into the node.
+- The transport ladder guide rewritten around a fishing vessel whose reports go ashore over
+  harbor wifi, the coast's cellular network, or a satellite as each falls out of reach, a
+  backlog held through a storm, and orders from shore, printing the same nine lines in all
+  four languages. Its tables cover the calls in each language, what a send does in each
+  state, the stores a ladder buffers into, and what each error means.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -709,6 +723,8 @@ released together, so one entry covers all of them.
 - An event bus holds at most 1,048,576 events, `pamoja_bus::MAX_CAPACITY`, and a larger
   capacity is lowered to it rather than allocated. Its documentation now says a capacity is
   rounded up to the next power of two, which the channel underneath always did.
+- A ladder's receive in TypeScript and C# gives the message rather than a message or null,
+  since a ladder with nothing to listen on reports `resource is closed` rather than ending.
 - An exception from a link written in Python reaches the caller as its message,
   `transport error: no signal`, as in the other languages, rather than with its type in
   front; one with no message names its type.

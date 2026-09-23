@@ -419,7 +419,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-loopback">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">Pamoja.Loopback</code><p>An in-process transport with topic matching and a fault injector, for testing with no broker</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/loopback.html">Loopback</a><code class="pkg-import">Pamoja.Loopback</code><p>An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Loopback</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Loopback" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

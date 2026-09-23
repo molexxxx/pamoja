@@ -48,18 +48,17 @@ impl Ladder {
     /// is consumed. A transport that delivers is subscribed and listened on; a
     /// host transport without `recv` is an uplink the ladder never listens on.
     fn rung<'py>(&self, py: Python<'py>, transport: &PyTransport) -> PyResult<Bound<'py, PyAny>> {
-        let transport = transport.take()?;
-        let inner = Arc::clone(&self.inner);
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let mut guard = inner.lock().await;
-            let ladder = guard.take().ok_or_else(unusable)?;
-            *guard = Some(if transport.listens() {
-                ladder.rung(transport)
-            } else {
-                ladder.uplink(transport)
-            });
-            Ok(())
-        })
+        self.add(py, transport, false)
+    }
+
+    /// Adds a rung that only sends, tried after the rungs already added.
+    ///
+    /// The ladder sends over it in its turn but never subscribes it or listens on
+    /// it, whatever the transport could do: a satellite messenger, a LoRa uplink, or
+    /// any link a node reports over but takes no commands from. The transport is
+    /// consumed.
+    fn uplink<'py>(&self, py: Python<'py>, transport: &PyTransport) -> PyResult<Bound<'py, PyAny>> {
+        self.add(py, transport, true)
     }
 
     /// Connects every rung, so a send can be tried against each in turn.
@@ -139,18 +138,44 @@ impl Ladder {
     /// delivers first.
     ///
     /// Raises if no connected rung listens: none was added, the ladder is not
-    /// connected, or every listening link has ended. The ladder is held while
-    /// waiting, so a send from elsewhere waits behind the receive.
+    /// connected, or every listening link has ended. The ladder does one thing at
+    /// a time, so a send waits behind a receive in progress; a node that listens
+    /// and reports waits with `asyncio.wait_for` and sends between waits.
     fn recv<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut guard = inner.lock().await;
             let ladder = guard.as_mut().ok_or_else(unusable)?;
             let received = ladder.recv().await.map_err(to_pyerr)?;
-            Ok(received.map(|message| Message {
+            let message = received.ok_or_else(|| to_pyerr(pamoja_core::Error::Closed))?;
+            Ok(Message {
                 topic: message.topic,
                 payload: message.payload,
-            }))
+            })
+        })
+    }
+}
+
+impl Ladder {
+    /// Moves a transport onto the ladder, as an uplink when asked or when it cannot
+    /// deliver, and as a rung that is listened on otherwise.
+    fn add<'py>(
+        &self,
+        py: Python<'py>,
+        transport: &PyTransport,
+        uplink: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let transport = transport.take()?;
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut guard = inner.lock().await;
+            let ladder = guard.take().ok_or_else(unusable)?;
+            *guard = Some(if uplink || !transport.listens() {
+                ladder.uplink(transport)
+            } else {
+                ladder.rung(transport)
+            });
+            Ok(())
         })
     }
 }

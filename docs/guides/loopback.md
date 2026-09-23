@@ -366,6 +366,12 @@ catch (PamojaException error)
 | is it connected | `link.is_connected()` | `await link.isConnected()` | `await link.is_connected()` | `await link.IsConnectedAsync()` |
 | disconnect | `link.disconnect()` | `await link.disconnect()` | `await link.disconnect()` | `await link.DisconnectAsync()` |
 | fail the next sends | `Faulty::new(link, n)`, then `fail_next(n)` | `Transport.faulty(broker.rung(), n)` | `Transport.faulty(broker.rung(), n)` | `Transport.Faulty(broker.Rung(), n)` |
+| take every link out of reach | `broker.set_reachable(false)` | `broker.reachable = false` | `broker.reachable = False` | `broker.Reachable = false` |
+
+Out of reach, every link on the broker fails to connect, send, or subscribe with `transport
+error: the broker is out of reach`, including links a ladder or a wrapper now owns, and keeps its
+connection and filters until the broker is back. The [Transport ladder](ladder.md) guide takes
+three networks out of reach this way.
 
 **How a filter matches a topic.** The rules are MQTT's, from sections 4.7.1 and 4.7.2 of the
 OASIS MQTT 3.1.1 standard, and they are the same on the loopback as on a broker:
