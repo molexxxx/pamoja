@@ -12,7 +12,7 @@
 
 use std::path::Path;
 use std::process::ExitCode;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::OutputPin;
@@ -34,7 +34,6 @@ use pamoja_radios::sx1302::timestamp::Counter;
 use pamoja_radios::sx1302::tx::TxStatus as ChainStatus;
 use pamoja_radios::sx1302::tx::{gain_for, start_delay, Chain, FrontEnd, Gain, Transmit, Trigger};
 use pamoja_radios::sx1302::{Sx1261, Sx1302};
-use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 
 /// How long to wait between asking the concentrator what it heard.
@@ -322,7 +321,7 @@ enum Outcome {
 /// the concentrator reports on one that does.
 fn program<SPI, RESET, D, LS, LR, LD>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    companion: Option<&mut Companion<'_, LS, LR, LD>>,
+    mut companion: Option<&mut Companion<'_, LS, LR, LD>>,
     downlink: &Prepared,
 ) -> Result<bool, String>
 where

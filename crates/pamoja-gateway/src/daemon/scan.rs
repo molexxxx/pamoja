@@ -352,6 +352,6 @@ mod tests {
         assert!(
             text.starts_with("spectral scan 868100000 Hz, from -3 dBm down in 4 dB steps: 0 1 2 ")
         );
-        assert_eq!(text.split(' ').count(), 11 + LEVELS);
+        assert_eq!(text.split(' ').count(), 12 + LEVELS);
     }
 }

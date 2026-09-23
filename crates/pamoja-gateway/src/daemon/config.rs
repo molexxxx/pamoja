@@ -1157,7 +1157,11 @@ mod tests {
     #[test]
     fn a_survey_reads_its_run_of_channels_and_its_pace() {
         let config = Config::parse(&checking(SURVEY)).expect("a complete section");
-        let radio = config.concentrator.sx1261.expect("the radio is there");
+        let radio = config
+            .concentrator
+            .sx1261
+            .as_ref()
+            .expect("the radio is there");
         assert!(radio.listen_before_talk.is_none());
         assert_eq!(radio.rssi_offset_db, 0, "the offset defaults to none");
         assert_eq!(
