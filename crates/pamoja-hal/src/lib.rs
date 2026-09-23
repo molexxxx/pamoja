@@ -31,6 +31,9 @@
 //!   over the kernel's adapter, simulated parts, or a script, with a delay that sleeps
 //!   only when real parts are on the other end. It is what a language binding hands a
 //!   driver.
+//! - `port` (feature `std`) is one serial port shared the same way, over the kernel's
+//!   serial device, a looped line, a null-modem pair, a simulated device, or a script,
+//!   with reads that wait for real bytes and only count the wait anywhere else.
 //!
 //! # Examples
 //!
@@ -60,6 +63,8 @@ pub mod bus;
 #[cfg(all(feature = "linux", target_os = "linux"))]
 pub mod linux;
 pub mod onewire;
+#[cfg(feature = "std")]
+pub mod port;
 #[cfg(feature = "alloc")]
 pub mod script;
 pub mod sim;

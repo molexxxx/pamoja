@@ -72,6 +72,8 @@ mod mesh;
 mod modbus;
 #[cfg(feature = "mqtt")]
 mod mqtt;
+#[cfg(feature = "hal")]
+mod port;
 #[cfg(feature = "power")]
 mod power;
 #[cfg(feature = "profile")]
@@ -244,6 +246,11 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<hal::CommandPart>()?;
         m.add_class::<hal::I2cStep>()?;
         m.add_class::<hal::I2cBus>()?;
+        m.add_class::<port::SerialStep>()?;
+        m.add_class::<port::SerialPort>()?;
+        m.add_function(wrap_pyfunction!(port::serial_bits_per_character, m)?)?;
+        m.add_function(wrap_pyfunction!(port::serial_character_nanos, m)?)?;
+        m.add_function(wrap_pyfunction!(port::serial_transfer_micros, m)?)?;
     }
     #[cfg(feature = "sensors")]
     {

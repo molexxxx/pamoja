@@ -8,6 +8,7 @@ var programs = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["raspberry-pi/probes"] = () => { Probes.Run(); return Task.CompletedTask; },
     ["raspberry-pi/relay"] = () => { Relay.Run(); return Task.CompletedTask; },
     ["raspberry-pi/rig"] = () => { Rig.Run(); return Task.CompletedTask; },
+    ["raspberry-pi/uart"] = () => { Uart.Run(); return Task.CompletedTask; },
     ["raspberry-pi/radio"] = () => { Radio.Run(); return Task.CompletedTask; },
 };
 

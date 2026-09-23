@@ -1129,6 +1129,8 @@ toolchain for C.
   [actuator drivers](../guides/actuators.md#on-a-board), for every shipped part,
   each with a program for this board: an air sensor with soil probes, and a pan
   and tilt head from a PCA9685 and a 28BYJ-48.
+- [Serial framing](../guides/serial.md#on-a-board), for the UART on GPIO14 and
+  GPIO15, checked with one jumper wire, and which UART each model puts there.
 - [Your own device](../guides/device.md), for a part pamoja has never heard of.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,

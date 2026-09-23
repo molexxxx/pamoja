@@ -67,6 +67,7 @@ dependencies = [
  "pamoja-profile",
  "pamoja-radios",
  "pamoja-sensors",
+ "pamoja-serial",
  "tokio",
 ]
 
@@ -661,6 +662,10 @@ dependencies = [
  "pamoja-core",
  "pamoja-hal",
 ]
+
+[[package]]
+name = "pamoja-serial"
+version = "0.1.18"
 
 [[package]]
 name = "pamoja-session"

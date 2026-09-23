@@ -219,7 +219,7 @@ tags = [
   { text = "CAN / J1939", state = "ships", crate = "pamoja-can" },
   { text = "serial (SLIP / COBS)", state = "ships", crate = "pamoja-serial" },
   { text = "GPIO / I2C / SPI", state = "ships", crate = "pamoja-gpio" },
-  { text = "buses (embedded-hal, 1-Wire)", state = "ships", crate = "pamoja-hal" },
+  { text = "buses (embedded-hal, 1-Wire, serial ports)", state = "ships", crate = "pamoja-hal" },
   { text = "sensor drivers", state = "ships", crate = "pamoja-sensors" },
   { text = "actuator drivers", state = "ships", crate = "pamoja-actuators" },
   { text = "device profiles", state = "ships", crate = "pamoja-profile" },

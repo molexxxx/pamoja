@@ -223,7 +223,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-hal">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">pamoja-hal</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus a program and its drivers share, and delays that sleep or only count</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">pamoja-hal</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus and one serial port a program and its drivers share, and delays that sleep or only count</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-hal</code><button class="copy" type="button" data-copy="cargo add pamoja-hal" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

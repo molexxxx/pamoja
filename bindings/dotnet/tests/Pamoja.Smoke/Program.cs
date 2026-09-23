@@ -79,6 +79,7 @@ Buses();
 SensorDrivers();
 ActuatorDrivers();
 StepperDrivers();
+SerialPorts();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1361,6 +1362,59 @@ static void ActuatorDrivers()
 
     Refuses(() => board.SetChannel(16, Pwm.FullOn()), "a channel the part does not have");
     Refuses(() => board.SoftwareReset(), "nothing on a simulated bus answers the general call");
+}
+
+// A serial port over each kind of line a test reaches: a pair carries bytes both ways, a
+// looped line reads back what it wrote, a script refuses a write it did not expect, and a read
+// with nothing coming returns at once and counts its timeout.
+static void SerialPorts()
+{
+    var modbus = new SerialSettings(9_600, Parity.Even);
+    Assert(modbus.ToString() == "9600 8E1", "the manual's way of writing it");
+    Assert(modbus.BitsPerCharacter == 11, "start, eight data, parity, stop");
+    Assert(modbus.CharacterNanos == 1_145_834, "eleven bits at 9600");
+    Assert(modbus.TransferMicros(8) == 9_167, "an eight-byte request");
+
+    var (gateway, node) = SerialPort.Pair(new SerialSettings(115_200));
+    using (gateway)
+    using (node)
+    {
+        node.Write("t=21.5"u8);
+        Assert(gateway.Read(16, TimeSpan.FromMilliseconds(100)).SequenceEqual("t=21.5"u8.ToArray()), "one end reads the other");
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        Assert(gateway.Read(16, TimeSpan.FromMilliseconds(250)).Length == 0, "nothing more is coming");
+        Assert(started.ElapsedMilliseconds < 200, "a simulated read does not wait");
+        Assert(gateway.WaitedMicros == 250_000, "the timeout is counted");
+        Assert(gateway.Kind == SerialPortKind.Paired, "a paired end");
+        Assert(gateway.Settings == new SerialSettings(115_200), "the settings come back");
+    }
+
+    using (var line = SerialPort.Looped(modbus))
+    {
+        line.Write([1, 2, 3]);
+        Assert(line.Read(2, TimeSpan.Zero).SequenceEqual(new byte[] { 1, 2 }), "the line reads back");
+        line.DiscardInput();
+        Assert(line.Read(8, TimeSpan.Zero).Length == 0, "stale input is dropped");
+        line.Wait(TimeSpan.FromMilliseconds(2));
+        Assert(line.WaitedMicros == 2_000, "a wait is counted");
+        Assert(line.Written == 3 && line.Received == 2, "the counts");
+        Assert(line.Remaining is null, "not a script");
+    }
+
+    using (var script = SerialPort.Scripted(
+        new SerialSettings(9_600), SerialStep.Write("?"u8), SerialStep.Read("42"u8)))
+    {
+        AssertThrows(() => script.Write("!"u8), "a write the script did not expect");
+        script.Write("?"u8);
+        Assert(script.Read(4, TimeSpan.FromMilliseconds(10)).SequenceEqual("42"u8.ToArray()), "the reply the script sends");
+        Assert(script.Remaining == 0, "the script is done");
+    }
+
+    AssertThrows(() => SerialPort.Looped(new SerialSettings(9_600, StopBits: 3)), "three stop bits");
+    if (!OperatingSystem.IsLinux())
+    {
+        AssertThrows(() => SerialPort.Open("/dev/serial0", new SerialSettings(115_200)), "only Linux opens a device");
+    }
 }
 
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust

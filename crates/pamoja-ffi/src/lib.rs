@@ -121,6 +121,8 @@ pub mod mesh;
 pub mod modbus;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
+#[cfg(feature = "hal")]
+pub mod port;
 #[cfg(feature = "power")]
 pub mod power;
 #[cfg(feature = "profile")]

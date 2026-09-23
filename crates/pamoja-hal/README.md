@@ -2,7 +2,7 @@
 
 # pamoja-hal
 
-The bus layer for pamoja: the embedded-hal 1.0 I2C, SPI, GPIO, and delay traits every driver is written against, a bit-banged 1-Wire bus over any pin, scripted buses that play a part's replies for tests with nothing plugged in, and Linux backends over the kernel's i2c-dev, spidev, and GPIO character devices, so one driver runs on a microcontroller, on a gateway, and in a test.
+The bus layer for pamoja: the embedded-hal 1.0 I2C, SPI, GPIO, and delay traits every driver is written against, a bit-banged 1-Wire bus over any pin, scripted buses that play a part's replies for tests with nothing plugged in, Linux backends over the kernel's i2c-dev, spidev, and GPIO character devices, and one shared I2C bus and serial port over real hardware or simulated parts, so one driver runs on a microcontroller, on a gateway, and in a test.
 
 <a href="https://pamoja.molex.cloud/docs/guides/hal.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_hal/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -49,6 +49,9 @@ where the buses that implement them live:
   over the kernel's adapter, simulated parts, or a script, with a delay that sleeps
   only when real parts are on the other end. It is what a language binding hands a
   driver.
+- `port` (feature `std`) is one serial port shared the same way, over the kernel's
+  serial device, a looped line, a null-modem pair, a simulated device, or a script,
+  with reads that wait for real bytes and only count the wait anywhere else.
 
 **Examples**
 

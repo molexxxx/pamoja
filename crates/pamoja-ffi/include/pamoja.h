@@ -867,6 +867,30 @@
 // A reasonable duplicate-cache size for a caller with no reason to choose one.
 #define PAMOJA_MESH_SEEN_DEFAULT_CAPACITY 64
 
+// No parity bit.
+#define PAMOJA_PARITY_NONE 0
+
+// A parity bit that makes the count of ones even, what Modbus RTU asks for by default.
+#define PAMOJA_PARITY_EVEN 1
+
+// A parity bit that makes the count of ones odd.
+#define PAMOJA_PARITY_ODD 2
+
+// A port kind: the kernel's serial device, with a real line on the other end.
+#define PAMOJA_SERIAL_PORT_DEVICE 0
+
+// A port kind: the port's own output, looped back to its input.
+#define PAMOJA_SERIAL_PORT_LOOPED 1
+
+// A port kind: the other end of a null-modem pair.
+#define PAMOJA_SERIAL_PORT_PAIRED 2
+
+// A port kind: a simulated device that answers each write.
+#define PAMOJA_SERIAL_PORT_SIMULATED 3
+
+// A port kind: a script of the writes a driver is expected to make.
+#define PAMOJA_SERIAL_PORT_SCRIPTED 4
+
 // The most bytes a custom alert's code carries across the boundary, terminator
 // included; a longer code is cut to fit.
 #define PAMOJA_ALERT_CODE_LEN 32
@@ -2627,6 +2651,14 @@ typedef struct PamojaScd4x PamojaScd4x;
 // [`pamoja_mesh_seen_free`].
 typedef struct PamojaSeenCache PamojaSeenCache;
 
+// One serial port, shared with every holder of it. Opaque; release it with
+// [`pamoja_serial_port_free`].
+typedef struct PamojaSerialPort PamojaSerialPort;
+
+// The writes a driver is expected to make and the bytes the far end sends, in order. Opaque;
+// release it with [`pamoja_serial_script_free`].
+typedef struct PamojaSerialScript PamojaSerialScript;
+
 // An opaque handle to a live session with one peer.
 //
 // Create it with [`pamoja_session_establish`] and release it with
@@ -4199,6 +4231,16 @@ typedef struct {
   // Default quality of service for publishes and subscriptions.
   PamojaQos qos;
 } PamojaMqttConfig;
+
+// A port's speed and character format: eight data bits, with the parity and stop bits given.
+typedef struct {
+  // The speed, in bits a second.
+  uint32_t baud;
+  // [`PAMOJA_PARITY_NONE`], [`PAMOJA_PARITY_EVEN`], or [`PAMOJA_PARITY_ODD`].
+  uint8_t parity;
+  // 1 or 2.
+  uint8_t stop_bits;
+} PamojaSerialSettings;
 
 // The split between the time a node works and the time it sleeps.
 typedef struct {
@@ -17485,6 +17527,352 @@ uintptr_t pamoja_mqtt_message_payload_len(const PamojaMqttMessage *message);
 // `message` must be a handle from [`pamoja_mqtt_client_recv`] that has not
 // already been freed, or null. After this call the handle must not be used again.
 void pamoja_mqtt_message_free(PamojaMqttMessage *message);
+
+// Returns the format most devices start in: eight data bits, no parity, one stop bit.
+//
+// # Arguments
+//
+// * `baud` - the speed, in bits a second.
+//
+// # Returns
+//
+// The settings.
+PamojaSerialSettings pamoja_serial_settings(uint32_t baud);
+
+// Returns the bits one character takes on the wire: a start bit, eight data bits, the parity
+// bit if there is one, and the stop bits.
+//
+// # Arguments
+//
+// * `settings` - the format.
+//
+// # Returns
+//
+// The bit count, or 0 for settings the port does not accept.
+uint32_t pamoja_serial_settings_bits_per_character(PamojaSerialSettings settings);
+
+// Returns how long one character takes on the wire.
+//
+// # Arguments
+//
+// * `settings` - the speed and format.
+//
+// # Returns
+//
+// The time in nanoseconds, rounded up, or 0 for settings the port does not accept.
+uint64_t pamoja_serial_settings_character_nanos(PamojaSerialSettings settings);
+
+// Opens the kernel's serial device raw, at a speed and a character format. Whatever the device
+// received before it was opened is dropped.
+//
+// # Arguments
+//
+// * `path` - the device file: `/dev/serial0` for a Raspberry Pi's own UART, `/dev/ttyUSB0` or
+//   `/dev/ttyACM0` for a USB adapter.
+// * `settings` - the speed, one of the standard rates from 1200 to 921600, and the format.
+// * `out_port` - receives the port, or null when opening fails.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the port in `out_port`; [`PamojaStatus::Unsupported`] on any
+// platform but Linux; [`PamojaStatus::InvalidArgument`] for a null or non-UTF-8 argument or
+// settings the port does not have; or [`PamojaStatus::Io`] when the device cannot be opened
+// or set up, with a last error message that names it.
+//
+// # Safety
+//
+// `path` must be a null-terminated string or null, and `out_port` a writable pointer or null.
+PamojaStatus pamoja_serial_port_open(const char *path,
+                                     PamojaSerialSettings settings,
+                                     PamojaSerialPort **out_port);
+
+// Creates a line looped back on itself: every byte written is waiting to be read, as with TX
+// wired to RX.
+//
+// # Arguments
+//
+// * `settings` - the speed and format the line runs at.
+//
+// # Returns
+//
+// The port, which the caller releases with [`pamoja_serial_port_free`], or null for settings
+// the port does not have.
+PamojaSerialPort *pamoja_serial_port_looped(PamojaSerialSettings settings);
+
+// Creates the two ends of a null-modem pair: what one end writes, the other reads.
+//
+// # Arguments
+//
+// * `settings` - the speed and format both ends run at.
+// * `out_one` - receives one end.
+// * `out_other` - receives the other end.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with both ends set, each released with [`pamoja_serial_port_free`];
+// or [`PamojaStatus::InvalidArgument`] for a null out pointer or settings the port does not
+// have.
+//
+// # Safety
+//
+// `out_one` and `out_other` must be writable pointers or null.
+PamojaStatus pamoja_serial_port_pair(PamojaSerialSettings settings,
+                                     PamojaSerialPort **out_one,
+                                     PamojaSerialPort **out_other);
+
+// Creates an empty script.
+//
+// # Returns
+//
+// The script, which the caller releases with [`pamoja_serial_script_free`].
+PamojaSerialScript *pamoja_serial_script_new(void);
+
+// Adds a write the program is expected to make, in one call.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `bytes` - the bytes of the write.
+// * `len` - how many bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `script` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_serial_script_write(PamojaSerialScript *script,
+                                        const uint8_t *bytes,
+                                        uintptr_t len);
+
+// Adds bytes the far end sends, readable once every step before them has happened.
+//
+// # Arguments
+//
+// * `script` - the script.
+// * `bytes` - what arrives.
+// * `len` - how many bytes.
+//
+// # Returns
+//
+// As [`pamoja_serial_script_write`].
+//
+// # Safety
+//
+// `script` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_serial_script_read(PamojaSerialScript *script,
+                                       const uint8_t *bytes,
+                                       uintptr_t len);
+
+// Returns how many steps a script holds.
+//
+// # Arguments
+//
+// * `script` - the script.
+//
+// # Returns
+//
+// The count, or 0 for a null script.
+//
+// # Safety
+//
+// `script` must be a live handle or null.
+uintptr_t pamoja_serial_script_len(const PamojaSerialScript *script);
+
+// Releases a script. A null pointer is ignored.
+//
+// # Safety
+//
+// `script` must be a handle that has not been freed, or null.
+void pamoja_serial_script_free(PamojaSerialScript *script);
+
+// Creates a port that plays a script: each write has to be the one the script expects next,
+// and the bytes the far end sends become readable as the script reaches them.
+//
+// # Arguments
+//
+// * `settings` - the speed and format the line runs at.
+// * `script` - the steps to copy; the caller still owns the handle.
+//
+// # Returns
+//
+// The port, which the caller releases with [`pamoja_serial_port_free`], or null for a null
+// script or settings the port does not have.
+//
+// # Safety
+//
+// `script` must be a live handle or null.
+PamojaSerialPort *pamoja_serial_port_scripted(PamojaSerialSettings settings,
+                                              const PamojaSerialScript *script);
+
+// Gives another holder the same port, such as a thread that reads while the caller writes.
+//
+// # Arguments
+//
+// * `port` - the port.
+//
+// # Returns
+//
+// A new handle to the same port, released with [`pamoja_serial_port_free`], or null for a null
+// port.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+PamojaSerialPort *pamoja_serial_port_clone(const PamojaSerialPort *port);
+
+// Returns what is on the other end of a port.
+//
+// # Arguments
+//
+// * `port` - the port.
+//
+// # Returns
+//
+// One of the `PAMOJA_SERIAL_PORT_` kinds; the looped code for a null port.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+uint8_t pamoja_serial_port_kind(const PamojaSerialPort *port);
+
+// Returns the speed and format a port runs at.
+//
+// # Arguments
+//
+// * `port` - the port.
+//
+// # Returns
+//
+// The settings, or 9600 8N1 for a null port.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+PamojaSerialSettings pamoja_serial_port_settings(const PamojaSerialPort *port);
+
+// Writes bytes, and on the kernel's device waits until they have left the UART.
+//
+// # Arguments
+//
+// * `port` - the port.
+// * `bytes` - the bytes, in order.
+// * `len` - how many bytes.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument; or
+// [`PamojaStatus::Io`] when a script expected another write or the device failed, with the
+// reason in the last error message.
+//
+// # Safety
+//
+// `port` must be a live handle or null, and `bytes` must point to `len` readable bytes.
+PamojaStatus pamoja_serial_port_write(const PamojaSerialPort *port,
+                                      const uint8_t *bytes,
+                                      uintptr_t len);
+
+// Reads what has arrived, waiting up to a timeout for the first byte when nothing has. On any
+// port but the kernel's device the read does not wait, and the timeout is counted instead.
+//
+// # Arguments
+//
+// * `port` - the port.
+// * `out` - receives the bytes.
+// * `capacity` - the most bytes to read.
+// * `timeout_micros` - how long to wait for the first byte.
+// * `out_len` - receives how many bytes were read, zero when the timeout passed with nothing.
+//
+// # Returns
+//
+// As [`pamoja_serial_port_write`], and [`PamojaStatus::InvalidArgument`] for a null `out_len`.
+//
+// # Safety
+//
+// `port` must be a live handle or null, `out` must point to `capacity` writable bytes, and
+// `out_len` must be a writable pointer or null.
+PamojaStatus pamoja_serial_port_read(const PamojaSerialPort *port,
+                                     uint8_t *out,
+                                     uintptr_t capacity,
+                                     uint64_t timeout_micros,
+                                     uintptr_t *out_len);
+
+// Drops whatever has arrived and not been read, as a client does before a request so a stale
+// reply cannot be taken for the new one.
+//
+// # Arguments
+//
+// * `port` - the port.
+//
+// # Returns
+//
+// As [`pamoja_serial_port_write`].
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+PamojaStatus pamoja_serial_port_discard_input(const PamojaSerialPort *port);
+
+// Waits, as a protocol does to leave the line silent between frames: the process sleeps on
+// the kernel's device, and anywhere else the wait is only counted.
+//
+// # Arguments
+//
+// * `port` - the port.
+// * `micros` - how long.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+void pamoja_serial_port_wait(const PamojaSerialPort *port, uint64_t micros);
+
+// Returns how many bytes have been written through a port and every holder of it.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+uintptr_t pamoja_serial_port_written(const PamojaSerialPort *port);
+
+// Returns how many bytes have been read through a port and every holder of it.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+uintptr_t pamoja_serial_port_received(const PamojaSerialPort *port);
+
+// Returns how long reads have waited without an answer, and waits have waited, in
+// microseconds, whether or not the process slept through it.
+//
+// # Safety
+//
+// `port` must be a live handle or null.
+uint64_t pamoja_serial_port_waited_micros(const PamojaSerialPort *port);
+
+// Reports how many steps a scripted port has left.
+//
+// # Arguments
+//
+// * `port` - the port.
+// * `out_remaining` - receives the steps not yet reached.
+//
+// # Returns
+//
+// `true` with the count in `out_remaining` for a scripted port; `false` for any other port, a
+// null port, or a null `out_remaining`.
+//
+// # Safety
+//
+// `port` must be a live handle or null, and `out_remaining` a writable pointer or null.
+bool pamoja_serial_port_remaining(const PamojaSerialPort *port, uintptr_t *out_remaining);
+
+// Releases a holder's share of a port. The line closes when no holder has it. A null pointer is
+// ignored.
+//
+// # Safety
+//
+// `port` must be a handle that has not been freed, or null.
+void pamoja_serial_port_free(PamojaSerialPort *port);
 
 // Creates a duty cycle from the time awake and the time asleep.
 //

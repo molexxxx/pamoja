@@ -1,76 +1,145 @@
-//! The serial framing guide example; see docs/guides/serial.md.
+//! The serial framing guide example: a weather mast whose node sends COBS frames up a UART to
+//! a gateway; see docs/guides/serial.md.
 //!
 //! Run: `cargo run -p pamoja-examples --example serial`
 
 use std::error::Error;
 
-/// The two byte-stuffing framings a UART stream carries packets with, and the streaming
-/// decoder a read loop uses when a read returns an arbitrary chunk rather than a packet.
+/// A node and a gateway on the two ends of one serial line, with nothing plugged in.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
-    use pamoja_serial::{cobs, slip};
+    use std::time::Duration;
 
-    // A UART carries bytes, not packets, so a framing has to mark where one packet ends.
-    // SLIP reserves two byte values for that, and the crate names both: END closes a
-    // frame, ESC carries a byte that would otherwise look like one. The hard case is a
-    // payload that already contains them, so this one does.
-    let mut payload = b"lvl=".to_vec();
-    payload.push(slip::END);
-    payload.push(slip::ESC);
-    let mut framed = [0u8; slip::max_encoded_len(8)];
-    let n = slip::encode(&payload, &mut framed).expect("room for the frame");
-    println!("slip      {} payload bytes framed as {n}", payload.len());
+    use pamoja_hal::port::{SerialPort, Settings};
+    use pamoja_serial::cobs::{self, CobsDecoder};
+    use pamoja_serial::slip;
 
-    // Decoding gives the payload back unchanged, reserved bytes and all.
-    let mut restored = [0u8; 8];
-    let m = slip::decode(&framed[..n], &mut restored).expect("a well-formed frame");
-    println!("slip      decoded back to {m} bytes");
+    // A reading is a two-byte sequence number, most significant byte first, then its text.
+    fn reading(sequence: u16, text: &str) -> Vec<u8> {
+        let mut payload = sequence.to_be_bytes().to_vec();
+        payload.extend_from_slice(text.as_bytes());
+        payload
+    }
 
-    // COBS trades that escaping for one code byte per run of up to 254 non-zero bytes,
-    // each run led by its own length, so a frame never grows by more than a byte per 254.
-    // Zero is the delimiter, and COBS is what takes it out of the data.
-    let mut packet = b"lvl=".to_vec();
-    packet.push(cobs::DELIMITER);
-    packet.extend_from_slice(b"7");
-    let mut cobs_framed = [0u8; cobs::max_encoded_len(8)];
-    let framed_len = cobs::encode(&packet, &mut cobs_framed).expect("room for the frame");
-    let packet_len = packet.len();
-    println!("cobs      {packet_len} payload bytes framed as {framed_len}");
+    // The line: 115200 baud, eight data bits, no parity, one stop bit. Ten bits a character.
+    let settings = Settings::new(115_200);
+    println!(
+        "line         {settings}, {} bits a character, {:.2} us each",
+        settings.bits_per_character(),
+        settings.character_nanos() as f64 / 1_000.0
+    );
 
-    // A serial read returns whatever arrived, which is rarely one whole frame. This chunk
-    // holds two good frames with a truncated one between them; the decoder hands over the
-    // good ones and discards only the bad frame.
-    let mut chunk = Vec::new();
-    chunk.extend_from_slice(b"ok");
-    chunk.push(slip::END);
-    chunk.push(slip::ESC); // a frame that ends before its escape pair completes
-    chunk.push(slip::END);
-    chunk.extend_from_slice(b"go");
-    chunk.push(slip::END);
+    // The two ends of the cable with nothing plugged in. On a Raspberry Pi the gateway's end
+    // is SerialPort::open("/dev/serial0", settings) and nothing after this statement changes.
+    let (gateway, node) = SerialPort::pair(settings);
 
-    let mut decoder: slip::SlipDecoder<16> = slip::SlipDecoder::new();
-    let mut frames: Vec<Vec<u8>> = Vec::new();
-    let mut discarded = 0;
-    for &byte in &chunk {
-        match decoder.push(byte) {
-            Ok(Some(complete)) => frames.push(complete.to_vec()),
-            Ok(None) => {}
-            Err(_) => discarded += 1,
+    // A UART carries bytes, and nothing marks where a message ends, so the node frames each
+    // reading with COBS: zero becomes the one byte that ends a frame and never appears inside
+    // one, which matters here, since the sequence number is full of zeros.
+    let texts = ["wind=12.4", "wind=13.1", "wind=11.8"];
+    let mut sent = 0;
+    let mut frame = [0u8; cobs::max_encoded_len(32)];
+    for (sequence, text) in (1..).zip(texts) {
+        let framed = cobs::encode(&reading(sequence, text), &mut frame)?;
+        node.write(&frame[..framed])?;
+        sent += framed;
+    }
+    println!(
+        "node         {} readings of {} bytes, framed as {sent} bytes",
+        texts.len(),
+        reading(1, texts[0]).len()
+    );
+
+    // A read returns whatever has arrived, which is rarely one frame: here it is all three.
+    // The decoder splits the stream back into payloads at each delimiter.
+    let mut buffer = [0u8; 256];
+    let got = gateway.read(&mut buffer, Duration::from_millis(100))?;
+    println!("gateway      {got} bytes in one read");
+    let mut decoder: CobsDecoder<64> = CobsDecoder::new();
+    let mut payloads = Vec::new();
+    for &byte in &buffer[..got] {
+        if let Ok(Some(payload)) = decoder.push(byte) {
+            payloads.push(payload.to_vec());
         }
     }
-    for frame in &frames {
-        println!("received  {}", String::from_utf8_lossy(frame));
+    for payload in &payloads {
+        let (sequence, text) = payload.split_at(2);
+        let sequence = u16::from_be_bytes([sequence[0], sequence[1]]);
+        println!("reading {sequence}    {}", String::from_utf8_lossy(text));
     }
-    println!("discarded {discarded} frame the stream mangled");
+
+    // What one frame costs on the wire at this speed, start and stop bits included.
+    let frame_len = sent / texts.len();
+    println!(
+        "on the wire  {:.2} ms for a {frame_len}-byte frame at {settings}",
+        settings.transfer_micros(frame_len) as f64 / 1_000.0
+    );
+
+    // The node restarts partway through a frame. As it comes back up it sends a lone
+    // delimiter, which closes off the half frame, so the gateway drops it rather than gluing
+    // it to the next one, and then it sends the reading again.
+    let framed = cobs::encode(&reading(4, "wind=12.9"), &mut frame)?;
+    node.write(&frame[..framed / 2])?;
+    node.write(&[cobs::DELIMITER])?;
+    node.write(&frame[..framed])?;
+    let got = gateway.read(&mut buffer, Duration::from_millis(100))?;
+    let mut dropped = 0;
+    let mut resent = Vec::new();
+    for &byte in &buffer[..got] {
+        match decoder.push(byte) {
+            Ok(Some(payload)) => resent.push(payload.to_vec()),
+            Ok(None) => {}
+            Err(_) => dropped += 1,
+        }
+    }
+    println!(
+        "restart      {dropped} frame cut short and dropped, then {}",
+        String::from_utf8_lossy(&resent[0][2..])
+    );
+
+    // SLIP, the older framing, ends a frame with one reserved byte and escapes that byte and
+    // its own escape byte inside one. With no reserved bytes in a reading it costs a byte less
+    // than COBS; a payload full of them costs up to twice its length under SLIP, and never
+    // more than one byte in 254 over under COBS.
+    let first = reading(1, texts[0]);
+    let mut slip_frame = [0u8; slip::max_encoded_len(32)];
+    let slip_len = slip::encode(&first, &mut slip_frame)?;
+    let cobs_len = cobs::encode(&first, &mut frame)?;
+    println!(
+        "framing      {} payload bytes: {slip_len} under SLIP, {cobs_len} under COBS",
+        first.len()
+    );
+
+    // The node goes quiet. A read waits for the first byte up to its timeout; on a port with
+    // nothing plugged in it returns at once and counts the wait instead of sleeping through
+    // it, so a test of a silent node takes no time.
+    let before = gateway.waited_micros();
+    let got = gateway.read(&mut buffer, Duration::from_millis(500))?;
+    println!(
+        "silence      {got} bytes in {} ms, counted and not slept",
+        (gateway.waited_micros() - before) / 1_000
+    );
     // ANCHOR_END: example
 
-    // The frames RFC 1055 and the COBS paper fix are pinned in the crate's own tests, so
-    // a guide asserts behavior instead.
-    assert!(n > payload.len());
-    assert!(framed_len > packet.len());
-    assert_eq!(&restored[..m], &payload[..]);
-    assert_eq!(frames, [b"ok".to_vec(), b"go".to_vec()]);
-    assert_eq!(discarded, 1);
+    assert_eq!(settings.character_nanos(), 86_806, "10 bits at 115200");
+    assert_eq!(
+        payloads,
+        [
+            reading(1, "wind=12.4"),
+            reading(2, "wind=13.1"),
+            reading(3, "wind=11.8")
+        ]
+    );
+    assert_eq!(
+        sent, 39,
+        "each 11-byte payload gains one code byte and a delimiter"
+    );
+    assert_eq!(settings.transfer_micros(13), 1_129);
+    assert_eq!(dropped, 1);
+    assert_eq!(resent, [reading(4, "wind=12.9")]);
+    assert_eq!((slip_len, cobs_len), (12, 13));
+    assert_eq!(gateway.waited_micros(), 500_000);
+    assert_eq!(node.written(), 39 + framed / 2 + 1 + framed);
 
     Ok(())
 }

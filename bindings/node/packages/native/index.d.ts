@@ -2385,6 +2385,94 @@ export declare class SenderStep {
   get result(): number | null
 }
 
+/**
+ * One serial port, shared by the program and every driver built on it.
+ *
+ * `SerialPort.open(path, settings)` opens the kernel's serial device raw on a Linux board and
+ * throws anywhere else. `SerialPort.looped(settings)` is a line with TX wired to RX,
+ * `SerialPort.pair(settings)` the two ends of a null-modem cable, and
+ * `SerialPort.scripted(settings, steps)` a port that checks each write against a script.
+ * `write` and `read` return promises that reject with the reason.
+ */
+export declare class SerialPort {
+  /**
+   * Opens the kernel's serial device raw: `/dev/serial0` for a Raspberry Pi's own UART,
+   * `/dev/ttyUSB0` or `/dev/ttyACM0` for a USB adapter. Throws anywhere but Linux, for a
+   * speed that is not a standard rate from 1200 to 921600, and when the device cannot be
+   * opened.
+   */
+  static open(path: string, settings: SerialSettings): SerialPort
+  /** A line looped back on itself: every byte written is waiting to be read. */
+  static looped(settings: SerialSettings): SerialPort
+  /** The two ends of a null-modem pair: what one end writes, the other reads. */
+  static pair(settings: SerialSettings): Array<SerialPort>
+  /**
+   * A port that checks each write against the next step of a script, and makes the bytes
+   * the far end sends readable as the script reaches them.
+   */
+  static scripted(settings: SerialSettings, steps: Array<SerialStep>): SerialPort
+  /**
+   * Returns the bits one character takes on the wire: a start bit, eight data bits, the
+   * parity bit if there is one, and the stop bits.
+   */
+  static bitsPerCharacter(settings: SerialSettings): number
+  /** Returns how long one character takes on the wire, in nanoseconds, rounded up. */
+  static characterNanos(settings: SerialSettings): number
+  /**
+   * Returns how long `bytes` sent back to back take on the wire, in microseconds, rounded
+   * up.
+   */
+  static transferMicros(settings: SerialSettings, bytes: number): number
+  /** Writes settings the way a device's manual does, such as `9600 8E1`. */
+  static describe(settings: SerialSettings): string
+  /** What is on the other end of the port. */
+  get kind(): SerialPortKind
+  /** The speed and character format the port runs at. */
+  get settings(): SerialSettings
+  /**
+   * Writes bytes, resolving once they have left the UART. Rejects when a script expected
+   * another write, or with the kernel's reason.
+   */
+  write(bytes: Buffer): Promise<void>
+  /**
+   * Reads up to `max` bytes, waiting up to `timeoutMs` for the first one when nothing has
+   * arrived. Resolves with what arrived, empty when the timeout passed with nothing.
+   */
+  read(max: number, timeoutMs: number): Promise<Buffer>
+  /**
+   * Drops whatever has arrived and not been read, as a client does before a request so a
+   * stale reply cannot be taken for the new one.
+   */
+  discardInput(): void
+  /**
+   * Waits, as a protocol does to leave the line silent between frames: really on the
+   * kernel's device, and anywhere else the wait is only counted.
+   */
+  wait(ms: number): Promise<void>
+  /** How many bytes have been written through the port. */
+  get written(): number
+  /** How many bytes have been read through the port. */
+  get received(): number
+  /**
+   * How long reads have waited without an answer, and waits have waited, in microseconds,
+   * whether or not the process slept through it.
+   */
+  get waitedMicros(): number
+  /** How many steps a script has left, or `null` when the port is not scripted. */
+  get remaining(): number | null
+}
+
+/**
+ * One step of a scripted port: a write the program is expected to make, or bytes the far end
+ * sends.
+ */
+export declare class SerialStep {
+  /** A write the program is expected to make, in one call. */
+  static write(bytes: Buffer): SerialStep
+  /** Bytes the far end sends, readable once every step before them has happened. */
+  static read(bytes: Buffer): SerialStep
+}
+
 /** A confidential, tamper-evident, replay-protected channel with one peer. */
 export declare class Session {
   /**
@@ -7012,6 +7100,16 @@ export declare function opt3001WordFromBytes(bytes: Buffer): number
 /** Builds the two bytes an OPT3001 sends for a register. */
 export declare function opt3001WordToBytes(word: number): Buffer
 
+/** The parity bit each character carries. */
+export declare const enum Parity {
+  /** No parity bit. */
+  None = 'None',
+  /** A bit that makes the count of ones even, what Modbus RTU asks for by default. */
+  Even = 'Even',
+  /** A bit that makes the count of ones odd. */
+  Odd = 'Odd',
+}
+
 /** How many PWM channels a PCA9685 drives. */
 export declare const PCA9685_CHANNELS: number
 
@@ -7478,6 +7576,30 @@ export interface SealedMessage {
   tag: Buffer
   /** The encrypted message. */
   ciphertext: Buffer
+}
+
+/** What is on the other end of a serial port. */
+export declare const enum SerialPortKind {
+  /** The kernel's serial device, with a real line on the other end. */
+  Device = 'Device',
+  /** The port's own output, looped back to its input. */
+  Looped = 'Looped',
+  /** The other end of a null-modem pair. */
+  Paired = 'Paired',
+  /** A simulated device that answers each write. */
+  Simulated = 'Simulated',
+  /** A script of the writes a driver is expected to make. */
+  Scripted = 'Scripted',
+}
+
+/** A port's speed and character format: eight data bits, with the parity and stop bits given. */
+export interface SerialSettings {
+  /** The speed, in bits a second. */
+  baud: number
+  /** The parity bit, none unless given. */
+  parity?: Parity
+  /** 1 or 2 stop bits, 1 unless given. */
+  stopBits?: number
 }
 
 /** Converts a raw SHT3x temperature word to degrees Celsius. */
