@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, soil probes on its 1-Wire bus, a relay and a switch on its GPIO lines, a pan and tilt head from a PCA9685 and a stepper, a UART self-test, a LoRa radio on its SPI bus, a whole profile-driven node, and a dashboard of the LoRaWAN nodes a network server hears."
+description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, soil probes on its 1-Wire bus, a relay and a switch on its GPIO lines, a pan and tilt head from a PCA9685 and a stepper, a UART self-test, a scan of a Modbus line through a USB RS485 adapter, a LoRa radio on its SPI bus, a whole profile-driven node, and a dashboard of the LoRaWAN nodes a network server hears."
 
 [dependencies]
 pamoja-actuators = { path = "../../../crates/pamoja-actuators" }
@@ -16,6 +16,7 @@ pamoja-gpio = { path = "../../../crates/pamoja-gpio", features = ["std"] }
 pamoja-hal = { path = "../../../crates/pamoja-hal", features = ["linux"] }
 pamoja-kit = { path = "../../../crates/pamoja-kit" }
 pamoja-lora = { path = "../../../crates/pamoja-lora" }
+pamoja-modbus = { path = "../../../crates/pamoja-modbus", features = ["port"] }
 pamoja-mqtt = { path = "../../../crates/pamoja-mqtt" }
 pamoja-profile = { path = "../../../crates/pamoja-profile" }
 pamoja-radios = { path = "../../../crates/pamoja-radios", features = ["linux"] }

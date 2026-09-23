@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-modbus"
-description = "Modbus RTU framing for pamoja: CRC-16/Modbus, the RTU ADU envelope, the standard request PDUs, and response decoding, so a long-cable RS485 field sensor speaks Modbus, no_std and allocation-free. The framing half ahead of the serial driver."
+description = "Modbus RTU for pamoja: a client that polls RS485 field devices over a serial port with the timing the serial line specification sets, servers that answer as devices do, and beneath both the frames, CRC-16/MODBUS, the RTU envelope, every standard request and its reply, and the exceptions, no_std and allocation-free."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,20 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 authors.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+# The server keeps the tables it serves in ordered maps, so it needs an allocator; the
+# frames, the requests, and the replies need neither an allocator nor an operating system.
+alloc = []
+# The client, which runs each transaction over a pamoja-hal serial port with the timing the
+# serial line specification sets, and the servers that answer on a simulated line.
+port = ["alloc", "dep:pamoja-hal", "pamoja-hal/std"]
+
+[dependencies]
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", default-features = false, optional = true }
 
 [dev-dependencies]
 # Property tests feed the ADU parser arbitrary bytes off the RS485 boundary: it must

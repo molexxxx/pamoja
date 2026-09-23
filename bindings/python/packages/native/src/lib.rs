@@ -205,6 +205,13 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(modbus::modbus_write_multiple_coils, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_raw, m)?)?;
         m.add_function(wrap_pyfunction!(modbus::modbus_parse_frame, m)?)?;
+        m.add_class::<modbus::ModbusServer>()?;
+        m.add_class::<modbus::ModbusLine>()?;
+        m.add_class::<modbus::ModbusClient>()?;
+        m.add(
+            "ModbusClientError",
+            m.py().get_type::<modbus::ModbusClientError>(),
+        )?;
     }
     #[cfg(feature = "can")]
     {

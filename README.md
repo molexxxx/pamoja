@@ -45,8 +45,9 @@ project can take less:
 | A domain, six of them | `pamoja --features radio` | `@pamoja/radio` | `pamoja-radio` | `Pamoja.Radio` |
 | One capability, thirty | `pamoja-lora` | `@pamoja/lora` | `pamoja-lora` | `Pamoja.Lora` |
 
-In Rust that decides what gets compiled, and a Modbus-only build carries three
-crates and no third-party code at all. In the bindings it decides what you
+In Rust that decides what gets compiled: the Modbus frames alone, for a
+microcontroller, are three crates and no third-party code at all, and with the
+serial client for a gateway, five. In the bindings it decides what you
 import, because one compiled engine sits under every package. The
 [install page](https://pamoja.molex.cloud/docs/install.html) measures both.
 

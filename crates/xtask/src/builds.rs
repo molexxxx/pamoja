@@ -47,19 +47,19 @@ const BUILDS: &[Build] = &[
     },
     Build {
         label: "Codecs and identity",
-        invocation: "cargo add pamoja --no-default-features --features codec,security",
+        invocation: "cargo add pamoja --no-default-features --features std,codec,security",
         features: "std,codec,security",
         default: false,
     },
     Build {
         label: "Field I/O",
-        invocation: "cargo add pamoja --no-default-features --features field-io",
+        invocation: "cargo add pamoja --no-default-features --features std,field-io",
         features: "std,field-io",
         default: false,
     },
     Build {
         label: "One capability",
-        invocation: "cargo add pamoja --no-default-features --features modbus",
+        invocation: "cargo add pamoja --no-default-features --features std,modbus",
         features: "std,modbus",
         default: false,
     },

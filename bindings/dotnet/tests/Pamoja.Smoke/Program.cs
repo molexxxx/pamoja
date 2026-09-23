@@ -80,6 +80,7 @@ SensorDrivers();
 ActuatorDrivers();
 StepperDrivers();
 SerialPorts();
+ModbusClients();
 RadioAndReach();
 Gateways();
 GatewayNetworks();
@@ -1417,6 +1418,57 @@ static void SerialPorts()
     }
 }
 
+// A Modbus client polls devices on a simulated line as it would a real one: it reads and writes
+// every table, a broadcast reaches every device and draws no answer, a refusal comes back as the
+// device's exception, and a unit that never answers times out after the response timeout,
+// counted rather than waited.
+static void ModbusClients()
+{
+    var settings = new SerialSettings(19_200, Parity.Even);
+    Assert(ModbusClient.FrameGapNanos(new SerialSettings(9_600, Parity.Even)) == 4_010_419, "3.5 characters at 9600");
+    Assert(ModbusClient.FrameGapNanos(settings) == 2_005_210, "3.5 characters at 19200");
+    Assert(ModbusClient.FrameGapNanos(new SerialSettings(115_200)) == 1_750_000, "fixed above 19200");
+
+    using var meter = new ModbusServer(17);
+    meter.SetHoldingRegisters(107, [2301, 418, 0]);
+    meter.SetCoils(0, [false, false]);
+    using var pump = new ModbusServer(18);
+    pump.SetHoldingRegisters(109, [0]);
+    using var line = new ModbusLine().Attach(meter).Attach(pump);
+    Assert(line.Count == 2, "two devices on the line");
+    using SerialPort port = line.Port(settings);
+    using var client = new ModbusClient(port) { ResponseTimeout = TimeSpan.FromMilliseconds(250) };
+    Assert(client.ResponseTimeout == TimeSpan.FromMilliseconds(250), "the response timeout set");
+    Assert(client.Turnaround == TimeSpan.FromMilliseconds(100), "the default turnaround");
+
+    Assert(client.ReadHoldingRegisters(17, 107, 3).SequenceEqual(new ushort[] { 2301, 418, 0 }), "the meter's registers");
+    client.WriteSingleCoil(17, 1, true);
+    Assert(client.ReadCoils(17, 0, 2).SequenceEqual(new[] { false, true }), "the coil written");
+    client.WriteMultipleRegisters(17, 107, [2300, 420]);
+    Assert(meter.HoldingRegister(108) == 420, "the write reached the device");
+    Assert(meter.HoldingRegister(110) is null, "the meter has no register 110");
+
+    client.WriteSingleRegister(ModbusClient.Broadcast, 109, 5);
+    Assert(meter.HoldingRegister(109) == 5 && pump.HoldingRegister(109) == 5, "a broadcast reaches every device");
+    var broadcast = Catch<ModbusClientException>(() => client.ReadHoldingRegisters(ModbusClient.Broadcast, 107, 1));
+    Assert(broadcast.Kind == ModbusClientErrorKind.BroadcastRead, "a read cannot be broadcast");
+
+    var refused = Catch<ModbusClientException>(() => client.ReadHoldingRegisters(17, 108, 3));
+    Assert(refused.Kind == ModbusClientErrorKind.Exception, "the meter refuses");
+    Assert(refused.ExceptionCode == ModbusExceptionCode.IllegalDataAddress, "with an address it does not have");
+    Assert(refused.Unit == 17 && refused.FunctionCode == 0x03, "the unit and function refused");
+    Assert(refused.Message.Contains("refused function 0x03"), "the reason in words");
+
+    ulong before = port.WaitedMicros;
+    var silent = Catch<ModbusClientException>(() => client.ReadHoldingRegisters(19, 0, 1));
+    Assert(silent.Kind == ModbusClientErrorKind.Timeout && silent.Received == 0, "nobody answers unit 19");
+    Assert(port.WaitedMicros - before == 2_005 + 250_000, "the frame gap and the timeout are counted");
+    Assert(meter.Served == 5, "the refusal is not counted");
+
+    AssertThrows(() => new ModbusServer(0), "the broadcast address is no device");
+    Assert(meter.Answer(Modbus.ReadHoldingRegisters(18, 109, 1)) is null, "another unit's frame gets silence");
+    Assert(meter.Answer(Modbus.ReadHoldingRegisters(17, 109, 1)) is { Length: > 0 }, "its own frame gets an answer");
+}
 // The stepper drivers walk the same coil pairs and pulse the same lines as the Rust
 // drivers' own tests, with every wait counted rather than slept.
 static void StepperDrivers()
@@ -3721,6 +3773,21 @@ static void AssertThrows(Action action, string message)
     }
 
     Fail(message);
+}
+
+static TException Catch<TException>(Action action)
+    where TException : Exception
+{
+    try
+    {
+        action();
+    }
+    catch (TException error)
+    {
+        return error;
+    }
+
+    throw new InvalidOperationException($"expected {typeof(TException).Name}");
 }
 
 

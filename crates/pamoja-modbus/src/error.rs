@@ -14,11 +14,17 @@ pub enum ModbusError {
         /// The CRC the frame carried.
         found: u16,
     },
-    /// A write request named a number of values a single request cannot carry (it must
-    /// be between one and the function's maximum).
+    /// A request or a reply named a number of values one frame cannot carry: none, or more
+    /// than its function allows.
     InvalidValueCount,
     /// A response PDU is truncated or its declared byte count does not match its data.
     MalformedResponse,
+    /// A unit address outside 1 to 247: 0 is the broadcast address, and 248 to 255 are
+    /// reserved.
+    UnitOutOfRange {
+        /// The address given.
+        unit: u8,
+    },
 }
 
 impl core::fmt::Display for ModbusError {
@@ -37,9 +43,13 @@ impl core::fmt::Display for ModbusError {
                 )
             }
             ModbusError::InvalidValueCount => {
-                f.write_str("modbus write request value count is out of range")
+                f.write_str("the number of values is outside what one modbus frame carries")
             }
             ModbusError::MalformedResponse => f.write_str("modbus response PDU is malformed"),
+            ModbusError::UnitOutOfRange { unit } => write!(
+                f,
+                "unit {unit} is not a device address: 0 is broadcast, and 248 to 255 are reserved"
+            ),
         }
     }
 }

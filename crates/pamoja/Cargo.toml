@@ -63,6 +63,7 @@ std = [
     "pamoja-sensors?/std",
     "pamoja-actuators?/std",
     "pamoja-gpio?/std",
+    "pamoja-modbus?/port",
 ]
 # The owned tables and message shapes that need an allocator but no operating system.
 alloc = [
@@ -70,6 +71,7 @@ alloc = [
     "pamoja-mavlink?/alloc",
     "pamoja-mesh?/alloc",
     "pamoja-routing?/alloc",
+    "pamoja-modbus?/alloc",
 ]
 # One feature per capability crate, named as the crate is without its prefix.
 security = ["dep:pamoja-security"]

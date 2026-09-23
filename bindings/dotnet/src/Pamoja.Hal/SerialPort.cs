@@ -78,9 +78,9 @@ public readonly record struct SerialSettings(uint Baud, Parity Parity = Parity.N
         return $"{Baud} 8{letter}{StopBits}";
     }
 
-    /// <summary>Converts to the flat struct the C ABI takes.</summary>
+    /// <summary>Converts to the flat struct the C ABI takes, for a native call another package makes.</summary>
     /// <returns>The interop representation.</returns>
-    internal PamojaSerialSettings ToNative() => new()
+    public PamojaSerialSettings ToNative() => new()
     {
         Baud = Baud,
         Parity = (byte)Parity,
@@ -305,6 +305,22 @@ public sealed class SerialPort : IDisposable
         ulong micros = Micros(duration);
         _handle.Use(port => NativeMethods.pamoja_serial_port_wait(port, micros));
     }
+
+    /// <summary>Takes a port handle that another package's native call made, such as the port of a simulated Modbus line.</summary>
+    /// <param name="port">The handle, which the returned port owns and releases.</param>
+    /// <returns>The port.</returns>
+    /// <exception cref="PamojaException">The handle is null.</exception>
+    public static SerialPort FromHandle(IntPtr port) => Created(port);
+
+    /// <summary>Runs a native call that needs this port's handle.</summary>
+    /// <remarks>
+    /// A client takes the port's handle when it is built and holds its own share of the port, so
+    /// this port may be disposed straight afterward.
+    /// </remarks>
+    /// <typeparam name="TResult">What the native call returns.</typeparam>
+    /// <param name="call">The native call to make.</param>
+    /// <returns>Whatever the native call returned.</returns>
+    public TResult Use<TResult>(Func<IntPtr, TResult> call) => _handle.Use(call);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
