@@ -15,7 +15,11 @@ jobs:
     name: refresh the hardware prices
     runs-on: ubuntu-latest
     steps:
+      # The checkout's own token is read-only and, left in the git config, git sends it in
+      # place of the one in the push URL below, so it is not kept.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # Every product page the hardware page lists is read for the price it states as
       # product data, and each part's offers are ordered cheapest first. A vendor that
