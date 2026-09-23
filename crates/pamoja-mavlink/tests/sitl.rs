@@ -9,12 +9,12 @@
 //! - `PAMOJA_SITL_TCP` (for example `127.0.0.1:5760`) connects over TCP, as ArduPilot SITL serves.
 //! - `PAMOJA_SITL_UDP` (for example `0.0.0.0:14550`) binds and learns the peer, as PX4 SITL sends.
 //!
-//! The assertions are at the protocol level: a heartbeat is received, a command is acknowledged,
-//! and a mission downloads. Mission upload is asserted to round-trip on PX4 (whose mission storage
-//! is in RAM); ArduPilot SITL advertises no mission storage in a headless build and answers
-//! `MAV_MISSION_NO_SPACE`, a simulator provisioning limitation rather than a protocol failure, so
-//! it is tolerated there (the upload path itself is covered by the in-process round-trip test).
-//! No flight outcome is asserted, since a SITL without full sensor simulation may reject arming.
+//! An autopilot answers MAVLink long before it can fly: ArduPilot SITL does not even start its
+//! boot until a ground station connects on TCP, and until it has, it reports room for no mission
+//! items and refuses to arm. So the test first asks for `SYS_STATUS` and waits for the
+//! `PREARM_CHECK` health bit, which both autopilots set once every pre-arm check passes. After
+//! that nothing is tolerated: the plan must be stored and read back item for item, the arm must
+//! be accepted and seen in the heartbeat, and the disarm must be accepted.
 
 #![cfg(feature = "std")]
 
@@ -22,14 +22,18 @@ use std::time::Duration;
 
 use pamoja_core::Device;
 use pamoja_mavlink::dialect::{
-    mav_autopilot, mav_cmd, mav_frame, AutopilotVersion, Message, MissionItemInt,
+    mav_autopilot, mav_cmd, mav_frame, mav_mode_flag, mav_result, mav_sys_status_sensor,
+    AutopilotVersion, Message, MissionItemInt, SysStatus,
 };
 use pamoja_mavlink::link::ByteLink;
 use pamoja_mavlink::vehicle::GCS_COMPONENT;
 use pamoja_mavlink::{Report, TcpLink, UdpLink, Vehicle};
 
-// The overall budget for the whole exchange, generous enough for a cold SITL still booting.
-const BUDGET: Duration = Duration::from_secs(60);
+const BUDGET: Duration = Duration::from_secs(300);
+
+const READY_WITHIN: Duration = Duration::from_secs(180);
+
+const ARMED_WITHIN: Duration = Duration::from_secs(10);
 
 fn waypoint(command: u16, lat: i32, lon: i32, alt: f32) -> MissionItemInt {
     MissionItemInt {
@@ -51,7 +55,6 @@ fn waypoint(command: u16, lat: i32, lon: i32, alt: f32) -> MissionItemInt {
     }
 }
 
-// A small, ordinary plan: take off, then two waypoints.
 fn sample_plan() -> [MissionItemInt; 3] {
     [
         waypoint(mav_cmd::NAV_TAKEOFF, -353_632_610, 1_491_652_300, 10.0),
@@ -62,7 +65,7 @@ fn sample_plan() -> [MissionItemInt; 3] {
 
 #[tokio::test]
 #[ignore = "needs a running ArduPilot or PX4 SITL; run via `cargo xtask sitl <ardupilot|px4>`"]
-async fn a_real_autopilot_completes_the_mission_and_command_exchanges() {
+async fn a_real_autopilot_stores_a_plan_and_arms() {
     if let Ok(addr) = std::env::var("PAMOJA_SITL_TCP") {
         let link = TcpLink::connect(&addr)
             .await
@@ -85,79 +88,78 @@ async fn run<L: ByteLink + Send>(mut vehicle: Vehicle<L>) {
 }
 
 async fn drive<L: ByteLink + Send>(vehicle: &mut Vehicle<L>) {
-    // The vehicle announces itself; connecting learns its MAVLink address.
     vehicle
         .connect()
         .await
         .expect("no heartbeat from the autopilot");
     println!("connected to {}", vehicle.id());
-
-    // Some autopilots only act on a ground station they can see, so make ourselves known.
     vehicle
         .send_heartbeat()
         .await
         .expect("sending a GCS heartbeat");
 
-    // Read telemetry until a heartbeat, and report which autopilot answered.
     let autopilot = read_heartbeat_autopilot(vehicle).await;
-    println!("heartbeat autopilot id: {autopilot}");
+    let name = match autopilot {
+        mav_autopilot::ARDUPILOTMEGA => "ArduPilot",
+        mav_autopilot::PX4 => "PX4",
+        _ => "an unrecognized autopilot",
+    };
+    println!("the heartbeat names {name} (autopilot id {autopilot})");
 
-    // Ask for the autopilot's version; any acknowledgment is a completed command exchange.
     let result = vehicle
         .request_message(AutopilotVersion::ID)
         .await
         .expect("requesting AUTOPILOT_VERSION");
-    println!("AUTOPILOT_VERSION request result: {result}");
+    assert_eq!(result, mav_result::ACCEPTED, "AUTOPILOT_VERSION request");
 
-    // Download the current plan, exercising the receiver state machine against the real autopilot.
+    wait_until_ready(vehicle).await;
+
     let existing = vehicle
         .download_mission()
         .await
         .expect("downloading the mission");
     println!("downloaded {} existing mission items", existing.len());
 
-    // Upload a plan and read it back. PX4 stores plans in RAM and must accept it; ArduPilot SITL
-    // advertises no mission storage in this headless build and answers NO_SPACE, which is
-    // tolerated (see the module docs).
     let plan = sample_plan();
-    match vehicle.upload_mission(&plan).await {
-        Ok(()) => {
-            let downloaded = vehicle
-                .download_mission()
-                .await
-                .expect("downloading after upload");
-            println!(
-                "uploaded {} items, downloaded {}",
-                plan.len(),
-                downloaded.len()
-            );
-            assert_eq!(
-                downloaded.len(),
-                plan.len(),
-                "the autopilot stored a different item count than was uploaded"
-            );
-        }
-        Err(err)
-            if autopilot == mav_autopilot::ARDUPILOTMEGA
-                && err.to_string().contains("result 4") =>
-        {
-            println!(
-                "ArduPilot SITL declined the upload ({err}); its mission storage is \
-                 unprovisioned in this headless build, so upload is tolerated here"
-            );
-        }
-        Err(err) => panic!("uploading the mission: {err}"),
+    vehicle
+        .upload_mission(&plan)
+        .await
+        .expect("the autopilot refused the plan");
+    let stored = vehicle
+        .download_mission()
+        .await
+        .expect("downloading after upload");
+    println!(
+        "uploaded {} items and read back {}",
+        plan.len(),
+        stored.len()
+    );
+    assert_eq!(stored.len(), plan.len(), "the stored plan's item count");
+    // ArduPilot keeps sequence 0 as its home position whatever is uploaded there, so the
+    // items after it are the ones both autopilots must hand back unchanged.
+    for (sent, back) in plan.iter().zip(&stored).skip(1) {
+        assert_eq!(back.command, sent.command, "item {} command", back.seq);
+        assert_eq!(
+            (back.x, back.y),
+            (sent.x, sent.y),
+            "item {} position",
+            back.seq
+        );
     }
 
-    // Arm; whether the autopilot accepts or denies it, a well-formed COMMAND_ACK is a completed
-    // command exchange, which is what interop is proving here.
-    let arm_result = vehicle.arm(true).await.expect("arming command");
-    println!("arm command result: {arm_result}");
+    let armed = vehicle.arm(true).await.expect("sending the arm command");
+    assert_eq!(armed, mav_result::ACCEPTED, "the arm command");
+    wait_for_armed_heartbeat(vehicle).await;
+    println!("armed");
+
+    let disarmed = vehicle
+        .arm(false)
+        .await
+        .expect("sending the disarm command");
+    assert_eq!(disarmed, mav_result::ACCEPTED, "the disarm command");
+    println!("disarmed");
 }
 
-// Reads reports until a heartbeat and returns its autopilot id. Bounded by time rather than a
-// message count, since an autopilot can stream other telemetry far faster than its 1 Hz
-// heartbeat.
 async fn read_heartbeat_autopilot<L: ByteLink>(vehicle: &mut Vehicle<L>) -> u8 {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     while tokio::time::Instant::now() < deadline {
@@ -169,4 +171,66 @@ async fn read_heartbeat_autopilot<L: ByteLink>(vehicle: &mut Vehicle<L>) -> u8 {
         }
     }
     panic!("no heartbeat seen among the telemetry");
+}
+
+async fn wait_until_ready<L: ByteLink + Send>(vehicle: &mut Vehicle<L>) {
+    let result = vehicle
+        .set_message_interval(SysStatus::ID, 500_000)
+        .await
+        .expect("asking for SYS_STATUS");
+    assert_eq!(result, mav_result::ACCEPTED, "the SYS_STATUS interval");
+
+    let started = tokio::time::Instant::now();
+    let mut said = Vec::new();
+    while started.elapsed() < READY_WITHIN {
+        vehicle
+            .send_heartbeat()
+            .await
+            .expect("sending a GCS heartbeat");
+        let Ok(report) = tokio::time::timeout(Duration::from_secs(1), vehicle.recv()).await else {
+            continue;
+        };
+        match report.expect("reading telemetry") {
+            Report::SysStatus(status)
+                if status.onboard_control_sensors_health & mav_sys_status_sensor::PREARM_CHECK
+                    != 0 =>
+            {
+                println!(
+                    "pre-arm checks passed after {:.0} s",
+                    started.elapsed().as_secs_f32()
+                );
+                return;
+            }
+            Report::Statustext(status) => {
+                let end = status
+                    .text
+                    .iter()
+                    .position(|&byte| byte == 0)
+                    .unwrap_or(status.text.len());
+                let text = String::from_utf8_lossy(&status.text[..end]).into_owned();
+                println!("autopilot: {text}");
+                said.push(text);
+            }
+            _ => {}
+        }
+    }
+    panic!(
+        "the pre-arm checks did not pass within {} s; the autopilot said: {said:?}",
+        READY_WITHIN.as_secs()
+    );
+}
+
+async fn wait_for_armed_heartbeat<L: ByteLink>(vehicle: &mut Vehicle<L>) {
+    let deadline = tokio::time::Instant::now() + ARMED_WITHIN;
+    while tokio::time::Instant::now() < deadline {
+        let Ok(report) = tokio::time::timeout(Duration::from_secs(2), vehicle.recv()).await else {
+            continue;
+        };
+        if let Report::Heartbeat(heartbeat) = report.expect("reading telemetry") {
+            if heartbeat.base_mode & mav_mode_flag::SAFETY_ARMED != 0 {
+                return;
+            }
+        }
+    }
+    panic!("the arm was accepted but no heartbeat reported the vehicle armed");
 }

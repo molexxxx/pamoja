@@ -1246,7 +1246,7 @@ specs = [
   "Vehicles: multicopters, helicopters, fixed wing, rovers, submarines and antenna trackers",
   "Protocol: MAVLink between ground station, flight controller and peripherals",
   "License: GPL v3 or later",
-  "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
+  "Verified: in CI, pamoja-mavlink stores a mission plan on it and arms it in SITL",
 ]
 cost = "$60 to $200"
 hosts = "Flight controllers that run it"
@@ -1282,7 +1282,7 @@ specs = [
   "Vehicles: multirotors, fixed wing, VTOL, helicopters and rovers",
   "Protocol: MAVLink for the ground station link",
   "License: BSD 3-clause",
-  "Verified: the SITL interop job in CI flies it in simulation against pamoja-mavlink",
+  "Verified: in CI, pamoja-mavlink stores a mission plan on it and arms it in SITL",
 ]
 cost = "$60 to $200"
 hosts = "Flight controllers that run it"
