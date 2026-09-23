@@ -57,9 +57,11 @@
 //!
 //! # let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
 //! # runtime.block_on(async {
-//! // A soil sensor on a 1% duty cycle, and a gateway that listens without relaying.
-//! let mut sensor = MeshRadio::new(Air::default(), 0x0A, 10);
-//! let mut gateway = MeshRadio::new(Air::default(), 0x0B, 10).without_relaying();
+//! // A soil sensor and a gateway, nodes 10 and 11, each on a 1% duty cycle, and the
+//! // gateway listening without relaying.
+//! let (sensor_node, gateway_node, one_percent) = (10, 11, 10);
+//! let mut sensor = MeshRadio::new(Air::default(), sensor_node, one_percent);
+//! let mut gateway = MeshRadio::new(Air::default(), gateway_node, one_percent).without_relaying();
 //! sensor.connect().await?;
 //! gateway.connect().await?;
 //! gateway.subscribe("garden/+/moisture").await?;

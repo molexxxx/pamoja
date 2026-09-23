@@ -30,15 +30,15 @@
 //! let device = DeviceIdentity::from_seed(&[42u8; 32]);
 //! let public = device.public();
 //!
-//! // It signs a reading; the signature travels with the data.
-//! let reading = b"fridge-1: 4.8C @ 1700";
+//! // A water meter signs its reading; the signature travels with the data.
+//! let reading = b"meter-12: 1043.7 m3 @ 1700";
 //! let signature = device.sign(reading);
 //!
-//! // An auditor with the device's public identity confirms it is authentic.
+//! // The utility, holding the meter's public identity, confirms it is authentic.
 //! assert!(public.verify(reading, &signature).is_ok());
 //!
-//! // A tampered reading does not verify.
-//! assert!(public.verify(b"fridge-1: 9.9C @ 1700", &signature).is_err());
+//! // A reading edited on the way does not verify.
+//! assert!(public.verify(b"meter-12: 943.7 m3 @ 1700", &signature).is_err());
 //! ```
 
 extern crate alloc;

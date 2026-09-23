@@ -31,7 +31,14 @@
 //! use pamoja_lorawan::{Device, JoinGrant, JoinRequest};
 //! use pamoja_radios::lorawan::{Clock, Node, Reception, Transceiver, Tuning};
 //!
-//! const APP_KEY: [u8; 16] = [0x2B; 16];
+//! // What the node was provisioned with, and what the network grants it: the first nonce
+//! // it uses for this device, The Things Network's identifier, and an address.
+//! const DEV_EUI: [u8; 8] = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x00, 0x12, 0x34];
+//! const JOIN_EUI: [u8; 8] = [0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x00, 0x00, 0x00];
+//! const APP_KEY: [u8; 16] = [7; 16];
+//! const APP_NONCE: u32 = 1;
+//! const NET_ID: u32 = 0x00_00_13;
+//! const DEV_ADDR: u32 = 0x2601_2E43;
 //!
 //! /// A radio whose network answers every join request.
 //! struct Air {
@@ -47,7 +54,7 @@
 //!
 //!     fn transmit(&mut self, frame: &[u8]) -> Result<(), Infallible> {
 //!         let request = JoinRequest::parse(frame, &APP_KEY).expect("a join request");
-//!         let grant = JoinGrant::new(0x01, 0x13, 0x2601_2E43);
+//!         let grant = JoinGrant::new(APP_NONCE, NET_ID, DEV_ADDR);
 //!         self.accept = Some(grant.accept(&APP_KEY, request.dev_nonce()).as_bytes().to_vec());
 //!         Ok(())
 //!     }
@@ -85,13 +92,13 @@
 //!
 //! let device = EndDevice::new(
 //!     Region::Eu868.plan(),
-//!     Device::new([0x11; 8], [0x22; 8], APP_KEY),
+//!     Device::new(DEV_EUI, JOIN_EUI, APP_KEY),
 //!     Settings::new(2, 20),
 //! )?;
 //! let mut node = Node::new(device, Air { accept: None }, Instant(0));
 //!
 //! assert!(node.join(1)?);
-//! assert_eq!(node.device().dev_addr(), Some(0x2601_2E43));
+//! assert_eq!(node.device().dev_addr(), Some(DEV_ADDR));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 

@@ -224,17 +224,26 @@ impl embedded_hal::i2c::Error for ScriptError {
 /// use pamoja_hal::i2c::I2c;
 /// use pamoja_hal::script::{I2cScript, I2cStep};
 ///
-/// // A part at 0x48 whose 16-bit result register 0x00 reads 0x0C80.
+/// // A TMP117, from its datasheet: the configuration register takes continuous conversion,
+/// // its factory setting, and the result register counts 7.8125 millidegrees a step.
+/// const TMP117: u8 = 0x48;
+/// const RESULT: u8 = 0x00;
+/// const CONFIGURATION: u8 = 0x01;
+/// let [high, low] = 0x0220u16.to_be_bytes();
+/// let reading = (25.0 / 0.0078125) as i16;
+///
+/// // The part's side: the configuration the driver must write, then 25 degrees.
 /// let mut bus = I2cScript::new([
-///     I2cStep::write(0x48, [0x01, 0x60, 0x20]),
-///     I2cStep::write_read(0x48, [0x00], [0x0C, 0x80]),
+///     I2cStep::write(TMP117, [CONFIGURATION, high, low]),
+///     I2cStep::write_read(TMP117, [RESULT], reading.to_be_bytes()),
 /// ]);
 ///
-/// bus.write(0x48, &[0x01, 0x60, 0x20])?;
+/// // The driver's side.
+/// bus.write(TMP117, &[CONFIGURATION, high, low])?;
 /// let mut result = [0u8; 2];
-/// bus.write_read(0x48, &[0x00], &mut result)?;
-/// assert_eq!(u16::from_be_bytes(result), 0x0C80);
-/// assert!(bus.done());
+/// bus.write_read(TMP117, &[RESULT], &mut result)?;
+/// assert_eq!(f64::from(i16::from_be_bytes(result)) * 0.0078125, 25.0);
+/// assert!(bus.done(), "every transfer the part expected has happened");
 /// # Ok::<(), pamoja_hal::script::ScriptError>(())
 /// ```
 #[derive(Clone, Debug, Default)]
@@ -547,12 +556,15 @@ impl spi::Error for SpiScriptError {
 /// use pamoja_hal::script::{SpiScript, SpiStep};
 /// use pamoja_hal::spi::{Operation, SpiDevice};
 ///
-/// // A Bosch part read over SPI: the control byte 0xD0 with its read bit set, then
-/// // the chip id shifted out.
-/// let mut device = SpiScript::new([SpiStep::write([0xD0]), SpiStep::read([0x60])]);
+/// // A BME280 read over SPI: the chip id register's address with the read bit set, which
+/// // 0xD0 already has, then the chip id shifted out.
+/// const CHIP_ID_REGISTER: u8 = 0xD0;
+/// const BME280_CHIP_ID: u8 = 0x60;
+/// let read = CHIP_ID_REGISTER | 0x80;
+/// let mut device = SpiScript::new([SpiStep::write([read]), SpiStep::read([BME280_CHIP_ID])]);
 /// let mut id = [0u8; 1];
-/// device.transaction(&mut [Operation::Write(&[0xD0]), Operation::Read(&mut id)])?;
-/// assert_eq!(id, [0x60]);
+/// device.transaction(&mut [Operation::Write(&[read]), Operation::Read(&mut id)])?;
+/// assert_eq!(id, [BME280_CHIP_ID]);
 /// assert!(device.done());
 /// # Ok::<(), pamoja_hal::script::SpiScriptError>(())
 /// ```

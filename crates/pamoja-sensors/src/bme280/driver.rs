@@ -30,41 +30,21 @@ pub const STATUS_POLLS: u8 = 20;
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: what the datasheet says a BME280
-/// answers during initialization and one forced measurement.
+/// A weather station's reading, taken from a BME280 that is not plugged in yet: the
+/// simulated part holds 18.5 °C, 1013.2 hPa, and 55 % relative humidity, and the driver
+/// compensates its raw readings with the calibration the part carries.
 ///
 /// ```
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::bme280::{Bme280, I2C_ADDRESS_PRIMARY};
 /// use pamoja_core::Sensor;
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::bme280::{sim, Bme280, I2C_ADDRESS_PRIMARY};
 ///
-/// const PART: u8 = I2C_ADDRESS_PRIMARY;
-/// let calibration_a = [
-///     0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E,
-///     0x1E, 0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
-/// ];
-/// let calibration_b = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E];
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0xE0, 0xB6]),
-///     I2cStep::write_read(PART, [0xF3], [0x00]),
-///     I2cStep::write_read(PART, [0xD0], [0x60]),
-///     I2cStep::write_read(PART, [0x88], calibration_a),
-///     I2cStep::write_read(PART, [0xE1], calibration_b),
-///     I2cStep::write(PART, [0xF5, 0x00]),
-///     I2cStep::write(PART, [0xF2, 0x01]),
-///     I2cStep::write(PART, [0xF4, 0x24]),
-///     I2cStep::write(PART, [0xF4, 0x25]),
-///     I2cStep::write_read(PART, [0xF3], [0x00]),
-///     I2cStep::write_read(PART, [0xF7], [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30]),
-/// ]);
-///
-/// let mut sensor = Bme280::i2c(bus, PART, DelayLog::new());
-/// let measurement = block_on(sensor.read())?;
-/// assert_eq!(measurement.temperature_centi_celsius, 2044);
-///
-/// let (registers, delay) = sensor.release();
-/// assert!(registers.release().done());
-/// assert!(delay.total_micros() >= 2_000 + 9_300);
+/// let part = sim::reporting(I2C_ADDRESS_PRIMARY, 18.5, 1013.2, 55.0);
+/// let mut station = Bme280::i2c(part, I2C_ADDRESS_PRIMARY, DelayLog::new());
+/// let weather = block_on(station.read())?;
+/// assert!((weather.celsius() - 18.5).abs() < 0.01);
+/// assert!((weather.hectopascals() - 1013.2).abs() < 0.1);
+/// assert!((weather.relative_humidity_percent() - 55.0).abs() < 0.1);
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -490,5 +470,40 @@ mod tests {
         let measurement = sensor.measure().unwrap();
         assert_eq!(measurement.temperature_centi_celsius, 2044);
         assert!(sensor.release().0.release().done());
+    }
+
+    #[test]
+    fn init_and_a_forced_measurement_make_the_transfers_the_datasheet_gives() {
+        const PART: u8 = crate::bme280::I2C_ADDRESS_PRIMARY;
+        let calibration_a = [
+            0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E, 0x1E,
+            0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
+        ];
+        let calibration_b = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E];
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0xE0, 0xB6]),
+            I2cStep::write_read(PART, [0xF3], [0x00]),
+            I2cStep::write_read(PART, [0xD0], [0x60]),
+            I2cStep::write_read(PART, [0x88], calibration_a),
+            I2cStep::write_read(PART, [0xE1], calibration_b),
+            I2cStep::write(PART, [0xF5, 0x00]),
+            I2cStep::write(PART, [0xF2, 0x01]),
+            I2cStep::write(PART, [0xF4, 0x24]),
+            I2cStep::write(PART, [0xF4, 0x25]),
+            I2cStep::write_read(PART, [0xF3], [0x00]),
+            I2cStep::write_read(
+                PART,
+                [0xF7],
+                [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30],
+            ),
+        ]);
+
+        let mut sensor = Bme280::i2c(bus, PART, DelayLog::new());
+        let measurement = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(measurement.temperature_centi_celsius, 2044);
+
+        let (registers, delay) = sensor.release();
+        assert!(registers.release().done());
+        assert!(delay.total_micros() >= 2_000 + 9_300);
     }
 }

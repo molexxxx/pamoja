@@ -115,8 +115,11 @@ pub const fn timeout_steps(micros: u64) -> u32 {
 /// ```
 /// use pamoja_radios::sx126x::config::image_calibration;
 ///
-/// assert_eq!(image_calibration(863_000_000, 870_000_000), [0xD7, 0xDA]);
-/// assert_eq!(image_calibration(902_000_000, 928_000_000), [0xE1, 0xE8]);
+/// // Each code counts 4 MHz, so EU868's 863 to 870 MHz calibrates from 860 to 872 MHz,
+/// // and US915's 902 to 928 MHz from 900 to 928 MHz.
+/// let megahertz = |[low, high]: [u8; 2]| (u32::from(low) * 4, u32::from(high) * 4);
+/// assert_eq!(megahertz(image_calibration(863_000_000, 870_000_000)), (860, 872));
+/// assert_eq!(megahertz(image_calibration(902_000_000, 928_000_000)), (900, 928));
 /// ```
 pub const fn image_calibration(low_hz: u32, high_hz: u32) -> [u8; 2] {
     const STEP_HZ: u32 = 4_000_000;
@@ -566,11 +569,15 @@ impl CodingRate {
 ///
 /// ```
 /// use pamoja_lora::LinkSettings;
-/// use pamoja_radios::sx126x::config::LoraModulation;
+/// use pamoja_radios::sx126x::config::{CodingRate, LoraBandwidth, LoraModulation};
 ///
-/// // SF12 at 125 kHz needs low data rate optimization.
+/// // SF12 at 125 kHz spends over 16 ms on a symbol, so it needs low data rate
+/// // optimization.
 /// let modulation = LoraModulation::from_link(&LinkSettings::new(12, 125_000)).unwrap();
-/// assert_eq!(modulation.to_params(), [0x0C, 0x04, 0x01, 0x01]);
+/// assert_eq!(modulation.spreading_factor, 12);
+/// assert_eq!(modulation.bandwidth, LoraBandwidth::Khz125);
+/// assert_eq!(modulation.coding_rate, CodingRate::from_denominator(5));
+/// assert!(modulation.low_data_rate_optimization);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LoraModulation {
@@ -671,9 +678,12 @@ pub const fn llcc68_supports(spreading_factor: u8, bandwidth: LoraBandwidth) -> 
 /// use pamoja_lora::LinkSettings;
 /// use pamoja_radios::sx126x::config::LoraPacket;
 ///
-/// // An eight-symbol preamble, an explicit header, a 20-byte payload, CRC on, standard IQ.
+/// // A 20-byte uplink with the link's defaults: an eight-symbol preamble, an explicit
+/// // header, the CRC on, and standard IQ.
 /// let packet = LoraPacket::from_link(&LinkSettings::new(7, 125_000), 20, false);
-/// assert_eq!(packet.to_params(), [0x00, 0x08, 0x00, 0x14, 0x01, 0x00]);
+/// assert_eq!(packet.preamble_symbols, 8);
+/// assert!(packet.explicit_header && packet.crc && !packet.invert_iq);
+/// assert_eq!(packet.payload_len, 20);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LoraPacket {
@@ -1186,6 +1196,15 @@ mod tests {
         assert_eq!(
             LoraModulation::from_link(&fast).map(|m| m.to_params()),
             Some([0x07, 0x06, 0x01, 0x00])
+        );
+        let slowest = LinkSettings::new(12, 125_000);
+        assert_eq!(
+            LoraModulation::from_link(&slowest).map(|m| m.to_params()),
+            Some([0x0C, 0x04, 0x01, 0x01])
+        );
+        assert_eq!(
+            LoraPacket::from_link(&LinkSettings::new(7, 125_000), 20, false).to_params(),
+            [0x00, 0x08, 0x00, 0x14, 0x01, 0x00]
         );
         assert_eq!(
             LoraModulation::from_link(&LinkSettings::new(7, 200_000)),

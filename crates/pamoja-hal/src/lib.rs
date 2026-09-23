@@ -37,18 +37,28 @@
 //!
 //! # Examples
 //!
-//! A script stands in for a part that answers a one-byte register read: the chip id
-//! a BME280 returns for register `0xD0`.
+//! A script stands in for a BME280 answering the first thing a driver asks it: its chip
+//! id, which register `0xD0` holds as `0x60` on every BME280 (datasheet section 5.4.1).
+//! A driver that asked for anything else would be refused with the transfer the part
+//! expected.
 //!
 //! ```
 //! use pamoja_hal::i2c::I2c;
 //! use pamoja_hal::script::{I2cScript, I2cStep};
 //!
-//! let mut bus = I2cScript::new([I2cStep::write_read(0x76, [0xD0], [0x60])]);
+//! const BME280: u8 = 0x76;
+//! const CHIP_ID_REGISTER: u8 = 0xD0;
+//! const BME280_CHIP_ID: u8 = 0x60;
+//!
+//! let mut bus = I2cScript::new([I2cStep::write_read(
+//!     BME280,
+//!     [CHIP_ID_REGISTER],
+//!     [BME280_CHIP_ID],
+//! )]);
 //! let mut id = [0u8; 1];
-//! bus.write_read(0x76, &[0xD0], &mut id)?;
-//! assert_eq!(id, [0x60]);
-//! assert!(bus.done());
+//! bus.write_read(BME280, &[CHIP_ID_REGISTER], &mut id)?;
+//! assert_eq!(id, [BME280_CHIP_ID]);
+//! assert!(bus.done(), "every transfer the part expected has happened");
 //! # Ok::<(), pamoja_hal::script::ScriptError>(())
 //! ```
 

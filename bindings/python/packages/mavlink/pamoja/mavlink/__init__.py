@@ -198,11 +198,14 @@ def frame(header: MavlinkHeader, msgid: int, payload: bytes) -> MavlinkFrame:
     :raises ValueError: If the id is outside the common dialect, in which case
         build the frame with :meth:`MavlinkFrame.raw` and a seed of your own.
 
-    >>> heartbeat = bytes([0, 0, 0, 0, 18, 0, 0, 4, 3])
-    >>> sent = frame(MavlinkHeader(1, 1), 0, heartbeat)
+    >>> heartbeat = message("HEARTBEAT")
+    >>> heartbeat.set("type", 18)  # MAV_TYPE_ONBOARD_CONTROLLER
+    >>> heartbeat.set("system_status", 4)  # MAV_STATE_ACTIVE
+    >>> heartbeat.set("mavlink_version", 3)
+    >>> sent = frame(MavlinkHeader(1, 1), heartbeat.message_id, heartbeat.payload)
     >>> sent.message_id
     0
-    >>> MavlinkFrame.parse_known(sent.bytes).payload == heartbeat
+    >>> MavlinkFrame.parse_known(sent.bytes).payload == heartbeat.payload
     True
     """
     crc_extra = mavlink_known_crc_extra(msgid)

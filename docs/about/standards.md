@@ -336,7 +336,7 @@ The buses and framings that reach a part on the end of a wire.
 </header>
 <p class="hw-summary">Run in CI against the kernel's own virtual CAN interface: classic, extended, remote, and CAN FD frames, a filter by J1939 parameter group, and no echo of a node's own frames.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docs.kernel.org/networking/can.html"><span class="hw-main"><b>The document</b><small>SocketCAN, the Linux kernel's CAN documentation</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Live implementation</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-can/src/bus.rs#L692"><span class="hw-main"><b>The test</b><small><code>bus.rs</code> line 692</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Live implementation</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-can/src/bus.rs#L700"><span class="hw-main"><b>The test</b><small><code>bus.rs</code> line 700</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="um10204">
@@ -383,7 +383,7 @@ Parts decoded byte for byte, each from the manufacturer's own datasheet.
 </header>
 <p class="hw-summary">The datasheets' own worked examples, including every CRC in the SCD4x command tables.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://sensirion.com/products/catalog/SHT31-DIS-B"><span class="hw-main"><b>The document</b><small>Sensirion CRC-8</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/sht3x.rs#L741"><span class="hw-main"><b>The test</b><small><code>sht3x.rs</code> line 741</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-sensors/src/sht3x.rs#L742"><span class="hw-main"><b>The test</b><small><code>sht3x.rs</code> line 742</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="sensor-datasheets">
@@ -443,7 +443,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">The join accept field positions in tables 44 and 55.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts001-1-0-4-lorawan-l2-1-0-4-specification"><span class="hw-main"><b>The document</b><small>TS001-1.0.4</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L1192"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 1192</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L1222"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 1222</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rp002-1-0-5">
@@ -469,7 +469,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">Appendix 1's worked synchronization example, with WOR frames checked against Semtech LoRa Basics Modem and the root key against The Things Stack.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts011-1-0-1-relay"><span class="hw-main"><b>The document</b><small>TS011-1.0.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/relay/tests.rs#L252"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 252</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/relay/tests.rs#L272"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 272</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="ts003-2-0-0">
@@ -573,7 +573,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.semtech.com/products/wireless-rf/lora-connect/sx1262"><span class="hw-main"><b>The document</b><small>SX1261/SX1262 datasheet, Rev 2.2</small><small class="hw-note">Semtech serves its documents through share links that render page images, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-radios/src/sx126x/command.rs#L768"><span class="hw-main"><b>The test</b><small><code>command.rs</code> line 768</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-radios/src/sx126x/command.rs#L774"><span class="hw-main"><b>The test</b><small><code>command.rs</code> line 774</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="sx127x">
@@ -612,7 +612,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">The three ID6 identifier examples the protocol glossary prints.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://doc.sm.tc/station/"><span class="hw-main"><b>The document</b><small>LoRa Basics Station 2.0.6</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/station.rs#L1413"><span class="hw-main"><b>The test</b><small><code>station.rs</code> line 1413</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/station.rs#L1418"><span class="hw-main"><b>The test</b><small><code>station.rs</code> line 1418</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="crc-16-ibm-3740">

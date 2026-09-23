@@ -348,6 +348,15 @@ fn every_firmware_command_is_the_size_the_specification_gives_it() {
 }
 
 #[test]
+fn a_countdown_is_three_bytes_after_its_identifier_least_significant_first() {
+    let mut out = [0u8; 8];
+    let len = FirmwareCommand::DevRebootCountdownReq { countdown: 3_600 }
+        .encode(&mut out)
+        .expect("it encodes");
+    assert_eq!(&out[..len], &[0x03, 0x10, 0x0E, 0x00]);
+}
+
+#[test]
 fn the_longest_countdown_is_the_one_the_specification_works_out() {
     // The note under table 6: 0xFFFFFE is 194 days, 4 hours, 20 minutes and 14 seconds.
     let longest = COUNTDOWN_CANCEL - 1;

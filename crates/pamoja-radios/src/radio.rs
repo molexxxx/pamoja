@@ -16,18 +16,28 @@
 //! use pamoja_hal::script::{DelayLog, PinScript, SpiScript, SpiStep};
 //! use pamoja_radios::radio::{Family, Radio, RadioError};
 //! use pamoja_radios::sx127x::config::PaOutput;
-//! use pamoja_radios::sx127x::{Board, Sx127x};
+//! use pamoja_radios::sx127x::{register, Board, Sx127x};
 //!
-//! // RegVersion, at 0x42, holds 0x12 on every SX1276.
-//! let spi = SpiScript::new([SpiStep::write([0x42]), SpiStep::read([0x12])]);
+//! // The chip answers a read of RegVersion with the value every SX1276 holds there.
+//! let spi = SpiScript::new([
+//!     SpiStep::write([register::VERSION]),
+//!     SpiStep::read([register::VERSION_SX1276]),
+//! ]);
 //! let board = Board::new(PaOutput::PaBoost);
 //! let chip = Sx127x::new(spi, PinScript::new([]), DelayLog::new(), board);
 //! let mut radio: Radio<_, PinScript, _, _> = Radio::from(chip);
 //!
 //! assert_eq!(radio.family(), Family::Sx127x);
-//! assert_eq!(radio.read_register(0x42), Ok(0x12));
-//! // The SX127x address byte carries seven bits, so its register map ends at 0x7F.
-//! assert_eq!(radio.read_register(0x0740), Err(RadioError::Address(0x0740)));
+//! let version = radio.read_register(register::VERSION.into());
+//! assert_eq!(version, Ok(register::VERSION_SX1276));
+//!
+//! // The SX127x address byte carries seven bits, so a register past 0x7F, such as the
+//! // SX126x sync word, is out of its reach.
+//! const SX126X_SYNC_WORD: u16 = 0x0740;
+//! assert_eq!(
+//!     radio.read_register(SX126X_SYNC_WORD),
+//!     Err(RadioError::Address(SX126X_SYNC_WORD))
+//! );
 //! ```
 
 use core::fmt;

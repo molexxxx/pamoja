@@ -99,6 +99,9 @@ pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
 # Both sides of a bridge in a test are the in-process broker, so a pass can be driven and
 # read without a radio, a socket, or a clock.
 pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.18" }
+# The station examples build the frames a node sends with the crate a node sends them with,
+# whichever features the crate itself is built with.
+pamoja-lorawan = { path = "../pamoja-lorawan" }
 tokio = { version = "1", default-features = false, features = [
     "macros",
     "net",

@@ -461,13 +461,17 @@ impl<'a> Uplink<'a> {
     /// # Examples
     ///
     /// ```
+    /// use pamoja_lorawan::mac::MacCommand;
     /// use pamoja_lorawan::{Session, Uplink};
     ///
+    /// // A device answering a status request and nothing else: on mains power it cannot
+    /// // measure a battery, and it heard the request 10 dB above the noise.
     /// let session = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
-    /// // A DevStatusAns: CID 0x06, battery 255 (unmeasured), margin 10 dB.
-    /// let answer = [0x06, 0xFF, 0x0A];
+    /// let mut answer = [0u8; 3];
+    /// MacCommand::DevStatusAns { battery: 255, margin: 10 }.encode(&mut answer)?;
     /// let frame = session.encode_uplink(&Uplink::empty(3).with_fopts(&answer))?;
     ///
+    /// // It goes up with no port and no payload, the answer in the frame options.
     /// let heard = session.decode(frame.as_bytes(), 3)?;
     /// assert_eq!(heard.fport(), None);
     /// assert_eq!(heard.fopts(), &answer);

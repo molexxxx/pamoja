@@ -290,26 +290,32 @@ fn pin<E, P: digital::Error>(error: P) -> RadioError<E> {
 ///
 /// # Examples
 ///
-/// The chip's side of initialization, scripted: an RFM95W that answers RegVersion with 0x12.
+/// The chip's side of initialization, scripted from the same registers the driver writes:
+/// an RFM95W that answers RegVersion as an SX1276, sleeps in FSK mode so it may switch to
+/// LoRa, stands by in LoRa mode, and has its low-noise amplifier boosted.
 ///
 /// ```
 /// use pamoja_hal::digital::PinState;
 /// use pamoja_hal::script::{DelayLog, PinScript, SpiScript, SpiStep};
-/// use pamoja_radios::sx127x::config::PaOutput;
+/// use pamoja_radios::sx127x::config::{PaOutput, LNA_BOOSTED};
+/// use pamoja_radios::sx127x::register::{self, Mode};
 /// use pamoja_radios::sx127x::{Board, Sx127x};
 ///
-/// let spi = SpiScript::new([
-///     SpiStep::write([0x42]),
-///     SpiStep::read([0x12]),
-///     SpiStep::write([0x81]),
-///     SpiStep::write([0x08]),
-///     SpiStep::write([0x81]),
-///     SpiStep::write([0x88]),
-///     SpiStep::write([0x81]),
-///     SpiStep::write([0x89]),
-///     SpiStep::write([0x8C]),
-///     SpiStep::write([0x23]),
-/// ]);
+/// let write = |address, value| {
+///     [
+///         SpiStep::write([register::write_address(address)]),
+///         SpiStep::write([value]),
+///     ]
+/// };
+/// let mut steps = vec![
+///     SpiStep::write([register::read_address(register::VERSION)]),
+///     SpiStep::read([register::VERSION_SX1276]),
+/// ];
+/// steps.extend(write(register::OP_MODE, register::fsk_op_mode(Mode::Sleep)));
+/// steps.extend(write(register::OP_MODE, register::lora_op_mode(Mode::Sleep)));
+/// steps.extend(write(register::OP_MODE, register::lora_op_mode(Mode::Standby)));
+/// steps.extend(write(register::LNA, LNA_BOOSTED));
+/// let spi = SpiScript::new(steps);
 /// let board = Board::new(PaOutput::PaBoost);
 ///
 /// let mut radio = Sx127x::new(spi, PinScript::new([]), DelayLog::new(), board);

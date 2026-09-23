@@ -34,23 +34,16 @@ pub const STATUS_POLLS: u8 = 100;
 ///
 /// # Examples
 ///
+/// A greenhouse's light, read from an OPT3001 that is not plugged in yet: the simulated
+/// part sees 320 lux, and the driver hands the reading back in lux.
+///
 /// ```
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::opt3001::{raw_from_milli_lux, Opt3001, I2C_ADDRESS_GND};
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::opt3001::{sim, Opt3001, I2C_ADDRESS_GND};
 ///
-/// const PART: u8 = I2C_ADDRESS_GND;
-/// let result = raw_from_milli_lux(320_000).to_be_bytes();
-/// let bus = I2cScript::new([
-///     I2cStep::write_read(PART, [0x7E], [0x54, 0x49]),
-///     I2cStep::write_read(PART, [0x7F], [0x30, 0x01]),
-///     I2cStep::write(PART, [0x01, 0xC8, 0x10]),
-///     I2cStep::write(PART, [0x01, 0xCA, 0x10]),
-///     I2cStep::write_read(PART, [0x01], [0xC8, 0x90]),
-///     I2cStep::write_read(PART, [0x00], result),
-/// ]);
-///
-/// let mut sensor = Opt3001::new(bus, PART, DelayLog::new());
+/// let part = sim::reporting(I2C_ADDRESS_GND, 320.0);
+/// let sensor = Opt3001::new(part, I2C_ADDRESS_GND, DelayLog::new());
 /// let mut lux = sensor.map(|reading| reading.lux());
 /// let reading = block_on(lux.read())?;
 /// assert!((reading - 320.0).abs() < 0.5);
@@ -398,5 +391,24 @@ mod tests {
         let sensor = Opt3001::new(I2cScript::new(steps), I2C_ADDRESS_GND, DelayLog::new());
         let mut lux = sensor.map(|reading| reading.lux());
         assert!((block_on(lux.read()).unwrap() - 32.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn identity_and_one_conversion_make_the_transfers_the_datasheet_gives() {
+        const PART: u8 = I2C_ADDRESS_GND;
+        let result = crate::opt3001::raw_from_milli_lux(320_000).to_be_bytes();
+        let bus = I2cScript::new([
+            I2cStep::write_read(PART, [0x7E], [0x54, 0x49]),
+            I2cStep::write_read(PART, [0x7F], [0x30, 0x01]),
+            I2cStep::write(PART, [0x01, 0xC8, 0x10]),
+            I2cStep::write(PART, [0x01, 0xCA, 0x10]),
+            I2cStep::write_read(PART, [0x01], [0xC8, 0x90]),
+            I2cStep::write_read(PART, [0x00], result),
+        ]);
+
+        let sensor = Opt3001::new(bus, PART, DelayLog::new());
+        let mut lux = sensor.map(|reading| reading.lux());
+        let reading = block_on(Sensor::read(&mut lux)).expect("the scripted part answers");
+        assert!((reading - 320.0).abs() < 0.5);
     }
 }

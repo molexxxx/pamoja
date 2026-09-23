@@ -402,26 +402,36 @@ fn pin<E, P: digital::Error>(error: P) -> RadioError<E> {
 ///
 /// # Examples
 ///
-/// The chip's side of initialization, scripted: an SX1262 module with a crystal, which
-/// answers GetStatus in STDBY_RC.
+/// The chip's side of initialization, scripted from the same commands the driver sends: an
+/// SX1262 module with a crystal and the LDO. It stands by on its RC oscillator, answers
+/// GetStatus there, takes the regulator and the LoRa packet type, has its transmit clamp
+/// raised as section 15.2 of the datasheet asks, and places both buffers at zero.
 ///
 /// ```
 /// use pamoja_hal::digital::{OutputPin, PinState};
 /// use pamoja_hal::script::{DelayLog, PinScript, SpiScript, SpiStep};
-/// use pamoja_radios::sx126x::config::PowerAmplifier;
+/// use pamoja_radios::sx126x::command;
+/// use pamoja_radios::sx126x::config::{
+///     register, tx_clamp, PacketType, PowerAmplifier, RegulatorMode, StandbyMode,
+/// };
 /// use pamoja_radios::sx126x::{Board, Sx126x};
 ///
+/// // GetStatus in STDBY_RC, and the clamp register as the chip holds it before the fix.
+/// const STATUS_IN_STDBY_RC: u8 = 0x22;
+/// const CLAMP_BEFORE: u8 = 0x08;
+/// let status = command::get_status();
+/// let clamp = command::read_register(register::TX_CLAMP_CONFIG, 1);
 /// let spi = SpiScript::new([
-///     SpiStep::write([0x80, 0x00]),
-///     SpiStep::write([0xC0]),
-///     SpiStep::read([0x22]),
-///     SpiStep::write([0x96, 0x00]),
-///     SpiStep::write([0x8A, 0x01]),
-///     SpiStep::write([0x1D, 0x08, 0xD8, 0x00]),
-///     SpiStep::read([0x08]),
-///     SpiStep::write([0x0D, 0x08, 0xD8]),
-///     SpiStep::write([0x1E]),
-///     SpiStep::write([0x8F, 0x00, 0x00]),
+///     SpiStep::write(command::set_standby(StandbyMode::Rc).as_bytes()),
+///     SpiStep::write(status.command.as_bytes()),
+///     SpiStep::read([STATUS_IN_STDBY_RC]),
+///     SpiStep::write(command::set_regulator_mode(RegulatorMode::Ldo).as_bytes()),
+///     SpiStep::write(command::set_packet_type(PacketType::Lora).as_bytes()),
+///     SpiStep::write(clamp.command.as_bytes()),
+///     SpiStep::read([CLAMP_BEFORE]),
+///     SpiStep::write(command::write_register(register::TX_CLAMP_CONFIG).as_bytes()),
+///     SpiStep::write([tx_clamp(CLAMP_BEFORE)]),
+///     SpiStep::write(command::set_buffer_base_address(0, 0).as_bytes()),
 /// ]);
 /// let mut busy = PinScript::new([]);
 /// busy.set_low()?;
@@ -430,6 +440,7 @@ fn pin<E, P: digital::Error>(error: P) -> RadioError<E> {
 /// let mut radio = Sx126x::new(spi, busy, PinScript::new([]), DelayLog::new(), board);
 /// radio.init().expect("the scripted SX1262 answers");
 ///
+/// // Every step was taken in order, after a reset pulse.
 /// let (spi, _, reset, _) = radio.release();
 /// assert!(spi.done());
 /// assert_eq!(reset.driven(), [PinState::Low, PinState::High]);

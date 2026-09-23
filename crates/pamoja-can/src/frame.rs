@@ -88,8 +88,11 @@ fn is_fd_length(len: usize) -> bool {
 /// ```
 /// use pamoja_can::{CanId, Frame};
 ///
-/// let frame = Frame::new(CanId::standard(0x100), &[0x01, 0x02, 0x03]).unwrap();
-/// assert_eq!(frame.data(), &[0x01, 0x02, 0x03]);
+/// // A cabin sensor reports 21.5 degrees as a count of tenths, big-endian, and a humidity
+/// // of 48 percent in the byte after it.
+/// let [high, low] = 215u16.to_be_bytes();
+/// let frame = Frame::new(CanId::standard(0x100), &[high, low, 48]).unwrap();
+/// assert_eq!(frame.data(), [high, low, 48]);
 /// assert_eq!(frame.dlc(), 3);
 /// assert!(!frame.is_fd());
 /// ```

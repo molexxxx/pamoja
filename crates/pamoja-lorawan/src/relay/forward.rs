@@ -65,7 +65,13 @@ impl<'a> ForwardedUplink<'a> {
     ///
     /// ```
     /// use pamoja_lorawan::relay::{ForwardedUplink, UplinkMetadata, WorChannel};
+    /// use pamoja_lorawan::{Session, Uplink};
     ///
+    /// // A sensor's reading, which the relay heard and carries on without reading it.
+    /// let sensor = Session::new(0x2601_1BDA, [0x2B; 16], [0x99; 16]);
+    /// let frame = sensor.encode_uplink(&Uplink::new(7, 2, b"21.5"))?;
+    ///
+    /// // What the relay adds: where and how well it heard the frame.
     /// let forwarded = ForwardedUplink {
     ///     metadata: UplinkMetadata {
     ///         wor_channel: WorChannel::Second,
@@ -74,11 +80,12 @@ impl<'a> ForwardedUplink<'a> {
     ///         data_rate: 5,
     ///     },
     ///     frequency_hz: 868_100_000,
-    ///     phy_payload: &[0x40, 0x01, 0x02],
+    ///     phy_payload: frame.as_bytes(),
     /// };
-    /// let mut out = [0u8; 16];
+    /// let mut out = [0u8; 64];
     /// let len = forwarded.encode(&mut out)?;
-    /// assert_eq!(&out[..len], &[0x95, 0xAB, 0x01, 0x28, 0x76, 0x84, 0x40, 0x01, 0x02]);
+    ///
+    /// // The network reads back exactly what the relay heard, and the sensor's frame intact.
     /// assert_eq!(ForwardedUplink::parse(&out[..len])?, forwarded);
     /// # Ok::<(), pamoja_lorawan::LorawanError>(())
     /// ```

@@ -28,28 +28,20 @@ pub const CONVERSION_POLLS: u8 = 10;
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: the Config register written and
-/// read back at initialization, then one conversion of AIN0 against ground at the
-/// default gain, which lands at 0.2 V.
+/// A soil moisture probe's analog output, read through an ADS1115 that is not plugged in
+/// yet: the simulated converter sees 1.2 V on AIN0 in its default ±2.048 V range, and the
+/// driver hands the sample back in volts.
 ///
 /// ```
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::ads1115::{address, Ads1115, Mux};
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::ads1115::{address, sim, Ads1115, Mux, Pga};
 ///
-/// const PART: u8 = address::GND;
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0x01, 0x45, 0x83]),
-///     I2cStep::write_read(PART, [0x01], [0x45, 0x83]),
-///     I2cStep::write(PART, [0x01, 0xC5, 0x83]),
-///     I2cStep::write_read(PART, [0x01], [0xC5, 0x83]),
-///     I2cStep::write_read(PART, [0x00], [0x0C, 0x80]),
-/// ]);
-///
-/// let adc = Ads1115::new(bus, PART, DelayLog::new()).with_input(Mux::Ain0Gnd);
+/// let part = sim::reporting(address::GND, Pga::Fsr2_048, 1.2);
+/// let adc = Ads1115::new(part, address::GND, DelayLog::new()).with_input(Mux::Ain0Gnd);
 /// let mut volts = adc.map(|sample| sample.volts());
 /// let reading = block_on(volts.read())?;
-/// assert!((reading - 0.2).abs() < 1e-6);
+/// assert!((reading - 1.2).abs() < 0.001);
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -402,6 +394,23 @@ mod tests {
             Ads1115::new(I2cScript::new(steps), address::GND, DelayLog::new()).with_input(mux);
         let mut volts = adc.map(|sample| sample.volts());
         let reading = block_on(volts.read()).unwrap();
+        assert!((reading - 0.2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_single_shot_conversion_makes_the_transfers_the_datasheet_gives() {
+        const PART: u8 = crate::ads1115::address::GND;
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0x01, 0x45, 0x83]),
+            I2cStep::write_read(PART, [0x01], [0x45, 0x83]),
+            I2cStep::write(PART, [0x01, 0xC5, 0x83]),
+            I2cStep::write_read(PART, [0x01], [0xC5, 0x83]),
+            I2cStep::write_read(PART, [0x00], [0x0C, 0x80]),
+        ]);
+
+        let adc = Ads1115::new(bus, PART, DelayLog::new()).with_input(crate::ads1115::Mux::Ain0Gnd);
+        let mut volts = adc.map(|sample| sample.volts());
+        let reading = block_on(Sensor::read(&mut volts)).expect("the scripted part answers");
         assert!((reading - 0.2).abs() < 1e-6);
     }
 }

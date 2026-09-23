@@ -28,12 +28,14 @@
 //! use pamoja_gateway::station::{Discovery, Router};
 //! use pamoja_gateway::udp::Eui;
 //!
-//! let asking = Discovery::new(Eui::new([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]));
-//! assert_eq!(asking.to_json(), r#"{"router":"102:304:506:708"}"#);
+//! // The station names itself in the ID6 form, four groups with leading zeros dropped.
+//! let gateway = Eui::from_hex("b827ebfffe010203").expect("sixteen hex digits");
+//! let asking = Discovery::new(gateway);
+//! assert_eq!(asking.to_json(), r#"{"router":"b827:ebff:fe01:203"}"#);
 //!
 //! // The server answers with the websocket to open.
 //! let answer = Router::from_json(
-//!     br#"{"router":"1:203:405:607:8","muxs":"::1","uri":"ws://lns.example.invalid:3001/router"}"#,
+//!     br#"{"router":"b827:ebff:fe01:203","muxs":"::1","uri":"ws://lns.example.invalid:3001/router"}"#,
 //! )
 //! .expect("the answer is well formed");
 //! assert_eq!(answer.uri.as_deref(), Some("ws://lns.example.invalid:3001/router"));
@@ -623,19 +625,22 @@ impl Message {
     ///
     /// ```
     /// use pamoja_gateway::station::{Levels, Message};
+    /// use pamoja_lorawan::{Session, Uplink};
     ///
-    /// // An unconfirmed frame going up, carrying one byte on port two.
-    /// let frame = [
-    ///     0x40, 0x01, 0x00, 0x01, 0x26, 0x00, 0x07, 0x00, 0x02, 0x41, 0x11, 0x22, 0x33, 0x44,
-    /// ];
-    /// let heard = Message::heard(&frame, 5, 868_100_000, Levels::default())
+    /// // A node's seventh uplink, a reading on port 2, as its radio sent it.
+    /// let node = Session::new(0x2601_1BDA, [7; 16], [8; 16]);
+    /// let frame = node
+    ///     .encode_uplink(&Uplink::new(7, 2, b"21.5"))
+    ///     .expect("an uplink frame");
+    ///
+    /// let heard = Message::heard(frame.as_bytes(), 5, 868_100_000, Levels::default())
     ///     .expect("a station sends this one up");
-    ///
     /// match heard {
-    ///     Message::Uplink { fcnt, fport, payload, .. } => {
+    ///     Message::Uplink { dev_addr, fcnt, fport, payload, .. } => {
+    ///         assert_eq!(dev_addr as u32, node.dev_addr());
     ///         assert_eq!(fcnt, 7);
     ///         assert_eq!(fport, Some(2));
-    ///         assert_eq!(payload, vec![0x41]);
+    ///         assert_eq!(payload.len(), 4, "still encrypted: a station holds no key");
     ///     }
     ///     other => panic!("that is a data frame, not {}", other.msgtype()),
     /// }

@@ -34,18 +34,21 @@
 //! ```
 //! use pamoja_routing::{Forward, Router};
 //!
-//! let mut router: Router<16> = Router::new(0x01);
+//! // A gateway, node 1, on a farm mesh: the pump at node 9 is out of its range, and two
+//! // fence posts, nodes 5 and 7, relay for it.
+//! let (gateway, pump, east_post, west_post, weather_mast) = (1, 9, 5, 7, 32);
+//! let mut router: Router<16> = Router::new(gateway);
 //!
-//! // We hear node 0x09's traffic arrive via neighbor 0x05, two hops out.
-//! router.observe(0x09, 0x05, 2);
-//! assert_eq!(router.forward(0x09), Forward::Relay(0x05));
+//! // The pump's traffic arrives through the east post, two hops out.
+//! router.observe(pump, east_post, 2);
+//! assert_eq!(router.forward(pump), Forward::Relay(east_post));
 //!
-//! // A cheaper way to 0x09 turns up via neighbor 0x07; the router prefers it.
-//! router.observe(0x09, 0x07, 1);
-//! assert_eq!(router.forward(0x09), Forward::Relay(0x07));
+//! // A cheaper way to the pump turns up through the west post, and the router prefers it.
+//! router.observe(pump, west_post, 1);
+//! assert_eq!(router.forward(pump), Forward::Relay(west_post));
 //!
-//! // With no route to 0x20 yet, the router falls back to flooding.
-//! assert_eq!(router.forward(0x20), Forward::Flood);
+//! // With no route to the weather mast yet, the router falls back to flooding.
+//! assert_eq!(router.forward(weather_mast), Forward::Flood);
 //! ```
 
 // `cfg(test)` already builds this crate against std, so the runtime-sized table compiles

@@ -202,9 +202,10 @@ class CanBus:
 
     >>> engine = CanBus.simulated()
     >>> gateway = engine.join()
-    >>> engine.send(frame(0x20A, bytes([0x01, 0xF4])))
-    >>> list(gateway.receive(timeout=0.01).data)
-    [1, 244]
+    >>> speed = (500).to_bytes(2, "big")
+    >>> engine.send(frame(0x20A, speed))
+    >>> bytes(gateway.receive(timeout=0.01).data) == speed
+    True
     """
 
     __slots__ = ("_native",)

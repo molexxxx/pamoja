@@ -33,32 +33,22 @@ pub const STATUS_POLLS: u8 = 150;
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: what the datasheet says a TMP117
-/// answers during initialization and one conversion that lands on 25 °C.
+/// An aquarium's water temperature, read through a TMP117 that is not plugged in yet:
+/// the simulated part holds 25.5 °C, and the driver waits out one conversion at the
+/// default averaging before it reads it.
 ///
 /// ```
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::tmp117::{address, Tmp117};
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::tmp117::{address, sim, Tmp117};
 ///
-/// const PART: u8 = address::ADD0_GND;
-/// let bus = I2cScript::new([
-///     I2cStep::write_read(PART, [0x0F], [0x01, 0x17]),
-///     I2cStep::write_read(PART, [0x04], [0x00, 0x00]),
-///     I2cStep::write(PART, [0x01, 0x06, 0x20]),
-///     I2cStep::write(PART, [0x01, 0x0E, 0x20]),
-///     I2cStep::write_read(PART, [0x01], [0x0E, 0x20]),
-///     I2cStep::write_read(PART, [0x01], [0x26, 0x20]),
-///     I2cStep::write_read(PART, [0x00], [0x0C, 0x80]),
-/// ]);
-///
-/// let mut sensor = Tmp117::new(bus, PART, DelayLog::new());
+/// let part = sim::reporting(address::ADD0_GND, 25.5);
+/// let mut sensor = Tmp117::new(part, address::ADD0_GND, DelayLog::new());
 /// let reading = block_on(sensor.read())?;
-/// assert_eq!(reading.celsius(), 25.0);
+/// assert_eq!(reading.celsius(), 25.5);
 ///
-/// let (bus, delay) = sensor.release();
-/// assert!(bus.done());
-/// assert_eq!(delay.total_micros(), 125_000);
+/// let (_, delay) = sensor.release();
+/// assert_eq!(delay.total_micros(), 125_000, "eight averaged conversions");
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -564,5 +554,27 @@ mod tests {
             }
         );
         assert!(sensor.release().0.done());
+    }
+
+    #[test]
+    fn init_and_one_conversion_make_the_transfers_the_datasheet_gives() {
+        const PART: u8 = ADD0_GND;
+        let bus = I2cScript::new([
+            I2cStep::write_read(PART, [0x0F], [0x01, 0x17]),
+            I2cStep::write_read(PART, [0x04], [0x00, 0x00]),
+            I2cStep::write(PART, [0x01, 0x06, 0x20]),
+            I2cStep::write(PART, [0x01, 0x0E, 0x20]),
+            I2cStep::write_read(PART, [0x01], [0x0E, 0x20]),
+            I2cStep::write_read(PART, [0x01], [0x26, 0x20]),
+            I2cStep::write_read(PART, [0x00], [0x0C, 0x80]),
+        ]);
+
+        let mut sensor = Tmp117::new(bus, PART, DelayLog::new());
+        let reading = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(reading.celsius(), 25.0);
+
+        let (bus, delay) = sensor.release();
+        assert!(bus.done());
+        assert_eq!(delay.total_micros(), 125_000);
     }
 }

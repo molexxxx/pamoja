@@ -17,10 +17,11 @@ use crate::Codec;
 /// ```
 /// use pamoja_codec::{BytesCodec, Codec};
 ///
+/// // A chunk of a camera image, which carries its own format and passes through untouched.
 /// let codec = BytesCodec;
-/// let payload = vec![0xde, 0xad, 0xbe, 0xef];
-/// let encoded = codec.encode(&payload).unwrap();
-/// assert_eq!(codec.decode(&encoded).unwrap(), payload);
+/// let chunk = b"the first rows of a trail camera image".to_vec();
+/// let encoded = codec.encode(&chunk).unwrap();
+/// assert_eq!(codec.decode(&encoded).unwrap(), chunk);
 /// ```
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BytesCodec;

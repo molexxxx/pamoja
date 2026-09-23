@@ -214,6 +214,26 @@ fn reserved_proprietary_and_misshapen_wor_frames_are_discarded() {
 }
 
 #[test]
+fn a_forwarded_uplink_lays_out_its_metadata_before_the_frequency_and_the_frame() {
+    let forwarded = ForwardedUplink {
+        metadata: UplinkMetadata {
+            wor_channel: WorChannel::Second,
+            rssi_dbm: -100,
+            snr_db: 5,
+            data_rate: 5,
+        },
+        frequency_hz: 868_100_000,
+        phy_payload: &[0x40, 0x01, 0x02],
+    };
+    let mut out = [0u8; 16];
+    let len = forwarded.encode(&mut out).expect("it encodes");
+    assert_eq!(
+        &out[..len],
+        &[0x95, 0xAB, 0x01, 0x28, 0x76, 0x84, 0x40, 0x01, 0x02]
+    );
+}
+
+#[test]
 fn a_forwarded_uplink_clamps_what_its_fields_cannot_carry() {
     let forwarded = ForwardedUplink {
         metadata: UplinkMetadata {

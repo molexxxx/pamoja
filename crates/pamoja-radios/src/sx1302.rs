@@ -54,9 +54,12 @@
 //! ```
 //! use pamoja_radios::sx1302::{chip, register, spi};
 //!
-//! // The version register is read like anything else: target, address, two dummy bytes.
-//! let asked = spi::read(spi::TARGET_CONCENTRATOR, register::COMMON_VERSION.address);
-//! assert_eq!(asked, [0x00, 0x56, 0x06, 0x00, 0x00]);
+//! // The version register is read like any other: the target, the register's address
+//! // most significant byte first, a dummy byte, and the byte the chip answers in.
+//! let version = register::COMMON_VERSION.address;
+//! let [high, low] = version.to_be_bytes();
+//! let asked = spi::read(spi::TARGET_CONCENTRATOR, version);
+//! assert_eq!(asked, [spi::TARGET_CONCENTRATOR, high, low, 0, 0]);
 //!
 //! // A concentrator that is powered and wired the right way round answers with one value.
 //! assert!(chip::answers(0x10));

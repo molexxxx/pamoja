@@ -31,27 +31,21 @@ pub const DATA_READY_POLLS: u8 = 60;
 ///
 /// # Examples
 ///
+/// A meeting room's air, read from an SCD4x that is not plugged in yet: the simulated part,
+/// which the `alloc` feature brings, holds 1,200 ppm of carbon dioxide at 22 °C and 40 %
+/// relative humidity.
+///
 /// ```
+/// # #[cfg(feature = "alloc")]
+/// # {
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::scd4x::{serial_number_frame, word_frame, Measurement, Scd4x, I2C_ADDRESS};
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::scd4x::{sim, Scd4x};
 ///
-/// const PART: u8 = I2C_ADDRESS;
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0x3F, 0x86]),
-///     I2cStep::write(PART, [0x36, 0x82]),
-///     I2cStep::read(PART, serial_number_frame(0x1234_5678_9ABC)),
-///     I2cStep::write(PART, [0x21, 0xB1]),
-///     I2cStep::write(PART, [0xE4, 0xB8]),
-///     I2cStep::read(PART, word_frame(0x8006)),
-///     I2cStep::write(PART, [0xEC, 0x05]),
-///     I2cStep::read(PART, Measurement::from_physical(500, 25_000, 37_000).to_bytes()),
-/// ]);
-///
-/// let mut sensor = Scd4x::new(bus, DelayLog::new());
-/// let measurement = block_on(sensor.read())?;
-/// assert_eq!(measurement.co2_ppm, 500);
-/// assert_eq!(sensor.serial(), Some(0x1234_5678_9ABC));
+/// let mut sensor = Scd4x::new(sim::reporting(1_200, 22.0, 40.0), DelayLog::new());
+/// let air = block_on(sensor.read())?;
+/// assert_eq!(air.co2_ppm, 1_200);
+/// # }
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -442,5 +436,30 @@ mod tests {
         let sensor = Scd4x::new(I2cScript::new(steps), DelayLog::new());
         let mut co2 = sensor.map(|measurement| measurement.co2_ppm);
         assert_eq!(block_on(co2.read()).unwrap(), 500);
+    }
+
+    #[test]
+    fn start_up_and_one_reading_make_the_transfers_the_datasheet_gives() {
+        use crate::scd4x::{Measurement, I2C_ADDRESS};
+
+        const PART: u8 = I2C_ADDRESS;
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0x3F, 0x86]),
+            I2cStep::write(PART, [0x36, 0x82]),
+            I2cStep::read(PART, serial_number_frame(0x1234_5678_9ABC)),
+            I2cStep::write(PART, [0x21, 0xB1]),
+            I2cStep::write(PART, [0xE4, 0xB8]),
+            I2cStep::read(PART, word_frame(0x8006)),
+            I2cStep::write(PART, [0xEC, 0x05]),
+            I2cStep::read(
+                PART,
+                Measurement::from_physical(500, 25_000, 37_000).to_bytes(),
+            ),
+        ]);
+
+        let mut sensor = Scd4x::new(bus, DelayLog::new());
+        let measurement = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(measurement.co2_ppm, 500);
+        assert_eq!(sensor.serial(), Some(0x1234_5678_9ABC));
     }
 }

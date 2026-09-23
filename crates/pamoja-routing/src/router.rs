@@ -61,10 +61,15 @@ pub enum Forward {
 /// ```
 /// use pamoja_routing::{Forward, Router};
 ///
-/// let mut router: Router<8> = Router::new(0x0A);
-/// router.observe(0x0B, 0x0C, 3); // reach 0x0B via 0x0C, cost 3
-/// assert_eq!(router.next_hop(0x0B), Some(0x0C));
-/// assert_eq!(router.forward(0x0A), Forward::Deliver); // a packet for us
+/// // A soil probe, node 10, reaches the gateway, node 11, through a relay, node 12,
+/// // three hops out.
+/// let (probe, gateway, relay) = (10, 11, 12);
+/// let mut router: Router<8> = Router::new(probe);
+/// router.observe(gateway, relay, 3);
+/// assert_eq!(router.next_hop(gateway), Some(relay));
+///
+/// // A packet addressed to the probe itself is delivered, not forwarded.
+/// assert_eq!(router.forward(probe), Forward::Deliver);
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Router<const N: usize> {
@@ -291,9 +296,10 @@ fn forget_in(routes: &mut [Option<Route>], dst: u32) {
 /// use pamoja_routing::{DynamicRouter, Forward};
 ///
 /// // A gateway sizes its table for the mesh it is actually serving.
-/// let mut router = DynamicRouter::new(0x01, 512);
-/// router.observe(0x09, 0x05, 2);
-/// assert_eq!(router.forward(0x09), Forward::Relay(0x05));
+/// let (gateway, pump, relay) = (1, 9, 5);
+/// let mut router = DynamicRouter::new(gateway, 512);
+/// router.observe(pump, relay, 2);
+/// assert_eq!(router.forward(pump), Forward::Relay(relay));
 /// assert_eq!(router.capacity(), 512);
 /// ```
 #[cfg(any(feature = "alloc", test))]

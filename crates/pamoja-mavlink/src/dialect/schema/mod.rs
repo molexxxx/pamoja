@@ -353,20 +353,22 @@ pub enum FieldValue {
 /// # Examples
 ///
 /// ```
-/// use pamoja_mavlink::dialect::{descriptor, DynamicMessage, Heartbeat, Message};
+/// use pamoja_mavlink::dialect::{
+///     descriptor, mav_state, mav_type, DynamicMessage, Heartbeat, Message,
+/// };
 /// use pamoja_mavlink::Header;
 ///
 /// let shape = descriptor(Heartbeat::ID).expect("HEARTBEAT is in the common dialect");
 ///
 /// // Fill the message in by name, the way a caller reading a dialect definition would.
 /// let mut heartbeat = DynamicMessage::new(shape)?;
-/// heartbeat.set_uint("type", 0, 18)?; // MAV_TYPE_ONBOARD_CONTROLLER
-/// heartbeat.set_uint("system_status", 0, 4)?; // MAV_STATE_ACTIVE
+/// heartbeat.set_uint("type", 0, mav_type::ONBOARD_CONTROLLER.into())?;
+/// heartbeat.set_uint("system_status", 0, mav_state::ACTIVE.into())?;
 /// heartbeat.set_uint("mavlink_version", 0, 3)?;
 ///
 /// // It is an ordinary frame, so a typed receiver reads it back unchanged.
 /// let frame = heartbeat.to_frame(Header::new(1, 1, 0))?;
-/// assert_eq!(Heartbeat::decode(frame.payload())?.system_status, 4);
+/// assert_eq!(Heartbeat::decode(frame.payload())?.system_status, mav_state::ACTIVE);
 /// # Ok::<(), pamoja_mavlink::MavlinkError>(())
 /// ```
 #[derive(Clone, Debug)]
@@ -426,17 +428,24 @@ impl<'a> DynamicMessage<'a> {
     /// # Examples
     ///
     /// ```
-    /// use pamoja_mavlink::dialect::{descriptor, DynamicMessage};
-    /// use pamoja_mavlink::Frame;
+    /// use pamoja_mavlink::dialect::{descriptor, mav_state, mav_type, DynamicMessage};
+    /// use pamoja_mavlink::{Frame, Header};
     ///
+    /// // A companion computer's HEARTBEAT, built from the dialect's description of it: an
+    /// // onboard controller that is up and running.
     /// let shape = descriptor(0).expect("HEARTBEAT is in the common dialect");
-    /// let received = Frame::parse(
-    ///     &[0xfd, 0x09, 0, 0, 7, 1, 1, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 4, 3, 0x75, 0x3a],
-    ///     shape.crc_extra,
-    /// )?;
+    /// let mut beat = DynamicMessage::new(shape)?;
+    /// beat.set_uint("type", 0, mav_type::ONBOARD_CONTROLLER.into())?;
+    /// beat.set_uint("system_status", 0, mav_state::ACTIVE.into())?;
+    /// beat.set_uint("mavlink_version", 0, 3)?;
+    /// let sent = beat.to_frame(Header::new(1, 1, 7))?;
     ///
+    /// // A receiver checks the frame against the same CRC extra, then reads it field by
+    /// // field.
+    /// let received = Frame::parse(sent.as_bytes(), shape.crc_extra)?;
     /// let heartbeat = DynamicMessage::decode(shape, received.payload())?;
-    /// assert_eq!(heartbeat.get_uint("type", 0)?, 18);
+    /// assert_eq!(heartbeat.get_uint("type", 0)?, u64::from(mav_type::ONBOARD_CONTROLLER));
+    /// assert_eq!(heartbeat.get_uint("system_status", 0)?, u64::from(mav_state::ACTIVE));
     /// # Ok::<(), pamoja_mavlink::MavlinkError>(())
     /// ```
     pub fn decode(descriptor: &'a MessageDescriptor<'a>, payload: &[u8]) -> Result<Self> {

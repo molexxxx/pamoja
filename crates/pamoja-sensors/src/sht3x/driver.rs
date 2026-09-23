@@ -25,41 +25,23 @@ use crate::error::DriverError;
 ///
 /// # Examples
 ///
-/// The part's side of the conversation, scripted: what the datasheet says an SHT3x
-/// answers during initialization and one single-shot measurement, here at 25 °C and
-/// 60 %RH.
+/// A proofing cabinet's climate, read from an SHT3x that is not plugged in yet: the
+/// simulated part, which the `alloc` feature brings, holds 27 °C and 75 % relative
+/// humidity.
 ///
 /// ```
+/// # #[cfg(feature = "alloc")]
+/// # {
 /// use pamoja_core::Sensor;
-/// use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
-/// use pamoja_sensors::sht3x::{
-///     humidity_raw_from_relative_humidity, temperature_raw_from_celsius, Measurement,
-///     Sht3x, Status, I2C_ADDRESS_A,
-/// };
+/// use pamoja_hal::script::{block_on, DelayLog};
+/// use pamoja_sensors::sht3x::{sim, Sht3x, I2C_ADDRESS_A};
 ///
-/// const PART: u8 = I2C_ADDRESS_A;
-/// let status = Status::from_bits(Status::DEFAULT).to_bytes();
-/// let data = Measurement {
-///     temperature_raw: temperature_raw_from_celsius(25.0),
-///     humidity_raw: humidity_raw_from_relative_humidity(60.0),
-/// }
-/// .to_bytes();
-/// let bus = I2cScript::new([
-///     I2cStep::write(PART, [0x30, 0xA2]),
-///     I2cStep::write(PART, [0xF3, 0x2D]),
-///     I2cStep::read(PART, status),
-///     I2cStep::write(PART, [0x24, 0x00]),
-///     I2cStep::read(PART, data),
-/// ]);
-///
-/// let mut sensor = Sht3x::new(bus, PART, DelayLog::new());
-/// let measurement = block_on(sensor.read())?;
-/// assert_eq!(measurement.temperature_milli_celsius(), 25_000);
-/// assert_eq!(measurement.humidity_milli_percent(), 60_000);
-///
-/// let (bus, delay) = sensor.release();
-/// assert!(bus.done());
-/// assert_eq!(delay.total_micros(), 1_500 + 1_000 + 15_000);
+/// let part = sim::reporting(I2C_ADDRESS_A, 27.0, 75.0);
+/// let mut sensor = Sht3x::new(part, I2C_ADDRESS_A, DelayLog::new());
+/// let climate = block_on(sensor.read())?;
+/// assert!((climate.temperature_milli_celsius() - 27_000).abs() < 10);
+/// assert!(climate.humidity_milli_percent().abs_diff(75_000) < 10);
+/// # }
 /// # Ok::<(), pamoja_core::Error>(())
 /// ```
 #[derive(Debug)]
@@ -450,5 +432,37 @@ mod tests {
             [1_500_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000],
             "the reset time, then the 1 ms gap after each of the four commands"
         );
+    }
+
+    #[test]
+    fn a_reset_and_one_measurement_make_the_transfers_the_datasheet_gives() {
+        use crate::sht3x::{
+            humidity_raw_from_relative_humidity, temperature_raw_from_celsius, Measurement, Status,
+            I2C_ADDRESS_A,
+        };
+
+        const PART: u8 = I2C_ADDRESS_A;
+        let status = Status::from_bits(Status::DEFAULT).to_bytes();
+        let data = Measurement {
+            temperature_raw: temperature_raw_from_celsius(25.0),
+            humidity_raw: humidity_raw_from_relative_humidity(60.0),
+        }
+        .to_bytes();
+        let bus = I2cScript::new([
+            I2cStep::write(PART, [0x30, 0xA2]),
+            I2cStep::write(PART, [0xF3, 0x2D]),
+            I2cStep::read(PART, status),
+            I2cStep::write(PART, [0x24, 0x00]),
+            I2cStep::read(PART, data),
+        ]);
+
+        let mut sensor = Sht3x::new(bus, PART, DelayLog::new());
+        let measurement = block_on(Sensor::read(&mut sensor)).expect("the scripted part answers");
+        assert_eq!(measurement.temperature_milli_celsius(), 25_000);
+        assert_eq!(measurement.humidity_milli_percent(), 60_000);
+
+        let (bus, delay) = sensor.release();
+        assert!(bus.done());
+        assert_eq!(delay.total_micros(), 1_500 + 1_000 + 15_000);
     }
 }

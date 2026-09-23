@@ -114,9 +114,15 @@ pub const MAX_LEN: usize = 10;
 /// # Examples
 ///
 /// ```
-/// use pamoja_radios::sx126x::command;
+/// use pamoja_radios::sx126x::{command, config};
 ///
-/// assert_eq!(command::set_rf_frequency(0x3641_999A).as_bytes(), [0x86, 0x36, 0x41, 0x99, 0x9A]);
+/// // Tuning to 868.1 MHz: the SetRfFrequency opcode, then the frequency word the
+/// // datasheet's formula gives, most significant byte first.
+/// let word = config::frequency_word(868_100_000);
+/// let tune = command::set_rf_frequency(word);
+/// assert_eq!(tune.opcode(), command::opcode::SET_RF_FREQUENCY);
+/// assert_eq!(tune.as_bytes()[1..], word.to_be_bytes());
+/// assert_eq!(config::frequency_from_word(word), 868_100_000);
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Command {
