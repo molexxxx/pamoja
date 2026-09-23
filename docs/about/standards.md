@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">60 standards registered, 35 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">61 standards registered, 35 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -746,8 +746,21 @@ The protocol a ground station and a flight controller speak.
 
 Naming, typing and carrying messages the way ROS 2 and Zenoh do.
 
-<nav class="hw-index" aria-label="Robotics index"><a href="#ros2-names">ROS 2 topic and service names</a><a href="#rihs01">REP-2011, RIHS01</a><a href="#dds-xtypes">DDS-XTypes 1.3, clause 7.4</a><a href="#rmw-zenoh">rmw_zenoh key expressions</a><a href="#zenoh-keyexpr">Zenoh key expressions</a></nav>
+<nav class="hw-index" aria-label="Robotics index"><a href="#rep-103">REP-103</a><a href="#ros2-names">ROS 2 topic and service names</a><a href="#rihs01">REP-2011, RIHS01</a><a href="#dds-xtypes">DDS-XTypes 1.3, clause 7.4</a><a href="#rmw-zenoh">rmw_zenoh key expressions</a><a href="#zenoh-keyexpr">Zenoh key expressions</a></nav>
 <div class="hw-cards">
+<article class="hw-card" aria-labelledby="rep-103">
+<header class="hw-head">
+
+### REP-103 {#rep-103}
+
+<p class="hw-by">ROS project</p>
+<p class="hw-summary">The units and axes a robot's motion is measured in</p>
+</header>
+<p class="hw-summary">Every twist, pose, and chassis model uses its body frame: x forward, y left, and a positive yaw turning left.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://ros.org/reps/rep-0103.html"><span class="hw-main"><b>The document</b><small>REP-103</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-kit/src/odometry.rs#L179"><span class="hw-main"><b>The test</b><small><code>odometry.rs</code> line 179</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
 <article class="hw-card" aria-labelledby="ros2-names">
 <header class="hw-head">
 

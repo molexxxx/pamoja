@@ -65,6 +65,27 @@ public static class KitGuide
         Console.WriteLine(Invariant(
             $"level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads {slow:F1}%, one expecting motion {fast:F1}%"));
 
+        // An accelerometer on the tank watches the tower's lean. Standing still, only gravity
+        // pulls on it, so the direction of the pull, in g, gives the tilt.
+        Tilt atRest = Kit.TiltFromAccel(0.0, 0.007, 1.0);
+        Console.WriteLine(Invariant($"tower     at rest the accelerometer reads a lean of {atRest.Roll:F2} degrees"));
+
+        // In wind the tower sways, and the sway's own acceleration swings the accelerometer's
+        // tilt. A gyro's rate of turn does not swing, but it drifts. A complementary filter
+        // trusts the gyro from one tenth of a second to the next and the accelerometer over
+        // time.
+        using var lean = new Complementary(0.98f, (float)atRest.Roll);
+        using var gusts = new Window(5);
+        foreach ((float rate, float tilt) in new[] { (0.4f, 2.1f), (-0.6f, -1.3f), (0.5f, 1.8f), (-0.3f, -0.9f), (0.1f, 1.2f) })
+        {
+            lean.Update(rate, tilt, 0.1f);
+            gusts.Push(tilt);
+        }
+
+        float steadyLean = lean.Estimate;
+        Console.WriteLine(Invariant(
+            $"tower     in wind the accelerometer swings from {gusts.Min():F1} to {gusts.Max():F1} degrees; fused with the gyro the lean reads {steadyLean:F1}"));
+
         // The refill pump starts at 40% and stops at 60%: on/off control with a band either
         // side of 50. Starting when the level falls is the direction Heating names.
         using var pump = Thermostat.Heating(50.0f, 10.0f);
@@ -121,6 +142,14 @@ public static class KitGuide
             Console.WriteLine(Invariant(
                 $"booster   at {bar:F2} bar the PID asks for {asked:F0}%, the pump is given {given:F0}%"));
         }
+
+        // The booster's controller hangs in the pump house above the mains. The pump house
+        // thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+        float air = Units.FahrenheitToCelsius(84.0f);
+        double dew = Kit.DewPoint(air, 78.0);
+        string sweats = 18.0 < dew ? "sweat" : "stay dry";
+        Console.WriteLine(Invariant(
+            $"pumphouse 84 F is {air:F1} C, and at 78% humidity it dews at {dew:F1} C, so the 18 C mains {sweats}"));
 
         // A power cut stops the borehole pump. From the hourly level, the countdown says how
         // long until the tower reaches its 20% reserve.
@@ -194,6 +223,8 @@ public static class KitGuide
         Expect(hoursLeft == 13, "the reserve is 13 hours away");
         Expect(Math.Abs(slope + 0.4457f) < 1e-3f, "the leak shows as a steady fall");
         Expect(slow < 56.0f && fast > 58.0f, "the tuned filter keeps up");
+        Expect(Math.Abs(atRest.Roll - 0.401) < 1e-3 && Math.Abs(steadyLean - 0.426f) < 1e-3f, "the lean holds through the gusts");
+        Expect(dew > 24.0 && dew < 25.0, "the pump house air dews above the mains");
         Expect(hydrant && failed && flagged == 0, "only the odd readings stand out");
         Expect(crossings.SequenceEqual(["inside", "inside", "exited", "outside", "entered"]), "the truck crossed out and back");
     }

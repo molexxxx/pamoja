@@ -123,6 +123,8 @@ pub mod mesh;
 pub mod modbus;
 #[cfg(feature = "modbus")]
 pub mod modbus_client;
+#[cfg(feature = "kit")]
+pub mod motion;
 #[cfg(feature = "mqtt")]
 pub mod mqtt;
 #[cfg(feature = "hal")]

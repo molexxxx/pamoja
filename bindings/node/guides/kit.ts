@@ -7,12 +7,15 @@ import {
   Anomaly,
   bearingBetween,
   Calibration,
+  Complementary,
   type Coord,
   deadband,
   Debounce,
   Depletion,
+  dewPoint,
   distanceBetween,
   Edge,
+  fahrenheitToCelsius,
   Geofence,
   Kalman,
   Median,
@@ -21,6 +24,7 @@ import {
   Smoother,
   Surge,
   Thermostat,
+  tiltFromAccel,
   Trend,
   Trigger,
   Window,
@@ -74,6 +78,31 @@ console.log(
   `level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads ${slow.toFixed(1)}%, one expecting motion ${fast.toFixed(1)}%`,
 )
 
+// An accelerometer on the tank watches the tower's lean. Standing still, only gravity pulls
+// on it, so the direction of the pull, in g, gives the tilt.
+const atRest = tiltFromAccel(0, 0.007, 1)
+console.log(`tower     at rest the accelerometer reads a lean of ${atRest.roll.toFixed(2)} degrees`)
+
+// In wind the tower sways, and the sway's own acceleration swings the accelerometer's tilt.
+// A gyro's rate of turn does not swing, but it drifts. A complementary filter trusts the gyro
+// from one tenth of a second to the next and the accelerometer over time.
+const lean = new Complementary(0.98, atRest.roll)
+const gusts = new Window(5)
+for (const [rate, tilt] of [
+  [0.4, 2.1],
+  [-0.6, -1.3],
+  [0.5, 1.8],
+  [-0.3, -0.9],
+  [0.1, 1.2],
+]) {
+  lean.update(rate, tilt, 0.1)
+  gusts.push(tilt)
+}
+const steadyLean = lean.estimate
+console.log(
+  `tower     in wind the accelerometer swings from ${gusts.min()!.toFixed(1)} to ${gusts.max()!.toFixed(1)} degrees; fused with the gyro the lean reads ${steadyLean.toFixed(1)}`,
+)
+
 // The refill pump starts at 40% and stops at 60%: on/off control with a band either side
 // of 50. Starting when the level falls is the direction heating names.
 const pump = Thermostat.heating(50, 10)
@@ -121,6 +150,15 @@ for (const bar of [1.0, 1.8, 2.5, 2.9, 3.02]) {
     `booster   at ${bar.toFixed(2)} bar the PID asks for ${asked.toFixed(0)}%, the pump is given ${given.toFixed(0)}%`,
   )
 }
+
+// The booster's controller hangs in the pump house above the mains. The pump house
+// thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+const air = fahrenheitToCelsius(84)
+const dew = dewPoint(air, 78)
+const sweats = 18 < dew ? 'sweat' : 'stay dry'
+console.log(
+  `pumphouse 84 F is ${air.toFixed(1)} C, and at 78% humidity it dews at ${dew.toFixed(1)} C, so the 18 C mains ${sweats}`,
+)
 
 // A power cut stops the borehole pump. From the hourly level, the countdown says how long
 // until the tower reaches its 20% reserve.
@@ -189,6 +227,9 @@ assert.equal(float.state, true)
 assert.equal(hoursLeft, 13)
 assert.ok(Math.abs(slope + 0.4457) < 1e-3)
 assert.ok(slow < 56 && fast > 58)
+assert.ok(Math.abs(atRest.roll - 0.401) < 1e-3)
+assert.ok(Math.abs(steadyLean - 0.426) < 1e-3)
+assert.ok(dew > 24 && dew < 25)
 assert.ok(hydrant && failed)
 assert.equal(flagged, 0)
 assert.deepEqual(crossings, ['inside', 'inside', 'exited', 'outside', 'entered'])

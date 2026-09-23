@@ -23,8 +23,11 @@ use pamoja_gpio::i2c::{Address, Direction};
 use pamoja_gpio::pin::{Edge, Level, Polarity};
 use pamoja_gpio::spi::Mode;
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Depletion, Edge as TriggerEdge, Geofence,
-    Median, Pid, Smoother, Thermostat, Trend, Trigger, Window,
+    deadband, forward_kinematics, imu, obstacle_stop, units, weather, Ackermann, Anomaly, Boundary,
+    Calibration, Complementary, Coordinate, Depletion, DhParameters, DiffDrive,
+    Edge as TriggerEdge, Elbow, Esc, Geofence, Limits, Mecanum, Median, Odometry, Pid, Quadrature,
+    QuadratureScale, SafetyGate, ServoMap, SkidSteer, Smoother, Thermostat, Trend, Trigger, Twist,
+    TwoLinkArm, WaypointFollower, Window,
 };
 use pamoja_ladder::{Delivery, TransportLadder};
 use pamoja_loopback::{Faulty, LoopbackBroker, LoopbackTransport};
@@ -148,6 +151,8 @@ fn main() {
         "calibration": calibration(),
         "deadband": deadband_vectors(),
         "geofence": geofence(),
+        "kitExtras": kit_extras(),
+        "motion": motion(),
         "serial": serial(),
         "modbus": modbus(),
         "can": can(),
@@ -228,6 +233,282 @@ fn codec() -> Value {
             "readings": readings,
             "packed": hex(&Quantizer::new(scale).encode(&readings).expect("finite readings")),
             "tolerance": 1.0 / f64::from(scale),
+        },
+    })
+}
+
+/// Unit conversions, tilt from an accelerometer, the dew point, and a complementary filter
+/// that ignores a reading it cannot use.
+fn kit_extras() -> Value {
+    let accel = [
+        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.3, -0.2, 0.9],
+    ];
+    let tilts: Vec<Value> = accel
+        .iter()
+        .map(|&[ax, ay, az]| {
+            let tilt = imu::tilt_from_accel(ax, ay, az);
+            json!({ "accel": [ax, ay, az], "roll": tilt.roll, "pitch": tilt.pitch })
+        })
+        .collect();
+    let air = [(20.0, 50.0), (15.0, 100.0), (2.0, 60.0), (30.0, 80.0)];
+    let dew_points: Vec<Value> = air
+        .iter()
+        .map(|&(celsius, humidity)| {
+            json!({
+                "celsius": celsius,
+                "humidity": humidity,
+                "dewPoint": weather::dew_point(celsius, humidity),
+            })
+        })
+        .collect();
+    let (alpha, initial) = (0.98f32, 0.0f32);
+    let steps = [
+        (10.0f32, 1.0f32, 0.1f32),
+        (f32::NAN, 1.0, 0.1),
+        (-5.0, 0.5, 0.1),
+    ];
+    let mut filter = Complementary::new(alpha, initial);
+    let estimates: Vec<f32> = steps
+        .iter()
+        .map(|&(rate, absolute, dt)| filter.update(rate, absolute, dt))
+        .collect();
+    let celsius = [-40.0f32, 0.0, 21.5, 100.0];
+    let pascals = [101_325.0f32, 6_894.757, 0.0];
+    json!({
+        "units": {
+            "celsius": celsius,
+            "fahrenheit": celsius.map(units::celsius_to_fahrenheit),
+            "kelvin": celsius.map(units::celsius_to_kelvin),
+            "pascals": pascals,
+            "hectopascals": pascals.map(units::pascals_to_hectopascals),
+            "kilopascals": pascals.map(units::pascals_to_kilopascals),
+            "psi": pascals.map(units::pascals_to_psi),
+        },
+        "tilts": tilts,
+        "dewPoints": dew_points,
+        "complementary": {
+            "alpha": alpha,
+            "initial": initial,
+            "steps": steps
+                .iter()
+                .map(|&(rate, absolute, dt)| json!({
+                    "rate": if rate.is_nan() { Value::Null } else { json!(rate) },
+                    "absolute": absolute,
+                    "dt": dt,
+                }))
+                .collect::<Vec<_>>(),
+            "estimates": estimates,
+        },
+    })
+}
+
+/// Chassis kinematics, an arm, odometry, waypoint guidance, the safety gate, and the servo,
+/// ESC, and encoder conversions, each over inputs that reach its edges.
+fn motion() -> Value {
+    let drive = DiffDrive::new(0.5);
+    let commands = [(1.0f32, 0.0f32), (0.0, 2.0), (0.8, -0.6)];
+    let diff: Vec<Value> = commands
+        .iter()
+        .map(|&(linear, angular)| {
+            let (left, right) = drive.wheel_speeds(linear, angular);
+            json!({ "linear": linear, "angular": angular, "left": left, "right": right })
+        })
+        .collect();
+
+    let car = Ackermann::new(2.5);
+    let steering = [0.0f32, 0.2, -0.4];
+    let ackermann: Vec<Value> = steering
+        .iter()
+        .map(|&angle| {
+            let radius = car.turn_radius(angle);
+            json!({
+                "steering": angle,
+                "turnRadius": if radius.is_infinite() { Value::Null } else { json!(radius) },
+                "yawRate": car.yaw_rate(5.0, angle),
+                "curvature": car.curvature(angle),
+            })
+        })
+        .collect();
+
+    let tracked = SkidSteer::new(0.5, 1.2);
+    let (skid_left, skid_right) = tracked.wheel_speeds(0.3, 1.5);
+
+    let base = Mecanum::new(0.4, 0.3);
+    let twists = [
+        (1.0f32, 0.0f32, 0.0f32),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+        (0.8, -0.3, 0.6),
+    ];
+    let mecanum: Vec<Value> = twists
+        .iter()
+        .map(|&(vx, vy, omega)| {
+            let wheels = base.wheel_speeds(Twist::new(vx, vy, omega));
+            json!({
+                "twist": [vx, vy, omega],
+                "wheels": [wheels.front_left, wheels.front_right, wheels.rear_left, wheels.rear_right],
+            })
+        })
+        .collect();
+
+    let arm = TwoLinkArm::new(1.0, 0.8);
+    let targets = [(1.2f32, 0.6f32), (0.5, -0.9), (3.0, 0.0)];
+    let arm_vectors: Vec<Value> = targets
+        .iter()
+        .map(|&(x, y)| {
+            let joints = |elbow| match arm.joints_for(x, y, elbow) {
+                Some((shoulder, elbow)) => json!([shoulder, elbow]),
+                None => Value::Null,
+            };
+            json!({ "target": [x, y], "up": joints(Elbow::Up), "down": joints(Elbow::Down) })
+        })
+        .collect();
+
+    let chain = [
+        DhParameters {
+            a: 0.0,
+            alpha: core::f32::consts::FRAC_PI_2,
+            d: 0.3,
+            theta: 0.4,
+        },
+        DhParameters {
+            a: 0.5,
+            alpha: 0.0,
+            d: 0.0,
+            theta: -0.7,
+        },
+        DhParameters {
+            a: 0.4,
+            alpha: 0.0,
+            d: 0.0,
+            theta: 0.9,
+        },
+    ];
+    let tool = forward_kinematics(&chain);
+
+    let mut odometry = Odometry::at_origin();
+    let steps = [
+        (1.0f32, 0.0f32, 1.0f32),
+        (1.0, 1.0, core::f32::consts::FRAC_PI_2),
+        (0.5, -0.5, 1.0),
+    ];
+    let poses: Vec<Value> = steps
+        .iter()
+        .map(|&(linear, angular, dt)| {
+            let pose = odometry.integrate(linear, angular, dt);
+            json!([pose.x, pose.y, pose.theta])
+        })
+        .collect();
+
+    let follower = WaypointFollower::new(1.5, 3.0, 1.5, 1.0);
+    let here = Coordinate::new(-1.2921, 36.8219);
+    let fixes = [
+        (-1.2921, 36.8319, 90.0f32),
+        (-1.2821, 36.8219, 90.0),
+        (-1.2921, 36.8219, 0.0),
+    ];
+    let guidance: Vec<Value> = fixes
+        .iter()
+        .map(|&(latitude, longitude, heading)| {
+            let g = follower.guide(here, heading, Coordinate::new(latitude, longitude));
+            json!({
+                "target": [latitude, longitude],
+                "heading": heading,
+                "twist": [g.twist.vx, g.twist.vy, g.twist.omega],
+                "distanceM": g.distance_m,
+                "headingErrorDeg": g.heading_error_deg,
+                "arrived": g.arrived,
+            })
+        })
+        .collect();
+
+    let mut gate = SafetyGate::new(Limits::new(1.0, 2.0, 0.5, 4.0), 0.25);
+    gate.feed();
+    let desired = Twist::new(1.0, 0.0, 1.5);
+    let mut gate_commands = Vec::new();
+    for _ in 0..3 {
+        let command = gate.command(desired, 0.1);
+        gate_commands.push(json!([command.vx, command.vy, command.omega]));
+    }
+    let silent = gate.command(desired, 0.1);
+
+    let servo = ServoMap::standard();
+    let angles = [0.0f32, 45.0, 90.0, 180.0, 200.0];
+    let esc = Esc::bidirectional();
+    let throttles = [-1.0f32, -0.5, 0.0, 0.5, 1.0, 2.0];
+    let clear = obstacle_stop(Twist::new(1.0, 0.2, 0.5), 2.0, 0.5);
+    let near = obstacle_stop(Twist::new(1.0, 0.2, 0.5), 0.3, 0.5);
+    let mut encoder = Quadrature::new();
+    let edges = [
+        (false, true),
+        (true, true),
+        (true, false),
+        (true, true),
+        (false, true),
+        (true, false),
+    ];
+    let deltas: Vec<i8> = edges.iter().map(|&(a, b)| encoder.update(a, b)).collect();
+    let scale = QuadratureScale::new(360.0, 0.05);
+
+    json!({
+        "diffDrive": { "track": 0.5, "commands": diff },
+        "ackermann": { "wheelbase": 2.5, "linear": 5.0, "steering": ackermann },
+        "skidSteer": {
+            "track": 0.5, "slip": 1.2, "linear": 0.3, "angular": 1.5,
+            "left": skid_left, "right": skid_right,
+        },
+        "mecanum": { "wheelbase": 0.4, "track": 0.3, "twists": mecanum },
+        "arm": { "l1": 1.0, "l2": 0.8, "targets": arm_vectors },
+        "forwardKinematics": {
+            "joints": chain.iter().map(|j| json!([j.a, j.alpha, j.d, j.theta])).collect::<Vec<_>>(),
+            "transform": tool.m,
+        },
+        "odometry": {
+            "steps": steps.iter().map(|&(l, a, dt)| json!([l, a, dt])).collect::<Vec<_>>(),
+            "poses": poses,
+        },
+        "waypoint": {
+            "cruise": 1.5, "arrivalM": 3.0, "headingGain": 1.5, "maxAngular": 1.0,
+            "here": [here.latitude, here.longitude],
+            "guidance": guidance,
+        },
+        "obstacleStop": {
+            "twist": [1.0, 0.2, 0.5],
+            "stopDistance": 0.5,
+            "clear": 2.0,
+            "clearTwist": [clear.vx, clear.vy, clear.omega],
+            "near": 0.3,
+            "nearTwist": [near.vx, near.vy, near.omega],
+        },
+        "safetyGate": {
+            "limits": [1.0, 2.0, 0.5, 4.0],
+            "watchdogTimeout": 0.25,
+            "desired": [desired.vx, desired.vy, desired.omega],
+            "dt": 0.1,
+            "commands": gate_commands,
+            "afterSilence": [silent.vx, silent.vy, silent.omega],
+        },
+        "servo": {
+            "angles": angles,
+            "pulses": angles.map(|angle| servo.pulse(angle)),
+            "pulseBack": 1250,
+            "angleBack": servo.angle(1250),
+        },
+        "esc": {
+            "throttles": throttles,
+            "pulses": throttles.map(|throttle| esc.pulse(throttle)),
+        },
+        "quadrature": {
+            "edges": edges.iter().map(|&(a, b)| json!([a, b])).collect::<Vec<_>>(),
+            "deltas": deltas,
+            "count": encoder.count(),
+            "countsPerRev": 360.0,
+            "wheelRadius": 0.05,
+            "distance": scale.distance(encoder.count()),
+            "velocity": scale.velocity(90, 0.5),
         },
     })
 }

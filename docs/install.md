@@ -128,8 +128,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">cargo add pamoja --features profiles</code><button class="copy" type="button" data-copy="cargo add pamoja --features profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
 </details><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust.html#profiles-and-robotics">API reference</a></div></div>
 </div>
 </div>
@@ -192,8 +192,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">npm install @pamoja/profiles</code><button class="copy" type="button" data-copy="npm install @pamoja/profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
 </details><a class="pkg-btn api node" href="https://pamoja.molex.cloud/docs/reference/node.html#profiles-and-robotics">API reference</a><a class="pkg-btn ext" href="https://www.npmjs.com/package/@pamoja/profiles">npm</a></div></div>
 </div>
 </div>
@@ -256,8 +256,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">pip install pamoja-profiles</code><button class="copy" type="button" data-copy="pip install pamoja-profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
 </details><a class="pkg-btn api python" href="https://pamoja.molex.cloud/docs/reference/python.html#profiles-and-robotics">API reference</a><a class="pkg-btn ext" href="https://pypi.org/project/pamoja-profiles/">PyPI</a></div></div>
 </div>
 </div>
@@ -320,8 +320,8 @@ name two of them share stays unambiguous. Pick a language:
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profiles</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
-<summary><span class="guide-menu-n">4</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
-<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
+<summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
+<ul class="guide-menu-list"><li><a href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/motion.html">Robot motion</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/ros2.html">ROS 2 rules</a></li><li><a href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a></li></ul>
 </details><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet.html#profiles-and-robotics">API reference</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Profiles">NuGet</a></div></div>
 </div>
 </div>

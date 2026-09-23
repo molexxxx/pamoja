@@ -18,30 +18,8 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::Mutex;
 
+use crate::motion::Pose;
 use crate::PamojaError;
-
-/// Where a robot is and which way it faces.
-#[gen_stub_pyclass]
-#[pyclass]
-pub struct Pose {
-    /// Position along the world x axis, in meters.
-    #[pyo3(get)]
-    x: f32,
-    /// Position along the world y axis, in meters.
-    #[pyo3(get)]
-    y: f32,
-    /// Heading from the world x axis, in radians, positive counter-clockwise.
-    #[pyo3(get)]
-    theta: f32,
-}
-
-#[gen_stub_pymethods]
-#[pymethods]
-impl Pose {
-    fn __repr__(&self) -> String {
-        format!("Pose(x={}, y={}, theta={})", self.x, self.y, self.theta)
-    }
-}
 
 /// A sensor that invents plausible readings.
 #[gen_stub_pyclass]
@@ -206,12 +184,7 @@ impl SimulatedRobot {
         let inner = Arc::clone(&self.inner);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let robot = inner.lock().await;
-            let pose = robot.pose();
-            Ok(Pose {
-                x: pose.x,
-                y: pose.y,
-                theta: pose.theta,
-            })
+            Ok(Pose::from(robot.pose()))
         })
     }
 }

@@ -13,31 +13,11 @@ use std::sync::Arc;
 
 use napi_derive::napi;
 use pamoja_core::{Actuator as CoreActuator, Sensor as CoreSensor};
-use pamoja_kit::{Pose as CorePose, Twist as CoreTwist};
+use pamoja_kit::Pose as CorePose;
 use pamoja_sim::{RecordingActuator, Replay as CoreReplay, SimRobot as CoreRobot, SimSensor};
 use tokio::sync::Mutex;
 
-/// Where a robot is and which way it faces.
-#[napi(object)]
-pub struct Pose {
-    /// Position along the world x axis, in meters.
-    pub x: f64,
-    /// Position along the world y axis, in meters.
-    pub y: f64,
-    /// Heading from the world x axis, in radians, positive counter-clockwise.
-    pub theta: f64,
-}
-
-/// How fast a robot is asked to move.
-#[napi(object)]
-pub struct Twist {
-    /// Forward speed along the x axis.
-    pub vx: f64,
-    /// Leftward speed along the y axis; zero for drives that cannot strafe.
-    pub vy: f64,
-    /// Yaw rate about the z axis, positive counter-clockwise.
-    pub omega: f64,
-}
+use crate::motion::{Pose, Twist};
 
 /// A sensor that invents plausible readings.
 #[napi]
@@ -196,35 +176,27 @@ impl SimulatedRobot {
     /// @param start - where it begins, defaulting to the origin.
     #[napi(constructor)]
     pub fn new(dt: f64, start: Option<Pose>) -> Self {
-        let pose = start.unwrap_or(Pose {
-            x: 0.0,
-            y: 0.0,
-            theta: 0.0,
-        });
+        let start = start.map(CorePose::from).unwrap_or_else(CorePose::origin);
         Self {
-            inner: Arc::new(Mutex::new(CoreRobot::starting_at(
-                CorePose::new(pose.x as f32, pose.y as f32, pose.theta as f32),
-                dt as f32,
-            ))),
+            inner: Arc::new(Mutex::new(CoreRobot::starting_at(start, dt as f32))),
         }
     }
 
     /// Drives the robot for one time step.
     #[napi]
     pub async fn apply(&self, command: Twist) -> napi::Result<()> {
-        let twist = CoreTwist::new(command.vx as f32, command.vy as f32, command.omega as f32);
-        self.inner.lock().await.apply(twist).await.map_err(to_napi)
+        self.inner
+            .lock()
+            .await
+            .apply(command.into())
+            .await
+            .map_err(to_napi)
     }
 
     /// Where the robot has got to.
     #[napi]
     pub async fn pose(&self) -> Pose {
-        let pose = self.inner.lock().await.pose();
-        Pose {
-            x: f64::from(pose.x),
-            y: f64::from(pose.y),
-            theta: f64::from(pose.theta),
-        }
+        self.inner.lock().await.pose().into()
     }
 }
 

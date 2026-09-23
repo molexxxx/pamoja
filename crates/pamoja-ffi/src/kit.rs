@@ -19,8 +19,9 @@
 use std::ptr;
 
 use pamoja_kit::{
-    deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Edge, Geofence,
-    Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Trigger, Window,
+    deadband, imu, units, weather, Anomaly, Boundary, Calibration, Complementary, Coordinate,
+    Debounce, Depletion, Edge, Geofence, Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat,
+    Trend, Trigger, Window,
 };
 
 /// A latitude and longitude in degrees.
@@ -1071,6 +1072,213 @@ pub extern "C" fn pamoja_kit_deadband(value: f32, center: f32, width: f32) -> f3
     deadband(value, center, width)
 }
 
+/// An opaque handle to a complementary filter.
+pub struct PamojaComplementary {
+    inner: Complementary,
+}
+
+/// Creates a complementary filter, which fuses a drifting rate with a noisy absolute
+/// reading.
+///
+/// # Arguments
+///
+/// * `alpha` - the weight on the integrated rate, held to 0 to 1; near 1 trusts the rate and
+///   corrects slowly. One that is not a number is taken as 0, following the absolute
+///   reading.
+/// * `initial` - the starting estimate.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_complementary_free`].
+///
+/// # Safety
+///
+/// The returned handle must be freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_complementary_new(
+    alpha: f32,
+    initial: f32,
+) -> *mut PamojaComplementary {
+    Box::into_raw(Box::new(PamojaComplementary {
+        inner: Complementary::new(alpha, initial),
+    }))
+}
+
+/// Fuses a rate and an absolute reading over a time step.
+///
+/// If the rate, the absolute reading, or the time step is not a finite number, the update
+/// is ignored.
+///
+/// # Returns
+///
+/// The fused estimate, or NaN if `filter` is null.
+///
+/// # Safety
+///
+/// `filter` must be a live handle from [`pamoja_complementary_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_complementary_update(
+    filter: *mut PamojaComplementary,
+    rate: f32,
+    absolute: f32,
+    dt: f32,
+) -> f32 {
+    match filter.as_mut() {
+        Some(filter) => filter.inner.update(rate, absolute, dt),
+        None => f32::NAN,
+    }
+}
+
+/// Reads a complementary filter's estimate.
+///
+/// # Returns
+///
+/// The estimate, or NaN if `filter` is null.
+///
+/// # Safety
+///
+/// `filter` must be a live handle from [`pamoja_complementary_new`], or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_complementary_estimate(filter: *const PamojaComplementary) -> f32 {
+    match filter.as_ref() {
+        Some(filter) => filter.inner.estimate(),
+        None => f32::NAN,
+    }
+}
+
+/// Releases a complementary filter handle.
+///
+/// Passing null is a no-op.
+///
+/// # Safety
+///
+/// `filter` must be a handle from [`pamoja_complementary_new`] that has not already been
+/// freed, or null. After this call it must not be used again.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_complementary_free(filter: *mut PamojaComplementary) {
+    if !filter.is_null() {
+        drop(Box::from_raw(filter));
+    }
+}
+
+/// Roll and pitch, in degrees.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PamojaTilt {
+    /// Rotation about the forward axis, in degrees, from -180 to 180.
+    pub roll: f64,
+    /// Rotation about the right axis, in degrees, from -90 to 90.
+    pub pitch: f64,
+}
+
+/// Computes roll and pitch from a three-axis accelerometer at rest.
+///
+/// # Arguments
+///
+/// * `ax` - acceleration along the forward axis, in any unit.
+/// * `ay` - acceleration along the right axis, in the same unit.
+/// * `az` - acceleration along the up axis, in the same unit.
+///
+/// # Returns
+///
+/// The tilt in degrees.
+#[no_mangle]
+pub extern "C" fn pamoja_imu_tilt_from_accel(ax: f64, ay: f64, az: f64) -> PamojaTilt {
+    let tilt = imu::tilt_from_accel(ax, ay, az);
+    PamojaTilt {
+        roll: tilt.roll,
+        pitch: tilt.pitch,
+    }
+}
+
+/// Computes the dew point from the air temperature and relative humidity.
+///
+/// # Arguments
+///
+/// * `celsius` - the air temperature, in degrees Celsius.
+/// * `humidity_percent` - the relative humidity, in percent; one at or below 0 is taken as
+///   a tiny positive value.
+///
+/// # Returns
+///
+/// The dew point, in degrees Celsius.
+#[no_mangle]
+pub extern "C" fn pamoja_weather_dew_point(celsius: f64, humidity_percent: f64) -> f64 {
+    weather::dew_point(celsius, humidity_percent)
+}
+
+/// Converts degrees Celsius to degrees Fahrenheit.
+#[no_mangle]
+pub extern "C" fn pamoja_units_celsius_to_fahrenheit(celsius: f32) -> f32 {
+    units::celsius_to_fahrenheit(celsius)
+}
+
+/// Converts degrees Fahrenheit to degrees Celsius.
+#[no_mangle]
+pub extern "C" fn pamoja_units_fahrenheit_to_celsius(fahrenheit: f32) -> f32 {
+    units::fahrenheit_to_celsius(fahrenheit)
+}
+
+/// Converts degrees Celsius to kelvin.
+#[no_mangle]
+pub extern "C" fn pamoja_units_celsius_to_kelvin(celsius: f32) -> f32 {
+    units::celsius_to_kelvin(celsius)
+}
+
+/// Converts kelvin to degrees Celsius.
+#[no_mangle]
+pub extern "C" fn pamoja_units_kelvin_to_celsius(kelvin: f32) -> f32 {
+    units::kelvin_to_celsius(kelvin)
+}
+
+/// Converts pascals to hectopascals.
+#[no_mangle]
+pub extern "C" fn pamoja_units_pascals_to_hectopascals(pascals: f32) -> f32 {
+    units::pascals_to_hectopascals(pascals)
+}
+
+/// Converts hectopascals to pascals.
+#[no_mangle]
+pub extern "C" fn pamoja_units_hectopascals_to_pascals(hectopascals: f32) -> f32 {
+    units::hectopascals_to_pascals(hectopascals)
+}
+
+/// Converts pascals to kilopascals.
+#[no_mangle]
+pub extern "C" fn pamoja_units_pascals_to_kilopascals(pascals: f32) -> f32 {
+    units::pascals_to_kilopascals(pascals)
+}
+
+/// Converts kilopascals to pascals.
+#[no_mangle]
+pub extern "C" fn pamoja_units_kilopascals_to_pascals(kilopascals: f32) -> f32 {
+    units::kilopascals_to_pascals(kilopascals)
+}
+
+/// Converts pascals to pounds per square inch.
+#[no_mangle]
+pub extern "C" fn pamoja_units_pascals_to_psi(pascals: f32) -> f32 {
+    units::pascals_to_psi(pascals)
+}
+
+/// Converts pounds per square inch to pascals.
+#[no_mangle]
+pub extern "C" fn pamoja_units_psi_to_pascals(psi: f32) -> f32 {
+    units::psi_to_pascals(psi)
+}
+
+/// Converts a ratio from 0 to 1 to a percentage.
+#[no_mangle]
+pub extern "C" fn pamoja_units_ratio_to_percent(ratio: f32) -> f32 {
+    units::ratio_to_percent(ratio)
+}
+
+/// Converts a percentage to a ratio from 0 to 1.
+#[no_mangle]
+pub extern "C" fn pamoja_units_percent_to_ratio(percent: f32) -> f32 {
+    units::percent_to_ratio(percent)
+}
+
 /// Writes an optional value through an out-pointer, reporting whether it was set.
 ///
 /// # Safety
@@ -1983,6 +2191,37 @@ mod tests {
             assert_eq!(pamoja_anomaly_capacity(anomaly), 8);
             assert!(pamoja_anomaly_check(anomaly, f32::NAN), "a NaN is flagged");
             pamoja_anomaly_free(anomaly);
+        }
+    }
+
+    #[test]
+    fn the_unit_tilt_and_dew_point_helpers_convert() {
+        assert_eq!(pamoja_units_celsius_to_fahrenheit(100.0), 212.0);
+        assert_eq!(pamoja_units_fahrenheit_to_celsius(32.0), 0.0);
+        assert!((pamoja_units_celsius_to_kelvin(0.0) - 273.15).abs() < 1e-4);
+        assert_eq!(pamoja_units_pascals_to_hectopascals(101_325.0), 1013.25);
+        assert!((pamoja_units_psi_to_pascals(1.0) - 6894.757).abs() < 1e-2);
+        assert_eq!(pamoja_units_ratio_to_percent(0.25), 25.0);
+        let rolled = pamoja_imu_tilt_from_accel(0.0, 1.0, 1.0);
+        assert!((rolled.roll - 45.0).abs() < 1e-9 && rolled.pitch.abs() < 1e-9);
+        assert!((pamoja_weather_dew_point(15.0, 100.0) - 15.0).abs() < 1e-6);
+        assert!((pamoja_weather_dew_point(20.0, 50.0) - 9.3).abs() < 0.2);
+    }
+
+    #[test]
+    fn a_complementary_filter_ignores_a_reading_it_cannot_use() {
+        // Safety: the handle is live for the whole test and freed once at the end.
+        unsafe {
+            let tilt = pamoja_complementary_new(0.98, 0.0);
+            let settled = pamoja_complementary_update(tilt, 10.0, 1.0, 0.1);
+            assert!((settled - 1.0).abs() < 0.05);
+            assert_eq!(
+                pamoja_complementary_update(tilt, f32::NAN, 1.0, 0.1),
+                settled
+            );
+            assert_eq!(pamoja_complementary_estimate(tilt), settled);
+            pamoja_complementary_free(tilt);
+            assert!(pamoja_complementary_estimate(ptr::null()).is_nan());
         }
     }
 

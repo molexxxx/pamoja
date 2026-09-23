@@ -403,7 +403,90 @@ public static partial class NativeMethods
         PamojaCoordinate from,
         PamojaCoordinate to);
 
-    /// <summary>Suppresses movement within a band around a center value.</summary>
+    /// <summary>Holds a reading at a center while it stays within a band either side.</summary>
     [LibraryImport(Library)]
     public static partial float pamoja_kit_deadband(float value, float center, float width);
+
+    /// <summary>Creates a complementary filter.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_complementary_new(float alpha, float initial);
+
+    /// <summary>Fuses a rate and an absolute reading over a time step.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_complementary_update(IntPtr filter, float rate, float absolute, float dt);
+
+    /// <summary>Reads a complementary filter's estimate.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_complementary_estimate(IntPtr filter);
+
+    /// <summary>Releases a complementary filter handle. Passing null is a no-op.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_complementary_free(IntPtr filter);
+
+    /// <summary>Computes roll and pitch from a three-axis accelerometer at rest.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaTilt pamoja_imu_tilt_from_accel(double ax, double ay, double az);
+
+    /// <summary>Computes the dew point from the air temperature and relative humidity.</summary>
+    [LibraryImport(Library)]
+    public static partial double pamoja_weather_dew_point(double celsius, double humidityPercent);
+
+    /// <summary>Converts degrees Celsius to degrees Fahrenheit.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_celsius_to_fahrenheit(float celsius);
+
+    /// <summary>Converts degrees Fahrenheit to degrees Celsius.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_fahrenheit_to_celsius(float fahrenheit);
+
+    /// <summary>Converts degrees Celsius to kelvin.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_celsius_to_kelvin(float celsius);
+
+    /// <summary>Converts kelvin to degrees Celsius.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_kelvin_to_celsius(float kelvin);
+
+    /// <summary>Converts pascals to hectopascals.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_pascals_to_hectopascals(float pascals);
+
+    /// <summary>Converts hectopascals to pascals.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_hectopascals_to_pascals(float hectopascals);
+
+    /// <summary>Converts pascals to kilopascals.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_pascals_to_kilopascals(float pascals);
+
+    /// <summary>Converts kilopascals to pascals.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_kilopascals_to_pascals(float kilopascals);
+
+    /// <summary>Converts pascals to pounds per square inch.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_pascals_to_psi(float pascals);
+
+    /// <summary>Converts pounds per square inch to pascals.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_psi_to_pascals(float psi);
+
+    /// <summary>Converts a ratio from 0 to 1 to a percentage.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_ratio_to_percent(float ratio);
+
+    /// <summary>Converts a percentage to a ratio from 0 to 1.</summary>
+    [LibraryImport(Library)]
+    public static partial float pamoja_units_percent_to_ratio(float percent);
+}
+
+/// <summary>Roll and pitch, in degrees.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaTilt
+{
+    /// <summary>Rotation about the forward axis, in degrees, from -180 to 180.</summary>
+    public double Roll;
+
+    /// <summary>Rotation about the right axis, in degrees, from -90 to 90.</summary>
+    public double Pitch;
 }

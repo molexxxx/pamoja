@@ -873,6 +873,126 @@ def test_control_helpers_hold_their_state_through_a_bad_reading():
         Debounce(70000, False)
 
 
+def test_units_tilt_and_dew_point_convert():
+    import math
+
+    from pamoja.kit import (
+        Complementary,
+        celsius_to_fahrenheit,
+        dew_point,
+        pascals_to_hectopascals,
+        tilt_from_accel,
+    )
+
+    assert celsius_to_fahrenheit(100.0) == 212.0
+    assert pascals_to_hectopascals(101_325.0) == 1013.25
+    rolled = tilt_from_accel(0.0, 1.0, 1.0)
+    assert rolled.roll == pytest.approx(45.0) and rolled.pitch == pytest.approx(0.0)
+    assert dew_point(15.0, 100.0) == pytest.approx(15.0), "saturated air dews at its temperature"
+
+    tilt = Complementary(0.98, 0.0)
+    settled = tilt.update(10.0, 1.0, 0.1)
+    assert tilt.update(math.nan, 1.0, 0.1) == settled, "a reading that is not a number is ignored"
+    assert tilt.estimate == settled
+
+
+def test_helpers_drive_a_robot():
+    import math
+
+    from pamoja.kit import (
+        Ackermann,
+        Coordinate,
+        DhParameters,
+        DiffDrive,
+        Elbow,
+        EStop,
+        Esc,
+        Limits,
+        Mecanum,
+        Odometry,
+        Pose,
+        Quadrature,
+        QuadratureScale,
+        SafetyGate,
+        ServoMap,
+        SkidSteer,
+        Transform,
+        Twist,
+        TwoLinkArm,
+        Watchdog,
+        WaypointFollower,
+        WheelSpeeds,
+        forward_kinematics,
+        obstacle_stop,
+    )
+
+    drive = DiffDrive(0.5)
+    assert drive.wheel_speeds(0.0, 2.0) == (-0.5, 0.5), "spinning in place"
+    assert drive.body_motion(-0.5, 0.5) == (0.0, 2.0)
+
+    car = Ackermann(2.5)
+    assert car.turn_radius(0.0) == math.inf, "wheels straight never turn"
+    assert car.steering_angle(5.0, car.yaw_rate(5.0, 0.4)) == pytest.approx(0.4, abs=1e-5)
+
+    left, right = SkidSteer(0.5, 1.2).wheel_speeds(0.0, 2.0)
+    assert (left, right) == (pytest.approx(-0.6), pytest.approx(0.6))
+
+    base = Mecanum(0.4, 0.3)
+    strafe = base.wheel_speeds(Twist(vy=1.0))
+    assert strafe == WheelSpeeds(-1.0, 1.0, 1.0, -1.0), "the diagonals spin against each other"
+    assert base.body_motion(strafe) == Twist(vy=1.0)
+
+    arm = TwoLinkArm(1.0, 1.0)
+    x, y = arm.tip(0.5, 0.7)
+    shoulder, elbow = arm.joints_for(x, y, Elbow.UP)
+    assert shoulder == pytest.approx(0.5, abs=1e-4) and elbow == pytest.approx(0.7, abs=1e-4)
+    assert arm.joints_for(5.0, 0.0) is None, "out of reach"
+    assert arm.reach == (0.0, 2.0)
+    with pytest.raises(ValueError, match='elbow must be "up" or "down"'):
+        arm.joints_for(x, y, "sideways")
+
+    link = DhParameters(a=1.0)
+    tool = forward_kinematics([link, link])
+    assert tool.position == (pytest.approx(2.0), pytest.approx(0.0), 0.0)
+    assert forward_kinematics([]) == Transform.identity()
+    assert link.transform().elements[3] == 1.0
+
+    odometry = Odometry()
+    pose = odometry.integrate(1.0, 1.0, math.pi / 2)
+    assert (pose.x, pose.y) == (pytest.approx(1.0, abs=1e-5), pytest.approx(1.0, abs=1e-5))
+    assert odometry.integrate(math.nan, 1.0, 1.0) == pose, "a bad sample leaves the pose"
+    assert Pose(0.0, 0.0, 2 * math.pi + 0.3).theta == pytest.approx(0.3, abs=1e-5), "wrapped"
+
+    follower = WaypointFollower(1.5, 3.0, 1.5, 1.0)
+    here, east = Coordinate(0.0, 0.0), Coordinate(0.0, 0.01)
+    guidance = follower.guide(here, 90.0, east)
+    assert not guidance.arrived and guidance.twist.vx == pytest.approx(1.5, abs=1e-3)
+    assert follower.guide(here, 90.0, east) == guidance, "guidance compares by value"
+    assert follower.guide(here, 90.0, here).arrived
+    assert obstacle_stop(Twist(1.0, 0.0, 0.5), math.nan, 0.5) == Twist(omega=0.5)
+
+    gate = SafetyGate(Limits(1.0, 2.0, 0.5, 4.0), 0.2)
+    gate.feed()
+    assert gate.command(Twist(1.0), 0.1).vx == pytest.approx(0.05)
+    gate.engage_estop()
+    assert gate.is_stopped and gate.command(Twist(1.0), 0.1) == Twist()
+    assert Watchdog(0.5).update(math.nan), "an unknown silence expires the watchdog"
+    estop = EStop()
+    estop.engage()
+    assert estop.gate(Twist(1.0)) == Twist()
+
+    servo = ServoMap.standard()
+    assert servo.pulse(90.0) == 1500 and servo.pulse(math.nan) == 0
+    with pytest.raises(ValueError, match="min_us must be a whole number of microseconds"):
+        ServoMap(-1, 2000, 180.0)
+    assert Esc.bidirectional().pulse(0.5) == 1750
+    encoder = Quadrature()
+    for a, b in ((False, True), (True, True), (True, False), (False, False)):
+        assert encoder.update(a, b) == 1
+    assert encoder.count == 4
+    assert QuadratureScale(360.0, 0.05).distance(360) == pytest.approx(2 * math.pi * 0.05)
+
+
 def test_a_signed_chain_records_what_a_node_did():
     from pamoja import audit
     from pamoja.security import DeviceIdentity

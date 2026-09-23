@@ -2060,6 +2060,14 @@ typedef enum {
   PamojaLorawanMessageType_ConfirmedDown = 5,
 } PamojaLorawanMessageType;
 
+// Which way a two-link arm's elbow bends.
+typedef enum {
+  // The elbow angle is positive, counter-clockwise.
+  PamojaElbow_Up = 0,
+  // The elbow angle is negative, clockwise.
+  PamojaElbow_Down = 1,
+} PamojaElbow;
+
 // MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
 typedef enum {
   // Fire and forget; the broker does not acknowledge delivery.
@@ -2361,6 +2369,9 @@ typedef struct PamojaCoapServer PamojaCoapServer;
 // An opaque handle to a streaming COBS decoder.
 typedef struct PamojaCobsDecoder PamojaCobsDecoder;
 
+// An opaque handle to a complementary filter.
+typedef struct PamojaComplementary PamojaComplementary;
+
 // An opaque handle to a profile's decision logic.
 //
 // A controller carries state between readings, because a level estimate and a
@@ -2384,6 +2395,9 @@ typedef struct PamojaDs18b20Thermometer PamojaDs18b20Thermometer;
 // The DS18B20s the kernel has found, in order of their directory names. Opaque; release it
 // with [`pamoja_ds18b20_thermometers_free`].
 typedef struct PamojaDs18b20Thermometers PamojaDs18b20Thermometers;
+
+// An opaque handle to a latching emergency stop.
+typedef struct PamojaEStop PamojaEStop;
 
 // An opaque handle to one endpoint on an event bus.
 //
@@ -2468,6 +2482,9 @@ typedef struct PamojaKalman PamojaKalman;
 // ladder in an option lets it be taken and put back so the handle address stays
 // good for the life of the ladder.
 typedef struct PamojaLadder PamojaLadder;
+
+// An opaque handle to speed and acceleration limits, with the motion they last allowed.
+typedef struct PamojaLimits PamojaLimits;
 
 // An opaque handle to an in-process broker.
 //
@@ -2649,6 +2666,9 @@ typedef struct PamojaMqttClient PamojaMqttClient;
 // An opaque handle to a message received from a subscribed topic.
 typedef struct PamojaMqttMessage PamojaMqttMessage;
 
+// An opaque handle to a dead-reckoned pose.
+typedef struct PamojaOdometry PamojaOdometry;
+
 // An OPT3001 driven over an I2C bus. Opaque; release it with [`pamoja_opt3001_free`].
 typedef struct PamojaOpt3001 PamojaOpt3001;
 
@@ -2660,6 +2680,9 @@ typedef struct PamojaPid PamojaPid;
 
 // An opaque handle to a device profile.
 typedef struct PamojaProfile PamojaProfile;
+
+// An opaque handle to a quadrature encoder decoder.
+typedef struct PamojaQuadrature PamojaQuadrature;
 
 // An opaque handle to a duty-cycle guard.
 //
@@ -2700,6 +2723,10 @@ typedef struct PamojaReporter PamojaReporter;
 // Create it with [`pamoja_router_new`], teach it with
 // [`pamoja_router_observe`], and release it with [`pamoja_router_free`].
 typedef struct PamojaRouter PamojaRouter;
+
+// An opaque handle to the gate every motion command passes through: an e-stop, a
+// watchdog, and limits.
+typedef struct PamojaSafetyGate PamojaSafetyGate;
 
 // An opaque handle to a decoded series of integer samples.
 //
@@ -2788,6 +2815,9 @@ typedef struct PamojaTrigger PamojaTrigger;
 // Create it with [`pamoja_updater_new`] and release it with
 // [`pamoja_updater_free`].
 typedef struct PamojaUpdater PamojaUpdater;
+
+// An opaque handle to a deadman timer.
+typedef struct PamojaWatchdog PamojaWatchdog;
 
 // An opaque handle to a rolling window of readings.
 typedef struct PamojaWindow PamojaWindow;
@@ -3390,6 +3420,14 @@ typedef struct {
   // Degrees east of the prime meridian, negative for west.
   double longitude;
 } PamojaCoordinate;
+
+// Roll and pitch, in degrees.
+typedef struct {
+  // Rotation about the forward axis, in degrees, from -180 to 180.
+  double roll;
+  // Rotation about the right axis, in degrees, from -90 to 90.
+  double pitch;
+} PamojaTilt;
 
 // The gains and losses of a LoRa link, from the transmitting radio to the receiving one.
 //
@@ -4316,6 +4354,185 @@ typedef struct {
   uint32_t received;
 } PamojaModbusClientError;
 
+// The speeds of a two-sided drive's left and right wheels or tracks.
+typedef struct {
+  // The left side's speed.
+  float left;
+  // The right side's speed.
+  float right;
+} PamojaSideSpeeds;
+
+// A differential drive: two wheels `track` apart.
+typedef struct {
+  // The distance between the left and right wheels; its magnitude is used.
+  float track;
+} PamojaDiffDrive;
+
+// A planar body motion: a forward speed and a yaw rate.
+typedef struct {
+  // The forward speed.
+  float linear;
+  // The yaw rate, positive turning left.
+  float angular;
+} PamojaBodyMotion;
+
+// Car-like steering: one steered axle and a driven axle `wheelbase` apart.
+typedef struct {
+  // The distance from the steered axle to the driven axle; its magnitude is used.
+  float wheelbase;
+} PamojaAckermann;
+
+// A skid-steer drive: tracks or wheels `track` apart that slip sideways to turn.
+typedef struct {
+  // The distance between the left and right sides; its magnitude is used.
+  float track;
+  // How much wider the effective track is than the geometric one; its magnitude is
+  // used, and 0 is taken as 1, no slip.
+  float slip;
+} PamojaSkidSteer;
+
+// The four wheel speeds of a mecanum base.
+typedef struct {
+  // The front-left wheel's speed.
+  float front_left;
+  // The front-right wheel's speed.
+  float front_right;
+  // The rear-left wheel's speed.
+  float rear_left;
+  // The rear-right wheel's speed.
+  float rear_right;
+} PamojaWheelSpeeds;
+
+// A mecanum base: four wheels `wheelbase` front to rear and `track` side to side.
+typedef struct {
+  // The front-to-rear distance between the axles; its magnitude is used.
+  float wheelbase;
+  // The left-to-right distance between the wheels; its magnitude is used.
+  float track;
+} PamojaMecanum;
+
+// How fast a robot is asked to move.
+typedef struct {
+  // Forward speed along the x axis.
+  float vx;
+  // Leftward speed along the y axis; zero for drives that cannot strafe.
+  float vy;
+  // Yaw rate about the z axis, positive counter-clockwise.
+  float omega;
+} PamojaTwist;
+
+// The closest and farthest a two-link arm's hand reaches from its shoulder.
+typedef struct {
+  // The closest reach, the difference of the link lengths.
+  float min;
+  // The farthest reach, the sum of the link lengths.
+  float max;
+} PamojaReach;
+
+// A planar two-link arm: a shoulder link `l1` long and an elbow link `l2` long.
+typedef struct {
+  // The shoulder link's length; its magnitude is used.
+  float l1;
+  // The elbow link's length; its magnitude is used.
+  float l2;
+} PamojaTwoLinkArm;
+
+// A point in a plane.
+typedef struct {
+  // The x coordinate.
+  float x;
+  // The y coordinate.
+  float y;
+} PamojaPoint;
+
+// A two-link arm's joint angles, in radians.
+typedef struct {
+  // The shoulder angle, from the x axis.
+  float shoulder;
+  // The elbow angle, relative to the first link.
+  float elbow;
+} PamojaJoints;
+
+// A 4x4 homogeneous transform, a rotation and a translation, stored row-major.
+typedef struct {
+  // The sixteen elements, row 0 first; the translation is elements 3, 7, and 11.
+  float m[16];
+} PamojaTransform;
+
+// One joint of a serial arm in the Denavit-Hartenberg convention.
+typedef struct {
+  // The link length along the common normal, in meters.
+  float a;
+  // The link twist about the common normal, in radians.
+  float alpha;
+  // The link offset along the previous z axis, in meters.
+  float d;
+  // The joint angle about the previous z axis, in radians.
+  float theta;
+} PamojaDhParameters;
+
+// Where a robot is and which way it faces.
+typedef struct {
+  // Position along the world x axis, in meters.
+  float x;
+  // Position along the world y axis, in meters.
+  float y;
+  // Heading from the world x axis, in radians, positive counter-clockwise.
+  float theta;
+} PamojaPose;
+
+// The command toward a waypoint, with the geometry behind it.
+typedef struct {
+  // The body motion to drive.
+  PamojaTwist twist;
+  // The distance left to the target, in meters.
+  double distance_m;
+  // The heading error to the target, in degrees, in `(-180, 180]`.
+  float heading_error_deg;
+  // 1 once the target is within the arrival radius, else 0.
+  uint8_t arrived;
+} PamojaGuidance;
+
+// Steers toward a waypoint: the speeds and gains of a carrot-following guide.
+typedef struct {
+  // The forward speed when pointed at the target; its magnitude is used.
+  float cruise;
+  // How close, in meters, counts as arrived; its magnitude is used.
+  double arrival_m;
+  // The yaw rate commanded per radian of heading error; its magnitude is used.
+  float heading_gain;
+  // The largest yaw rate to command; its magnitude is used.
+  float max_angular;
+} PamojaWaypointFollower;
+
+// A hobby servo's pulse range and travel.
+typedef struct {
+  // The pulse width at zero degrees, in microseconds.
+  uint16_t min_us;
+  // The pulse width at full travel, in microseconds.
+  uint16_t max_us;
+  // The full travel in degrees; its magnitude is used.
+  float range_deg;
+} PamojaServoMap;
+
+// An electronic speed controller's reverse, neutral, and forward pulse widths.
+typedef struct {
+  // The pulse width at full reverse, in microseconds.
+  uint16_t min_us;
+  // The pulse width at rest, in microseconds.
+  uint16_t neutral_us;
+  // The pulse width at full forward, in microseconds.
+  uint16_t max_us;
+} PamojaEsc;
+
+// An encoder's resolution and the radius of the wheel it turns with.
+typedef struct {
+  // Steps per wheel revolution; its magnitude is used.
+  float counts_per_rev;
+  // The wheel radius in meters; its magnitude is used.
+  float wheel_radius;
+} PamojaQuadratureScale;
+
 // Connection settings for an MQTT client.
 //
 // `client_id` and `host` are borrowed null-terminated UTF-8 strings. A
@@ -5143,26 +5360,6 @@ typedef struct {
   // The tag over the ciphertext and its associated data.
   uint8_t tag[PAMOJA_SESSION_TAG_LEN];
 } PamojaSealed;
-
-// Where a robot is and which way it faces.
-typedef struct {
-  // Position along the world x axis, in meters.
-  float x;
-  // Position along the world y axis, in meters.
-  float y;
-  // Heading from the world x axis, in radians, positive counter-clockwise.
-  float theta;
-} PamojaPose;
-
-// How fast a robot is asked to move.
-typedef struct {
-  // Forward speed along the x axis.
-  float vx;
-  // Leftward speed along the y axis; zero for drives that cannot strafe.
-  float vy;
-  // Yaw rate about the z axis, positive counter-clockwise.
-  float omega;
-} PamojaTwist;
 
 // A count of everything a reporter has seen, cheap enough to ship anywhere.
 //
@@ -9701,6 +9898,125 @@ double pamoja_coordinate_bearing_to(PamojaCoordinate from, PamojaCoordinate to);
 //
 // `center` while `value` is within `width` of it, and otherwise `value` unchanged.
 float pamoja_kit_deadband(float value, float center, float width);
+
+// Creates a complementary filter, which fuses a drifting rate with a noisy absolute
+// reading.
+//
+// # Arguments
+//
+// * `alpha` - the weight on the integrated rate, held to 0 to 1; near 1 trusts the rate and
+//   corrects slowly. One that is not a number is taken as 0, following the absolute
+//   reading.
+// * `initial` - the starting estimate.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_complementary_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaComplementary *pamoja_complementary_new(float alpha, float initial);
+
+// Fuses a rate and an absolute reading over a time step.
+//
+// If the rate, the absolute reading, or the time step is not a finite number, the update
+// is ignored.
+//
+// # Returns
+//
+// The fused estimate, or NaN if `filter` is null.
+//
+// # Safety
+//
+// `filter` must be a live handle from [`pamoja_complementary_new`], or null.
+float pamoja_complementary_update(PamojaComplementary *filter,
+                                  float rate,
+                                  float absolute,
+                                  float dt);
+
+// Reads a complementary filter's estimate.
+//
+// # Returns
+//
+// The estimate, or NaN if `filter` is null.
+//
+// # Safety
+//
+// `filter` must be a live handle from [`pamoja_complementary_new`], or null.
+float pamoja_complementary_estimate(const PamojaComplementary *filter);
+
+// Releases a complementary filter handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `filter` must be a handle from [`pamoja_complementary_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_complementary_free(PamojaComplementary *filter);
+
+// Computes roll and pitch from a three-axis accelerometer at rest.
+//
+// # Arguments
+//
+// * `ax` - acceleration along the forward axis, in any unit.
+// * `ay` - acceleration along the right axis, in the same unit.
+// * `az` - acceleration along the up axis, in the same unit.
+//
+// # Returns
+//
+// The tilt in degrees.
+PamojaTilt pamoja_imu_tilt_from_accel(double ax, double ay, double az);
+
+// Computes the dew point from the air temperature and relative humidity.
+//
+// # Arguments
+//
+// * `celsius` - the air temperature, in degrees Celsius.
+// * `humidity_percent` - the relative humidity, in percent; one at or below 0 is taken as
+//   a tiny positive value.
+//
+// # Returns
+//
+// The dew point, in degrees Celsius.
+double pamoja_weather_dew_point(double celsius, double humidity_percent);
+
+// Converts degrees Celsius to degrees Fahrenheit.
+float pamoja_units_celsius_to_fahrenheit(float celsius);
+
+// Converts degrees Fahrenheit to degrees Celsius.
+float pamoja_units_fahrenheit_to_celsius(float fahrenheit);
+
+// Converts degrees Celsius to kelvin.
+float pamoja_units_celsius_to_kelvin(float celsius);
+
+// Converts kelvin to degrees Celsius.
+float pamoja_units_kelvin_to_celsius(float kelvin);
+
+// Converts pascals to hectopascals.
+float pamoja_units_pascals_to_hectopascals(float pascals);
+
+// Converts hectopascals to pascals.
+float pamoja_units_hectopascals_to_pascals(float hectopascals);
+
+// Converts pascals to kilopascals.
+float pamoja_units_pascals_to_kilopascals(float pascals);
+
+// Converts kilopascals to pascals.
+float pamoja_units_kilopascals_to_pascals(float kilopascals);
+
+// Converts pascals to pounds per square inch.
+float pamoja_units_pascals_to_psi(float pascals);
+
+// Converts pounds per square inch to pascals.
+float pamoja_units_psi_to_pascals(float psi);
+
+// Converts a ratio from 0 to 1 to a percentage.
+float pamoja_units_ratio_to_percent(float ratio);
+
+// Converts a percentage to a ratio from 0 to 1.
+float pamoja_units_percent_to_ratio(float percent);
 
 // Creates an empty rolling window of [`PAMOJA_WINDOW_CAPACITY`] readings.
 //
@@ -18885,6 +19201,705 @@ PamojaStatus pamoja_modbus_client_write_multiple_registers(const PamojaModbusCli
 //
 // `client` must be a handle that has not been freed, or null.
 void pamoja_modbus_client_free(PamojaModbusClient *client);
+
+// Returns the wheel speeds a differential drive needs for a body motion.
+//
+// # Arguments
+//
+// * `drive` - the drive.
+// * `linear` - the forward speed.
+// * `angular` - the turn rate, positive turning left.
+//
+// # Returns
+//
+// The left and right wheel speeds.
+PamojaSideSpeeds pamoja_diff_drive_wheel_speeds(PamojaDiffDrive drive, float linear, float angular);
+
+// Returns the body motion a differential drive makes from measured wheel speeds.
+//
+// # Arguments
+//
+// * `drive` - the drive.
+// * `left` - the left wheel speed.
+// * `right` - the right wheel speed.
+//
+// # Returns
+//
+// The forward speed and turn rate; the turn rate is 0 for a drive with no track.
+PamojaBodyMotion pamoja_diff_drive_body_motion(PamojaDiffDrive drive, float left, float right);
+
+// Returns the steering angle for a forward speed and a yaw rate.
+//
+// # Arguments
+//
+// * `car` - the vehicle.
+// * `linear` - the forward speed.
+// * `angular` - the desired yaw rate, positive turning left.
+//
+// # Returns
+//
+// The steering angle in radians, or 0 while the vehicle is stopped.
+float pamoja_ackermann_steering_angle(PamojaAckermann car, float linear, float angular);
+
+// Returns the yaw rate a forward speed and a steering angle produce.
+//
+// # Arguments
+//
+// * `car` - the vehicle.
+// * `linear` - the forward speed.
+// * `steering` - the steering angle in radians.
+//
+// # Returns
+//
+// The yaw rate, or 0 for a vehicle with no wheelbase.
+float pamoja_ackermann_yaw_rate(PamojaAckermann car, float linear, float steering);
+
+// Returns the turn radius of a steering angle.
+//
+// # Arguments
+//
+// * `car` - the vehicle.
+// * `steering` - the steering angle in radians.
+//
+// # Returns
+//
+// The radius in meters, or infinity with the wheels straight.
+float pamoja_ackermann_turn_radius(PamojaAckermann car, float steering);
+
+// Returns the path curvature of a steering angle, the reciprocal of the turn radius.
+//
+// # Arguments
+//
+// * `car` - the vehicle.
+// * `steering` - the steering angle in radians.
+//
+// # Returns
+//
+// The curvature, or 0 for a vehicle with no wheelbase.
+float pamoja_ackermann_curvature(PamojaAckermann car, float steering);
+
+// Returns the side speeds a skid-steer drive needs for a body motion.
+//
+// # Arguments
+//
+// * `drive` - the drive.
+// * `linear` - the forward speed.
+// * `angular` - the yaw rate, positive turning left.
+//
+// # Returns
+//
+// The left and right speeds, split across the slip-corrected track.
+PamojaSideSpeeds pamoja_skid_steer_wheel_speeds(PamojaSkidSteer drive, float linear, float angular);
+
+// Returns the body motion a skid-steer drive makes from measured side speeds.
+//
+// # Arguments
+//
+// * `drive` - the drive.
+// * `left` - the left side's speed.
+// * `right` - the right side's speed.
+//
+// # Returns
+//
+// The forward speed and yaw rate; the yaw rate is 0 for a drive with no track.
+PamojaBodyMotion pamoja_skid_steer_body_motion(PamojaSkidSteer drive, float left, float right);
+
+// Returns the four wheel speeds a mecanum base needs for a body twist.
+//
+// # Arguments
+//
+// * `base` - the base.
+// * `twist` - the body motion, using its forward, sideways, and yaw parts.
+//
+// # Returns
+//
+// The four wheel speeds.
+PamojaWheelSpeeds pamoja_mecanum_wheel_speeds(PamojaMecanum base, PamojaTwist twist);
+
+// Returns the body twist a mecanum base makes from measured wheel speeds.
+//
+// # Arguments
+//
+// * `base` - the base.
+// * `wheels` - the four measured wheel speeds.
+//
+// # Returns
+//
+// The body twist; its yaw rate is 0 for a base with no size.
+PamojaTwist pamoja_mecanum_body_motion(PamojaMecanum base, PamojaWheelSpeeds wheels);
+
+// Returns how close and how far a two-link arm reaches.
+//
+// # Arguments
+//
+// * `arm` - the arm.
+//
+// # Returns
+//
+// The closest and farthest reach.
+PamojaReach pamoja_two_link_arm_reach(PamojaTwoLinkArm arm);
+
+// Returns where a two-link arm's hand is for its joint angles.
+//
+// # Arguments
+//
+// * `arm` - the arm.
+// * `shoulder` - the shoulder angle, in radians from the x axis.
+// * `elbow` - the elbow angle, in radians relative to the first link.
+//
+// # Returns
+//
+// The hand's position.
+PamojaPoint pamoja_two_link_arm_tip(PamojaTwoLinkArm arm, float shoulder, float elbow);
+
+// Finds the joint angles that put a two-link arm's hand at a point.
+//
+// # Arguments
+//
+// * `arm` - the arm.
+// * `x` - the target's x coordinate.
+// * `y` - the target's y coordinate.
+// * `elbow` - which way the elbow bends.
+// * `out_joints` - where to write the angles.
+//
+// # Returns
+//
+// `true` with the angles written to `out_joints`, or `false` for a target out of reach,
+// an arm with a link of no length, or a coordinate that is not a finite number.
+//
+// # Safety
+//
+// `out_joints` must point to a writable `PamojaJoints`, or be null.
+bool pamoja_two_link_arm_joints_for(PamojaTwoLinkArm arm,
+                                    float x,
+                                    float y,
+                                    PamojaElbow elbow,
+                                    PamojaJoints *out_joints);
+
+// Returns the transform one Denavit-Hartenberg joint makes.
+//
+// # Arguments
+//
+// * `joint` - the joint's four parameters.
+//
+// # Returns
+//
+// The joint's homogeneous transform.
+PamojaTransform pamoja_dh_transform(PamojaDhParameters joint);
+
+// Returns the transform from a serial arm's base to its tool.
+//
+// # Arguments
+//
+// * `joints` - the arm's joints, base first.
+// * `len` - how many joints `joints` holds.
+//
+// # Returns
+//
+// The composed transform, or the identity for an arm with no joints or a null `joints`.
+//
+// # Safety
+//
+// `joints` must point to `len` readable `PamojaDhParameters`, or be null.
+PamojaTransform pamoja_forward_kinematics(const PamojaDhParameters *joints, uintptr_t len);
+
+// Returns the transform that applies `second` and then `first`, their product.
+//
+// # Arguments
+//
+// * `first` - the transform on the left of the product, nearer the base.
+// * `second` - the transform on the right, further down the chain.
+//
+// # Returns
+//
+// `first * second`.
+PamojaTransform pamoja_transform_multiply(PamojaTransform first, PamojaTransform second);
+
+// Returns the identity transform: no rotation and no translation.
+//
+// # Returns
+//
+// The identity.
+PamojaTransform pamoja_transform_identity(void);
+
+// Creates an odometry estimate starting from a known pose.
+//
+// # Arguments
+//
+// * `start` - the starting pose; its heading is wrapped into `(-pi, pi]`.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_odometry_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaOdometry *pamoja_odometry_new(PamojaPose start);
+
+// Reads an odometry estimate's pose.
+//
+// # Returns
+//
+// The pose, or the origin if `odometry` is null.
+//
+// # Safety
+//
+// `odometry` must be a live handle from [`pamoja_odometry_new`], or null.
+PamojaPose pamoja_odometry_pose(const PamojaOdometry *odometry);
+
+// Sets an odometry estimate to a known pose.
+//
+// # Safety
+//
+// `odometry` must be a live handle from [`pamoja_odometry_new`], or null.
+void pamoja_odometry_reset(PamojaOdometry *odometry, PamojaPose pose);
+
+// Integrates a body motion over a time step onto an odometry estimate.
+//
+// A speed, rate, or time step that is not a finite number is ignored.
+//
+// # Returns
+//
+// The new pose, or the origin if `odometry` is null.
+//
+// # Safety
+//
+// `odometry` must be a live handle from [`pamoja_odometry_new`], or null.
+PamojaPose pamoja_odometry_integrate(PamojaOdometry *odometry,
+                                     float linear,
+                                     float angular,
+                                     float dt);
+
+// Integrates the distances two wheels rolled onto an odometry estimate.
+//
+// A distance that is not a finite number is ignored.
+//
+// # Returns
+//
+// The new pose, or the origin if `odometry` is null.
+//
+// # Safety
+//
+// `odometry` must be a live handle from [`pamoja_odometry_new`], or null.
+PamojaPose pamoja_odometry_integrate_wheels(PamojaOdometry *odometry,
+                                            float left,
+                                            float right,
+                                            PamojaDiffDrive drive);
+
+// Nudges an odometry estimate's heading toward an absolute measurement.
+//
+// `weight` is how strongly to trust `measured`, from 0 to 1. A measurement that is not a
+// finite number, or a weight that is not a number, leaves the heading as it was.
+//
+// # Safety
+//
+// `odometry` must be a live handle from [`pamoja_odometry_new`], or null.
+void pamoja_odometry_fuse_heading(PamojaOdometry *odometry, float measured, float weight);
+
+// Releases an odometry handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `odometry` must be a handle from [`pamoja_odometry_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_odometry_free(PamojaOdometry *odometry);
+
+// Produces the command from a robot's position and heading toward a target.
+//
+// # Arguments
+//
+// * `follower` - the guide's speeds and gains.
+// * `here` - the robot's position.
+// * `heading_deg` - the robot's heading in degrees clockwise from north.
+// * `target` - the waypoint.
+//
+// # Returns
+//
+// The guidance. Within the arrival radius its twist is zero and `arrived` is 1; a heading
+// or position that is not a finite number also gives a zero twist.
+PamojaGuidance pamoja_waypoint_follower_guide(PamojaWaypointFollower follower,
+                                              PamojaCoordinate here,
+                                              float heading_deg,
+                                              PamojaCoordinate target);
+
+// Cuts forward and sideways motion when an obstacle is within the stopping distance.
+//
+// # Arguments
+//
+// * `twist` - the requested motion.
+// * `range_m` - the nearest range ahead, in meters.
+// * `stop_distance_m` - the range at or below which motion is cut; its magnitude is used.
+//
+// # Returns
+//
+// `twist` while the way is clear, or it with no forward or sideways speed, keeping the
+// turn. A range that is not a number counts as an obstacle.
+PamojaTwist pamoja_obstacle_stop(PamojaTwist twist, float range_m, float stop_distance_m);
+
+// Creates an e-stop that is not engaged.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_estop_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaEStop *pamoja_estop_new(void);
+
+// Engages an e-stop; it holds until reset.
+//
+// # Safety
+//
+// `estop` must be a live handle from [`pamoja_estop_new`], or null.
+void pamoja_estop_engage(PamojaEStop *estop);
+
+// Clears an e-stop.
+//
+// # Safety
+//
+// `estop` must be a live handle from [`pamoja_estop_new`], or null.
+void pamoja_estop_reset(PamojaEStop *estop);
+
+// Reports whether an e-stop is engaged.
+//
+// # Returns
+//
+// `true` while it is engaged, and also if `estop` is null, so a missing stop reads as a
+// stop.
+//
+// # Safety
+//
+// `estop` must be a live handle from [`pamoja_estop_new`], or null.
+bool pamoja_estop_is_engaged(const PamojaEStop *estop);
+
+// Passes a command through an e-stop.
+//
+// # Returns
+//
+// `desired` while the stop is clear, or a zero twist while it is engaged or if `estop` is
+// null.
+//
+// # Safety
+//
+// `estop` must be a live handle from [`pamoja_estop_new`], or null.
+PamojaTwist pamoja_estop_gate(const PamojaEStop *estop, PamojaTwist desired);
+
+// Releases an e-stop handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `estop` must be a handle from [`pamoja_estop_new`] that has not already been freed, or
+// null. After this call it must not be used again.
+void pamoja_estop_free(PamojaEStop *estop);
+
+// Creates a watchdog that expires after `timeout` without being fed.
+//
+// A timeout that is not a number is taken as 0, so the watchdog expires rather than never.
+//
+// # Returns
+//
+// A freshly fed watchdog; the caller must release it with [`pamoja_watchdog_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaWatchdog *pamoja_watchdog_new(float timeout);
+
+// Feeds a watchdog, restarting its silence timer.
+//
+// # Safety
+//
+// `watchdog` must be a live handle from [`pamoja_watchdog_new`], or null.
+void pamoja_watchdog_feed(PamojaWatchdog *watchdog);
+
+// Advances a watchdog's timer and reports whether it has expired.
+//
+// A time step that is not a finite number expires the watchdog until it is fed.
+//
+// # Returns
+//
+// `true` if it has expired, and also if `watchdog` is null.
+//
+// # Safety
+//
+// `watchdog` must be a live handle from [`pamoja_watchdog_new`], or null.
+bool pamoja_watchdog_update(PamojaWatchdog *watchdog, float dt);
+
+// Reports whether a watchdog has expired.
+//
+// # Returns
+//
+// `true` if the time since feeding is past the timeout, and also if `watchdog` is null.
+//
+// # Safety
+//
+// `watchdog` must be a live handle from [`pamoja_watchdog_new`], or null.
+bool pamoja_watchdog_is_expired(const PamojaWatchdog *watchdog);
+
+// Releases a watchdog handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `watchdog` must be a handle from [`pamoja_watchdog_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_watchdog_free(PamojaWatchdog *watchdog);
+
+// Creates limits on speed and acceleration, starting from rest.
+//
+// Each ceiling's magnitude is used, and one that is not a number is taken as 0, which holds
+// the robot still.
+//
+// # Arguments
+//
+// * `max_linear` - the largest planar speed.
+// * `max_angular` - the largest yaw rate.
+// * `max_linear_accel` - the largest change in speed per second.
+// * `max_angular_accel` - the largest change in yaw rate per second.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_limits_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaLimits *pamoja_limits_new(float max_linear,
+                                float max_angular,
+                                float max_linear_accel,
+                                float max_angular_accel);
+
+// Bounds a command in speed and acceleration.
+//
+// A command part that is not a finite number is taken as 0, and a time step that is not
+// finite allows no change.
+//
+// # Returns
+//
+// The bounded command, or a zero twist if `limits` is null.
+//
+// # Safety
+//
+// `limits` must be a live handle from [`pamoja_limits_new`], or null.
+PamojaTwist pamoja_limits_apply(PamojaLimits *limits, PamojaTwist desired, float dt);
+
+// Forgets the motion limits last allowed, so the next command eases up from rest.
+//
+// # Safety
+//
+// `limits` must be a live handle from [`pamoja_limits_new`], or null.
+void pamoja_limits_reset(PamojaLimits *limits);
+
+// Releases a limits handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `limits` must be a handle from [`pamoja_limits_new`] that has not already been freed,
+// or null. After this call it must not be used again.
+void pamoja_limits_free(PamojaLimits *limits);
+
+// Creates a safety gate from limits and a watchdog timeout.
+//
+// # Arguments
+//
+// * `limits` - the limits for normal motion, copied as they stand; the handle stays the
+//   caller's.
+// * `watchdog_timeout` - the silence after which the gate stops the robot.
+//
+// # Returns
+//
+// A cleared, freshly fed gate the caller must release with [`pamoja_safety_gate_free`],
+// or null if `limits` is null.
+//
+// # Safety
+//
+// `limits` must be a live handle from [`pamoja_limits_new`], or null. A returned handle
+// must be freed exactly once.
+PamojaSafetyGate *pamoja_safety_gate_new(const PamojaLimits *limits, float watchdog_timeout);
+
+// Feeds a safety gate's watchdog; call it whenever a fresh command arrives.
+//
+// # Safety
+//
+// `gate` must be a live handle from [`pamoja_safety_gate_new`], or null.
+void pamoja_safety_gate_feed(PamojaSafetyGate *gate);
+
+// Engages a safety gate's latching e-stop.
+//
+// # Safety
+//
+// `gate` must be a live handle from [`pamoja_safety_gate_new`], or null.
+void pamoja_safety_gate_engage_estop(PamojaSafetyGate *gate);
+
+// Clears a safety gate's e-stop.
+//
+// # Safety
+//
+// `gate` must be a live handle from [`pamoja_safety_gate_new`], or null.
+void pamoja_safety_gate_reset_estop(PamojaSafetyGate *gate);
+
+// Reports whether a safety gate is forcing a stop.
+//
+// # Returns
+//
+// `true` while its e-stop is engaged or its watchdog has expired, and also if `gate` is
+// null.
+//
+// # Safety
+//
+// `gate` must be a live handle from [`pamoja_safety_gate_new`], or null.
+bool pamoja_safety_gate_is_stopped(const PamojaSafetyGate *gate);
+
+// Returns the command that is safe to drive for a desired one over a time step.
+//
+// # Returns
+//
+// A zero twist while the gate is stopped or if `gate` is null, and otherwise `desired`
+// bounded by the limits.
+//
+// # Safety
+//
+// `gate` must be a live handle from [`pamoja_safety_gate_new`], or null.
+PamojaTwist pamoja_safety_gate_command(PamojaSafetyGate *gate, PamojaTwist desired, float dt);
+
+// Releases a safety gate handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `gate` must be a handle from [`pamoja_safety_gate_new`] that has not already been freed,
+// or null. After this call it must not be used again.
+void pamoja_safety_gate_free(PamojaSafetyGate *gate);
+
+// Returns the standard hobby servo: 1000 to 2000 microseconds over 180 degrees.
+//
+// # Returns
+//
+// The standard servo.
+PamojaServoMap pamoja_servo_map_standard(void);
+
+// Returns the pulse width that sets a servo to an angle.
+//
+// # Arguments
+//
+// * `servo` - the servo.
+// * `angle_deg` - the angle in degrees, held to the servo's travel.
+//
+// # Returns
+//
+// The pulse width in microseconds, or 0, no pulse, for an angle that is not a number.
+uint16_t pamoja_servo_map_pulse(PamojaServoMap servo, float angle_deg);
+
+// Returns the angle a servo pulse width sets.
+//
+// # Arguments
+//
+// * `servo` - the servo.
+// * `pulse_us` - the pulse width in microseconds, held to the servo's range.
+//
+// # Returns
+//
+// The angle in degrees, or 0 for a servo whose pulse range is empty.
+float pamoja_servo_map_angle(PamojaServoMap servo, uint16_t pulse_us);
+
+// Returns the common reversible ESC: 1000, 1500, and 2000 microseconds.
+//
+// # Returns
+//
+// The reversible ESC.
+PamojaEsc pamoja_esc_bidirectional(void);
+
+// Returns the pulse width for a throttle.
+//
+// # Arguments
+//
+// * `esc` - the controller.
+// * `throttle` - the demand from -1, full reverse, to 1, full forward, held to that range.
+//
+// # Returns
+//
+// The pulse width in microseconds, or the neutral one for a throttle that is not a number.
+uint16_t pamoja_esc_pulse(PamojaEsc esc, float throttle);
+
+// Creates a quadrature decoder seeded with the encoder's current channel levels.
+//
+// # Arguments
+//
+// * `a` - the A channel's level now.
+// * `b` - the B channel's level now.
+//
+// # Returns
+//
+// A decoder with a count of 0 the caller must release with [`pamoja_quadrature_free`].
+//
+// # Safety
+//
+// The returned handle must be freed exactly once.
+PamojaQuadrature *pamoja_quadrature_new(bool a, bool b);
+
+// Feeds a quadrature decoder the channel levels it reads now.
+//
+// # Returns
+//
+// 1 or -1 for a step in either direction, and 0 for no change, a jump past a step, or a
+// null `quadrature`.
+//
+// # Safety
+//
+// `quadrature` must be a live handle from [`pamoja_quadrature_new`], or null.
+int8_t pamoja_quadrature_update(PamojaQuadrature *quadrature, bool a, bool b);
+
+// Reads a quadrature decoder's signed count of steps.
+//
+// # Returns
+//
+// The count, or 0 if `quadrature` is null.
+//
+// # Safety
+//
+// `quadrature` must be a live handle from [`pamoja_quadrature_new`], or null.
+int64_t pamoja_quadrature_count(const PamojaQuadrature *quadrature);
+
+// Sets a quadrature decoder's count back to 0, keeping the channel state it last read.
+//
+// # Safety
+//
+// `quadrature` must be a live handle from [`pamoja_quadrature_new`], or null.
+void pamoja_quadrature_reset(PamojaQuadrature *quadrature);
+
+// Releases a quadrature decoder handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `quadrature` must be a handle from [`pamoja_quadrature_new`] that has not already been
+// freed, or null. After this call it must not be used again.
+void pamoja_quadrature_free(PamojaQuadrature *quadrature);
+
+// Returns the distance a wheel rolled for a step count.
+//
+// # Returns
+//
+// The distance in meters, or 0 for a scale with no resolution.
+float pamoja_quadrature_scale_distance(PamojaQuadratureScale scale, int64_t count);
+
+// Returns a wheel's speed from the steps counted over a time step.
+//
+// # Returns
+//
+// The speed in meters per second, or 0 when `dt` is 0.
+float pamoja_quadrature_scale_velocity(PamojaQuadratureScale scale, int64_t delta_count, float dt);
 
 // Creates a disconnected MQTT client from the given settings.
 //

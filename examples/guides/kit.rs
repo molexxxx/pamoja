@@ -9,9 +9,12 @@ use std::error::Error;
 /// pressure, the warnings that come before trouble, and the tanker truck's district.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
+    use pamoja_kit::imu::tilt_from_accel;
+    use pamoja_kit::weather::dew_point;
     use pamoja_kit::{
-        deadband, Anomaly, Boundary, Calibration, Coordinate, Debounce, Depletion, Edge, Geofence,
-        Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend, Trigger, Window,
+        deadband, units, Anomaly, Boundary, Calibration, Complementary, Coordinate, Debounce,
+        Depletion, Edge, Geofence, Kalman, Median, Pid, Ramp, Smoother, Surge, Thermostat, Trend,
+        Trigger, Window,
     };
 
     // The tower's level transmitter reports on a 4-20 mA loop: 4 mA is empty and 20 mA is
@@ -57,6 +60,33 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
     let (slow, fast) = (expects_steady.estimate(), expects_motion.estimate());
     println!("level     four readings into a rise to 60%, a Kalman filter expecting a steady level reads {slow:.1}%, one expecting motion {fast:.1}%");
+
+    // An accelerometer on the tank watches the tower's lean. Standing still, only gravity
+    // pulls on it, so the direction of the pull, in g, gives the tilt.
+    let at_rest = tilt_from_accel(0.0, 0.007, 1.0);
+    println!(
+        "tower     at rest the accelerometer reads a lean of {:.2} degrees",
+        at_rest.roll
+    );
+
+    // In wind the tower sways, and the sway's own acceleration swings the accelerometer's
+    // tilt. A gyro's rate of turn does not swing, but it drifts. A complementary filter
+    // trusts the gyro from one tenth of a second to the next and the accelerometer over time.
+    let mut lean = Complementary::new(0.98, at_rest.roll as f32);
+    let mut gusts = Window::<5>::new();
+    for (rate, tilt) in [
+        (0.4, 2.1),
+        (-0.6, -1.3),
+        (0.5, 1.8),
+        (-0.3, -0.9),
+        (0.1, 1.2),
+    ] {
+        lean.update(rate, tilt, 0.1);
+        gusts.push(tilt);
+    }
+    let (low, high) = (gusts.min().unwrap_or(0.0), gusts.max().unwrap_or(0.0));
+    let steady_lean = lean.estimate();
+    println!("tower     in wind the accelerometer swings from {low:.1} to {high:.1} degrees; fused with the gyro the lean reads {steady_lean:.1}");
 
     // The refill pump starts at 40% and stops at 60%: on/off control with a band either
     // side of 50. Starting when the level falls is the direction `heating` names.
@@ -107,6 +137,13 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
             "booster   at {bar:.2} bar the PID asks for {asked:.0}%, the pump is given {given:.0}%"
         );
     }
+
+    // The booster's controller hangs in the pump house above the mains. The pump house
+    // thermometer reads Fahrenheit, and a pipe colder than the air's dew point sweats.
+    let air = units::fahrenheit_to_celsius(84.0);
+    let dew = dew_point(f64::from(air), 78.0);
+    let sweats = if 18.0 < dew { "sweat" } else { "stay dry" };
+    println!("pumphouse 84 F is {air:.1} C, and at 78% humidity it dews at {dew:.1} C, so the 18 C mains {sweats}");
 
     // A power cut stops the borehole pump. From the hourly level, the countdown says how
     // long until the tower reaches its 20% reserve.
@@ -190,6 +227,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     assert_eq!(hours, 13);
     assert!((slope + 0.4457).abs() < 1e-3);
     assert!(slow < 56.0 && fast > 58.0);
+    assert!((at_rest.roll - 0.401).abs() < 1e-3);
+    assert!((steady_lean - 0.426).abs() < 1e-3);
+    assert!(dew > 24.0 && dew < 25.0);
     assert!(hydrant && failed);
     assert_eq!(flagged, 0);
     assert_eq!(

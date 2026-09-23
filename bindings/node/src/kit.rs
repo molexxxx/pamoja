@@ -1,15 +1,17 @@
 //! Generated Node bindings for the goal-named helper math.
 //!
-//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are
-//! Rust only. The helpers are synchronous pure math, so every method here returns its value
-//! directly; the ones that answer "maybe" return `null` rather than throwing, because having
-//! no answer yet is an ordinary state and not a failure. A reading that is not a finite
-//! number is ignored by every helper that keeps state, as the Rust crate documents.
+//! These bind the reading and control helpers of `pamoja-kit`; the robotics helpers are in
+//! the `motion` module. The helpers are synchronous pure math, so every method here returns
+//! its value directly; the ones that answer "maybe" return `null` rather than throwing,
+//! because having no answer yet is an ordinary state and not a failure. A reading that is
+//! not a finite number is ignored by every helper that keeps state, as the Rust crate
+//! documents.
 
 use napi_derive::napi;
 use pamoja_kit::{
-    deadband as core_deadband, Anomaly as CoreAnomaly, Boundary, Calibration as CoreCalibration,
-    Coordinate, Debounce as CoreDebounce, Depletion as CoreDepletion, Edge as CoreEdge,
+    deadband as core_deadband, imu, units, weather, Anomaly as CoreAnomaly, Boundary,
+    Calibration as CoreCalibration, Complementary as CoreComplementary, Coordinate,
+    Debounce as CoreDebounce, Depletion as CoreDepletion, Edge as CoreEdge,
     Geofence as CoreGeofence, Kalman as CoreKalman, Median as CoreMedian, Pid as CorePid,
     Ramp as CoreRamp, Smoother as CoreSmoother, Surge as CoreSurge, Thermostat as CoreThermostat,
     Trend as CoreTrend, Trigger as CoreTrigger, Window as CoreWindow,
@@ -483,6 +485,137 @@ pub fn bearing_between(from: Coord, to: Coord) -> f64 {
 #[napi]
 pub fn deadband(value: f64, center: f64, width: f64) -> f64 {
     f64::from(core_deadband(value as f32, center as f32, width as f32))
+}
+
+/// Fuses a drifting rate, such as a gyroscope's, with a noisy absolute reading, such as an
+/// accelerometer's tilt, into one steady estimate.
+#[napi]
+pub struct Complementary {
+    inner: CoreComplementary,
+}
+
+#[napi]
+impl Complementary {
+    /// Creates a filter. `alpha` is the weight on the integrated rate, held to 0 to 1: near
+    /// 1 trusts the rate and corrects slowly. One that is not a number is taken as 0.
+    #[napi(constructor)]
+    pub fn new(alpha: f64, initial: f64) -> Self {
+        Self {
+            inner: CoreComplementary::new(alpha as f32, initial as f32),
+        }
+    }
+
+    /// Fuses a rate and an absolute reading over `dt` and returns the estimate. If any of
+    /// the three is not a finite number, the update is ignored.
+    #[napi]
+    pub fn update(&mut self, rate: f64, absolute: f64, dt: f64) -> f64 {
+        f64::from(self.inner.update(rate as f32, absolute as f32, dt as f32))
+    }
+
+    /// The current estimate.
+    #[napi(getter)]
+    pub fn estimate(&self) -> f64 {
+        f64::from(self.inner.estimate())
+    }
+}
+
+/// Roll and pitch, in degrees.
+#[napi(object)]
+pub struct Tilt {
+    /// Rotation about the forward axis, in degrees, from -180 to 180.
+    pub roll: f64,
+    /// Rotation about the right axis, in degrees, from -90 to 90.
+    pub pitch: f64,
+}
+
+/// Computes roll and pitch from a three-axis accelerometer at rest; the reading's unit
+/// does not matter, since only the ratios between axes set the angles.
+#[napi]
+pub fn tilt_from_accel(ax: f64, ay: f64, az: f64) -> Tilt {
+    let tilt = imu::tilt_from_accel(ax, ay, az);
+    Tilt {
+        roll: tilt.roll,
+        pitch: tilt.pitch,
+    }
+}
+
+/// Computes the dew point, in degrees Celsius, from the air temperature in degrees
+/// Celsius and the relative humidity in percent.
+#[napi]
+pub fn dew_point(celsius: f64, humidity_percent: f64) -> f64 {
+    weather::dew_point(celsius, humidity_percent)
+}
+
+/// Converts degrees Celsius to degrees Fahrenheit.
+#[napi]
+pub fn celsius_to_fahrenheit(celsius: f64) -> f64 {
+    f64::from(units::celsius_to_fahrenheit(celsius as f32))
+}
+
+/// Converts degrees Fahrenheit to degrees Celsius.
+#[napi]
+pub fn fahrenheit_to_celsius(fahrenheit: f64) -> f64 {
+    f64::from(units::fahrenheit_to_celsius(fahrenheit as f32))
+}
+
+/// Converts degrees Celsius to kelvin.
+#[napi]
+pub fn celsius_to_kelvin(celsius: f64) -> f64 {
+    f64::from(units::celsius_to_kelvin(celsius as f32))
+}
+
+/// Converts kelvin to degrees Celsius.
+#[napi]
+pub fn kelvin_to_celsius(kelvin: f64) -> f64 {
+    f64::from(units::kelvin_to_celsius(kelvin as f32))
+}
+
+/// Converts pascals to hectopascals.
+#[napi]
+pub fn pascals_to_hectopascals(pascals: f64) -> f64 {
+    f64::from(units::pascals_to_hectopascals(pascals as f32))
+}
+
+/// Converts hectopascals to pascals.
+#[napi]
+pub fn hectopascals_to_pascals(hectopascals: f64) -> f64 {
+    f64::from(units::hectopascals_to_pascals(hectopascals as f32))
+}
+
+/// Converts pascals to kilopascals.
+#[napi]
+pub fn pascals_to_kilopascals(pascals: f64) -> f64 {
+    f64::from(units::pascals_to_kilopascals(pascals as f32))
+}
+
+/// Converts kilopascals to pascals.
+#[napi]
+pub fn kilopascals_to_pascals(kilopascals: f64) -> f64 {
+    f64::from(units::kilopascals_to_pascals(kilopascals as f32))
+}
+
+/// Converts pascals to pounds per square inch.
+#[napi]
+pub fn pascals_to_psi(pascals: f64) -> f64 {
+    f64::from(units::pascals_to_psi(pascals as f32))
+}
+
+/// Converts pounds per square inch to pascals.
+#[napi]
+pub fn psi_to_pascals(psi: f64) -> f64 {
+    f64::from(units::psi_to_pascals(psi as f32))
+}
+
+/// Converts a ratio from 0 to 1 to a percentage.
+#[napi]
+pub fn ratio_to_percent(ratio: f64) -> f64 {
+    f64::from(units::ratio_to_percent(ratio as f32))
+}
+
+/// Converts a percentage to a ratio from 0 to 1.
+#[napi]
+pub fn percent_to_ratio(percent: f64) -> f64 {
+    f64::from(units::percent_to_ratio(percent as f32))
 }
 
 /// The most readings a windowed helper keeps, and the number it keeps unless told fewer.

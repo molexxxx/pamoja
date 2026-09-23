@@ -5,6 +5,7 @@ import builtins
 import typing
 __all__ = [
     "AckOutcome",
+    "Ackermann",
     "Ads1115",
     "Ads1115Config",
     "Ads1115Sample",
@@ -42,17 +43,22 @@ __all__ = [
     "CobsDecoder",
     "CommandPart",
     "CommandProtocol",
+    "Complementary",
     "ControlPolicy",
     "Controller",
     "Debounce",
     "Delegation",
     "Depletion",
     "DeviceIdentity",
+    "DhParameters",
     "Dialect",
+    "DiffDrive",
     "Ds18b20Reading",
     "Ds18b20Thermometer",
     "DutyCycle",
+    "EStop",
     "ElementSpec",
+    "Esc",
     "EventBus",
     "EventPublisher",
     "ForwardDecision",
@@ -71,6 +77,7 @@ __all__ = [
     "GatewayTxpk",
     "Geofence",
     "GpioLine",
+    "Guidance",
     "Hdc1080",
     "Hdc1080Config",
     "Hdc1080Measurement",
@@ -89,6 +96,7 @@ __all__ = [
     "J1939Message",
     "Kalman",
     "Ladder",
+    "Limits",
     "LinkBudget",
     "LoopbackBroker",
     "LoopbackTransport",
@@ -160,6 +168,7 @@ __all__ = [
     "MavlinkParser",
     "MavlinkSigner",
     "MavlinkVerifier",
+    "Mecanum",
     "Median",
     "MeshFrame",
     "Message",
@@ -173,6 +182,7 @@ __all__ = [
     "ModbusServer",
     "MqttClient",
     "MqttMessage",
+    "Odometry",
     "Opt3001",
     "Opt3001Config",
     "Opt3001Reading",
@@ -185,6 +195,8 @@ __all__ = [
     "Profile",
     "Progress",
     "PyTransport",
+    "Quadrature",
+    "QuadratureScale",
     "Quantizer",
     "RadioDutyCycle",
     "Ramp",
@@ -195,6 +207,7 @@ __all__ = [
     "Reporter",
     "Route",
     "Router",
+    "SafetyGate",
     "Scd4x",
     "Scd4xMeasurement",
     "SealedMessage",
@@ -202,6 +215,7 @@ __all__ = [
     "SenderStep",
     "SerialPort",
     "SerialStep",
+    "ServoMap",
     "Session",
     "Sht3x",
     "Sht3xMeasurement",
@@ -209,6 +223,7 @@ __all__ = [
     "Signals",
     "SimulatedRobot",
     "SimulatedSensor",
+    "SkidSteer",
     "SlipDecoder",
     "SlotRecord",
     "Smoother",
@@ -230,13 +245,20 @@ __all__ = [
     "Sx127xTxPower",
     "Theme",
     "Thermostat",
+    "Tilt",
     "Tmp117",
     "Tmp117Alerts",
     "Tmp117Config",
     "Tmp117Reading",
+    "Transform",
     "Trend",
     "Trigger",
+    "Twist",
+    "TwoLinkArm",
     "Updater",
+    "Watchdog",
+    "WaypointFollower",
+    "WheelSpeeds",
     "Window",
     "WordPart",
     "ads1115_config_bits",
@@ -291,6 +313,8 @@ __all__ = [
     "can_len_to_dlc",
     "can_remote_frame",
     "cbor_to_json_bytes",
+    "celsius_to_fahrenheit",
+    "celsius_to_kelvin",
     "chirpstack_uplink_topic",
     "cobs_decode",
     "cobs_encode",
@@ -298,6 +322,7 @@ __all__ = [
     "deadband",
     "decode_delta_samples",
     "decode_manifest",
+    "dew_point",
     "distance_between",
     "ds18b20_build_scratchpad",
     "ds18b20_celsius",
@@ -313,7 +338,9 @@ __all__ = [
     "encode_delta_samples",
     "encode_manifest",
     "envelope_body",
+    "fahrenheit_to_celsius",
     "fingerprint",
+    "forward_kinematics",
     "frame_update_block",
     "gateway_acknowledgment",
     "gateway_encode",
@@ -336,6 +363,7 @@ __all__ = [
     "hdc1080_sim_reporting",
     "hdc1080_temperature_conversion_micros",
     "hdc1080_temperature_register",
+    "hectopascals_to_pascals",
     "hkdf_sha256_expand",
     "hmac_sha256_digest",
     "i2c_address_frame",
@@ -400,10 +428,12 @@ __all__ = [
     "j1939_decode",
     "j1939_limits",
     "json_to_cbor_bytes",
+    "kelvin_to_celsius",
     "keyexpr_canonize",
     "keyexpr_is_canon",
     "keyexpr_is_valid",
     "keyexpr_matches",
+    "kilopascals_to_pascals",
     "link_cost_threshold",
     "lora_demodulator_snr_db",
     "lora_fcc_max_conducted_dbm",
@@ -471,6 +501,7 @@ __all__ = [
     "modbus_write_multiple_registers",
     "modbus_write_single_coil",
     "modbus_write_single_register",
+    "obstacle_stop",
     "open_delegation",
     "opt3001_config_bits",
     "opt3001_config_from_bits",
@@ -486,22 +517,28 @@ __all__ = [
     "opt3001_sim_reporting",
     "opt3001_word_from_bytes",
     "opt3001_word_to_bytes",
+    "pascals_to_hectopascals",
+    "pascals_to_kilopascals",
+    "pascals_to_psi",
     "pca9685_channel_register",
     "pca9685_frequency_for_prescale",
     "pca9685_limits",
     "pca9685_prescale_for_frequency",
     "pca9685_sim_part",
+    "percent_to_ratio",
     "pin_edge_triggered_by",
     "pin_level_from_bool",
     "pin_level_inverted",
     "pin_polarity_is_asserted",
     "pin_polarity_level",
+    "psi_to_pascals",
     "pwm_counts",
     "pwm_duty",
     "pwm_from_counts",
     "pwm_full_off",
     "pwm_full_on",
     "pwm_servo",
+    "ratio_to_percent",
     "ros2_dds_topic",
     "ros2_dds_type_name",
     "ros2_entity_key",
@@ -653,6 +690,7 @@ __all__ = [
     "sx127x_tx_power",
     "sx127x_tx_power_under_ceiling",
     "sx127x_write_address",
+    "tilt_from_accel",
     "tmp117_averaging_conversions",
     "tmp117_averaging_micros",
     "tmp117_celsius",
@@ -706,6 +744,34 @@ class AckOutcome:
     def __repr__(self) -> builtins.str:
         r"""
         Returns a readable form for logs and the interpreter.
+        """
+
+@typing.final
+class Ackermann:
+    r"""
+    Car-like steering: one steered axle and a driven axle a wheelbase apart.
+    """
+    def __new__(cls, wheelbase: builtins.float) -> Ackermann:
+        r"""
+        Creates a model for axles `wheelbase` apart; its magnitude is used.
+        """
+    def steering_angle(self, linear: builtins.float, angular: builtins.float) -> builtins.float:
+        r"""
+        Returns the steering angle, in radians, for a forward speed and a yaw rate, or 0
+        while stopped.
+        """
+    def yaw_rate(self, linear: builtins.float, steering: builtins.float) -> builtins.float:
+        r"""
+        Returns the yaw rate a forward speed and a steering angle, in radians, produce.
+        """
+    def turn_radius(self, steering: builtins.float) -> builtins.float:
+        r"""
+        Returns the turn radius of a steering angle, in meters, or `inf` with the wheels
+        straight.
+        """
+    def curvature(self, steering: builtins.float) -> builtins.float:
+        r"""
+        Returns the path curvature of a steering angle, the reciprocal of the turn radius.
         """
 
 @typing.final
@@ -2242,6 +2308,28 @@ class CommandProtocol:
         """
 
 @typing.final
+class Complementary:
+    r"""
+    Fuses a drifting rate, such as a gyroscope's, with a noisy absolute reading, such as an
+    accelerometer's tilt, into one steady estimate.
+    """
+    @property
+    def estimate(self) -> builtins.float:
+        r"""
+        The current estimate.
+        """
+    def __new__(cls, alpha: builtins.float, initial: builtins.float) -> Complementary:
+        r"""
+        Creates a filter. `alpha` is the weight on the integrated rate, held to 0 to 1: near
+        1 trusts the rate and corrects slowly. One that is not a number is taken as 0.
+        """
+    def update(self, rate: builtins.float, absolute: builtins.float, dt: builtins.float) -> builtins.float:
+        r"""
+        Fuses a rate and an absolute reading over `dt` and returns the estimate. If any of
+        the three is not a finite number, the update is ignored.
+        """
+
+@typing.final
 class ControlPolicy:
     r"""
     A profile's control policy.
@@ -2438,6 +2526,42 @@ class DeviceIdentity:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class DhParameters:
+    r"""
+    One joint of a serial arm in the Denavit-Hartenberg convention.
+    """
+    @property
+    def a(self) -> builtins.float:
+        r"""
+        The link length along the common normal, in meters.
+        """
+    @property
+    def alpha(self) -> builtins.float:
+        r"""
+        The link twist about the common normal, in radians.
+        """
+    @property
+    def d(self) -> builtins.float:
+        r"""
+        The link offset along the previous z axis, in meters.
+        """
+    @property
+    def theta(self) -> builtins.float:
+        r"""
+        The joint angle about the previous z axis, in radians.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, a: builtins.float = 0.0, alpha: builtins.float = 0.0, d: builtins.float = 0.0, theta: builtins.float = 0.0) -> DhParameters:
+        r"""
+        Creates a joint from its four parameters; each is 0 unless given.
+        """
+    def transform(self) -> Transform:
+        r"""
+        Returns the homogeneous transform this joint makes.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class Dialect:
     r"""
     The `CRC_EXTRA` seeds of a dialect beyond the common one.
@@ -2464,6 +2588,25 @@ class Dialect:
         r"""
         Returns the seed this dialect resolves a message id to, or `None` if
         neither it nor the common dialect knows the id.
+        """
+
+@typing.final
+class DiffDrive:
+    r"""
+    Wheel speeds for a desired body motion, and the body motion measured wheel speeds make,
+    for a robot that steers by spinning two wheels at different speeds.
+    """
+    def __new__(cls, track: builtins.float) -> DiffDrive:
+        r"""
+        Creates a model for wheels `track` apart; its magnitude is used.
+        """
+    def wheel_speeds(self, linear: builtins.float, angular: builtins.float) -> tuple[builtins.float, builtins.float]:
+        r"""
+        Returns the `(left, right)` wheel speeds for a forward speed and a turn rate.
+        """
+    def body_motion(self, left: builtins.float, right: builtins.float) -> tuple[builtins.float, builtins.float]:
+        r"""
+        Returns the `(linear, angular)` body motion measured wheel speeds make.
         """
 
 @typing.final
@@ -2581,6 +2724,33 @@ class DutyCycle:
         """
 
 @typing.final
+class EStop:
+    r"""
+    An emergency stop that latches until a person resets it.
+    """
+    @property
+    def is_engaged(self) -> builtins.bool:
+        r"""
+        Whether the stop is engaged.
+        """
+    def __new__(cls) -> EStop:
+        r"""
+        Creates an e-stop that is not engaged.
+        """
+    def engage(self) -> None:
+        r"""
+        Engages the stop; it holds until reset.
+        """
+    def reset(self) -> None:
+        r"""
+        Clears the stop.
+        """
+    def gate(self, desired: Twist) -> Twist:
+        r"""
+        Returns `desired` while clear, or a zero twist while engaged.
+        """
+
+@typing.final
 class ElementSpec:
     r"""
     A custom sensor or node stat a profile contributes to the dashboard.
@@ -2650,6 +2820,41 @@ class ElementSpec:
         Declares an element drawn with the named graphic.
         
         Raises `ValueError` if `viz` is not a graphic the dashboard draws.
+        """
+
+@typing.final
+class Esc:
+    r"""
+    An electronic speed controller's pulse widths from full reverse to full forward.
+    """
+    @property
+    def min_us(self) -> builtins.int:
+        r"""
+        The pulse width at full reverse, in microseconds.
+        """
+    @property
+    def neutral_us(self) -> builtins.int:
+        r"""
+        The pulse width at rest, in microseconds.
+        """
+    @property
+    def max_us(self) -> builtins.int:
+        r"""
+        The pulse width at full forward, in microseconds.
+        """
+    def __new__(cls, min_us: builtins.int, neutral_us: builtins.int, max_us: builtins.int) -> Esc:
+        r"""
+        Creates a map from the full-reverse, neutral, and full-forward pulse widths.
+        """
+    @staticmethod
+    def bidirectional() -> Esc:
+        r"""
+        The common reversible controller: 1000, 1500, and 2000 microseconds.
+        """
+    def pulse(self, throttle: builtins.float) -> builtins.int:
+        r"""
+        Returns the pulse width for a throttle from -1 to 1, held to that range, or the
+        neutral one for a throttle that is not a number.
         """
 
 @typing.final
@@ -3572,6 +3777,34 @@ class GpioLine:
         """
 
 @typing.final
+class Guidance:
+    r"""
+    The command toward a waypoint, with the geometry behind it.
+    """
+    @property
+    def twist(self) -> Twist:
+        r"""
+        The body motion to drive.
+        """
+    @property
+    def distance_m(self) -> builtins.float:
+        r"""
+        The distance left to the target, in meters.
+        """
+    @property
+    def heading_error_deg(self) -> builtins.float:
+        r"""
+        The heading error to the target, in degrees, in `(-180, 180]`.
+        """
+    @property
+    def arrived(self) -> builtins.bool:
+        r"""
+        Whether the target is within the arrival radius.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class Hdc1080:
     r"""
     A Texas Instruments HDC1080 driven over an I2C bus, measuring temperature then humidity from
@@ -4489,6 +4722,27 @@ class Ladder:
         connected, or every listening link has ended. The ladder does one thing at
         a time, so a send waits behind a receive in progress; a node that listens
         and reports waits with `asyncio.wait_for` and sends between waits.
+        """
+
+@typing.final
+class Limits:
+    r"""
+    Speed and acceleration limits, with the motion they last allowed.
+    """
+    def __new__(cls, max_linear: builtins.float, max_angular: builtins.float, max_linear_accel: builtins.float, max_angular_accel: builtins.float) -> Limits:
+        r"""
+        Creates limits starting from rest: the largest planar speed and yaw rate, and the
+        largest change in each per second. Each magnitude is used, and one that is not a
+        number is taken as 0, which holds the robot still.
+        """
+    def apply(self, desired: Twist, dt: builtins.float) -> Twist:
+        r"""
+        Returns `desired` held to the speed limits and eased toward within the acceleration
+        limits over `dt`.
+        """
+    def reset(self) -> None:
+        r"""
+        Forgets the motion last allowed, so the next command eases up from rest.
         """
 
 @typing.final
@@ -8122,6 +8376,25 @@ class MavlinkVerifier:
         """
 
 @typing.final
+class Mecanum:
+    r"""
+    A four-wheel mecanum base, which drives, strafes, and turns at once.
+    """
+    def __new__(cls, wheelbase: builtins.float, track: builtins.float) -> Mecanum:
+        r"""
+        Creates a model from the front-to-rear `wheelbase` and side-to-side `track`; each
+        magnitude is used.
+        """
+    def wheel_speeds(self, twist: Twist) -> WheelSpeeds:
+        r"""
+        Returns the four wheel speeds for a body twist.
+        """
+    def body_motion(self, wheels: WheelSpeeds) -> Twist:
+        r"""
+        Returns the body twist measured wheel speeds make.
+        """
+
+@typing.final
 class Median:
     r"""
     Rejects a single wild reading, where an average would let it pull the answer.
@@ -8659,6 +8932,38 @@ class MqttMessage:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class Odometry:
+    r"""
+    Tracks a robot's pose by adding up its motion.
+    """
+    @property
+    def pose(self) -> Pose:
+        r"""
+        The pose so far.
+        """
+    def __new__(cls, start: typing.Optional[Pose] = None) -> Odometry:
+        r"""
+        Creates an estimate starting at `start`, or at the origin facing along x.
+        """
+    def reset(self, pose: Pose) -> None:
+        r"""
+        Sets the estimate to a known pose.
+        """
+    def integrate(self, linear: builtins.float, angular: builtins.float, dt: builtins.float) -> Pose:
+        r"""
+        Adds a forward speed and yaw rate held for `dt`, and returns the new pose.
+        """
+    def integrate_wheels(self, left: builtins.float, right: builtins.float, drive: DiffDrive) -> Pose:
+        r"""
+        Adds the distances two wheels rolled, through a differential drive, and returns the
+        new pose.
+        """
+    def fuse_heading(self, measured: builtins.float, weight: builtins.float) -> None:
+        r"""
+        Nudges the heading toward an absolute measurement by `weight`, from 0 to 1.
+        """
+
+@typing.final
 class Opt3001:
     r"""
     A Texas Instruments OPT3001 driven over an I2C bus, measuring on demand in single-shot mode.
@@ -8929,7 +9234,13 @@ class Pose:
     @property
     def theta(self) -> builtins.float:
         r"""
-        Heading from the world x axis, in radians, positive counter-clockwise.
+        Heading from the world x axis, in radians, in `(-pi, pi]`, positive
+        counter-clockwise.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, x: builtins.float = 0.0, y: builtins.float = 0.0, theta: builtins.float = 0.0) -> Pose:
+        r"""
+        Creates a pose; the heading is wrapped into `(-pi, pi]`.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -9211,6 +9522,51 @@ class PyTransport:
         Waits for the next message on a subscribed topic, or `None` once the link has ended.
         
         Raises `PamojaError` when the link fails, or when the transport was handed on.
+        """
+
+@typing.final
+class Quadrature:
+    r"""
+    Counts a quadrature encoder's steps from its A and B channels.
+    """
+    @property
+    def count(self) -> builtins.int:
+        r"""
+        The signed count of steps so far.
+        """
+    def __new__(cls, a: builtins.bool = False, b: builtins.bool = False) -> Quadrature:
+        r"""
+        Creates a decoder seeded with the channel levels it reads now, both low unless
+        given, so the first reading does not count a step that did not happen.
+        """
+    def update(self, a: builtins.bool, b: builtins.bool) -> builtins.int:
+        r"""
+        Feeds the channel levels read now, and returns 1 or -1 for a step in either
+        direction, or 0 for no change or a jump past a step.
+        """
+    def reset(self) -> None:
+        r"""
+        Sets the count back to 0, keeping the channel state last read.
+        """
+
+@typing.final
+class QuadratureScale:
+    r"""
+    Turns encoder steps into the distance and speed of the wheel they turn with.
+    """
+    def __new__(cls, counts_per_rev: builtins.float, wheel_radius: builtins.float) -> QuadratureScale:
+        r"""
+        Creates a scale from the steps per wheel revolution and the wheel radius in meters;
+        each magnitude is used.
+        """
+    def distance(self, count: builtins.int) -> builtins.float:
+        r"""
+        Returns the distance, in meters, a wheel rolled for a step count.
+        """
+    def velocity(self, delta_count: builtins.int, dt: builtins.float) -> builtins.float:
+        r"""
+        Returns the speed, in meters per second, from the steps counted over `dt`, or 0 when
+        `dt` is 0.
         """
 
 @typing.final
@@ -9505,6 +9861,38 @@ class Router:
         """
 
 @typing.final
+class SafetyGate:
+    r"""
+    The gate every motion command passes through: an e-stop, a watchdog, and limits.
+    """
+    @property
+    def is_stopped(self) -> builtins.bool:
+        r"""
+        Whether the gate is forcing a stop: its e-stop is engaged or its watchdog expired.
+        """
+    def __new__(cls, limits: Limits, watchdog_timeout: builtins.float) -> SafetyGate:
+        r"""
+        Creates a gate from limits, copied as they stand, and a watchdog timeout.
+        """
+    def feed(self) -> None:
+        r"""
+        Feeds the watchdog; call it whenever a fresh command arrives.
+        """
+    def engage_estop(self) -> None:
+        r"""
+        Engages the latching e-stop.
+        """
+    def reset_estop(self) -> None:
+        r"""
+        Clears the e-stop.
+        """
+    def command(self, desired: Twist, dt: builtins.float) -> Twist:
+        r"""
+        Returns the command that is safe to drive: a zero twist while stopped, otherwise
+        `desired` bounded by the limits.
+        """
+
+@typing.final
 class Scd4x:
     r"""
     A Sensirion SCD40 or SCD41 driven over an I2C bus in periodic measurement, a result every
@@ -9779,6 +10167,46 @@ class SerialStep:
         """
 
 @typing.final
+class ServoMap:
+    r"""
+    A hobby servo's pulse widths across its travel.
+    """
+    @property
+    def min_us(self) -> builtins.int:
+        r"""
+        The pulse width at zero degrees, in microseconds.
+        """
+    @property
+    def max_us(self) -> builtins.int:
+        r"""
+        The pulse width at full travel, in microseconds.
+        """
+    @property
+    def range_deg(self) -> builtins.float:
+        r"""
+        The full travel, in degrees.
+        """
+    def __new__(cls, min_us: builtins.int, max_us: builtins.int, range_deg: builtins.float) -> ServoMap:
+        r"""
+        Creates a map from the pulse at zero degrees, the pulse at full travel, and the
+        travel in degrees, whose magnitude is used.
+        """
+    @staticmethod
+    def standard() -> ServoMap:
+        r"""
+        The standard hobby servo: 1000 to 2000 microseconds over 180 degrees.
+        """
+    def pulse(self, angle_deg: builtins.float) -> builtins.int:
+        r"""
+        Returns the pulse width for an angle, held to the travel, or 0, no pulse, for an
+        angle that is not a number.
+        """
+    def angle(self, pulse_us: builtins.int) -> builtins.float:
+        r"""
+        Returns the angle a pulse width sets, held to the pulse range.
+        """
+
+@typing.final
 class Session:
     r"""
     A confidential, tamper-evident, replay-protected channel with one peer.
@@ -10010,6 +10438,26 @@ class SimulatedSensor:
     def read(self) -> typing.Any:
         r"""
         Takes the next reading.
+        """
+
+@typing.final
+class SkidSteer:
+    r"""
+    A tracked or four-wheel drive that turns by skidding, with its track widened by a slip
+    factor.
+    """
+    def __new__(cls, track: builtins.float, slip: builtins.float = 1.0) -> SkidSteer:
+        r"""
+        Creates a model for sides `track` apart with a `slip` factor; each magnitude is
+        used, and a slip of 0 is taken as 1.
+        """
+    def wheel_speeds(self, linear: builtins.float, angular: builtins.float) -> tuple[builtins.float, builtins.float]:
+        r"""
+        Returns the `(left, right)` speeds for a forward speed and a yaw rate.
+        """
+    def body_motion(self, left: builtins.float, right: builtins.float) -> tuple[builtins.float, builtins.float]:
+        r"""
+        Returns the `(linear, angular)` body motion measured side speeds make.
         """
 
 @typing.final
@@ -10586,6 +11034,24 @@ class Thermostat:
         """
 
 @typing.final
+class Tilt:
+    r"""
+    Roll and pitch, in degrees.
+    """
+    @property
+    def roll(self) -> builtins.float:
+        r"""
+        Rotation about the forward axis, in degrees, from -180 to 180.
+        """
+    @property
+    def pitch(self) -> builtins.float:
+        r"""
+        Rotation about the right axis, in degrees, from -90 to 90.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class Tmp117:
     r"""
     A Texas Instruments TMP117 driven over an I2C bus, converting on demand in one-shot mode.
@@ -10784,6 +11250,32 @@ class Tmp117Reading:
         """
 
 @typing.final
+class Transform:
+    r"""
+    A 4x4 homogeneous transform: a rotation and a translation.
+    """
+    @property
+    def position(self) -> tuple[builtins.float, builtins.float, builtins.float]:
+        r"""
+        Where this transform places the origin, its translation, as `(x, y, z)`.
+        """
+    @property
+    def elements(self) -> builtins.list[builtins.float]:
+        r"""
+        The sixteen elements, row-major.
+        """
+    @staticmethod
+    def identity() -> Transform:
+        r"""
+        The identity: no rotation and no translation.
+        """
+    def multiply(self, other: Transform) -> Transform:
+        r"""
+        Returns `self * other`, the transform that applies `other` and then this one.
+        """
+    def __eq__(self, other: Transform) -> builtins.bool: ...
+
+@typing.final
 class Trend:
     r"""
     Fits a line through recent readings, so a slow drift is visible before it matters.
@@ -10856,6 +11348,58 @@ class Trigger:
     def update(self, reading: builtins.float) -> typing.Optional[builtins.str]:
         r"""
         Feeds a reading in and returns the edge it caused, or `None` while nothing changed.
+        """
+
+@typing.final
+class Twist:
+    r"""
+    How fast a robot is asked to move.
+    """
+    @property
+    def vx(self) -> builtins.float:
+        r"""
+        Forward speed along the x axis.
+        """
+    @property
+    def vy(self) -> builtins.float:
+        r"""
+        Leftward speed along the y axis; zero for drives that cannot strafe.
+        """
+    @property
+    def omega(self) -> builtins.float:
+        r"""
+        Yaw rate about the z axis, positive counter-clockwise.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, vx: builtins.float = 0.0, vy: builtins.float = 0.0, omega: builtins.float = 0.0) -> Twist:
+        r"""
+        Creates a twist; each part is 0 unless given.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class TwoLinkArm:
+    r"""
+    A planar arm of two links, with a closed-form inverse.
+    """
+    @property
+    def reach(self) -> tuple[builtins.float, builtins.float]:
+        r"""
+        The `(min, max)` the hand reaches from the shoulder.
+        """
+    def __new__(cls, l1: builtins.float, l2: builtins.float) -> TwoLinkArm:
+        r"""
+        Creates an arm from its shoulder and elbow link lengths; each magnitude is used.
+        """
+    def tip(self, shoulder: builtins.float, elbow: builtins.float) -> tuple[builtins.float, builtins.float]:
+        r"""
+        Returns the hand's `(x, y)` for a shoulder and an elbow angle, in radians.
+        """
+    def joints_for(self, x: builtins.float, y: builtins.float, elbow: builtins.str = 'up') -> typing.Optional[tuple[builtins.float, builtins.float]]:
+        r"""
+        Returns the `(shoulder, elbow)` angles that put the hand at a point, or `None` for a
+        point out of reach, an arm with a link of no length, or a coordinate that is not a
+        finite number. `elbow` is `"up"` or `"down"`.
         """
 
 @typing.final
@@ -10944,6 +11488,81 @@ class Updater:
         r"""
         Fails the pending image and goes back to the confirmed one.
         """
+
+@typing.final
+class Watchdog:
+    r"""
+    A deadman timer that expires unless fed often enough.
+    """
+    @property
+    def is_expired(self) -> builtins.bool:
+        r"""
+        Whether the watchdog has expired.
+        """
+    def __new__(cls, timeout: builtins.float) -> Watchdog:
+        r"""
+        Creates a watchdog that expires after `timeout` without being fed; a timeout that is
+        not a number is taken as 0.
+        """
+    def feed(self) -> None:
+        r"""
+        Feeds the watchdog, restarting its silence timer.
+        """
+    def update(self, dt: builtins.float) -> builtins.bool:
+        r"""
+        Advances the timer by `dt` and returns whether it has expired; a `dt` that is not a
+        finite number expires it until it is fed.
+        """
+
+@typing.final
+class WaypointFollower:
+    r"""
+    Steers toward a waypoint: pivot toward it, then drive, slowing as the heading error
+    grows.
+    """
+    def __new__(cls, cruise: builtins.float, arrival_m: builtins.float, heading_gain: builtins.float, max_angular: builtins.float) -> WaypointFollower:
+        r"""
+        Creates a follower. `cruise` is the forward speed when pointed at the target,
+        `arrival_m` how close counts as arrived, `heading_gain` the yaw rate per radian of
+        heading error, and `max_angular` the largest yaw rate; each magnitude is used.
+        """
+    def guide(self, here: tuple[builtins.float, builtins.float], heading_deg: builtins.float, target: tuple[builtins.float, builtins.float]) -> Guidance:
+        r"""
+        Returns the command from a `(latitude, longitude)` position and a compass heading,
+        in degrees clockwise from north, toward a target.
+        """
+
+@typing.final
+class WheelSpeeds:
+    r"""
+    The four wheel speeds of a mecanum base.
+    """
+    @property
+    def front_left(self) -> builtins.float:
+        r"""
+        The front-left wheel's speed.
+        """
+    @property
+    def front_right(self) -> builtins.float:
+        r"""
+        The front-right wheel's speed.
+        """
+    @property
+    def rear_left(self) -> builtins.float:
+        r"""
+        The rear-left wheel's speed.
+        """
+    @property
+    def rear_right(self) -> builtins.float:
+        r"""
+        The rear-right wheel's speed.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, front_left: builtins.float, front_right: builtins.float, rear_left: builtins.float, rear_right: builtins.float) -> WheelSpeeds:
+        r"""
+        Creates the four speeds.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class Window:
@@ -11304,6 +11923,16 @@ def cbor_to_json_bytes(cbor: typing.Sequence[builtins.int]) -> bytes:
     Converts a CBOR document back into its JSON encoding.
     """
 
+def celsius_to_fahrenheit(celsius: builtins.float) -> builtins.float:
+    r"""
+    Converts degrees Celsius to degrees Fahrenheit.
+    """
+
+def celsius_to_kelvin(celsius: builtins.float) -> builtins.float:
+    r"""
+    Converts degrees Celsius to kelvin.
+    """
+
 def chirpstack_uplink_topic(application_id: builtins.str) -> builtins.str:
     r"""
     Builds the MQTT topic an application's uplink events are published on, with a wildcard in
@@ -11342,6 +11971,12 @@ def decode_manifest(data: typing.Sequence[builtins.int]) -> Manifest:
     
     This reads what a manifest claims; it proves nothing about who wrote it. Use
     `verify_envelope` to read one whose signature has been checked.
+    """
+
+def dew_point(celsius: builtins.float, humidity_percent: builtins.float) -> builtins.float:
+    r"""
+    Computes the dew point, in degrees Celsius, from the air temperature in degrees
+    Celsius and the relative humidity in percent.
     """
 
 def distance_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
@@ -11424,9 +12059,20 @@ def envelope_body(data: typing.Sequence[builtins.int]) -> builtins.list[builtins
     This is what a gateway relays onward unchanged.
     """
 
+def fahrenheit_to_celsius(fahrenheit: builtins.float) -> builtins.float:
+    r"""
+    Converts degrees Fahrenheit to degrees Celsius.
+    """
+
 def fingerprint(public_key: typing.Sequence[builtins.int]) -> builtins.str:
     r"""
     Returns the short hex fingerprint of a public key.
+    """
+
+def forward_kinematics(joints: typing.Sequence[DhParameters]) -> Transform:
+    r"""
+    Returns the transform from a serial arm's base to its tool, or the identity for an arm
+    with no joints.
     """
 
 def frame_update_block(envelope: typing.Sequence[builtins.int], image: typing.Sequence[builtins.int]) -> bytes:
@@ -11542,6 +12188,11 @@ def hdc1080_temperature_conversion_micros(bits: builtins.int) -> builtins.int:
 def hdc1080_temperature_register(milli_celsius: builtins.int) -> builtins.int:
     r"""
     Builds the HDC1080 temperature register that decodes to a temperature.
+    """
+
+def hectopascals_to_pascals(hectopascals: builtins.float) -> builtins.float:
+    r"""
+    Converts hectopascals to pascals.
     """
 
 def hkdf_sha256_expand(salt: typing.Sequence[builtins.int], ikm: typing.Sequence[builtins.int], info: typing.Sequence[builtins.int], length: builtins.int) -> builtins.list[builtins.int]:
@@ -11885,6 +12536,11 @@ def json_to_cbor_bytes(json: typing.Sequence[builtins.int]) -> bytes:
     Converts a JSON document into its CBOR encoding, which is typically smaller.
     """
 
+def kelvin_to_celsius(kelvin: builtins.float) -> builtins.float:
+    r"""
+    Converts kelvin to degrees Celsius.
+    """
+
 def keyexpr_canonize(key: builtins.str) -> typing.Optional[builtins.str]:
     r"""
     Rewrites a key expression into its canonical form, or `None` if it is
@@ -11904,6 +12560,11 @@ def keyexpr_is_valid(key: builtins.str) -> builtins.bool:
 def keyexpr_matches(pattern: builtins.str, key: builtins.str) -> builtins.bool:
     r"""
     Reports whether a pattern selects a key.
+    """
+
+def kilopascals_to_pascals(kilopascals: builtins.float) -> builtins.float:
+    r"""
+    Converts kilopascals to pascals.
     """
 
 def link_cost_threshold(cost: builtins.str) -> builtins.str:
@@ -12305,6 +12966,12 @@ def modbus_write_single_register(address: builtins.int, register: builtins.int, 
     Builds a write-single-register request frame (function `0x06`).
     """
 
+def obstacle_stop(twist: Twist, range_m: builtins.float, stop_distance_m: builtins.float) -> Twist:
+    r"""
+    Cuts forward and sideways motion when an obstacle is within `stop_distance_m`, keeping
+    the turn. A range that is not a number counts as an obstacle.
+    """
+
 def open_delegation(data: typing.Sequence[builtins.int], anchor_public_key: typing.Sequence[builtins.int]) -> Delegation:
     r"""
     Opens a signed delegation against the anchor that should have signed it.
@@ -12381,6 +13048,21 @@ def opt3001_word_to_bytes(word: builtins.int) -> builtins.list[builtins.int]:
     Builds the two bytes an OPT3001 sends for a register.
     """
 
+def pascals_to_hectopascals(pascals: builtins.float) -> builtins.float:
+    r"""
+    Converts pascals to hectopascals.
+    """
+
+def pascals_to_kilopascals(pascals: builtins.float) -> builtins.float:
+    r"""
+    Converts pascals to kilopascals.
+    """
+
+def pascals_to_psi(pascals: builtins.float) -> builtins.float:
+    r"""
+    Converts pascals to pounds per square inch.
+    """
+
 def pca9685_channel_register(channel: builtins.int) -> builtins.int:
     r"""
     Returns the first of a PCA9685 channel's four consecutive registers.
@@ -12410,6 +13092,11 @@ def pca9685_sim_part(address: builtins.int) -> I2cPart:
     datasheet's rules for writes, reads, and its register pointer.
     """
 
+def percent_to_ratio(percent: builtins.float) -> builtins.float:
+    r"""
+    Converts a percentage to a ratio from 0 to 1.
+    """
+
 def pin_edge_triggered_by(edge: builtins.str, before: builtins.str, after: builtins.str) -> builtins.bool:
     r"""
     Reports whether a change from one level to another fires an interrupt trigger.
@@ -12433,6 +13120,11 @@ def pin_polarity_is_asserted(polarity: builtins.str, level: builtins.str) -> bui
 def pin_polarity_level(polarity: builtins.str, asserted: builtins.bool) -> builtins.str:
     r"""
     Returns the physical level that represents a logical state under a polarity.
+    """
+
+def psi_to_pascals(psi: builtins.float) -> builtins.float:
+    r"""
+    Converts pounds per square inch to pascals.
     """
 
 def pwm_counts(data: typing.Sequence[builtins.int]) -> tuple[builtins.int, builtins.int]:
@@ -12466,6 +13158,11 @@ def pwm_full_on() -> bytes:
 def pwm_servo(pulse_micros: builtins.int, update_rate_hz: builtins.int) -> bytes:
     r"""
     Builds the register bytes that drive a hobby servo to a given pulse width.
+    """
+
+def ratio_to_percent(ratio: builtins.float) -> builtins.float:
+    r"""
+    Converts a ratio from 0 to 1 to a percentage.
     """
 
 def ros2_dds_topic(fqn: builtins.str, kind: builtins.str) -> typing.Optional[builtins.str]:
@@ -13272,6 +13969,12 @@ def sx127x_tx_power_under_ceiling(output: builtins.str, budget: LinkBudget, eirp
 def sx127x_write_address(address: builtins.int) -> builtins.int:
     r"""
     The SX127x address byte that writes a register.
+    """
+
+def tilt_from_accel(ax: builtins.float, ay: builtins.float, az: builtins.float) -> Tilt:
+    r"""
+    Computes roll and pitch from a three-axis accelerometer at rest; the reading's unit
+    does not matter, since only the ratios between axes set the angles.
     """
 
 def tmp117_averaging_conversions(code: builtins.int) -> builtins.int:

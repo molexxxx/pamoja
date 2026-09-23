@@ -4,8 +4,9 @@
 //! and turning encoder edges back into how far a wheel has rolled. Each conversion is pure
 //! arithmetic with a classic off-by-one or sign trap, so it lives here as checked logic rather
 //! than scattered inline math: a [`ServoMap`] and [`Esc`] for hobby PWM outputs, and a
-//! [`Quadrature`] decoder with a [`QuadratureScale`] for incremental encoders. Clocking the pulses
-//! and reading the pins arrives with the hardware-I/O layer; this is the math ahead of it.
+//! [`Quadrature`] decoder with a [`QuadratureScale`] for incremental encoders. The PCA9685 driver
+//! in `pamoja-actuators` clocks the pulses, and a GPIO line from `pamoja-gpio` reads an encoder's
+//! channels; this is the math on either side of them.
 
 use crate::motion::{clamp, magnitude};
 use core::f32::consts::PI;
@@ -66,6 +67,21 @@ impl ServoMap {
             max_us,
             range_deg: magnitude(range_deg),
         }
+    }
+
+    /// Returns the pulse width at zero degrees, in microseconds.
+    pub fn min_us(&self) -> u16 {
+        self.min_us
+    }
+
+    /// Returns the pulse width at full travel, in microseconds.
+    pub fn max_us(&self) -> u16 {
+        self.max_us
+    }
+
+    /// Returns the full travel, in degrees.
+    pub fn range_deg(&self) -> f32 {
+        self.range_deg
     }
 
     /// Returns the pulse width for an angle.
@@ -170,6 +186,21 @@ impl Esc {
             neutral_us,
             max_us,
         }
+    }
+
+    /// Returns the pulse width at full reverse, in microseconds.
+    pub fn min_us(&self) -> u16 {
+        self.min_us
+    }
+
+    /// Returns the pulse width at rest, in microseconds.
+    pub fn neutral_us(&self) -> u16 {
+        self.neutral_us
+    }
+
+    /// Returns the pulse width at full forward, in microseconds.
+    pub fn max_us(&self) -> u16 {
+        self.max_us
     }
 
     /// Returns the pulse width for a throttle.

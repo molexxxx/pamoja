@@ -419,7 +419,7 @@ Console.WriteLine($"the valve switched {switches} times");
 - [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
 - [Event bus](bus.md): An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss.
 - [Helpers](kit.md): Plain-language helper math.
-- Also in Profiles and robotics: [ROS 2 rules](ros2.md), [Zenoh keys](zenoh.md).
+- Also in Profiles and robotics: [Robot motion](motion.md), [ROS 2 rules](ros2.md), [Zenoh keys](zenoh.md).
 <!-- end -->
 
 ## Reference

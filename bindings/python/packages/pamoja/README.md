@@ -23,7 +23,7 @@ Each module name opens its reference.
 | --- | --- | --- |
 | `pamoja-security` | [`pamoja.security`](https://pamoja.molex.cloud/docs/reference/python/pamoja/security.html) | ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic |
 | `pamoja-codec` | [`pamoja.codec`](https://pamoja.molex.cloud/docs/reference/python/pamoja/codec.html) | CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings |
-| `pamoja-kit` | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) | Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, kinematics, and geo |
+| `pamoja-kit` | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) | Plain-language helper math: smoothing, calibration, PID and thermostat control, a trigger with hysteresis, trend and surge prediction, rolling windows, unit conversions, geo, and robot motion |
 | `pamoja-serial` | [`pamoja.serial`](https://pamoja.molex.cloud/docs/reference/python/pamoja/serial.html) | SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets |
 | `pamoja-modbus` | [`pamoja.modbus`](https://pamoja.molex.cloud/docs/reference/python/pamoja/modbus.html) | Modbus RTU for RS485 field devices: a client that polls them over a serial port with the line's timing, simulated devices that answer as real ones do, and the frames with their CRC-16/MODBUS |
 | `pamoja-can` | [`pamoja.can`](https://pamoja.molex.cloud/docs/reference/python/pamoja/can.html) | CAN 2.0 and CAN FD frames with 11- and 29-bit identifiers, J1939 decode and compose, and a node on a bus, simulated or a Linux interface through SocketCAN |
@@ -55,6 +55,7 @@ Each module name opens its reference.
 | `pamoja-sim` | [`pamoja.sim`](https://pamoja.molex.cloud/docs/reference/python/pamoja/sim.html) | Noisy and replay sensors, a recording actuator, a simulated robot that dead-reckons its pose, and a link that loses sends on a pattern |
 | `pamoja-profile` | [`pamoja.profile`](https://pamoja.molex.cloud/docs/reference/python/pamoja/profile.html) | Named, ready-to-run device profiles from plain data or a JSON manifest |
 | `pamoja-kit` | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) | Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link |
+| `pamoja-kit` | [`pamoja.kit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html) | Wheel speeds for differential, skid-steer, car-like, and mecanum chassis, a two-link arm and Denavit-Hartenberg forward kinematics, odometry, waypoint guidance, a safety gate, and servo, ESC, and encoder conversions |
 | `pamoja-ros2` | [`pamoja.ros2`](https://pamoja.molex.cloud/docs/reference/python/pamoja/ros2.html) | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
 | `pamoja-zenoh` | [`pamoja.zenoh`](https://pamoja.molex.cloud/docs/reference/python/pamoja/zenoh.html) | Zenoh key expressions: validity, canonical form, and wildcard matching |
 

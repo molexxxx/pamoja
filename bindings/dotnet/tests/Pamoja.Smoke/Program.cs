@@ -73,6 +73,7 @@ Identity();
 NativeSafety();
 Codecs();
 Helpers();
+Motion();
 FieldIo();
 SensingAndActuation();
 LaterSensors();
@@ -937,6 +938,88 @@ static void Helpers()
     Assert(pen.Update(away) == Boundary.Outside, "later fixes stay outside");
     Assert(!pen.Contains(away), "the fix is outside the fence");
     Assert(Kit.DistanceBetween(center, away) > 50.0, "the fix is beyond the radius");
+
+    Assert(Units.CelsiusToFahrenheit(100.0f) == 212.0f, "boiling is 212 F");
+    Assert(Units.PascalsToHectopascals(101_325.0f) == 1013.25f, "a standard atmosphere in hPa");
+    Tilt rolled = Kit.TiltFromAccel(0.0, 1.0, 1.0);
+    Assert(Math.Abs(rolled.Roll - 45.0) < 1e-9 && Math.Abs(rolled.Pitch) < 1e-9, "equal y and z is 45 degrees of roll");
+    Assert(Math.Abs(Kit.DewPoint(15.0, 100.0) - 15.0) < 1e-6, "saturated air dews at its temperature");
+    using var tilt = new Complementary(0.98f, 0.0f);
+    float settled = tilt.Update(10.0f, 1.0f, 0.1f);
+    Assert(tilt.Update(float.NaN, 1.0f, 0.1f) == settled, "a reading that is not a number is ignored");
+    Assert(tilt.Estimate == settled, "and the estimate holds");
+}
+
+// Driving a robot: the chassis, an arm, odometry, a waypoint, and the gate every command
+// passes through.
+static void Motion()
+{
+    var drive = new DiffDrive(0.5f);
+    Assert(drive.WheelSpeeds(0.0f, 2.0f) == (-0.5f, 0.5f), "spinning in place");
+    Assert(drive.BodyMotion(-0.5f, 0.5f) == (0.0f, 2.0f), "and reading it back");
+
+    var car = new Ackermann(2.5f);
+    Assert(float.IsPositiveInfinity(car.TurnRadius(0.0f)), "wheels straight never turn");
+    Assert(Math.Abs(car.SteeringAngle(5.0f, car.YawRate(5.0f, 0.4f)) - 0.4f) < 1e-5f, "steering round-trips");
+
+    (float left, float right) = new SkidSteer(0.5f, 1.2f).WheelSpeeds(0.0f, 2.0f);
+    Assert(Math.Abs(left + 0.6f) < 1e-6f && Math.Abs(right - 0.6f) < 1e-6f, "slip widens the track");
+
+    var mecanum = new Mecanum(0.4f, 0.3f);
+    WheelSpeeds strafe = mecanum.WheelSpeeds(new Twist(0.0f, 1.0f));
+    Assert(strafe == new WheelSpeeds(-1.0f, 1.0f, 1.0f, -1.0f), "a strafe spins the diagonals against each other");
+    Assert(mecanum.BodyMotion(strafe) == new Twist(0.0f, 1.0f), "and reads back as the strafe");
+
+    var arm = new TwoLinkArm(1.0f, 1.0f);
+    (float x, float y) = arm.Tip(0.5f, 0.7f);
+    (float Shoulder, float Elbow)? joints = arm.JointsFor(x, y, Elbow.Up);
+    Assert(joints is { } j && Math.Abs(j.Shoulder - 0.5f) < 1e-4f && Math.Abs(j.Elbow - 0.7f) < 1e-4f, "the joints for where the hand went");
+    Assert(arm.JointsFor(5.0f, 0.0f) is null, "out of reach");
+    Assert(arm.Reach == (0.0f, 2.0f), "the arm reaches from 0 to 2");
+
+    var link = new DhParameters(A: 1.0f);
+    Transform tool = Kit.ForwardKinematics(link, link);
+    Assert(Math.Abs(tool.Position.X - 2.0f) < 1e-6f && Math.Abs(tool.Position.Y) < 1e-6f, "a flat arm reaches out along x");
+    Assert(Kit.ForwardKinematics().Equals(Transform.Identity), "an arm with no joints is the identity");
+    Assert(link.Transform().Elements[3] == 1.0f, "one link translates by its length");
+
+    using var odometry = new Odometry();
+    Pose pose = odometry.Integrate(1.0f, 1.0f, MathF.PI / 2.0f);
+    Assert(Math.Abs(pose.X - 1.0f) < 1e-5f && Math.Abs(pose.Y - 1.0f) < 1e-5f, "a quarter circle");
+    Assert(odometry.Integrate(float.NaN, 1.0f, 1.0f) == pose, "a bad sample leaves the pose");
+    odometry.IntegrateWheels(0.1f, 0.1f, drive);
+    Assert(odometry.Pose.Y > pose.Y, "rolling on along the new heading");
+
+    var follower = new WaypointFollower(1.5f, 3.0, 1.5f, 1.0f);
+    var here = new Coordinate(0.0, 0.0);
+    Guidance guidance = follower.Guide(here, 90.0f, new Coordinate(0.0, 0.01));
+    Assert(!guidance.Arrived && Math.Abs(guidance.Twist.Vx - 1.5f) < 1e-3f, "pointed at it, so cruise");
+    Assert(follower.Guide(here, 90.0f, here).Arrived, "already there");
+    Assert(Kit.ObstacleStop(new Twist(1.0f, 0.0f, 0.5f), float.NaN, 0.5f) == new Twist(0.0f, 0.0f, 0.5f), "a range that is not a number is an obstacle");
+
+    using var limits = new Limits(1.0f, 2.0f, 0.5f, 4.0f);
+    using var gate = new SafetyGate(limits, 0.2f);
+    gate.Feed();
+    Assert(Math.Abs(gate.Command(new Twist(1.0f), 0.1f).Vx - 0.05f) < 1e-6f, "the gate eases on");
+    gate.EngageEstop();
+    Assert(gate.IsStopped && gate.Command(new Twist(1.0f), 0.1f) == default, "and stops on its e-stop");
+    using var dog = new Watchdog(0.5f);
+    Assert(dog.Update(float.NaN), "an unknown silence expires the watchdog");
+    using var estop = new EStop();
+    estop.Engage();
+    Assert(estop.Gate(new Twist(1.0f)) == default, "an engaged e-stop stops everything");
+
+    ServoMap servo = ServoMap.Standard;
+    Assert(servo.Pulse(90.0f) == 1500 && servo.Pulse(float.NaN) == 0, "center is 1500, no angle no pulse");
+    Assert(Esc.Bidirectional.Pulse(0.5f) == 1750, "half throttle forward");
+    using var encoder = new Quadrature();
+    foreach ((bool a, bool b) in new[] { (false, true), (true, true), (true, false), (false, false) })
+    {
+        Assert(encoder.Update(a, b) == 1, "one step forward");
+    }
+
+    Assert(encoder.Count == 4, "one full cycle");
+    Assert(Math.Abs(new QuadratureScale(360.0f, 0.05f).Distance(360) - 2.0f * MathF.PI * 0.05f) < 1e-6f, "a turn rolls out a circumference");
 }
 
 // The wires a gateway actually has: framed serial packets, an RS485 request and
@@ -2206,6 +2289,8 @@ static void Conformance()
     ConformLaterSensors(vectors.GetProperty("sensors"));
     ConformActuators(vectors.GetProperty("actuators"));
     ConformWindows(vectors.GetProperty("windows"), tolerance);
+    ConformKitExtras(vectors.GetProperty("kitExtras"), tolerance);
+    ConformMotion(vectors.GetProperty("motion"), tolerance);
     ConformLora(vectors.GetProperty("lora"));
     ConformLoraBudget(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
@@ -2408,6 +2493,209 @@ static void Walk(JsonElement vector, string inputs, string outputs, Action<float
 // Asserts two numbers agree within the vectors' tolerance.
 static void Close(float got, float want, double tolerance, string message) =>
     Assert(Math.Abs(got - want) <= tolerance, $"{message}: expected {want}, got {got}");
+
+// Asserts a list of numbers agrees with an array in a vector, element by element.
+static void CloseAll(IReadOnlyList<float> got, JsonElement want, double tolerance, string message)
+{
+    float[] expected = want.EnumerateArray().Select(entry => entry.GetSingle()).ToArray();
+    Assert(got.Count == expected.Length, $"{message}: length");
+    for (int i = 0; i < expected.Length; i++)
+    {
+        Close(got[i], expected[i], tolerance, $"{message}[{i}]");
+    }
+}
+
+// Asserts two doubles agree within the vectors' tolerance.
+static void CloseDouble(double got, double want, double tolerance, string message) =>
+    Assert(Math.Abs(got - want) <= tolerance, $"{message}: expected {want}, got {got}");
+
+// Unit conversions, tilt, the dew point, and a complementary filter that skips a reading it
+// cannot use.
+static void ConformKitExtras(JsonElement vector, double tolerance)
+{
+    JsonElement units = vector.GetProperty("units");
+    float[] celsius = Floats(units, "celsius");
+    float[] pascals = Floats(units, "pascals");
+    CloseAll(celsius.Select(Units.CelsiusToFahrenheit).ToArray(), units.GetProperty("fahrenheit"), tolerance, "fahrenheit");
+    CloseAll(celsius.Select(Units.CelsiusToKelvin).ToArray(), units.GetProperty("kelvin"), tolerance, "kelvin");
+    CloseAll(pascals.Select(Units.PascalsToHectopascals).ToArray(), units.GetProperty("hectopascals"), tolerance, "hectopascals");
+    CloseAll(pascals.Select(Units.PascalsToPsi).ToArray(), units.GetProperty("psi"), tolerance, "psi");
+
+    foreach (JsonElement want in vector.GetProperty("tilts").EnumerateArray())
+    {
+        double[] accel = want.GetProperty("accel").EnumerateArray().Select(entry => entry.GetDouble()).ToArray();
+        Tilt tilt = Kit.TiltFromAccel(accel[0], accel[1], accel[2]);
+        CloseDouble(tilt.Roll, want.GetProperty("roll").GetDouble(), tolerance, "roll");
+        CloseDouble(tilt.Pitch, want.GetProperty("pitch").GetDouble(), tolerance, "pitch");
+    }
+
+    foreach (JsonElement want in vector.GetProperty("dewPoints").EnumerateArray())
+    {
+        double got = Kit.DewPoint(want.GetProperty("celsius").GetDouble(), want.GetProperty("humidity").GetDouble());
+        CloseDouble(got, want.GetProperty("dewPoint").GetDouble(), tolerance, "dew point");
+    }
+
+    JsonElement complementary = vector.GetProperty("complementary");
+    using var fused = new Complementary(
+        complementary.GetProperty("alpha").GetSingle(), complementary.GetProperty("initial").GetSingle());
+    float[] estimates = complementary.GetProperty("steps").EnumerateArray()
+        .Select(step => fused.Update(
+            step.GetProperty("rate").ValueKind == JsonValueKind.Null ? float.NaN : step.GetProperty("rate").GetSingle(),
+            step.GetProperty("absolute").GetSingle(),
+            step.GetProperty("dt").GetSingle()))
+        .ToArray();
+    CloseAll(estimates, complementary.GetProperty("estimates"), tolerance, "complementary");
+}
+
+// Chassis kinematics, an arm, odometry, waypoint guidance, the safety gate, and the servo,
+// ESC, and encoder conversions.
+static void ConformMotion(JsonElement vector, double tolerance)
+{
+    static float Single(JsonElement element, string name) => element.GetProperty(name).GetSingle();
+
+    JsonElement diff = vector.GetProperty("diffDrive");
+    var drive = new DiffDrive(Single(diff, "track"));
+    foreach (JsonElement want in diff.GetProperty("commands").EnumerateArray())
+    {
+        (float left, float right) = drive.WheelSpeeds(Single(want, "linear"), Single(want, "angular"));
+        Close(left, Single(want, "left"), tolerance, "left wheel");
+        Close(right, Single(want, "right"), tolerance, "right wheel");
+    }
+
+    JsonElement ackermann = vector.GetProperty("ackermann");
+    var car = new Ackermann(Single(ackermann, "wheelbase"));
+    foreach (JsonElement want in ackermann.GetProperty("steering").EnumerateArray())
+    {
+        float steering = Single(want, "steering");
+        float radius = car.TurnRadius(steering);
+        if (want.GetProperty("turnRadius").ValueKind == JsonValueKind.Null)
+        {
+            Assert(float.IsPositiveInfinity(radius), "wheels straight never turn");
+        }
+        else
+        {
+            Close(radius, Single(want, "turnRadius"), tolerance, "turn radius");
+        }
+
+        Close(car.YawRate(Single(ackermann, "linear"), steering), Single(want, "yawRate"), tolerance, "yaw rate");
+        Close(car.Curvature(steering), Single(want, "curvature"), tolerance, "curvature");
+    }
+
+    JsonElement skid = vector.GetProperty("skidSteer");
+    (float skidLeft, float skidRight) = new SkidSteer(Single(skid, "track"), Single(skid, "slip"))
+        .WheelSpeeds(Single(skid, "linear"), Single(skid, "angular"));
+    Close(skidLeft, Single(skid, "left"), tolerance, "skid left");
+    Close(skidRight, Single(skid, "right"), tolerance, "skid right");
+
+    JsonElement mecanumVector = vector.GetProperty("mecanum");
+    var mecanum = new Mecanum(Single(mecanumVector, "wheelbase"), Single(mecanumVector, "track"));
+    foreach (JsonElement want in mecanumVector.GetProperty("twists").EnumerateArray())
+    {
+        float[] twist = Floats(want, "twist");
+        WheelSpeeds wheels = mecanum.WheelSpeeds(new Twist(twist[0], twist[1], twist[2]));
+        CloseAll(
+            [wheels.FrontLeft, wheels.FrontRight, wheels.RearLeft, wheels.RearRight],
+            want.GetProperty("wheels"), tolerance, "mecanum wheels");
+    }
+
+    JsonElement armVector = vector.GetProperty("arm");
+    var arm = new TwoLinkArm(Single(armVector, "l1"), Single(armVector, "l2"));
+    foreach (JsonElement want in armVector.GetProperty("targets").EnumerateArray())
+    {
+        float[] target = Floats(want, "target");
+        foreach ((Elbow elbow, string key) in new[] { (Elbow.Up, "up"), (Elbow.Down, "down") })
+        {
+            (float Shoulder, float Elbow)? joints = arm.JointsFor(target[0], target[1], elbow);
+            if (want.GetProperty(key).ValueKind == JsonValueKind.Null)
+            {
+                Assert(joints is null, $"no {key} solution");
+            }
+            else
+            {
+                Assert(joints is not null, $"a {key} solution");
+                CloseAll([joints!.Value.Shoulder, joints.Value.Elbow], want.GetProperty(key), tolerance, $"arm {key}");
+            }
+        }
+    }
+
+    JsonElement fk = vector.GetProperty("forwardKinematics");
+    DhParameters[] chain = fk.GetProperty("joints").EnumerateArray()
+        .Select(joint => joint.EnumerateArray().Select(entry => entry.GetSingle()).ToArray())
+        .Select(parts => new DhParameters(parts[0], parts[1], parts[2], parts[3]))
+        .ToArray();
+    CloseAll(Kit.ForwardKinematics(chain).Elements, fk.GetProperty("transform"), tolerance, "forward kinematics");
+
+    JsonElement odometryVector = vector.GetProperty("odometry");
+    using var odometry = new Odometry();
+    JsonElement[] poses = odometryVector.GetProperty("poses").EnumerateArray().ToArray();
+    int stepIndex = 0;
+    foreach (JsonElement step in odometryVector.GetProperty("steps").EnumerateArray())
+    {
+        float[] parts = step.EnumerateArray().Select(entry => entry.GetSingle()).ToArray();
+        Pose pose = odometry.Integrate(parts[0], parts[1], parts[2]);
+        CloseAll([pose.X, pose.Y, pose.Theta], poses[stepIndex++], tolerance, "odometry pose");
+    }
+
+    JsonElement waypoint = vector.GetProperty("waypoint");
+    var follower = new WaypointFollower(
+        Single(waypoint, "cruise"), waypoint.GetProperty("arrivalM").GetDouble(),
+        Single(waypoint, "headingGain"), Single(waypoint, "maxAngular"));
+    double[] hereParts = waypoint.GetProperty("here").EnumerateArray().Select(entry => entry.GetDouble()).ToArray();
+    var here = new Coordinate(hereParts[0], hereParts[1]);
+    foreach (JsonElement want in waypoint.GetProperty("guidance").EnumerateArray())
+    {
+        double[] targetParts = want.GetProperty("target").EnumerateArray().Select(entry => entry.GetDouble()).ToArray();
+        Guidance guidance = follower.Guide(here, Single(want, "heading"), new Coordinate(targetParts[0], targetParts[1]));
+        CloseAll([guidance.Twist.Vx, guidance.Twist.Vy, guidance.Twist.Omega], want.GetProperty("twist"), tolerance, "guidance twist");
+        CloseDouble(guidance.DistanceM, want.GetProperty("distanceM").GetDouble(), tolerance, "guidance distance");
+        Close(guidance.HeadingErrorDeg, Single(want, "headingErrorDeg"), tolerance, "guidance heading error");
+        Assert(guidance.Arrived == want.GetProperty("arrived").GetBoolean(), "arrival");
+    }
+
+    JsonElement stop = vector.GetProperty("obstacleStop");
+    float[] moving = Floats(stop, "twist");
+    Twist clear = Kit.ObstacleStop(new Twist(moving[0], moving[1], moving[2]), Single(stop, "clear"), Single(stop, "stopDistance"));
+    CloseAll([clear.Vx, clear.Vy, clear.Omega], stop.GetProperty("clearTwist"), tolerance, "clear ahead");
+    Twist near = Kit.ObstacleStop(new Twist(moving[0], moving[1], moving[2]), Single(stop, "near"), Single(stop, "stopDistance"));
+    CloseAll([near.Vx, near.Vy, near.Omega], stop.GetProperty("nearTwist"), tolerance, "obstacle ahead");
+
+    JsonElement gateVector = vector.GetProperty("safetyGate");
+    float[] limitParts = Floats(gateVector, "limits");
+    using var limits = new Limits(limitParts[0], limitParts[1], limitParts[2], limitParts[3]);
+    using var gate = new SafetyGate(limits, Single(gateVector, "watchdogTimeout"));
+    gate.Feed();
+    float[] desiredParts = Floats(gateVector, "desired");
+    var desired = new Twist(desiredParts[0], desiredParts[1], desiredParts[2]);
+    float dt = Single(gateVector, "dt");
+    foreach (JsonElement want in gateVector.GetProperty("commands").EnumerateArray())
+    {
+        Twist got = gate.Command(desired, dt);
+        CloseAll([got.Vx, got.Vy, got.Omega], want, tolerance, "gate command");
+    }
+
+    Twist silent = gate.Command(desired, dt);
+    CloseAll([silent.Vx, silent.Vy, silent.Omega], gateVector.GetProperty("afterSilence"), tolerance, "gate after silence");
+
+    JsonElement servoVector = vector.GetProperty("servo");
+    ServoMap servo = ServoMap.Standard;
+    CloseAll(Floats(servoVector, "angles").Select(angle => (float)servo.Pulse(angle)).ToArray(), servoVector.GetProperty("pulses"), tolerance, "servo pulses");
+    Close(servo.Angle((ushort)servoVector.GetProperty("pulseBack").GetInt32()), Single(servoVector, "angleBack"), tolerance, "servo angle");
+    JsonElement escVector = vector.GetProperty("esc");
+    Esc esc = Esc.Bidirectional;
+    CloseAll(Floats(escVector, "throttles").Select(throttle => (float)esc.Pulse(throttle)).ToArray(), escVector.GetProperty("pulses"), tolerance, "esc pulses");
+
+    JsonElement quadrature = vector.GetProperty("quadrature");
+    using var encoder = new Quadrature();
+    float[] deltas = quadrature.GetProperty("edges").EnumerateArray()
+        .Select(edge => edge.EnumerateArray().Select(level => level.GetBoolean()).ToArray())
+        .Select(levels => (float)encoder.Update(levels[0], levels[1]))
+        .ToArray();
+    CloseAll(deltas, quadrature.GetProperty("deltas"), tolerance, "quadrature deltas");
+    Assert(encoder.Count == quadrature.GetProperty("count").GetInt64(), "quadrature count");
+    var scale = new QuadratureScale(Single(quadrature, "countsPerRev"), Single(quadrature, "wheelRadius"));
+    Close(scale.Distance(encoder.Count), Single(quadrature, "distance"), tolerance, "encoder distance");
+    Close(scale.Velocity(90, 0.5f), Single(quadrature, "velocity"), tolerance, "encoder velocity");
+}
 
 static void ConformSerial(JsonElement vector)
 {

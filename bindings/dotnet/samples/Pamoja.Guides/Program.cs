@@ -9,6 +9,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["security"] = () => { SecurityGuide.Run(); return Task.CompletedTask; },
     ["codec"] = () => { CodecGuide.Run(); return Task.CompletedTask; },
     ["kit"] = () => { KitGuide.Run(); return Task.CompletedTask; },
+    ["motion"] = () => { MotionGuide.Run(); return Task.CompletedTask; },
     ["serial"] = () => { SerialGuide.Run(); return Task.CompletedTask; },
     ["modbus"] = () => { ModbusGuide.Run(); return Task.CompletedTask; },
     ["can"] = () => { CanGuide.Run(); return Task.CompletedTask; },

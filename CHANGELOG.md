@@ -256,12 +256,37 @@ released together, so one entry covers all of them.
 - A trigger reports its threshold and hysteresis in C# and the C ABI, as it did in the other
   languages, and whether it watches a rising reading in every language.
 - The helpers guide rewritten around a village water system: the tower level read off a 4-20
-  mA loop, filtered and smoothed, a refill pump and its float switch, a low-water alarm, a
-  booster pump held at pressure by a PID behind a soft start, a countdown through a power
-  cut, a leak, a burst main, a flow meter's odd readings, and a tanker truck's district,
-  printing the same twenty lines in all four languages. Its tables cover every helper in each
+  mA loop, filtered and smoothed, the tower's lean from an accelerometer steadied by a gyro,
+  a refill pump and its float switch, a low-water alarm, a booster pump held at pressure by a
+  PID behind a soft start, the dew point in its pump house, a countdown through a power cut,
+  a leak, a burst main, a flow meter's odd readings, and a tanker truck's district, printing
+  the same twenty-three lines in all four languages. Its tables cover every helper in each
   language, what each parameter means and what a value out of range does, the windowed
   capacities, what a reading that is not a number does to each helper, and how to tune them.
+- The robot motion helpers in TypeScript, Python, and C#, where they were in Rust alone: the
+  differential, skid-steer, Ackermann, and mecanum chassis models, the quadrature decoder
+  and its scale, odometry, the waypoint follower and the obstacle stop, the e-stop,
+  watchdog, limits, and safety gate, the two-link arm and Denavit-Hartenberg forward
+  kinematics, and the servo and ESC pulse maps, each through the C ABI. A twist, a pose, and
+  a joint's parameters are plain objects in TypeScript and value types in Python and C#.
+  TypeScript and Python refuse a pulse width outside 0 to 65535, and TypeScript a step count
+  with a fraction: `minUs must be a whole number of microseconds from 0 to 65535, not -1`.
+  `ServoMap` and `Esc` report the pulse widths and travel they were built with, in Rust too.
+- The complementary filter, the tilt from an accelerometer, the dew point, and the twelve
+  unit conversions in TypeScript, Python, and C#, where they were in Rust alone. In C# the
+  conversions are static methods on `Units`, and the tilt and dew point on `Kit`.
+- The robot motion guide, around a rover that inspects a solar farm at night: the same turn
+  on four chassis, its wheel encoders and odometry, the drive to an inverter cabinet, the
+  safety gate every command passes through, and the arm that presses the cabinet's reset
+  button, printing the same twenty-one lines in all four languages, with a Raspberry Pi
+  program in each that drives the arm's two servos from a PCA9685. Its tables cover the
+  frames and units every helper agrees on, the calls in each language, what each parameter
+  means and what a value out of range does, what a reading that is not a number does, and
+  what each error means.
+- Conformance vectors for the motion helpers, the complementary filter, the tilt, the dew
+  point, and the unit conversions, checked in all four languages.
+- The standards register lists REP-103, the units and axes every twist, pose, and chassis
+  model uses, pinned to the odometry test that drives a quarter circle to the left.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -955,6 +980,10 @@ released together, so one entry covers all of them.
   orchestration next, and mission planning, numeric inverse kinematics for
   longer arms, and micro-ROS later, and the hardware lane names its parts. Reach
   points at the bindings rather than listing the four languages again.
+- `Pose` and `Twist` in C# move from `Pamoja.Sim` to `Pamoja.Kit`, beside the motion
+  helpers that take them, and `Pamoja.Sim` takes them from there. In Python, `Pose` is a
+  frozen value class that compares by value and can be built, each field 0 unless given,
+  and `pamoja.sim` returns the same class.
 
 ### Fixed
 
@@ -1157,6 +1186,14 @@ released together, so one entry covers all of them.
 - Links in the capability map, the application scenes, the bindings strip, and
   Direction are underlined at rest. Color alone had told them apart from the
   text beside them, at 1.06:1.
+- `WaypointFollower::guide` turns toward its waypoint. Its yaw rate had the wrong sign, so
+  a robot that followed it turned away from a target on either side. A target to the
+  robot's right, a positive heading error in compass degrees, now gives a negative yaw
+  rate, a right turn, as `Twist` has it, and the `Guidance` fields say which convention
+  each one uses.
+- The `Odometry::fuse_heading` documentation says the measurement is in the pose's own
+  frame, counter-clockwise from the world x axis, and how a compass course converts to it,
+  where it listed a GPS course as something to pass in as it came.
 
 ## [0.1.18] - 2026-09-10
 
