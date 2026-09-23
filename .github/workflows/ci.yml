@@ -305,6 +305,21 @@ jobs:
           cargo test -p pamoja-zenoh --features runtime
           cargo test -p pamoja-ros2 --features bridge
 
+      # The bridge suite above runs under the RMW the image selects. This one selects
+      # rmw_zenoh and proves a ROS 2 publication reaches a plain pamoja Zenoh peer: no router
+      # is started, so the RMW is told not to wait for one and both sides find each other by
+      # multicast scouting, the same way `cargo xtask ros` runs it.
+      - name: Carry a ROS 2 publication over rmw_zenoh to a pamoja peer
+        shell: bash
+        env:
+          RMW_IMPLEMENTATION: rmw_zenoh_cpp
+          ZENOH_ROUTER_CHECK_ATTEMPTS: -1
+          ZENOH_CONFIG_OVERRIDE: scouting/multicast/enabled=true
+        run: |
+          source "$HOME/.cargo/env"
+          source /opt/ros/jazzy/setup.bash
+          cargo test -p pamoja-ros2 --features bridge ros2_twist_is_received_over_zenoh -- --ignored
+
   sitl:
     name: mavlink SITL interop (${{ matrix.autopilot }})
     runs-on: ubuntu-latest

@@ -452,14 +452,13 @@ mod tests {
 
     // The cross-interop proof: a real ROS 2 publication, carried over Zenoh by rmw_zenoh, is
     // received by a plain pamoja `ZenohTransport` and decoded by our own CDR, with the live key
-    // matching the structure `pamoja-ros2` builds. Ignored by default because it needs
-    // `RMW_IMPLEMENTATION=rmw_zenoh_cpp` and peer discovery; run it with `cargo xtask ros`.
+    // matching the structure `pamoja-ros2` builds. Ignored by default because it needs the
+    // Zenoh RMW selected and the two peers finding each other without a router:
+    // `RMW_IMPLEMENTATION=rmw_zenoh_cpp`, `ZENOH_ROUTER_CHECK_ATTEMPTS=-1` and multicast
+    // scouting in `ZENOH_CONFIG_OVERRIDE`. `cargo xtask ros` and the ros-bridge CI job set
+    // those and run it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    // Ignored, and not yet passing: the node is moved into the spinner thread while the
-    // publisher built from it stays behind, so the publisher outlives its node and the first
-    // send answers RCL_RET_PUBLISHER_INVALID. Selecting the RMW in CI surfaced it; the fix is
-    // to keep the node alive beside the publisher, which r2r makes awkward.
-    #[ignore = "needs rmw_zenoh; the node outlives its publisher here, see the note above"]
+    #[ignore = "needs rmw_zenoh selected and multicast scouting; run it with `cargo xtask ros`"]
     async fn ros2_twist_is_received_over_zenoh() {
         use crate::msg::Twist;
         use pamoja_core::{Receive, Transport};

@@ -840,9 +840,9 @@ asserts around.
 
 The ROS 2 bridge exchanges topics, services and actions with
 [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/) in the official image, under the RMW that
-image selects. Carrying a ROS 2 publication over Zenoh through `rmw_zenoh` is written but
-not yet proven: the case needs that RMW and a router, and does not pass today, so it stays
-ignored rather than counted. The LoRa gateway registers a device with a
+image selects. The same job then selects `rmw_zenoh` and publishes a `Twist` from a ROS 2
+node that a plain pamoja Zenoh peer receives, on the key `pamoja-ros2` builds for that topic
+and type, and decodes with its own CDR. The LoRa gateway registers a device with a
 [ChirpStack](https://www.chirpstack.io/) network server and forwards a join and an uplink
 through it.
 
