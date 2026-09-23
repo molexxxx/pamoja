@@ -49,6 +49,8 @@ export function fromCbor(cbor: Uint8Array): unknown {
  * @param samples - The samples, in order.
  * @returns The packed encoding, far smaller than the samples for a slow-moving
  * series.
+ * @throws If a sample is not a whole number, or is past the largest whole number a
+ * JavaScript number holds exactly.
  */
 export function packSamples(samples: readonly number[]): Buffer {
   return encodeDeltaSamples(samples as number[])
@@ -59,7 +61,8 @@ export function packSamples(samples: readonly number[]): Buffer {
  *
  * @param bytes - The packed encoding.
  * @returns The samples, in order.
- * @throws If the buffer is malformed.
+ * @throws If the buffer is malformed, carries bytes after its last sample, or holds a
+ * sample past the largest whole number a JavaScript number holds exactly.
  */
 export function unpackSamples(bytes: Uint8Array): number[] {
   return decodeDeltaSamples(Buffer.from(bytes))
@@ -94,6 +97,8 @@ export class Quantizer {
    *
    * @param readings - The readings, in order.
    * @returns The packed encoding.
+   * @throws If a reading is not a number, is infinite, or is too large for the scale;
+   * the format has no way to carry a missing reading.
    */
   encode(readings: readonly number[]): Buffer {
     return this.#native.encode(readings as number[])
@@ -104,7 +109,7 @@ export class Quantizer {
    *
    * @param bytes - The encoding produced by {@link encode} at the same scale.
    * @returns The readings, in order.
-   * @throws If the buffer is malformed.
+   * @throws If the buffer is malformed or carries bytes after its last reading.
    */
   decode(bytes: Uint8Array): number[] {
     return this.#native.decode(Buffer.from(bytes))

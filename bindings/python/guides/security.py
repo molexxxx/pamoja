@@ -1,7 +1,7 @@
 """The device identity guide example; see docs/guides/security.md."""
 
 # ANCHOR: example
-from pamoja.security import DeviceIdentity, fingerprint, verify
+from pamoja.security import DeviceIdentity, fingerprint, verify, verify_message
 
 # The seed is provisioned into the device once and never leaves it. A real one comes from
 # the factory or a secure element; any 32 bytes stand in here.
@@ -34,9 +34,28 @@ if verify(impostor.public_key, reading, signature):
     print("accepted   an impostor, which should never happen")
 else:
     print("rejected   a signature offered under another device's key")
+
+# On a link the signature and the reading usually travel as one message, signature first,
+# and the gateway gets the reading back only once it has checked it.
+message = device.sign_message(reading)
+print(f"message    {len(message)} bytes on the wire, the signature and the reading together")
+carried = verify_message(gateway_key, message)
+if carried is not None:
+    print(f"accepted   {carried.decode()}, read out of the message")
+else:
+    print("rejected   a message the device really did sign, which should never happen")
+
+# A message that lost its last byte on the way is refused whole.
+if verify_message(gateway_key, message[:-1]) is not None:
+    print("accepted   a message cut short, which should never happen")
+else:
+    print("rejected   a message that lost its last byte on the way")
 # ANCHOR_END: example
 
 assert device.sign(reading) == signature
 assert verify(gateway_key, reading, signature) is True
 assert verify(gateway_key, edited, signature) is False
 assert verify(impostor.public_key, reading, signature) is False
+assert len(message) == 64 + len(reading.encode())
+assert verify_message(gateway_key, message) == reading.encode()
+assert verify_message(gateway_key, message[:-1]) is None

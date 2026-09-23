@@ -4,54 +4,83 @@
 
 use std::error::Error;
 
-/// A document moved to the compact form a metered link should carry, and a batch of
-/// readings packed for the same link, with what each one costs on the wire.
+/// A snow gauge on a ridge fitting what it reports into the smallest LoRaWAN uplink: one
+/// reading as a document, then six hours of depths and battery voltages as packed batches.
 fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_codec::{cbor_to_json, decode_deltas, encode_deltas, json_to_cbor, Quantizer};
+    use pamoja_lora::region::Region;
 
-    // The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
-    // half-precision float, the shortest form RFC 8949 allows for it.
-    let reading = br#"{"c":21.5,"ok":true}"#;
-    let cbor = json_to_cbor(reading).expect("a valid document");
-    println!("json      {} bytes", reading.len());
-    println!("cbor      {} bytes", cbor.len());
+    // The gauge reports over LoRaWAN in the US915 plan, at the slowest data rate because
+    // it reaches farthest. An uplink there carries only a few bytes of payload.
+    let budget = Region::Us915
+        .plan()
+        .max_payload(0, false)
+        .expect("the slowest data rate carries a payload")
+        .application as usize;
+    let fits = |bytes: usize| {
+        if bytes <= budget {
+            "fits one uplink"
+        } else {
+            "too big for one uplink"
+        }
+    };
+    println!("uplink    carries {budget} bytes at the slowest US915 data rate");
 
-    // A gateway that speaks JSON gets it back unchanged, so the compact form is a
-    // transport choice rather than a different data model.
-    let restored = cbor_to_json(&cbor).expect("a valid document");
-    println!("back to json, unchanged: {}", restored == reading);
+    // One reading as the JSON a web service would take. CBOR carries the same document
+    // in fewer bytes, but every key name still rides along with every reading.
+    let reading = br#"{"depth_cm":142.5,"air_c":-6.5,"battery_mv":3712}"#;
+    let cbor = json_to_cbor(reading)?;
+    println!("json      {} bytes, {}", reading.len(), fits(reading.len()));
+    println!("cbor      {} bytes, {}", cbor.len(), fits(cbor.len()));
+    let restored = cbor_to_json(&cbor)?;
+    println!("cbor      reads back as {}", String::from_utf8(restored)?);
 
-    // A batch of readings packs to a count, then the difference between each sample and
-    // the one before it. Successive readings differ by very little, so the differences
-    // cost about a byte each where the samples would cost eight.
-    let samples = [10i64, 11, 13, 12, 900];
-    let packed = encode_deltas(&samples);
-    let (count, bytes) = (samples.len(), packed.len());
-    let unpacked = decode_deltas(&packed).expect("a valid batch");
-    println!("batch     {count} samples in {bytes} bytes");
-    println!("unpacked  {unpacked:?}");
+    // A batch the gauge and the server agree on needs no key names. Six hourly depths,
+    // kept to the millimeter, pack to a count, the first depth, and five small steps.
+    let quantizer = Quantizer::new(10.0);
+    let depths = [142.5, 143.8, 145.2, 146.0, 145.7, 145.5];
+    let depth_batch = quantizer.encode(&depths)?;
+    let (count, size) = (depths.len(), depth_batch.len());
+    println!("depths    {count} readings in {size} bytes, {}", fits(size));
+    let depths_back: Vec<String> = quantizer
+        .decode(&depth_batch)?
+        .iter()
+        .map(|depth| format!("{depth:.1}"))
+        .collect();
+    println!("depths    read back as {}", depths_back.join(", "));
 
-    // Readings that arrive as floats pack the same way once a scale is chosen. Nothing in
-    // the bytes records that scale, so the sender and the receiver have to agree on it.
-    let quantizer = Quantizer::new(100.0);
-    let celsius = [20.0f32, 20.1, 20.2, 20.3];
-    let packed_celsius = quantizer.encode(&celsius);
-    let recovered = quantizer.decode(&packed_celsius).expect("a valid batch");
-    let (readings, packed_bytes) = (celsius.len(), packed_celsius.len());
-    println!("degrees   {readings} readings in {packed_bytes} bytes");
-    println!("recovered {recovered:?}");
+    // Battery millivolts are whole numbers already, so they pack with no scale, and a
+    // falling voltage packs as small as a rising one.
+    let battery = [3712, 3709, 3705, 3702, 3698, 3695];
+    let battery_batch = encode_deltas(&battery);
+    let (count, size) = (battery.len(), battery_batch.len());
+    println!("battery   {count} readings in {size} bytes, {}", fits(size));
+    let battery_back: Vec<String> = decode_deltas(&battery_batch)?
+        .iter()
+        .map(i64::to_string)
+        .collect();
+    println!("battery   reads back as {}", battery_back.join(", "));
+
+    // Heavy snowfall can swallow the sensor's echo, leaving no depth at all. The
+    // quantizer refuses the batch rather than send the gap as a depth.
+    let refused = quantizer
+        .encode(&[145.5, f32::NAN])
+        .expect_err("a missing depth");
+    println!("depths    refused a batch with a missing depth: {refused}");
     // ANCHOR_END: example
 
-    // The bytes each specification fixes are pinned in pamoja-codec's own tests, so a
-    // guide can show the program instead of a table of constants.
     assert!(cbor.len() < reading.len());
-    assert_eq!(restored, reading);
-    assert_eq!(unpacked, samples);
-    assert!(packed.len() < samples.len() * 8);
-    for (got, want) in recovered.iter().zip(&celsius) {
-        assert!((got - want).abs() <= 0.01);
+    assert!(cbor.len() > budget);
+    assert!(depth_batch.len() <= budget && battery_batch.len() <= budget);
+    assert!(
+        cbor_to_json(&cbor)?.starts_with(br#"{"air_c""#),
+        "keys come back sorted"
+    );
+    for (got, sent) in quantizer.decode(&depth_batch)?.iter().zip(&depths) {
+        assert!((got - sent).abs() <= 0.05);
     }
+    assert_eq!(decode_deltas(&battery_batch)?, battery);
 
     Ok(())
 }

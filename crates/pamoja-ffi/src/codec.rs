@@ -161,8 +161,10 @@ pub unsafe extern "C" fn pamoja_codec_decode_deltas(
 ///
 /// [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
 /// the caller must release with
-/// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
-/// [`PamojaStatus::InvalidArgument`] if `scale` is not positive and finite.
+/// [`pamoja_buffer_free`](crate::pamoja_buffer_free),
+/// [`PamojaStatus::InvalidArgument`] if `scale` is not positive and finite, or
+/// [`PamojaStatus::Codec`] if a reading is not a number, is infinite, or is too
+/// large for the scale; the format has no way to carry a missing reading.
 ///
 /// # Safety
 ///
@@ -188,10 +190,11 @@ pub unsafe extern "C" fn pamoja_codec_quantizer_encode(
         Err(status) => return status,
     };
     match catch_unwind(AssertUnwindSafe(|| Quantizer::new(scale).encode(&readings))) {
-        Ok(bytes) => {
+        Ok(Ok(bytes)) => {
             *out_buffer = PamojaBuffer::into_raw(bytes);
             PamojaStatus::Ok
         }
+        Ok(Err(error)) => failed(&error),
         Err(_) => panicked(),
     }
 }
@@ -425,7 +428,9 @@ fn check_scale(scale: f32) -> Result<(), PamojaStatus> {
     if scale.is_finite() && scale > 0.0 {
         Ok(())
     } else {
-        set_last_error("scale must be positive and finite".to_owned());
+        set_last_error(format!(
+            "a quantizer's scale must be a positive, finite number, not {scale}"
+        ));
         Err(PamojaStatus::InvalidArgument)
     }
 }

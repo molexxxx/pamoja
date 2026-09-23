@@ -160,8 +160,45 @@ function codecs() {
     assert.ok(Math.abs(value - (20.0 + i * 0.1)) < 0.05, "readings decode to precision");
   }
 
-  assert.throws(() => new Quantizer(0), "a non-positive scale should throw");
+  assert.throws(
+    () => new Quantizer(0),
+    /a quantizer's scale must be a positive, finite number, not 0/,
+    "a non-positive scale should throw",
+  );
   assert.throws(() => fromCbor(Buffer.from([0xff, 0xff])), "malformed CBOR should throw");
+
+  assert.throws(
+    () => quantizer.encode([20.0, NaN]),
+    /codec error: reading 1 is NaN, which cannot be quantized/,
+    "a missing reading is refused rather than packed as a number",
+  );
+  assert.throws(() => quantizer.encode([Infinity]), /reading 0 is inf/);
+  assert.throws(
+    () => packSamples([10, 10.5]),
+    /sample 1 is 10.5, which is not a whole number/,
+    "a fraction is refused rather than rounded",
+  );
+  assert.throws(() => packSamples([NaN]), /sample 0 is NaN, which is not a whole number/);
+  assert.throws(
+    () => packSamples([2 ** 53]),
+    /sample 0 is 9007199254740992, past the largest whole number a JavaScript number holds exactly/,
+  );
+  assert.deepStrictEqual(
+    unpackSamples(packSamples([Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER])),
+    [Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER],
+    "the largest exact whole numbers round-trip",
+  );
+  const pastSafe = Buffer.from([0x01, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]);
+  assert.throws(
+    () => unpackSamples(pastSafe),
+    /sample 0 is 9007199254740992, past the largest whole number/,
+    "a sample JavaScript cannot hold exactly is refused rather than rounded",
+  );
+  assert.throws(
+    () => unpackSamples(Buffer.concat([packSamples([1, 2, 3]), packSamples([4])])),
+    /2 bytes follow the batch's last sample/,
+    "two batches run together are refused",
+  );
 }
 
 // The helper math a field node runs between reading a sensor and acting on it.
@@ -1145,7 +1182,7 @@ function radioAndReach() {
   );
   assert.strictEqual(eu868.maxEirpDbm(868_100_000), 16, "and to 16 dBm");
   assert.strictEqual(
-    eu868.maxPayload(lora.LoraPayloadTable.UplinkDirect, 5).application,
+    eu868.maxPayload(5).application,
     242,
     "DR5 carries the largest EU868 application payload",
   );

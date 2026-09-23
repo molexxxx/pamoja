@@ -184,7 +184,10 @@ fn codec_vectors_match() {
     let scale = float(&quantizer["scale"]);
     let readings = floats(&quantizer["readings"]);
     let packed = unhex(&quantizer["packed"]);
-    assert_eq!(Quantizer::new(scale).encode(&readings), packed);
+    assert_eq!(
+        Quantizer::new(scale).encode(&readings).expect("encode"),
+        packed
+    );
 
     let tolerance = float(&quantizer["tolerance"]);
     let decoded = Quantizer::new(scale).decode(&packed).expect("decode");

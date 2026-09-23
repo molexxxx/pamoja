@@ -1280,17 +1280,17 @@ function loraRegionVectors() {
     );
 
     assert.deepStrictEqual(
-      payloadOf(plan.maxPayload(lora.LoraPayloadTable.UplinkRepeater, 0)),
+      payloadOf(plan.maxPayload(0, lora.LoraPayloadTable.UplinkRepeater)),
       want.payloadAtSlowest.repeater,
       `the repeater payload at the slowest rate of ${where}`,
     );
     assert.deepStrictEqual(
-      payloadOf(plan.maxPayload(lora.LoraPayloadTable.UplinkDirect, 0)),
+      payloadOf(plan.maxPayload(0, lora.LoraPayloadTable.UplinkDirect)),
       want.payloadAtSlowest.direct,
       `the direct payload at the slowest rate of ${where}`,
     );
     assert.deepStrictEqual(
-      payloadOf(plan.maxPayload(lora.LoraPayloadTable.DwellLimited, 0)),
+      payloadOf(plan.maxPayload(0, lora.LoraPayloadTable.DwellLimited)),
       want.dwellLimitedAtSlowest,
       `the dwell-limited payload of ${where}`,
     );

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 using Pamoja.Native.Interop;
@@ -34,7 +35,9 @@ public sealed class Quantizer
         if (!float.IsFinite(scale) || scale <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(scale), scale, "scale must be positive and finite");
+                nameof(scale),
+                "a quantizer's scale must be a positive, finite number, not "
+                    + scale.ToString(CultureInfo.InvariantCulture));
         }
 
         _scale = scale;
@@ -43,7 +46,10 @@ public sealed class Quantizer
     /// <summary>Quantizes and packs a batch of readings.</summary>
     /// <param name="readings">The readings, in order.</param>
     /// <returns>The packed encoding.</returns>
-    /// <exception cref="PamojaException">The native call failed.</exception>
+    /// <exception cref="PamojaException">
+    /// A reading is not a number, is infinite, or is too large for the scale; the
+    /// format has no way to carry a missing reading.
+    /// </exception>
     public byte[] Encode(ReadOnlySpan<float> readings)
     {
         Status.ThrowIfError(NativeMethods.pamoja_codec_quantizer_encode(

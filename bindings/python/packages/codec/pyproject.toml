@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pamoja-codec"
 version = "0.1.18"
-description = "CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links."
+description = "CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings."
 readme = "README.md"
 license = { text = "MIT" }
 license-files = ["LICENSE-MIT"]

@@ -9,7 +9,14 @@
 //! eight, with no loss. [`Quantizer`] extends this to `f32` readings by rounding each
 //! to a fixed precision first.
 
+use alloc::format;
+use alloc::vec::Vec;
+
 use pamoja_core::{Error, Result};
+
+/// The magnitude past which a quantized reading no longer fits the `i64` it is packed
+/// as, kept a little inside `i64::MAX` so the conversion never saturates.
+const QUANTIZED_LIMIT: f32 = 9.2e18;
 
 // Writes an unsigned integer as LEB128: seven bits per byte, high bit as a continue
 // flag.
@@ -27,25 +34,45 @@ fn write_uvarint(mut value: u64, out: &mut Vec<u8>) {
     }
 }
 
-// Reads a LEB128 unsigned integer, advancing `pos`.
+// Reads a LEB128 unsigned integer, advancing `pos`. The tenth byte holds bit 63 alone,
+// so anything more in it is a value past 64 bits.
 fn read_uvarint(bytes: &[u8], pos: &mut usize) -> Result<u64> {
     let mut result = 0u64;
     let mut shift = 0u32;
     loop {
         let byte = *bytes
             .get(*pos)
-            .ok_or_else(|| Error::Codec("truncated varint".into()))?;
+            .ok_or_else(|| Error::Codec("the batch ends part-way through a value".into()))?;
         *pos += 1;
+        if shift == 63 && byte > 1 {
+            return Err(Error::Codec(
+                "a value in the batch does not fit in 64 bits".into(),
+            ));
+        }
         result |= u64::from(byte & 0x7f) << shift;
         if byte & 0x80 == 0 {
-            break;
+            return Ok(result);
         }
         shift += 7;
-        if shift >= 64 {
-            return Err(Error::Codec("varint is too long".into()));
-        }
     }
-    Ok(result)
+}
+
+// Rounds half away from zero, as `f32::round` does, with only `core`. Every `f32` of
+// magnitude 2^23 or more is already whole, and below that the fraction is exact.
+fn round(value: f32) -> f32 {
+    const WHOLE: f32 = 8_388_608.0;
+    if value.is_nan() || value <= -WHOLE || value >= WHOLE {
+        return value;
+    }
+    let truncated = value as i32 as f32;
+    let fraction = value - truncated;
+    if fraction >= 0.5 {
+        truncated + 1.0
+    } else if fraction <= -0.5 {
+        truncated - 1.0
+    } else {
+        truncated
+    }
 }
 
 // Maps a signed integer to an unsigned one whose size grows with magnitude, so small
@@ -103,8 +130,9 @@ pub fn encode_deltas(samples: &[i64]) -> Vec<u8> {
 ///
 /// # Errors
 ///
-/// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `bytes` ends in the middle
-/// of a value or encodes an over-long integer.
+/// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `bytes` ends part-way
+/// through a value, holds a value past 64 bits, or carries bytes after the last
+/// sample, which a batch cut short or run into another would.
 pub fn decode_deltas(bytes: &[u8]) -> Result<Vec<i64>> {
     let mut pos = 0;
     let count = read_uvarint(bytes, &mut pos)?;
@@ -118,7 +146,12 @@ pub fn decode_deltas(bytes: &[u8]) -> Result<Vec<i64>> {
         samples.push(sample);
         previous = sample;
     }
-    Ok(samples)
+    match bytes.len() - pos {
+        0 => Ok(samples),
+        extra => Err(Error::Codec(format!(
+            "{extra} bytes follow the batch's last sample"
+        ))),
+    }
 }
 
 /// Packs a batch of `f32` readings into a compact byte form for a metered link.
@@ -126,9 +159,14 @@ pub fn decode_deltas(bytes: &[u8]) -> Result<Vec<i64>> {
 /// A quantizer rounds each reading to a fixed precision - set by the `scale`, where
 /// `100.0` keeps two decimal places - turns it into an integer, and delta-encodes the
 /// batch with [`encode_deltas`]. This is lossy by exactly the rounding step, which is
-/// the right trade for a cheap sensor on an expensive link: a fridge temperature to
-/// the nearest hundredth of a degree costs a byte or two per sample instead of four.
-/// The same `scale` must be used to encode and decode.
+/// the right trade for a cheap sensor on an expensive link: a temperature to the
+/// nearest hundredth of a degree costs a byte or two per sample instead of four.
+/// The same `scale` must be used to encode and decode, and nothing in the bytes
+/// records it.
+///
+/// A reading that is not a number, or is infinite, is refused rather than packed:
+/// the format has no way to say "no reading", and a dead sensor's `NaN` sent as a
+/// real value would be worse than an error.
 ///
 /// # Examples
 ///
@@ -138,7 +176,7 @@ pub fn decode_deltas(bytes: &[u8]) -> Result<Vec<i64>> {
 /// // Quantize to 0.1 precision and pack a slowly-rising series.
 /// let quantizer = Quantizer::new(10.0);
 /// let readings = [20.0, 20.1, 20.2, 20.3];
-/// let packed = quantizer.encode(&readings);
+/// let packed = quantizer.encode(&readings).unwrap();
 /// assert!(packed.len() < readings.len() * 4); // smaller than four bytes per reading
 ///
 /// let restored = quantizer.decode(&packed).unwrap();
@@ -155,7 +193,8 @@ impl Quantizer {
     /// # Arguments
     ///
     /// * `scale` - the multiplier applied before rounding; `100.0` keeps two decimal
-    ///   places. Must be positive.
+    ///   places. It must be a positive, finite number, which
+    ///   [`encode`](Quantizer::encode) and [`decode`](Quantizer::decode) check.
     ///
     /// # Returns
     ///
@@ -173,12 +212,31 @@ impl Quantizer {
     /// # Returns
     ///
     /// The compact encoding of the batch.
-    pub fn encode(&self, readings: &[f32]) -> Vec<u8> {
-        let samples: Vec<i64> = readings
-            .iter()
-            .map(|&reading| (reading * self.scale).round() as i64)
-            .collect();
-        encode_deltas(&samples)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if the scale is not a
+    /// positive, finite number, if a reading is not a number or is infinite, or if a
+    /// reading at this scale is past what the batch can carry, about 9.2e18.
+    pub fn encode(&self, readings: &[f32]) -> Result<Vec<u8>> {
+        self.check_scale()?;
+        let mut samples = Vec::with_capacity(readings.len());
+        for (index, &reading) in readings.iter().enumerate() {
+            if !reading.is_finite() {
+                return Err(Error::Codec(format!(
+                    "reading {index} is {reading}, which cannot be quantized"
+                )));
+            }
+            let scaled = round(reading * self.scale);
+            if !scaled.is_finite() || scaled <= -QUANTIZED_LIMIT || scaled >= QUANTIZED_LIMIT {
+                return Err(Error::Codec(format!(
+                    "reading {index} is {reading}, too large for a scale of {}",
+                    self.scale
+                )));
+            }
+            samples.push(scaled as i64);
+        }
+        Ok(encode_deltas(&samples))
     }
 
     /// Decodes a batch back into readings, to within the quantizer's precision.
@@ -194,13 +252,27 @@ impl Quantizer {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `bytes` is malformed.
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if the scale is not a
+    /// positive, finite number, or `bytes` is malformed.
     pub fn decode(&self, bytes: &[u8]) -> Result<Vec<f32>> {
+        self.check_scale()?;
         let samples = decode_deltas(bytes)?;
         Ok(samples
             .iter()
             .map(|&sample| sample as f32 / self.scale)
             .collect())
+    }
+
+    /// Refuses a scale that cannot round a reading to anything meaningful.
+    fn check_scale(&self) -> Result<()> {
+        if self.scale.is_finite() && self.scale > 0.0 {
+            Ok(())
+        } else {
+            Err(Error::Codec(format!(
+                "a quantizer's scale must be a positive, finite number, not {}",
+                self.scale
+            )))
+        }
     }
 }
 
@@ -234,8 +306,75 @@ mod tests {
     #[test]
     fn truncated_bytes_are_a_codec_error() {
         // Claims three samples but supplies none.
-        let result = decode_deltas(&[3]);
-        assert!(matches!(result, Err(Error::Codec(_))));
+        match decode_deltas(&[3]) {
+            Err(Error::Codec(reason)) => {
+                assert_eq!(reason, "the batch ends part-way through a value");
+            }
+            other => panic!("a batch cut short decoded: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_value_past_64_bits_is_refused_rather_than_truncated() {
+        let mut largest = Vec::new();
+        write_uvarint(u64::MAX, &mut largest);
+        assert_eq!(largest.len(), 10);
+        assert_eq!(largest[9], 0x01);
+        let mut pos = 0;
+        assert_eq!(
+            read_uvarint(&largest, &mut pos).expect("u64::MAX"),
+            u64::MAX
+        );
+
+        for tenth in [0x02, 0x7f, 0x81] {
+            let mut bytes = largest.clone();
+            bytes[9] = tenth;
+            bytes.push(0x00);
+            let mut pos = 0;
+            match read_uvarint(&bytes, &mut pos) {
+                Err(Error::Codec(reason)) => {
+                    assert_eq!(reason, "a value in the batch does not fit in 64 bits");
+                }
+                other => panic!("a tenth byte of {tenth:#04x} read as {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn rounding_matches_the_standard_library_at_its_edges() {
+        for value in [
+            0.0,
+            -0.0,
+            0.5,
+            -0.5,
+            1.5,
+            -1.5,
+            2.5,
+            -2.5,
+            0.499_999_97,
+            -0.499_999_97,
+            8_388_607.5,
+            -8_388_607.5,
+            8_388_608.0,
+            16_777_217.0,
+            f32::MAX,
+            f32::MIN,
+            f32::MIN_POSITIVE,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+        ] {
+            assert_eq!(round(value), value.round(), "rounding {value}");
+        }
+        assert!(round(f32::NAN).is_nan());
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn rounding_matches_the_standard_library(value in proptest::num::f32::ANY) {
+            let ours = round(value);
+            let theirs = value.round();
+            proptest::prop_assert!(ours == theirs || (ours.is_nan() && theirs.is_nan()));
+        }
     }
 
     #[test]
@@ -284,10 +423,61 @@ mod tests {
     fn a_quantizer_round_trips_within_its_precision() {
         let quantizer = Quantizer::new(100.0);
         let readings = [4.0, 4.62, 5.13, 4.77, 3.98];
-        let packed = quantizer.encode(&readings);
+        let packed = quantizer.encode(&readings).expect("encode");
         let restored = quantizer.decode(&packed).expect("decode");
         for (original, decoded) in readings.iter().zip(&restored) {
             assert!((original - decoded).abs() <= 0.005 + f32::EPSILON);
+        }
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_refused_rather_than_packed_as_zero() {
+        let quantizer = Quantizer::new(100.0);
+        for (readings, index) in [
+            (vec![20.0, f32::NAN], 1),
+            (vec![f32::INFINITY], 0),
+            (vec![20.0, 20.1, f32::NEG_INFINITY], 2),
+        ] {
+            match quantizer.encode(&readings) {
+                Err(Error::Codec(reason)) => {
+                    assert!(
+                        reason.starts_with(&format!("reading {index} is")),
+                        "{reason}"
+                    );
+                }
+                other => panic!("{readings:?} was packed: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_reading_too_large_for_its_scale_is_refused() {
+        let quantizer = Quantizer::new(1e10);
+        match quantizer.encode(&[1e10]) {
+            Err(Error::Codec(reason)) => assert!(reason.contains("too large"), "{reason}"),
+            other => panic!("an overflowing reading was packed: {other:?}"),
+        }
+        assert!(Quantizer::new(1e10).encode(&[1.0]).is_ok());
+    }
+
+    #[test]
+    fn a_scale_that_is_not_a_positive_number_is_refused() {
+        for scale in [0.0, -100.0, f32::NAN, f32::INFINITY] {
+            let quantizer = Quantizer::new(scale);
+            assert!(matches!(quantizer.encode(&[1.0]), Err(Error::Codec(_))));
+            assert!(matches!(quantizer.decode(&[0]), Err(Error::Codec(_))));
+        }
+    }
+
+    #[test]
+    fn bytes_after_the_last_sample_are_refused() {
+        let mut bytes = encode_deltas(&[1, 2, 3]);
+        bytes.extend_from_slice(&encode_deltas(&[4]));
+        match decode_deltas(&bytes) {
+            Err(Error::Codec(reason)) => {
+                assert_eq!(reason, "2 bytes follow the batch's last sample");
+            }
+            other => panic!("two batches run together decoded: {other:?}"),
         }
     }
 }

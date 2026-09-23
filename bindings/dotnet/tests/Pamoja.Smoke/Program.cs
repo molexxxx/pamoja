@@ -699,6 +699,37 @@ static void Identity()
     Assert(
         DeviceIdentity.FingerprintOf(publicKey) == fingerprint,
         "the same key gives the same fingerprint");
+
+    ExpectArgument(
+        () => DeviceIdentity.Verify(publicKey.AsSpan(0, 16), "21.5", signature),
+        "publicKey must be exactly 32 bytes",
+        "a short key is refused before native code reads 32 bytes from it");
+    ExpectArgument(
+        () => DeviceIdentity.Verify(publicKey, "21.5", signature.AsSpan(0, 63)),
+        "signature must be exactly 64 bytes",
+        "a short signature is refused before native code reads 64 bytes from it");
+    ExpectArgument(
+        () => DeviceIdentity.FingerprintOf(publicKey.AsSpan(1)),
+        "publicKey must be exactly 32 bytes",
+        "a fingerprint needs the whole key");
+    ExpectArgument(
+        () => DeviceIdentity.VerifyMessage(new byte[31], device.SignMessage("21.5")),
+        "publicKey must be exactly 32 bytes",
+        "a signed message needs the whole key too");
+}
+
+// Runs a call that must refuse a wrong-length argument, and checks what it says.
+static void ExpectArgument(Action call, string message, string what)
+{
+    try
+    {
+        call();
+        Fail(what);
+    }
+    catch (ArgumentException error)
+    {
+        Assert(error.Message.StartsWith(message, StringComparison.Ordinal), $"{what}: {error.Message}");
+    }
 }
 
 // Moving a document to the compact form a metered link should carry, and back.
@@ -739,6 +770,44 @@ static void Codecs()
     for (int i = 0; i < readings.Length; i++)
     {
         Assert(Math.Abs(restored[i] - readings[i]) < 0.05f, "readings decode to precision");
+    }
+
+    try
+    {
+        quantizer.Encode([20.0f, float.NaN]);
+        Fail("a missing reading should be refused rather than packed as a number");
+    }
+    catch (PamojaException error)
+    {
+        Assert(
+            error.Message == "codec error: reading 1 is NaN, which cannot be quantized",
+            $"a missing reading names its place: {error.Message}");
+    }
+
+    try
+    {
+        _ = new Quantizer(0.0f);
+        Fail("a zero scale should throw");
+    }
+    catch (ArgumentOutOfRangeException error)
+    {
+        Assert(
+            error.Message.StartsWith(
+                "a quantizer's scale must be a positive, finite number, not 0",
+                StringComparison.Ordinal),
+            $"a bad scale names itself: {error.Message}");
+    }
+
+    try
+    {
+        Codec.UnpackSamples([.. Codec.PackSamples([1, 2, 3]), .. Codec.PackSamples([4])]);
+        Fail("two batches run together should be refused");
+    }
+    catch (PamojaException error)
+    {
+        Assert(
+            error.Message == "codec error: 2 bytes follow the batch's last sample",
+            $"trailing bytes are counted: {error.Message}");
     }
 }
 

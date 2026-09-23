@@ -1,6 +1,6 @@
 # Pamoja.Codec
 
-CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/codec.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -25,34 +25,53 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/CodecGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/CodecGuide.cs):
 
 ```csharp
-// The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
-// half-precision float, the shortest form RFC 8949 allows for it.
-byte[] asJson = Encoding.UTF8.GetBytes("{\"c\":21.5,\"ok\":true}");
-byte[] cbor = Codec.JsonToCbor(asJson);
-Console.WriteLine($"json      {asJson.Length} bytes");
-Console.WriteLine($"cbor      {cbor.Length} bytes");
+// The gauge reports over LoRaWAN in the US915 plan, at the slowest data rate
+// because it reaches farthest. An uplink there carries only a few bytes of payload.
+using LoraChannelPlan plan = LoraChannelPlan.ForRegion(LoraRegion.Us915);
+int budget = plan.MaxPayload(0)!.Value.Application;
+string Fits(int bytes) => bytes <= budget ? "fits one uplink" : "too big for one uplink";
+Console.WriteLine($"uplink    carries {budget} bytes at the slowest US915 data rate");
 
-// A gateway that speaks JSON gets it back unchanged, so the compact form is a
-// transport choice rather than a different data model.
-byte[] restored = Codec.CborToJson(cbor);
-Console.WriteLine($"back to json, unchanged: {restored.SequenceEqual(asJson)}");
+// One reading as the JSON a web service would take. CBOR carries the same
+// document in fewer bytes, but every key name still rides along with every
+// reading.
+byte[] json = Encoding.UTF8.GetBytes("""{"depth_cm":142.5,"air_c":-6.5,"battery_mv":3712}""");
+byte[] cbor = Codec.JsonToCbor(json);
+Console.WriteLine($"json      {json.Length} bytes, {Fits(json.Length)}");
+Console.WriteLine($"cbor      {cbor.Length} bytes, {Fits(cbor.Length)}");
+string restored = Encoding.UTF8.GetString(Codec.CborToJson(cbor));
+Console.WriteLine($"cbor      reads back as {restored}");
 
-// A batch of readings packs to a count, then the difference between each sample
-// and the one before it. Successive readings differ by very little, so the
-// differences cost about a byte each where the samples would cost eight.
-long[] samples = [10, 11, 13, 12, 900];
-byte[] packed = Codec.PackSamples(samples);
-Console.WriteLine($"batch     {samples.Length} samples in {packed.Length} bytes");
-Console.WriteLine($"unpacked  {string.Join(", ", Codec.UnpackSamples(packed))}");
+// A batch the gauge and the server agree on needs no key names. Six hourly
+// depths, kept to the millimeter, pack to a count, the first depth, and five
+// small steps.
+var quantizer = new Quantizer(10.0f);
+float[] depths = [142.5f, 143.8f, 145.2f, 146.0f, 145.7f, 145.5f];
+byte[] depthBatch = quantizer.Encode(depths);
+int depthBytes = depthBatch.Length;
+Console.WriteLine($"depths    {depths.Length} readings in {depthBytes} bytes, {Fits(depthBytes)}");
+IEnumerable<string> depthsBack = quantizer.Decode(depthBatch)
+    .Select(depth => depth.ToString("F1", CultureInfo.InvariantCulture));
+Console.WriteLine($"depths    read back as {string.Join(", ", depthsBack)}");
 
-// Readings that arrive as floats pack the same way once a scale is chosen. Nothing
-// in the bytes records that scale, so sender and receiver have to agree on it.
-var quantizer = new Quantizer(100.0f);
-float[] celsius = [20.0f, 20.1f, 20.2f, 20.3f];
-byte[] packedCelsius = quantizer.Encode(celsius);
-float[] recovered = quantizer.Decode(packedCelsius);
-Console.WriteLine($"degrees   {celsius.Length} readings in {packedCelsius.Length} bytes");
-Console.WriteLine($"recovered {string.Join(", ", recovered.Select(v => v.ToString("F1")))}");
+// Battery millivolts are whole numbers already, so they pack with no scale, and
+// a falling voltage packs as small as a rising one.
+long[] battery = [3712, 3709, 3705, 3702, 3698, 3695];
+byte[] batteryBatch = Codec.PackSamples(battery);
+int batteryBytes = batteryBatch.Length;
+Console.WriteLine($"battery   {battery.Length} readings in {batteryBytes} bytes, {Fits(batteryBytes)}");
+Console.WriteLine($"battery   reads back as {string.Join(", ", Codec.UnpackSamples(batteryBatch))}");
+
+// Heavy snowfall can swallow the sensor's echo, leaving no depth at all. The
+// quantizer refuses the batch rather than send the gap as a depth.
+try
+{
+    quantizer.Encode([145.5f, float.NaN]);
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"depths    refused a batch with a missing depth: {error.Message}");
+}
 ```
 
 ## The same capability in every language

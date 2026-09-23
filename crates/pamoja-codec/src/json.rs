@@ -1,5 +1,8 @@
 //! A human-readable JSON codec built on [`serde_json`].
 
+use alloc::string::ToString;
+use alloc::vec::Vec;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

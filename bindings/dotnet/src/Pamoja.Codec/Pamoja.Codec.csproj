@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Codec</PackageId>
     <AssemblyName>Pamoja.Codec</AssemblyName>
     <RootNamespace>Pamoja.Codec</RootNamespace>
-    <Description>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links.</Description>
+    <Description>CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings.</Description>
     <PackageTags>pamoja;iot;robotics;codec</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/codec.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

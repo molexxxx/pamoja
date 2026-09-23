@@ -13,7 +13,13 @@
 //! means a round trip is faithful to the document's content and not to its
 //! original byte layout.
 
+use alloc::format;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+
 use pamoja_core::{Error, Result};
+
+use crate::cbor::{read_error, write_error};
 
 /// Converts a JSON document into its CBOR encoding.
 ///
@@ -43,7 +49,7 @@ pub fn json_to_cbor(json: &[u8]) -> Result<Vec<u8>> {
     let value: serde_json::Value =
         serde_json::from_slice(json).map_err(|error| Error::Codec(error.to_string()))?;
     let mut buffer = Vec::new();
-    ciborium::into_writer(&value, &mut buffer).map_err(|error| Error::Codec(error.to_string()))?;
+    ciborium::into_writer(&value, &mut buffer).map_err(write_error)?;
     Ok(buffer)
 }
 
@@ -72,11 +78,13 @@ pub fn json_to_cbor(json: &[u8]) -> Result<Vec<u8>> {
 /// assert_eq!(cbor_to_json(&cbor).unwrap(), br#"{"c":21.5}"#);
 /// ```
 pub fn cbor_to_json(cbor: &[u8]) -> Result<Vec<u8>> {
-    let value: ciborium::Value =
-        ciborium::from_reader(cbor).map_err(|error| Error::Codec(error.to_string()))?;
-    let value: serde_json::Value = value
-        .deserialized()
-        .map_err(|error| Error::Codec(error.to_string()))?;
+    let value: ciborium::Value = ciborium::from_reader(cbor).map_err(read_error)?;
+    let value: serde_json::Value =
+        value
+            .deserialized()
+            .map_err(|ciborium::value::Error::Custom(message)| {
+                Error::Codec(format!("the CBOR has no JSON form: {message}"))
+            })?;
     serde_json::to_vec(&value).map_err(|error| Error::Codec(error.to_string()))
 }
 
@@ -127,6 +135,17 @@ mod tests {
     }
 
     #[test]
+    fn a_document_cut_short_says_so_in_words() {
+        let cbor = json_to_cbor(br#"{"c":21.5}"#).expect("to cbor");
+        match cbor_to_json(&cbor[..cbor.len() - 1]) {
+            Err(Error::Codec(reason)) => {
+                assert_eq!(reason, "the CBOR ends part-way through a value");
+            }
+            other => panic!("a document cut short decoded: {other:?}"),
+        }
+    }
+
+    #[test]
     fn a_non_string_map_key_has_no_json_form() {
         // CBOR allows an integer map key; JSON does not, so the conversion fails
         // rather than inventing a key.
@@ -136,7 +155,15 @@ mod tests {
             ciborium::Value::Bool(true),
         )]);
         ciborium::into_writer(&value, &mut cbor).expect("write cbor");
-        assert!(matches!(cbor_to_json(&cbor), Err(Error::Codec(_))));
+        match cbor_to_json(&cbor) {
+            Err(Error::Codec(reason)) => {
+                assert!(
+                    reason.starts_with("the CBOR has no JSON form: "),
+                    "{reason}"
+                );
+            }
+            other => panic!("an integer key was given a JSON form: {other:?}"),
+        }
     }
 
     #[test]

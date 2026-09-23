@@ -1,3 +1,5 @@
+using System.Text;
+
 using Pamoja.Security;
 
 using static Guides.Guide;
@@ -43,6 +45,23 @@ public static class SecurityGuide
         Console.WriteLine(DeviceIdentity.Verify(impostor.PublicKey, reading, signature)
             ? "accepted   an impostor, which should never happen"
             : "rejected   a signature offered under another device's key");
+
+        // On a link the signature and the reading usually travel as one message,
+        // signature first, and the gateway gets the reading back only once it has
+        // checked it.
+        byte[] message = device.SignMessage(reading);
+        int size = message.Length;
+        Console.WriteLine($"message    {size} bytes on the wire, the signature and the reading together");
+        byte[]? carried = DeviceIdentity.VerifyMessage(gatewayKey, message);
+        Console.WriteLine(carried is not null
+            ? $"accepted   {Encoding.UTF8.GetString(carried)}, read out of the message"
+            : "rejected   a message the device really did sign, which should never happen");
+
+        // A message that lost its last byte on the way is refused whole.
+        byte[]? cut = DeviceIdentity.VerifyMessage(gatewayKey, message.AsSpan(0, size - 1));
+        Console.WriteLine(cut is not null
+            ? "accepted   a message cut short, which should never happen"
+            : "rejected   a message that lost its last byte on the way");
         // ANCHOR_END: example
 
         Expect(device.Sign(reading).SequenceEqual(signature), "signing is deterministic");
@@ -53,5 +72,12 @@ public static class SecurityGuide
         Expect(
             !DeviceIdentity.Verify(impostor.PublicKey, reading, signature),
             "another device's key does not verify it either");
+        Expect(size == DeviceIdentity.SignatureLength + reading.Length, "a message is the signature and the reading");
+        Expect(
+            Encoding.UTF8.GetString(DeviceIdentity.VerifyMessage(gatewayKey, message)!) == reading,
+            "the gateway reads the reading back out");
+        Expect(
+            DeviceIdentity.VerifyMessage(gatewayKey, message.AsSpan(0, size - 1)) is null,
+            "a message cut short is refused");
     }
 }

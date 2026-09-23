@@ -86,12 +86,17 @@ public sealed class DeviceIdentity : IDisposable
     /// <c>true</c> if the signature is authentic, and <c>false</c> if the payload
     /// was altered or was signed by a different device.
     /// </returns>
-    /// <exception cref="PamojaException">An argument was not the expected length.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="publicKey"/> is not 32 bytes, or <paramref name="signature"/> is
+    /// not 64.
+    /// </exception>
     public static bool Verify(
         ReadOnlySpan<byte> publicKey,
         ReadOnlySpan<byte> payload,
         ReadOnlySpan<byte> signature)
     {
+        RequireLength(publicKey, KeyLength, nameof(publicKey));
+        RequireLength(signature, SignatureLength, nameof(signature));
         PamojaStatus status = NativeMethods.pamoja_public_identity_verify(
             publicKey, payload, (nuint)payload.Length, signature);
 
@@ -110,7 +115,10 @@ public sealed class DeviceIdentity : IDisposable
     /// <param name="signature">The 64-byte detached signature.</param>
     /// <returns><c>true</c> if the signature is authentic.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="payload"/> is null.</exception>
-    /// <exception cref="PamojaException">An argument was not the expected length.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="publicKey"/> is not 32 bytes, or <paramref name="signature"/> is
+    /// not 64.
+    /// </exception>
     public static bool Verify(
         ReadOnlySpan<byte> publicKey,
         string payload,
@@ -123,9 +131,11 @@ public sealed class DeviceIdentity : IDisposable
     /// <summary>Returns the short hex fingerprint of a public key.</summary>
     /// <param name="publicKey">The 32-byte public key to label.</param>
     /// <returns>A 16-character lowercase hex label.</returns>
+    /// <exception cref="ArgumentException"><paramref name="publicKey"/> is not 32 bytes.</exception>
     /// <exception cref="PamojaException">The key is not a valid public key.</exception>
     public static string FingerprintOf(ReadOnlySpan<byte> publicKey)
     {
+        RequireLength(publicKey, KeyLength, nameof(publicKey));
         byte[] hex = new byte[FingerprintLength];
         Status.ThrowIfError(
             NativeMethods.pamoja_public_identity_fingerprint(publicKey, hex));
@@ -209,16 +219,33 @@ public sealed class DeviceIdentity : IDisposable
     /// The payload if the message is authentic, and null if it is too short to hold a
     /// signature, was altered, or was signed by a different device.
     /// </returns>
+    /// <exception cref="ArgumentException"><paramref name="publicKey"/> is not 32 bytes.</exception>
+    /// <exception cref="PamojaException">The native call failed.</exception>
     public static byte[]? VerifyMessage(ReadOnlySpan<byte> publicKey, ReadOnlySpan<byte> message)
     {
+        RequireLength(publicKey, KeyLength, nameof(publicKey));
         PamojaStatus status = NativeMethods.pamoja_public_identity_verify_message(
             publicKey, message, (nuint)message.Length, out IntPtr buffer);
-        if (status != PamojaStatus.Ok)
+        if (status == PamojaStatus.Auth)
         {
             return null;
         }
 
+        Status.ThrowIfError(status);
         return OwnedBuffer.Take(buffer);
+    }
+
+    /// <summary>Refuses a fixed-width argument of the wrong length before native code reads it.</summary>
+    /// <param name="value">The argument.</param>
+    /// <param name="length">The length the native call reads.</param>
+    /// <param name="name">The argument's name, for the exception.</param>
+    /// <exception cref="ArgumentException"><paramref name="value"/> is not <paramref name="length"/> bytes.</exception>
+    private static void RequireLength(ReadOnlySpan<byte> value, int length, string name)
+    {
+        if (value.Length != length)
+        {
+            throw new ArgumentException($"{name} must be exactly {length} bytes", name);
+        }
     }
 
     /// <summary>Signs text, encoded as UTF-8.</summary>

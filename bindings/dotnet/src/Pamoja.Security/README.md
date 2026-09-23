@@ -57,6 +57,23 @@ using var impostor = new DeviceIdentity(impostorSeed);
 Console.WriteLine(DeviceIdentity.Verify(impostor.PublicKey, reading, signature)
     ? "accepted   an impostor, which should never happen"
     : "rejected   a signature offered under another device's key");
+
+// On a link the signature and the reading usually travel as one message,
+// signature first, and the gateway gets the reading back only once it has
+// checked it.
+byte[] message = device.SignMessage(reading);
+int size = message.Length;
+Console.WriteLine($"message    {size} bytes on the wire, the signature and the reading together");
+byte[]? carried = DeviceIdentity.VerifyMessage(gatewayKey, message);
+Console.WriteLine(carried is not null
+    ? $"accepted   {Encoding.UTF8.GetString(carried)}, read out of the message"
+    : "rejected   a message the device really did sign, which should never happen");
+
+// A message that lost its last byte on the way is refused whole.
+byte[]? cut = DeviceIdentity.VerifyMessage(gatewayKey, message.AsSpan(0, size - 1));
+Console.WriteLine(cut is not null
+    ? "accepted   a message cut short, which should never happen"
+    : "rejected   a message that lost its last byte on the way");
 ```
 
 ## The same capability in every language

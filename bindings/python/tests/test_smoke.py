@@ -117,6 +117,37 @@ def test_readings_pack_smaller_and_decode_to_precision():
         assert abs(got - want) < 0.05
 
 
+def test_packing_refuses_what_it_cannot_carry():
+    import math
+
+    from pamoja.codec import Quantizer, pack_samples, unpack_samples
+
+    quantizer = Quantizer(100)
+    with pytest.raises(PamojaError, match="reading 1 is NaN, which cannot be quantized"):
+        quantizer.encode([20.0, math.nan])
+    with pytest.raises(PamojaError, match="reading 0 is inf"):
+        quantizer.encode([math.inf])
+    with pytest.raises(
+        ValueError, match="a quantizer's scale must be a positive, finite number, not 0"
+    ):
+        Quantizer(0)
+    with pytest.raises(TypeError):
+        pack_samples([10, 10.5])
+    with pytest.raises(OverflowError):
+        pack_samples([2**63])
+    with pytest.raises(PamojaError, match="2 bytes follow the batch's last sample"):
+        unpack_samples(pack_samples([1, 2, 3]) + pack_samples([4]))
+
+
+def test_a_document_with_a_nan_is_refused_rather_than_sent():
+    import math
+
+    from pamoja.codec import to_cbor
+
+    with pytest.raises(ValueError):
+        to_cbor({"depth_cm": math.nan})
+
+
 def test_helpers_carry_a_reading_through_to_an_action():
     from pamoja.kit import Calibration, Depletion, Smoother, Thermostat, deadband
 

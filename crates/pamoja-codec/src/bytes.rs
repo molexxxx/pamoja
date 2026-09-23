@@ -1,5 +1,7 @@
 //! A codec that carries raw bytes unchanged.
 
+use alloc::vec::Vec;
+
 use pamoja_core::Result;
 
 use crate::Codec;

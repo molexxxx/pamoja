@@ -782,10 +782,17 @@ impl LoraChannelPlan {
 
     /// Returns what a data rate may carry in one frame, or null where the plan
     /// publishes no limit for it.
+    ///
+    /// The table defaults to `UplinkDirect`, an uplink from a device that does not sit
+    /// behind a repeater.
     #[napi]
-    pub fn max_payload(&self, table: LoraPayloadTable, data_rate: u8) -> Option<LoraMaxPayload> {
+    pub fn max_payload(
+        &self,
+        data_rate: u8,
+        table: Option<LoraPayloadTable>,
+    ) -> Option<LoraMaxPayload> {
         self.inner.with_plan(|plan| {
-            let payload = match table {
+            let payload = match table.unwrap_or(LoraPayloadTable::UplinkDirect) {
                 LoraPayloadTable::UplinkRepeater => plan.max_payload(data_rate, true),
                 LoraPayloadTable::UplinkDirect => plan.max_payload(data_rate, false),
                 LoraPayloadTable::DownlinkRepeater => plan.downlink_max_payload(data_rate, true),

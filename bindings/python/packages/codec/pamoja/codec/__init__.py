@@ -25,12 +25,16 @@ def to_cbor(value: Any) -> bytes:
     :param value: Any JSON-serializable value, or the raw bytes of a JSON
         document.
     :returns: The CBOR encoding.
-    :raises PamojaError: If the value cannot be encoded.
+    :raises ValueError: If the value holds a NaN or an infinity, which JSON
+        has no way to write.
+    :raises TypeError: If the value holds something else JSON cannot write,
+        such as a set.
+    :raises PamojaError: If the bytes given are not a valid JSON document.
     """
     if isinstance(value, (bytes, bytearray, memoryview)):
         document = bytes(value)
     else:
-        document = json.dumps(value).encode("utf-8")
+        document = json.dumps(value, allow_nan=False).encode("utf-8")
     return _json_to_cbor_bytes(document)
 
 
@@ -51,6 +55,8 @@ def pack_samples(samples: Sequence[int]) -> bytes:
     :param samples: The samples, in order.
     :returns: The packed encoding, far smaller than the samples for a
         slow-moving series.
+    :raises TypeError: If a sample is not an ``int``.
+    :raises OverflowError: If a sample does not fit in 64 bits.
     """
     return _encode_delta_samples(list(samples))
 
@@ -60,7 +66,8 @@ def unpack_samples(data: bytes) -> list[int]:
 
     :param data: The packed encoding.
     :returns: The samples, in order.
-    :raises PamojaError: If the buffer is malformed.
+    :raises PamojaError: If the buffer is malformed or carries bytes after its
+        last sample.
     """
     return _decode_delta_samples(bytes(data))
 
@@ -91,6 +98,8 @@ class Quantizer:
 
         :param readings: The readings, in order.
         :returns: The packed encoding.
+        :raises PamojaError: If a reading is not a number, is infinite, or is too
+            large for the scale; the format has no way to carry a missing reading.
         """
         return self._native.encode(list(readings))
 
@@ -99,6 +108,7 @@ class Quantizer:
 
         :param data: The encoding produced by :meth:`encode` at the same scale.
         :returns: The readings, in order.
-        :raises PamojaError: If the buffer is malformed.
+        :raises PamojaError: If the buffer is malformed or carries bytes after its
+            last reading.
         """
         return self._native.decode(bytes(data))

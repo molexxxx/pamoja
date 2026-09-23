@@ -9204,6 +9204,9 @@ class Quantizer:
     def encode(self, readings: typing.Sequence[builtins.float]) -> bytes:
         r"""
         Quantizes and delta-encodes a batch of readings.
+        
+        A reading that is not a number, is infinite, or is too large for the scale is
+        refused, since the format has no way to carry a missing reading.
         """
     def decode(self, bytes: typing.Sequence[builtins.int]) -> builtins.list[builtins.float]:
         r"""

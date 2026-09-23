@@ -154,7 +154,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="dotnet-codec">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">Pamoja.Codec</code><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">Pamoja.Codec</code><p>CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Codec</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Codec" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

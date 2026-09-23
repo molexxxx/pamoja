@@ -252,7 +252,7 @@ pub async fn run() -> Result<Outcome> {
     // Codec, metered link: the batch packs smaller than raw and round-trips in precision.
     let raw = codec.encode(&sent_readings)?;
     let quantizer = Quantizer::new(QUANT_SCALE);
-    let packed = quantizer.encode(&sent_readings);
+    let packed = quantizer.encode(&sent_readings)?;
     let restored = quantizer.decode(&packed)?;
     let max_quant_error = sent_readings
         .iter()

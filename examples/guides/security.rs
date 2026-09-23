@@ -41,12 +41,34 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         Ok(()) => println!("accepted   an impostor, which should never happen"),
         Err(_) => println!("rejected   a signature offered under another device's key"),
     }
+
+    // On a link the signature and the reading usually travel as one message, signature
+    // first, and the gateway gets the reading back only once it has checked it.
+    let message = device.sign_message(reading);
+    let size = message.len();
+    println!("message    {size} bytes on the wire, the signature and the reading together");
+    match gateway.verify_message(&message) {
+        Ok(carried) => {
+            let carried = String::from_utf8_lossy(carried);
+            println!("accepted   {carried}, read out of the message");
+        }
+        Err(error) => println!("rejected   {error}"),
+    }
+
+    // A message that lost its last byte on the way is refused whole.
+    match gateway.verify_message(&message[..size - 1]) {
+        Ok(_) => println!("accepted   a message cut short, which should never happen"),
+        Err(_) => println!("rejected   a message that lost its last byte on the way"),
+    }
     // ANCHOR_END: example
 
     assert_eq!(device.sign(reading), signature);
     assert!(gateway.verify(reading, &signature).is_ok());
     assert!(gateway.verify(edited, &signature).is_err());
     assert!(impostor.public().verify(reading, &signature).is_err());
+    assert_eq!(size, 64 + reading.len());
+    assert_eq!(gateway.verify_message(&message)?, reading);
+    assert!(gateway.verify_message(&message[..size - 1]).is_err());
 
     Ok(())
 }

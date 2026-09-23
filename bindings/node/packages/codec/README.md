@@ -1,6 +1,6 @@
 # @pamoja/codec
 
-CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/codec.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -22,36 +22,48 @@ From [`bindings/node/guides/codec.ts`](https://github.com/molexxxx/pamoja/blob/m
 
 ```typescript
 import { Quantizer, fromCbor, packSamples, toCbor, unpackSamples } from '@pamoja/codec'
+import { LoraRegion, planFor } from '@pamoja/lora'
 
-// The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
-// half-precision float, the shortest form RFC 8949 allows for it.
-const reading = { c: 21.5, ok: true }
-const asJson = Buffer.from(JSON.stringify(reading))
+// The gauge reports over LoRaWAN in the US915 plan, at the slowest data rate because it
+// reaches farthest. An uplink there carries only a few bytes of payload.
+const budget = planFor(LoraRegion.Us915).maxPayload(0)!.application
+const fits = (bytes: number) => (bytes <= budget ? 'fits one uplink' : 'too big for one uplink')
+console.log(`uplink    carries ${budget} bytes at the slowest US915 data rate`)
+
+// One reading as the JSON a web service would take. CBOR carries the same document in
+// fewer bytes, but every key name still rides along with every reading.
+const reading = { depth_cm: 142.5, air_c: -6.5, battery_mv: 3712 }
+const json = Buffer.from(JSON.stringify(reading))
 const cbor = toCbor(reading)
-console.log(`json      ${asJson.length} bytes`)
-console.log(`cbor      ${cbor.length} bytes`)
+console.log(`json      ${json.length} bytes, ${fits(json.length)}`)
+console.log(`cbor      ${cbor.length} bytes, ${fits(cbor.length)}`)
+console.log(`cbor      reads back as ${JSON.stringify(fromCbor(cbor))}`)
 
-// A gateway that speaks JSON gets it back unchanged, so the compact form is a transport
-// choice rather than a different data model.
-const restored = fromCbor(cbor)
-console.log(`back to json, unchanged: ${JSON.stringify(restored) === JSON.stringify(reading)}`)
+// A batch the gauge and the server agree on needs no key names. Six hourly depths, kept to
+// the millimeter, pack to a count, the first depth, and five small steps.
+const quantizer = new Quantizer(10)
+const depths = [142.5, 143.8, 145.2, 146.0, 145.7, 145.5]
+const depthBatch = quantizer.encode(depths)
+const depthBytes = depthBatch.length
+console.log(`depths    ${depths.length} readings in ${depthBytes} bytes, ${fits(depthBytes)}`)
+const depthsBack = quantizer.decode(depthBatch).map((depth) => depth.toFixed(1))
+console.log(`depths    read back as ${depthsBack.join(', ')}`)
 
-// A batch of readings packs to a count, then the difference between each sample and the
-// one before it. Successive readings differ by very little, so the differences cost about
-// a byte each where the samples would cost eight.
-const samples = [10, 11, 13, 12, 900]
-const packed = packSamples(samples)
-console.log(`batch     ${samples.length} samples in ${packed.length} bytes`)
-console.log(`unpacked  ${unpackSamples(packed).join(', ')}`)
+// Battery millivolts are whole numbers already, so they pack with no scale, and a falling
+// voltage packs as small as a rising one.
+const battery = [3712, 3709, 3705, 3702, 3698, 3695]
+const batteryBatch = packSamples(battery)
+const batteryBytes = batteryBatch.length
+console.log(`battery   ${battery.length} readings in ${batteryBytes} bytes, ${fits(batteryBytes)}`)
+console.log(`battery   reads back as ${unpackSamples(batteryBatch).join(', ')}`)
 
-// Readings that arrive as floats pack the same way once a scale is chosen. Nothing in the
-// bytes records that scale, so the sender and the receiver have to agree on it.
-const quantizer = new Quantizer(100)
-const celsius = [20.0, 20.1, 20.2, 20.3]
-const packedCelsius = quantizer.encode(celsius)
-const recovered = quantizer.decode(packedCelsius)
-console.log(`degrees   ${celsius.length} readings in ${packedCelsius.length} bytes`)
-console.log(`recovered ${[...recovered].map((v) => v.toFixed(1)).join(', ')}`)
+// Heavy snowfall can swallow the sensor's echo, leaving no depth at all. The quantizer
+// refuses the batch rather than send the gap as a depth.
+try {
+  quantizer.encode([145.5, NaN])
+} catch (error) {
+  console.log(`depths    refused a batch with a missing depth: ${(error as Error).message}`)
+}
 ```
 
 ## The same capability in every language
