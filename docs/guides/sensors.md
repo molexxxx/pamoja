@@ -6,9 +6,12 @@ compensation polynomials over a per-chip calibration for a BME280 or BMP280, a
 two's-complement register worth a sixteenth of a degree for a DS18B20, a
 calibration value the INA219 and INA226 need before they compute current at all,
 an exponent and a mantissa for the OPT3001's lux, a CRC-checked word for a
-Sensirion SHT3x or SCD4x. pamoja carries that per-part arithmetic and none of
-the wiring. Driving the bus stays the caller's job, so the same decode runs on a
-microcontroller, on a gateway, and in a test with nothing plugged in.
+Sensirion SHT3x or SCD4x. pamoja carries that per-part arithmetic, and in Rust a
+driver for every part that runs the datasheet's whole conversation over any bus.
+The BME280's driver runs from every language, over the shared bus the
+[buses guide](hal.md) introduces. The decode half needs no bus at all, so the same
+arithmetic runs on a microcontroller, on a gateway, and in a test with nothing
+plugged in.
 
 Eleven parts are covered: temperature and humidity from the BME280, SHT3x,
 HDC1080 and TMP117, pressure from the BMP280, carbon dioxide from the SCD40 and
@@ -265,7 +268,7 @@ catch (PamojaException error)
 ## Where next
 
 <!-- table: next sensors -->
-- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device.
+- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share.
 - [Helpers](kit.md): Plain-language helper math.
 - [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
 - Beside it: [Hardware](../hardware.md), [Node to dashboard](../boards/walkthrough.md).

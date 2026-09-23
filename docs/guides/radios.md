@@ -773,7 +773,7 @@ using (radio)
 <!-- table: next radios -->
 - [LoRa airtime and range](lora.md): Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range.
 - [LoRaWAN gateways](gateway.md): What a LoRaWAN gateway speaks.
-- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device.
+- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share.
 - Beside it: [Radios and antennas](../radio.md), [Hardware](../hardware.md).
 - Also in Radio and reach: [LoRaWAN](lorawan.md), [Mesh frames](mesh.md), [Routing](routing.md).
 <!-- end -->

@@ -556,6 +556,39 @@ function sensorVectors() {
     "BME280 humidity",
     1e-3,
   );
+  for (const ctrl of bme.ctrlMeas) {
+    const fields = { temperature: ctrl.temperature, pressure: ctrl.pressure, mode: ctrl.mode };
+    assert.strictEqual(sensors.bme280.ctrlMeasBits(fields), ctrl.bits, "BME280 ctrl_meas bits");
+    assert.deepStrictEqual(
+      { ...sensors.bme280.ctrlMeasFromBits(ctrl.bits) },
+      fields,
+      "BME280 ctrl_meas fields",
+    );
+    assert.strictEqual(
+      sensors.bme280.maxMeasurementMicros(ctrl.temperature, ctrl.pressure, 1),
+      ctrl.maxMeasurementMicros,
+      "BME280 measurement time",
+    );
+  }
+  for (const hum of bme.ctrlHum) {
+    assert.strictEqual(sensors.bme280.ctrlHumBits(hum.humidity), hum.bits, "BME280 ctrl_hum bits");
+    assert.strictEqual(sensors.bme280.ctrlHumFromBits(hum.bits), hum.humidity, "BME280 humidity code");
+  }
+  for (const config of bme.config) {
+    const fields = { standby: config.standby, filter: config.filter, spi3Wire: config.spi3Wire };
+    assert.strictEqual(sensors.bme280.configBits(fields), config.bits, "BME280 config bits");
+    assert.deepStrictEqual(
+      { ...sensors.bme280.configFromBits(config.bits) },
+      fields,
+      "BME280 config fields",
+    );
+  }
+  const sim = bme.simulated;
+  assert.strictEqual(
+    sensors.bme280.sim.burstFor(sim.celsius, sim.hectopascals, sim.relativeHumidity).toString("hex"),
+    sim.burst,
+    "BME280 simulated burst",
+  );
 
   const ds = vector.ds18b20;
   const decoded = sensors.ds18b20.parseScratchpad(unhex(ds.scratchpad));

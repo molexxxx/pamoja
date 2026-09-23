@@ -79,6 +79,8 @@ pub mod gateway_network;
 pub mod gateway_station;
 #[cfg(feature = "gpio")]
 pub mod gpio;
+#[cfg(feature = "hal")]
+pub mod hal;
 #[cfg(feature = "runtime")]
 pub mod host;
 #[cfg(feature = "kit")]
@@ -131,6 +133,8 @@ pub mod routing;
 pub mod security;
 #[cfg(feature = "sensors")]
 pub mod sensors;
+#[cfg(feature = "sensors")]
+pub mod sensors_driver;
 #[cfg(feature = "serial")]
 pub mod serial;
 #[cfg(feature = "session")]
@@ -252,6 +256,7 @@ pub extern "C" fn pamoja_last_error_message() -> *const c_char {
     feature = "can",
     feature = "codec",
     feature = "gateway",
+    feature = "hal",
     feature = "lora",
     feature = "lorawan",
     feature = "mavlink",
@@ -546,6 +551,8 @@ pub unsafe extern "C" fn pamoja_string_free(string: *mut PamojaString) {
 /// null.
 #[cfg(any(
     feature = "coap",
+    feature = "gpio",
+    feature = "hal",
     feature = "ladder",
     feature = "lora",
     feature = "mavlink",

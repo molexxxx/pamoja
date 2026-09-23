@@ -12,7 +12,7 @@ Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC10
 npm install @pamoja/sensors
 ```
 
-This pulls in `@pamoja/native`, the compiled engine. `npm install pamoja` is the whole framework in one package.
+This pulls in `@pamoja/native`, the compiled engine, and `@pamoja/hal`. `npm install pamoja` is the whole framework in one package.
 
 ## Example
 

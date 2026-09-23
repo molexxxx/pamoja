@@ -235,7 +235,13 @@ impl<'a> Walk<'a> {
                     }
                 }
                 self.section().push_text(text);
-                self.out.push(event);
+                match (&self.table, &event) {
+                    (Some(table), Event::Code(code)) if !table.in_head => {
+                        let html = format!("<code>{}</code>", breakable(code));
+                        self.out.push(Event::Html(html.into()));
+                    }
+                    _ => self.out.push(event),
+                }
             }
             Event::SoftBreak | Event::HardBreak => {
                 if self.in_paragraph && self.paragraphs == 1 {
@@ -436,6 +442,36 @@ fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Inline code for a table cell, escaped, with a break opportunity after each separator a
+/// reader would break at: after `::`, `.`, `(`, `,`, and a `/` that is not the first
+/// character. A narrow column then wraps `I2cBus::open(path)` as `I2cBus::` and
+/// `open(path)`, never inside a name.
+fn breakable(code: &str) -> String {
+    let mut html = String::with_capacity(code.len() + 16);
+    let mut chars = code.chars().peekable();
+    let mut first = true;
+    while let Some(c) = chars.next() {
+        let leading = std::mem::replace(&mut first, false);
+        match c {
+            '&' => html.push_str("&amp;"),
+            '<' => html.push_str("&lt;"),
+            '>' => html.push_str("&gt;"),
+            '"' => html.push_str("&quot;"),
+            other => html.push(other),
+        }
+        let separator = match c {
+            ':' => chars.peek() != Some(&':'),
+            '/' => !leading,
+            '.' | '(' | ',' => true,
+            _ => false,
+        };
+        if separator && chars.peek().is_some() {
+            html.push_str("<wbr>");
+        }
+    }
+    html
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,6 +551,31 @@ mod tests {
             table.html
         );
         assert!(page.html.contains("<div class=\"pkgs\">x</div>"));
+    }
+
+    #[test]
+    fn code_in_a_table_cell_breaks_at_its_separators_and_nowhere_else() {
+        let page = render(
+            "| To | Rust |\n| --- | --- |\n| `open` | `I2cBus::open(path)`, `ctrl_meas`, `a<b` |\n\n`I2cBus::open(path)`\n",
+        );
+        assert!(
+            page.html.contains(
+                "<td data-label=\"Rust\"><code>I2cBus::<wbr>open(<wbr>path)</code>, <code>ctrl_meas</code>, <code>a&lt;b</code></td>"
+            ),
+            "{}",
+            page.html
+        );
+        assert!(
+            page.html.contains("<p><code>I2cBus::open(path)</code></p>"),
+            "code outside a table is left alone: {}",
+            page.html
+        );
+        assert_eq!(breakable("/dev/i2c-1"), "/dev/<wbr>i2c-1");
+        assert_eq!(
+            breakable("a.b."),
+            "a.<wbr>b.",
+            "no break after the last character"
+        );
     }
 
     #[test]

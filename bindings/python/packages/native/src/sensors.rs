@@ -176,12 +176,232 @@ impl Bme280Calibration {
         let reading = self
             .inner
             .compensate(&bme280::RawMeasurement::from_registers(&registers));
-        Ok(Bme280Measurement {
+        Ok(Bme280Measurement::from(reading))
+    }
+}
+
+impl From<bme280::Measurement> for Bme280Measurement {
+    fn from(reading: bme280::Measurement) -> Self {
+        Bme280Measurement {
             celsius: reading.celsius(),
             pascals: reading.pascals(),
             hectopascals: reading.hectopascals(),
             relative_humidity_percent: reading.relative_humidity_percent(),
-        })
+        }
+    }
+}
+
+/// A BME280 `ctrl_meas` register, field by field.
+#[gen_stub_pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone, PartialEq, Eq)]
+pub struct Bme280CtrlMeas {
+    /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+    #[pyo3(get, set)]
+    temperature: u8,
+    /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+    #[pyo3(get, set)]
+    pressure: u8,
+    /// The power mode code: `0` sleep, `1` forced, `3` normal.
+    #[pyo3(get, set)]
+    mode: u8,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Bme280CtrlMeas {
+    /// Builds a control register, defaulting every field to the part's reset state.
+    #[new]
+    #[pyo3(signature = (temperature = 0, pressure = 0, mode = 0))]
+    fn new(temperature: u8, pressure: u8, mode: u8) -> Self {
+        Self {
+            temperature,
+            pressure,
+            mode,
+        }
+    }
+
+    /// Reports whether two control registers select the same settings.
+    fn __eq__(&self, other: &Bme280CtrlMeas) -> bool {
+        self == other
+    }
+}
+
+/// A BME280 `config` register, field by field.
+#[gen_stub_pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone, PartialEq, Eq)]
+pub struct Bme280Config {
+    /// The normal-mode standby code, `0..=7`.
+    #[pyo3(get, set)]
+    standby: u8,
+    /// The IIR filter code, `0..=4`, where `0` is off.
+    #[pyo3(get, set)]
+    filter: u8,
+    /// Whether the 3-wire SPI interface is enabled.
+    #[pyo3(get, set)]
+    spi_3wire: bool,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Bme280Config {
+    /// Builds a configuration register, defaulting every field to the part's reset state.
+    #[new]
+    #[pyo3(signature = (standby = 0, filter = 0, spi_3wire = false))]
+    fn new(standby: u8, filter: u8, spi_3wire: bool) -> Self {
+        Self {
+            standby,
+            filter,
+            spi_3wire,
+        }
+    }
+
+    /// Reports whether two configuration registers select the same settings.
+    fn __eq__(&self, other: &Bme280Config) -> bool {
+        self == other
+    }
+}
+
+/// Reports whether a BME280 status byte says a conversion is running.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_measuring(status: u8) -> bool {
+    bme280::measuring(status)
+}
+
+/// Reports whether a BME280 status byte says the calibration image is loading.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_image_updating(status: u8) -> bool {
+    bme280::image_updating(status)
+}
+
+/// Packs a BME280 `ctrl_meas` register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_ctrl_meas_bits(ctrl: Bme280CtrlMeas) -> u8 {
+    bme280::CtrlMeas::from(ctrl).bits()
+}
+
+/// Parses a BME280 `ctrl_meas` register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_ctrl_meas_from_bits(bits: u8) -> Bme280CtrlMeas {
+    bme280::CtrlMeas::from_bits(bits).into()
+}
+
+/// Packs a BME280 `ctrl_hum` register value from a humidity oversampling code.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_ctrl_hum_bits(humidity: u8) -> u8 {
+    bme280::CtrlHum {
+        humidity: bme280::Oversampling::from_code(humidity),
+    }
+    .bits()
+}
+
+/// Parses a BME280 `ctrl_hum` register value into its humidity oversampling code.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_ctrl_hum_from_bits(bits: u8) -> u8 {
+    bme280::CtrlHum::from_bits(bits).humidity.code()
+}
+
+/// Packs a BME280 `config` register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_config_bits(config: Bme280Config) -> u8 {
+    bme280::Config::from(config).bits()
+}
+
+/// Parses a BME280 `config` register value.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_config_from_bits(bits: u8) -> Bme280Config {
+    bme280::Config::from_bits(bits).into()
+}
+
+/// Returns how many samples a BME280 oversampling code averages, or 0 when it skips.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_oversampling_factor(code: u8) -> u8 {
+    bme280::Oversampling::from_code(code).factor()
+}
+
+/// Returns the normal-mode standby period a BME280 code selects, in microseconds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_standby_micros(code: u8) -> u32 {
+    bme280::Standby::from_code(code).microseconds()
+}
+
+/// Returns the IIR filter coefficient a BME280 code selects, or 0 when it is off.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_filter_coefficient(code: u8) -> u8 {
+    bme280::Filter::from_code(code).coefficient()
+}
+
+/// Returns the longest one BME280 measurement can take, in microseconds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_max_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+    bme280::max_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
+/// Returns the typical time one BME280 measurement takes, in microseconds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn bme280_typical_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+    bme280::typical_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
+impl From<Bme280CtrlMeas> for bme280::CtrlMeas {
+    fn from(value: Bme280CtrlMeas) -> Self {
+        bme280::CtrlMeas {
+            temperature: bme280::Oversampling::from_code(value.temperature),
+            pressure: bme280::Oversampling::from_code(value.pressure),
+            mode: bme280::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<bme280::CtrlMeas> for Bme280CtrlMeas {
+    fn from(value: bme280::CtrlMeas) -> Self {
+        Bme280CtrlMeas {
+            temperature: value.temperature.code(),
+            pressure: value.pressure.code(),
+            mode: value.mode.code(),
+        }
+    }
+}
+
+impl From<Bme280Config> for bme280::Config {
+    fn from(value: Bme280Config) -> Self {
+        bme280::Config {
+            standby: bme280::Standby::from_code(value.standby),
+            filter: bme280::Filter::from_code(value.filter),
+            spi_3wire: value.spi_3wire,
+        }
+    }
+}
+
+impl From<bme280::Config> for Bme280Config {
+    fn from(value: bme280::Config) -> Self {
+        Bme280Config {
+            standby: value.standby.code(),
+            filter: value.filter.code(),
+            spi_3wire: value.spi_3wire,
+        }
     }
 }
 

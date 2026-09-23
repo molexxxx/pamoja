@@ -62,6 +62,8 @@ dotnet build bindings/dotnet/Pamoja.sln -c Release   # the interop and the facad
 dotnet run --project bindings/dotnet/tests/Pamoja.Smoke -c Release
 ```
 
+<!-- languages end -->
+
 [`just`](https://github.com/molexxxx/pamoja/blob/main/justfile) lists the recipes CI runs:
 `just ci` runs everything the main job does, and `just guides` runs the four guide suites.
 `cargo xtask` lists the workspace tasks.

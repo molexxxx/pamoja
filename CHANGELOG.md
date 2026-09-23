@@ -9,6 +9,29 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- One I2C bus that a program and every driver on it share, in every language.
+  `pamoja_hal::bus::I2cBus` in Rust (the `std` feature) is a handle that clones into each
+  driver, over the kernel's adapter (`I2cBus::open`, the `linux` feature), simulated
+  parts that answer from their registers, or a script that plays one conversation and
+  refuses any other. `delay()` gives a driver a delay that sleeps only for real parts
+  and counts every wait, `part` copies what a simulated part holds after a driver wrote
+  to it, and `attach` swaps a part in underneath a running driver. A Raspberry Pi's
+  controllers report a part that did not acknowledge as `EREMOTEIO`, which the bus reads
+  as a missing acknowledge. TypeScript, Python, and C# get it as `I2cBus`, `I2cPart`,
+  and `I2cStep` in new `hal` packages: `@pamoja/hal`, `pamoja-hal` (module
+  `pamoja.hal`), and `Pamoja.Hal`, where before the buses capability had no package of
+  its own in those languages.
+- The BME280 driver in TypeScript, Python, and C#, over an `I2cBus`: `Bme280` with
+  `init` and `measure`, the part's register map and setting codes, the `ctrl_meas`,
+  `ctrl_hum`, and `config` bits both ways, the datasheet's measurement times, and a
+  simulated part holding a real part's calibration, or reporting any reading it is
+  asked for. In C#, `Bme280` is now a class whose static members are the datasheet and
+  whose instances are drivers.
+- The buses guide rewritten around the shared bus in all four languages, each opening
+  with how its language hands out the bus and reports a failure, plus the same program
+  on a Raspberry Pi, tables of the bus kinds, the BME280's registers, oversampling and
+  measurement times, and what each error means and what to check. The Raspberry Pi
+  page's sensor read is now in all four languages too.
 - The Raspberry Pi page's relay and LoRa radio programs in TypeScript, Python, and C#,
   beside Rust, each with its own run command. They are compiled in CI against the
   packages each language installs: a `boards` script in Node, a test that loads every
@@ -607,6 +630,12 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- On the documentation site, a paragraph after a set of language tabs showed under the C#
+  tab alone, so a reader on any other language never saw it: the lesson after the
+  Raspberry Pi's relay and radio programs, the line after the GPIO guide's board program,
+  and the build page's note on `just`. A page now marks where its languages end with
+  `<!-- languages end -->`, and what follows is shown for all four. Code in a table cell
+  also wraps after `::`, `.`, `(`, `,`, or `/` instead of in the middle of a name.
 - The generated C header carried constants no C compiler could use. `cbindgen`
   renders a constant's initializer exactly as written, so one whose value named
   another crate's constant was dropped from the header outright and one whose

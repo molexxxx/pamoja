@@ -37,6 +37,9 @@
       "path": "../gpio"
     },
     {
+      "path": "../hal"
+    },
+    {
       "path": "../kit"
     },
     {

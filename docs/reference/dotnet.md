@@ -102,16 +102,6 @@ reference pages, one step away.
 ### Engine
 
 <div class="pkgs">
-<div class="pkg" id="dotnet-hal">
-<div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">Pamoja.Core</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device</p></div>
-<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Core</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Core" aria-label="Copy the install command">copy</button></div>
-</div>
-<div class="pkg-foot">
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/hal.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/hal.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Core">NuGet</a></div>
-<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-hal" title="pamoja-hal">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-hal" title="@pamoja/core">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-hal" title="pamoja-core">Python</a></p>
-</div>
-</div>
 <div class="pkg" id="dotnet-device">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/device.html">Your own device</a><code class="pkg-import">Pamoja.Core</code><p>A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in</p></div>
@@ -230,6 +220,16 @@ reference pages, one step away.
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Gpio.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/gpio.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Gpio">NuGet</a></div>
 <p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-gpio" title="pamoja-gpio">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-gpio" title="@pamoja/gpio">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-gpio" title="pamoja-gpio">Python</a></p>
+</div>
+</div>
+<div class="pkg" id="dotnet-hal">
+<div class="pkg-head">
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/hal.html">Buses</a><code class="pkg-import">Pamoja.Hal</code><p>The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share</p></div>
+<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Hal</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Hal" aria-label="Copy the install command">copy</button></div>
+</div>
+<div class="pkg-foot">
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Hal.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/hal.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/hal.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Hal">NuGet</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-hal" title="pamoja-hal">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-hal" title="@pamoja/hal">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-hal" title="pamoja-hal">Python</a></p>
 </div>
 </div>
 </div>

@@ -83,6 +83,126 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial void pamoja_bme280_calibration_free(IntPtr calibration);
 
+    /// <summary>Reports whether a BME280 status byte says a conversion is running.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_bme280_measuring(byte status);
+
+    /// <summary>Reports whether a BME280 status byte says the calibration image is loading.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_bme280_image_updating(byte status);
+
+    /// <summary>Assembles a BME280 ctrl_meas register value.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_ctrl_meas_bits(PamojaBme280CtrlMeas config);
+
+    /// <summary>Parses a BME280 ctrl_meas register value.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_ctrl_meas_from_bits(
+        byte bits,
+        out PamojaBme280CtrlMeas outConfig);
+
+    /// <summary>Assembles a BME280 ctrl_hum register value from a humidity oversampling code.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_ctrl_hum_bits(byte humidity);
+
+    /// <summary>Parses a BME280 ctrl_hum register value into its humidity oversampling code.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_ctrl_hum_from_bits(byte bits);
+
+    /// <summary>Assembles a BME280 config register value.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_config_bits(PamojaBme280Config config);
+
+    /// <summary>Parses a BME280 config register value.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_config_from_bits(
+        byte bits,
+        out PamojaBme280Config outConfig);
+
+    /// <summary>Returns how many samples a BME280 oversampling code averages.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_oversampling_factor(byte code);
+
+    /// <summary>Returns the normal-mode standby period a BME280 code selects, in microseconds.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_bme280_standby_micros(byte code);
+
+    /// <summary>Returns the IIR filter coefficient a BME280 code selects.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_bme280_filter_coefficient(byte code);
+
+    /// <summary>Returns the longest one BME280 measurement can take, in microseconds.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_bme280_max_measurement_micros(
+        byte temperature,
+        byte pressure,
+        byte humidity);
+
+    /// <summary>Returns the typical time one BME280 measurement takes, in microseconds.</summary>
+    [LibraryImport(Library)]
+    public static partial uint pamoja_bme280_typical_measurement_micros(
+        byte temperature,
+        byte pressure,
+        byte humidity);
+
+    /// <summary>Returns the settings a BME280 driver starts with.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaBme280Settings pamoja_bme280_settings_default();
+
+    /// <summary>Creates a BME280 driver on a bus.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_new(
+        IntPtr bus,
+        byte address,
+        PamojaBme280Settings settings,
+        out IntPtr outSensor);
+
+    /// <summary>Resets, identifies, calibrates, and configures a BME280.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_init(IntPtr sensor);
+
+    /// <summary>Runs one forced BME280 measurement and compensates it.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_measure(
+        IntPtr sensor,
+        out PamojaBme280Measurement outMeasurement);
+
+    /// <summary>Releases a BME280 driver. Passing null is a no-op.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_bme280_free(IntPtr sensor);
+
+    /// <summary>Creates a simulated BME280 holding a real part's calibration and measurement.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_bme280_sim_part(byte address);
+
+    /// <summary>Creates a simulated BME280 that reads what it is asked to.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_bme280_sim_reporting(
+        byte address,
+        float celsius,
+        float hectopascals,
+        float relativeHumidity);
+
+    /// <summary>Copies the calibration a simulated BME280 holds.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_sim_calibration(
+        Span<byte> outTempPress,
+        Span<byte> outHumidity);
+
+    /// <summary>Copies the one measurement a simulated BME280 holds.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_sim_burst(Span<byte> outBurst);
+
+    /// <summary>Builds the data registers a simulated BME280 holds for a reading.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_bme280_sim_burst_for(
+        float celsius,
+        float hectopascals,
+        float relativeHumidity,
+        Span<byte> outBurst);
+
     /// <summary>Parses and CRC-checks a nine-byte DS18B20 scratchpad.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_ds18b20_parse_scratchpad(

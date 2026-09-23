@@ -13,7 +13,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["modbus"] = () => { ModbusGuide.Run(); return Task.CompletedTask; },
     ["can"] = () => { CanGuide.Run(); return Task.CompletedTask; },
     ["gpio"] = () => { GpioGuide.Run(); return Task.CompletedTask; },
-    ["hal"] = async () => await HalGuide.RunAsync(),
+    ["hal"] = () => { HalGuide.Run(); return Task.CompletedTask; },
     ["sensors"] = () => { SensorsGuide.Run(); return Task.CompletedTask; },
     ["actuators"] = () => { ActuatorsGuide.Run(); return Task.CompletedTask; },
     ["device"] = async () => await DeviceGuide.RunAsync(),

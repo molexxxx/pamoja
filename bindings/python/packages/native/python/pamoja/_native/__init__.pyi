@@ -12,7 +12,10 @@ __all__ = [
     "AuditEntry",
     "AuditLog",
     "AuditVerifier",
+    "Bme280",
     "Bme280Calibration",
+    "Bme280Config",
+    "Bme280CtrlMeas",
     "Bme280Measurement",
     "Bmp280Calibration",
     "Bmp280Coefficients",
@@ -61,6 +64,9 @@ __all__ = [
     "GpioLine",
     "Hdc1080Config",
     "Hdc1080Measurement",
+    "I2cBus",
+    "I2cPart",
+    "I2cStep",
     "ImageVerifier",
     "Ina226Config",
     "Ina226DieId",
@@ -211,6 +217,25 @@ __all__ = [
     "ads1115_to_nanovolts",
     "ads1115_to_volts",
     "bearing_between",
+    "bme280_config_bits",
+    "bme280_config_from_bits",
+    "bme280_ctrl_hum_bits",
+    "bme280_ctrl_hum_from_bits",
+    "bme280_ctrl_meas_bits",
+    "bme280_ctrl_meas_from_bits",
+    "bme280_filter_coefficient",
+    "bme280_image_updating",
+    "bme280_max_measurement_micros",
+    "bme280_measuring",
+    "bme280_oversampling_factor",
+    "bme280_sim_burst",
+    "bme280_sim_burst_for",
+    "bme280_sim_calibration",
+    "bme280_sim_calibration_humidity",
+    "bme280_sim_part",
+    "bme280_sim_reporting",
+    "bme280_standby_micros",
+    "bme280_typical_measurement_micros",
     "bmp280_config_bits",
     "bmp280_config_from_bits",
     "bmp280_ctrl_meas_bits",
@@ -872,6 +897,27 @@ class AuditVerifier:
         """
 
 @typing.final
+class Bme280:
+    r"""
+    A Bosch BME280 driven over an I2C bus, measuring on demand in forced mode.
+    """
+    def __new__(cls, bus: I2cBus, address: builtins.int, temperature: builtins.int = 1, pressure: builtins.int = 1, humidity: builtins.int = 1, filter: builtins.int = 0) -> Bme280:
+        r"""
+        A driver for the part at `address` on `bus`. The oversampling codes default to x1 and
+        the filter to off. Nothing is sent until `init` or the first `measure`.
+        """
+    def init(self) -> None:
+        r"""
+        Resets the part, checks it is a BME280, reads its calibration, and writes the settings,
+        leaving the part asleep. Raises `PamojaError` when nothing answers or another part does.
+        """
+    def measure(self) -> Bme280Measurement:
+        r"""
+        Runs one forced measurement and returns the compensated reading, initializing the part
+        first if `init` has not run.
+        """
+
+@typing.final
 class Bme280Calibration:
     r"""
     A BME280's factory calibration, read once and reused for every measurement.
@@ -883,6 +929,94 @@ class Bme280Calibration:
     def compensate(self, measurement: typing.Sequence[builtins.int]) -> Bme280Measurement:
         r"""
         Turns an eight-byte burst read into a compensated reading.
+        """
+
+@typing.final
+class Bme280Config:
+    r"""
+    A BME280 `config` register, field by field.
+    """
+    @property
+    def standby(self) -> builtins.int:
+        r"""
+        The normal-mode standby code, `0..=7`.
+        """
+    @standby.setter
+    def standby(self, value: builtins.int) -> None:
+        r"""
+        The normal-mode standby code, `0..=7`.
+        """
+    @property
+    def filter(self) -> builtins.int:
+        r"""
+        The IIR filter code, `0..=4`, where `0` is off.
+        """
+    @filter.setter
+    def filter(self, value: builtins.int) -> None:
+        r"""
+        The IIR filter code, `0..=4`, where `0` is off.
+        """
+    @property
+    def spi_3wire(self) -> builtins.bool:
+        r"""
+        Whether the 3-wire SPI interface is enabled.
+        """
+    @spi_3wire.setter
+    def spi_3wire(self, value: builtins.bool) -> None:
+        r"""
+        Whether the 3-wire SPI interface is enabled.
+        """
+    def __new__(cls, standby: builtins.int = 0, filter: builtins.int = 0, spi_3wire: builtins.bool = False) -> Bme280Config:
+        r"""
+        Builds a configuration register, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Bme280Config) -> builtins.bool:
+        r"""
+        Reports whether two configuration registers select the same settings.
+        """
+
+@typing.final
+class Bme280CtrlMeas:
+    r"""
+    A BME280 `ctrl_meas` register, field by field.
+    """
+    @property
+    def temperature(self) -> builtins.int:
+        r"""
+        The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @temperature.setter
+    def temperature(self, value: builtins.int) -> None:
+        r"""
+        The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @property
+    def pressure(self) -> builtins.int:
+        r"""
+        The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @pressure.setter
+    def pressure(self, value: builtins.int) -> None:
+        r"""
+        The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+        """
+    @property
+    def mode(self) -> builtins.int:
+        r"""
+        The power mode code: `0` sleep, `1` forced, `3` normal.
+        """
+    @mode.setter
+    def mode(self, value: builtins.int) -> None:
+        r"""
+        The power mode code: `0` sleep, `1` forced, `3` normal.
+        """
+    def __new__(cls, temperature: builtins.int = 0, pressure: builtins.int = 0, mode: builtins.int = 0) -> Bme280CtrlMeas:
+        r"""
+        Builds a control register, defaulting every field to the part's reset state.
+        """
+    def __eq__(self, other: Bme280CtrlMeas) -> builtins.bool:
+        r"""
+        Reports whether two control registers select the same settings.
         """
 
 @typing.final
@@ -3079,6 +3213,145 @@ class Hdc1080Measurement:
     def relative_humidity(self) -> builtins.float:
         r"""
         The relative humidity as a percentage.
+        """
+
+@typing.final
+class I2cBus:
+    r"""
+    One I2C bus, shared by the program and every driver built on it.
+    
+    A failed transfer raises `PamojaError` with the reason: nothing answered at the address,
+    the script expected something else, or the kernel's own words.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        What answers on the bus: `"Adapter"`, `"Simulated"`, or `"Scripted"`.
+        """
+    @property
+    def transfers(self) -> builtins.int:
+        r"""
+        How many transfers have been made on the bus, by the program and every driver on it,
+        including any that failed.
+        """
+    @property
+    def remaining(self) -> typing.Optional[builtins.int]:
+        r"""
+        How many steps a script has left, or `None` when the bus is not scripted.
+        """
+    @property
+    def waited_micros(self) -> builtins.int:
+        r"""
+        How long the drivers on the bus have asked to wait, in microseconds, whether or not the
+        process slept through it.
+        """
+    @staticmethod
+    def open(path: builtins.str) -> I2cBus:
+        r"""
+        Opens the kernel's I2C adapter, such as `/dev/i2c-1` on a Raspberry Pi.
+        
+        Raises `PamojaError` anywhere but Linux, and when the file cannot be opened as an
+        adapter: the interface is not turned on, or the process may not use it.
+        """
+    @staticmethod
+    def simulated(parts: typing.Optional[typing.Sequence[I2cPart]] = None) -> I2cBus:
+        r"""
+        A bus of simulated parts, each answering at its own address. A later part at an
+        address an earlier one holds takes its place.
+        """
+    @staticmethod
+    def scripted(steps: typing.Sequence[I2cStep]) -> I2cBus:
+        r"""
+        A bus that plays the steps in order and refuses any transfer that is not the next one.
+        """
+    def attach(self, part: I2cPart) -> None:
+        r"""
+        Puts a copy of a part on a simulated bus, in place of any part at its address. Raises
+        `PamojaError` for a bus that is not simulated.
+        """
+    def write(self, address: builtins.int, data: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Writes bytes to a part in one transaction: usually a register address and its value.
+        """
+    def read(self, address: builtins.int, length: builtins.int) -> bytes:
+        r"""
+        Reads `length` bytes from a part in one transaction.
+        """
+    def write_read(self, address: builtins.int, data: typing.Sequence[builtins.int], length: builtins.int) -> bytes:
+        r"""
+        Writes bytes and then reads `length` bytes in one transaction, with a repeated start
+        between them, which is how a register is read.
+        """
+    def part(self, address: builtins.int) -> typing.Optional[I2cPart]:
+        r"""
+        A copy of what a simulated part holds now, with whatever drivers have written to it,
+        or `None` when the bus is not simulated or no part holds the address.
+        """
+
+@typing.final
+class I2cPart:
+    r"""
+    A part that is not there, answering from 256 registers.
+    
+    A write names a register and fills it and the ones after it; a read takes them back from
+    wherever the last write left off. What a driver writes stays written.
+    """
+    @property
+    def address(self) -> builtins.int:
+        r"""
+        The address the part answers to.
+        """
+    @property
+    def transfers(self) -> builtins.int:
+        r"""
+        How many transfers the part has served.
+        """
+    def __new__(cls, address: builtins.int) -> I2cPart:
+        r"""
+        A part answering at one address, with every register reading zero.
+        """
+    def load(self, first: builtins.int, data: typing.Sequence[builtins.int]) -> None:
+        r"""
+        Puts bytes in the part from a register on. Past the last register they wrap to the
+        first.
+        """
+    def register(self, register: builtins.int) -> builtins.int:
+        r"""
+        What one register holds now.
+        """
+    def read(self, first: builtins.int, length: builtins.int) -> bytes:
+        r"""
+        What consecutive registers hold, from one register on.
+        """
+
+@typing.final
+class I2cStep:
+    r"""
+    One transfer a script expects, and what the part answers.
+    """
+    @staticmethod
+    def write(address: builtins.int, data: typing.Sequence[builtins.int]) -> I2cStep:
+        r"""
+        The driver writes exactly `data` to the address.
+        """
+    @staticmethod
+    def read(address: builtins.int, reply: typing.Sequence[builtins.int]) -> I2cStep:
+        r"""
+        The driver reads from the address and receives `reply`, whose length is the length it
+        must ask for.
+        """
+    @staticmethod
+    def write_read(address: builtins.int, data: typing.Sequence[builtins.int], reply: typing.Sequence[builtins.int]) -> I2cStep:
+        r"""
+        The driver writes `data` and then reads `reply` in one transaction, the shape of a
+        register read.
+        """
+    @staticmethod
+    def fault(address: builtins.int, fault: builtins.str) -> I2cStep:
+        r"""
+        The next transfer to the address fails, the way a missing or busy part does. The fault
+        is `"NoAcknowledgeAddress"`, `"NoAcknowledgeData"`, `"NoAcknowledge"`, `"Bus"`,
+        `"ArbitrationLoss"`, `"Overrun"`, or `"Other"`.
         """
 
 @typing.final
@@ -9332,6 +9605,103 @@ def ads1115_to_volts(pga: builtins.int, raw: builtins.int) -> builtins.float:
 def bearing_between(from_latitude: builtins.float, from_longitude: builtins.float, to_latitude: builtins.float, to_longitude: builtins.float) -> builtins.float:
     r"""
     Returns the initial bearing from one coordinate to another, in degrees.
+    """
+
+def bme280_config_bits(config: Bme280Config) -> builtins.int:
+    r"""
+    Packs a BME280 `config` register value.
+    """
+
+def bme280_config_from_bits(bits: builtins.int) -> Bme280Config:
+    r"""
+    Parses a BME280 `config` register value.
+    """
+
+def bme280_ctrl_hum_bits(humidity: builtins.int) -> builtins.int:
+    r"""
+    Packs a BME280 `ctrl_hum` register value from a humidity oversampling code.
+    """
+
+def bme280_ctrl_hum_from_bits(bits: builtins.int) -> builtins.int:
+    r"""
+    Parses a BME280 `ctrl_hum` register value into its humidity oversampling code.
+    """
+
+def bme280_ctrl_meas_bits(ctrl: Bme280CtrlMeas) -> builtins.int:
+    r"""
+    Packs a BME280 `ctrl_meas` register value.
+    """
+
+def bme280_ctrl_meas_from_bits(bits: builtins.int) -> Bme280CtrlMeas:
+    r"""
+    Parses a BME280 `ctrl_meas` register value.
+    """
+
+def bme280_filter_coefficient(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the IIR filter coefficient a BME280 code selects, or 0 when it is off.
+    """
+
+def bme280_image_updating(status: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a BME280 status byte says the calibration image is loading.
+    """
+
+def bme280_max_measurement_micros(temperature: builtins.int, pressure: builtins.int, humidity: builtins.int) -> builtins.int:
+    r"""
+    Returns the longest one BME280 measurement can take, in microseconds.
+    """
+
+def bme280_measuring(status: builtins.int) -> builtins.bool:
+    r"""
+    Reports whether a BME280 status byte says a conversion is running.
+    """
+
+def bme280_oversampling_factor(code: builtins.int) -> builtins.int:
+    r"""
+    Returns how many samples a BME280 oversampling code averages, or 0 when it skips.
+    """
+
+def bme280_sim_burst() -> bytes:
+    r"""
+    The eight data registers a simulated BME280 holds: one measurement a real part took.
+    """
+
+def bme280_sim_burst_for(celsius: builtins.float, hectopascals: builtins.float, relative_humidity: builtins.float) -> bytes:
+    r"""
+    The eight data registers that compensate to a reading against the simulated calibration.
+    """
+
+def bme280_sim_calibration() -> bytes:
+    r"""
+    The 26-byte temperature and pressure calibration block a simulated BME280 holds.
+    """
+
+def bme280_sim_calibration_humidity() -> bytes:
+    r"""
+    The 7-byte humidity calibration block a simulated BME280 holds.
+    """
+
+def bme280_sim_part(address: builtins.int) -> I2cPart:
+    r"""
+    A simulated BME280 holding a real part's calibration and one measurement it took, which
+    compensate to 20.44 C, 848.05 hPa, and 44.65 %.
+    """
+
+def bme280_sim_reporting(address: builtins.int, celsius: builtins.float, hectopascals: builtins.float, relative_humidity: builtins.float) -> I2cPart:
+    r"""
+    A simulated BME280 that reads what it is asked to, to within what its converter can
+    represent.
+    """
+
+def bme280_standby_micros(code: builtins.int) -> builtins.int:
+    r"""
+    Returns the normal-mode standby period a BME280 code selects, in microseconds.
+    """
+
+def bme280_typical_measurement_micros(temperature: builtins.int, pressure: builtins.int, humidity: builtins.int) -> builtins.int:
+    r"""
+    Returns the typical time one BME280 measurement takes, in microseconds.
     """
 
 def bmp280_config_bits(config: Bmp280Config) -> builtins.int:

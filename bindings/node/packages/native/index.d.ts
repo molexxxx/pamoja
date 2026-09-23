@@ -72,6 +72,25 @@ export declare class AuditVerifier {
   check(entry: AuditEntry): boolean
 }
 
+/** A Bosch BME280 driven over an I2C bus, measuring on demand in forced mode. */
+export declare class Bme280 {
+  /**
+   * A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
+   * `measure`.
+   */
+  constructor(bus: I2cBus, address: number, settings?: Bme280Settings | undefined | null)
+  /**
+   * Resets the part, checks it is a BME280, reads its calibration, and writes the settings,
+   * leaving the part asleep. Rejects when nothing answers or another part does.
+   */
+  init(): Promise<void>
+  /**
+   * Runs one forced measurement and resolves with the compensated reading, initializing the
+   * part first if `init` has not run.
+   */
+  measure(): Promise<Bme280Measurement>
+}
+
 /** A BME280's factory calibration, read once and reused for every measurement. */
 export declare class Bme280Calibration {
   /**
@@ -451,6 +470,106 @@ export declare class GpioLine {
   read(): PinLevel
   /** Hands the line back to the kernel. Calls after this throw. */
   close(): void
+}
+
+/**
+ * One I2C bus, shared by the program and every driver built on it.
+ *
+ * Transfers run one at a time, synchronously; each is quick, the time a few bytes take on
+ * the wire. A failed transfer throws with the reason: nothing answered at the address, the
+ * script expected something else, or the kernel's own words.
+ */
+export declare class I2cBus {
+  /**
+   * Opens the kernel's I2C adapter, such as `/dev/i2c-1` on a Raspberry Pi.
+   *
+   * Throws anywhere but Linux, and when the file cannot be opened as an adapter: the
+   * interface is not turned on, or the process may not use it.
+   */
+  static open(path: string): I2cBus
+  /**
+   * A bus of simulated parts, each answering at its own address. A later part at an
+   * address an earlier one holds takes its place.
+   */
+  static simulated(parts?: Array<I2cPart> | undefined | null): I2cBus
+  /** A bus that plays the steps in order and refuses any transfer that is not the next one. */
+  static scripted(steps: Array<I2cStep>): I2cBus
+  /**
+   * Puts a copy of a part on a simulated bus, in place of any part at its address. Throws
+   * for a bus that is not simulated.
+   */
+  attach(part: I2cPart): void
+  /** What answers on the bus. */
+  get kind(): I2cBusKind
+  /** Writes bytes to a part in one transaction: usually a register address and its value. */
+  write(address: number, bytes: Buffer): void
+  /** Reads `length` bytes from a part in one transaction. */
+  read(address: number, length: number): Buffer
+  /**
+   * Writes bytes and then reads `length` bytes in one transaction, with a repeated start
+   * between them, which is how a register is read.
+   */
+  writeRead(address: number, bytes: Buffer, length: number): Buffer
+  /**
+   * A copy of what a simulated part holds now, with whatever drivers have written to it,
+   * or `null` when the bus is not simulated or no part holds the address.
+   */
+  part(address: number): I2cPart | null
+  /**
+   * How many transfers have been made on the bus, by the program and every driver on it,
+   * including any that failed.
+   */
+  get transfers(): number
+  /** How many steps a script has left, or `null` when the bus is not scripted. */
+  get remaining(): number | null
+  /**
+   * How long the drivers on the bus have asked to wait, in microseconds, whether or not
+   * the process slept through it.
+   */
+  get waitedMicros(): number
+}
+
+/**
+ * A part that is not there, answering from 256 registers.
+ *
+ * A write names a register and fills it and the ones after it; a read takes them back from
+ * wherever the last write left off. What a driver writes stays written, so a program reads a
+ * part's configuration back once the driver is done with it.
+ */
+export declare class I2cPart {
+  /** A part answering at one address, with every register reading zero. */
+  constructor(address: number)
+  /**
+   * Puts bytes in the part from a register on. Past the last register they wrap to the
+   * first.
+   */
+  load(first: number, bytes: Buffer): void
+  /** What one register holds now. */
+  register(register: number): number
+  /** What consecutive registers hold, from one register on. */
+  read(first: number, length: number): Buffer
+  /** The address the part answers to. */
+  get address(): number
+  /** How many transfers the part has served. */
+  get transfers(): number
+}
+
+/** One transfer a script expects, and what the part answers. */
+export declare class I2cStep {
+  /** The driver writes exactly `bytes` to the address. */
+  static write(address: number, bytes: Buffer): I2cStep
+  /**
+   * The driver reads from the address and receives `reply`, whose length is the length it
+   * must ask for.
+   */
+  static read(address: number, reply: Buffer): I2cStep
+  /**
+   * The driver writes `bytes` and then reads `reply` in one transaction, the shape of a
+   * register read.
+   */
+  static writeRead(address: number, bytes: Buffer, reply: Buffer): I2cStep
+  /** The next transfer to the address fails, the way a missing or busy part does. */
+  static fault(address: number, fault: I2cFault): I2cStep
 }
 
 /** Hashes an image as it arrives and settles it against its manifest. */
@@ -2418,6 +2537,53 @@ export interface AlertReport {
 /** Returns the initial bearing from one coordinate to another, in degrees. */
 export declare function bearingBetween(from: Coord, to: Coord): number
 
+/** A BME280 `config` register, field by field. */
+export interface Bme280Config {
+  /** The normal-mode standby code, `0..=7`. */
+  standby: number
+  /** The IIR filter code, `0..=4`, where `0` is off. */
+  filter: number
+  /** Whether the 3-wire SPI interface is enabled. */
+  spi3Wire: boolean
+}
+
+/** Packs a BME280 `config` register value. */
+export declare function bme280ConfigBits(config: Bme280Config): number
+
+/** Parses a BME280 `config` register value. */
+export declare function bme280ConfigFromBits(bits: number): Bme280Config
+
+/** Packs a BME280 `ctrl_hum` register value from a humidity oversampling code. */
+export declare function bme280CtrlHumBits(humidity: number): number
+
+/** Parses a BME280 `ctrl_hum` register value into its humidity oversampling code. */
+export declare function bme280CtrlHumFromBits(bits: number): number
+
+/** A BME280 `ctrl_meas` register, field by field. */
+export interface Bme280CtrlMeas {
+  /** The temperature oversampling code, `0..=5`, where `0` skips the measurement. */
+  temperature: number
+  /** The pressure oversampling code, `0..=5`, where `0` skips the measurement. */
+  pressure: number
+  /** The power mode code: `0` sleep, `1` forced, `3` normal. */
+  mode: number
+}
+
+/** Packs a BME280 `ctrl_meas` register value. */
+export declare function bme280CtrlMeasBits(config: Bme280CtrlMeas): number
+
+/** Parses a BME280 `ctrl_meas` register value. */
+export declare function bme280CtrlMeasFromBits(bits: number): Bme280CtrlMeas
+
+/** Returns the IIR filter coefficient a BME280 code selects, or 0 when it is off. */
+export declare function bme280FilterCoefficient(code: number): number
+
+/** Reports whether a BME280 status byte says the calibration image is loading. */
+export declare function bme280ImageUpdating(status: number): boolean
+
+/** Returns the longest one BME280 measurement can take, in microseconds. */
+export declare function bme280MaxMeasurementMicros(temperature: number, pressure: number, humidity: number): number
+
 /** A compensated BME280 reading. */
 export interface Bme280Measurement {
   /** The temperature in degrees Celsius. */
@@ -2429,6 +2595,57 @@ export interface Bme280Measurement {
   /** The relative humidity as a percentage. */
   relativeHumidityPercent: number
 }
+
+/** Reports whether a BME280 status byte says a conversion is running. */
+export declare function bme280Measuring(status: number): boolean
+
+/** Returns how many samples a BME280 oversampling code averages, or 0 when it skips. */
+export declare function bme280OversamplingFactor(code: number): number
+
+/**
+ * How a BME280 driver measures. A field left out keeps the default: every measurement at
+ * oversampling x1 and the filter off.
+ */
+export interface Bme280Settings {
+  /** The temperature oversampling code, `0..=5`, where `0` skips the measurement. */
+  temperature?: number
+  /** The pressure oversampling code, `0..=5`, where `0` skips the measurement. */
+  pressure?: number
+  /** The humidity oversampling code, `0..=5`, where `0` skips the measurement. */
+  humidity?: number
+  /** The IIR filter code, `0..=4`, where `0` is off. */
+  filter?: number
+}
+
+/** The eight data registers a simulated BME280 holds: one measurement a real part took. */
+export declare function bme280SimBurst(): Buffer
+
+/** The eight data registers that compensate to a reading against the simulated calibration. */
+export declare function bme280SimBurstFor(celsius: number, hectopascals: number, relativeHumidity: number): Buffer
+
+/** The 26-byte temperature and pressure calibration block a simulated BME280 holds. */
+export declare function bme280SimCalibration(): Buffer
+
+/** The 7-byte humidity calibration block a simulated BME280 holds. */
+export declare function bme280SimCalibrationHumidity(): Buffer
+
+/**
+ * A simulated BME280 holding a real part's calibration and one measurement it took, which
+ * compensate to 20.44 C, 848.05 hPa, and 44.65 %.
+ */
+export declare function bme280SimPart(address: number): I2cPart
+
+/**
+ * A simulated BME280 that reads what it is asked to, to within what its converter can
+ * represent.
+ */
+export declare function bme280SimReporting(address: number, celsius: number, hectopascals: number, relativeHumidity: number): I2cPart
+
+/** Returns the normal-mode standby period a BME280 code selects, in microseconds. */
+export declare function bme280StandbyMicros(code: number): number
+
+/** Returns the typical time one BME280 measurement takes, in microseconds. */
+export declare function bme280TypicalMeasurementMicros(temperature: number, pressure: number, humidity: number): number
 
 /** A BMP280's per-chip trimming coefficients, as they sit in its registers. */
 export interface Bmp280Coefficients {
@@ -3469,6 +3686,34 @@ export declare function i2cAddressIsGeneralCall(address: number, tenBit: boolean
  * ordinary devices. A 10-bit address is never reserved in this sense.
  */
 export declare function i2cAddressIsReserved(address: number, tenBit: boolean): boolean
+
+/** What answers on a bus. */
+export declare const enum I2cBusKind {
+  /** The kernel's adapter, with real parts on real wires. */
+  Adapter = 'Adapter',
+  /** Simulated parts, answering from their registers. */
+  Simulated = 'Simulated',
+  /** A script of the transfers a driver is expected to make. */
+  Scripted = 'Scripted',
+}
+
+/** How a scripted step fails the transfer that reaches it. */
+export declare const enum I2cFault {
+  /** Nothing acknowledged the address. */
+  NoAcknowledgeAddress = 'NoAcknowledgeAddress',
+  /** The part did not acknowledge a data byte. */
+  NoAcknowledgeData = 'NoAcknowledgeData',
+  /** A missing acknowledge, with no telling whether of the address or the data. */
+  NoAcknowledge = 'NoAcknowledge',
+  /** A bus error, such as a misplaced start or stop condition. */
+  Bus = 'Bus',
+  /** Another controller won the bus. */
+  ArbitrationLoss = 'ArbitrationLoss',
+  /** Data arrived faster than it was taken. */
+  Overrun = 'Overrun',
+  /** A failure of no more particular kind. */
+  Other = 'Other',
+}
 
 /** Hashes a complete image, for a publisher filling in a manifest. */
 export declare function imageDigest(image: Buffer): Buffer

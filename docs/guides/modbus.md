@@ -231,7 +231,7 @@ catch (PamojaException error)
 <!-- table: next modbus -->
 - [Serial framing](serial.md): SLIP and COBS byte stuffing with streaming decoders, so a UART byte stream carries discrete packets.
 - [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
-- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, scripted buses that play a part's side of a conversation, and the Linux backends over i2c-dev, spidev, and the GPIO character device.
+- [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, and one I2C bus a program and its drivers share.
 - Beside it: [Buses and links](../buses.md).
 - Also in Field I/O: [CAN and J1939](can.md), [I2C, SPI, and GPIO](gpio.md).
 <!-- end -->

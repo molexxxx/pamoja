@@ -7,68 +7,58 @@ them, in the order and at the pace the part's datasheet lays down: reset, identi
 read the calibration, configure, trigger, wait, read. pamoja's drivers are written
 against the `embedded-hal` traits rather than against a board, so the same driver
 runs over a microcontroller's peripheral, over the kernel's `/dev/i2c-1` on a
-Raspberry Pi, and over a script of what the part would have sent, with nothing
-plugged in. [Buses and links](../buses.md) explains each bus in its own terms,
-and the board pages wire a part to a [Raspberry Pi](../boards/raspberry-pi.md),
-an [ESP32](../boards/esp32.md), or an [RP2040](../boards/rp2040.md) and run a
-driver there.
+Raspberry Pi, and over a part that is not there at all. [Buses and links](../buses.md)
+explains each bus in its own terms, and the board pages wire a part to a
+[Raspberry Pi](../boards/raspberry-pi.md), an [ESP32](../boards/esp32.md), or an
+[RP2040](../boards/rp2040.md) and run a driver there.
 
-In Rust the bus layer is `pamoja-hal`: the traits every driver takes, a bit-banged
-1-Wire bus over any pin, the Linux backends, simulated parts that answer from a register map, and the scripted buses that play a
-part's side of a conversation so a driver is tested against the datasheet's own
-transfer sequence. Each shipped part has a driver on top of its decoder, and a
-part pamoja has never heard of takes the same traits, as the [own device
-guide](device.md) shows.
-
-In TypeScript, Python, and C# the bus is the host's own library: `i2c-bus` on
-Node, `smbus2` on Python, `System.Device.I2c` on .NET. pamoja carries the
-datasheet's decoding, the calibration and the compensation, and the program
-carries the conversation, which is the same sequence the Rust driver runs. The
-examples here stand a scripted bus in for those libraries, in their shape, so the
-program reads the way it does on a gateway and still runs in a test.
+This guide is the I2C bus as a program holds it: one bus that the program and every
+driver on it share, whatever is on the other end. That is the kernel's adapter on a
+Linux board, simulated parts that answer from their registers, or a script of the
+transfers a driver is expected to make. A driver runs the same way over all three, so a
+program is written and tested with nothing plugged in and then pointed at `/dev/i2c-1`,
+in any of the four languages. The part throughout is a BME280, a temperature, pressure,
+and humidity sensor on an inexpensive breakout, whose driver pamoja ships.
 
 ## What the example does
 
-It reads a BME280 twice, over two buses that stand in for a part, and gets the same
-reading from both.
+It reads a BME280 with nothing plugged in, first through a simulated part and then
+through a script of the datasheet's own sequence, and prints what each step saw.
 
-The first is a part that is not there. `pamoja_sensors::bme280::sim` hands back one
-holding a real part's calibration and answering from its registers, so the driver
-resets it, identifies it, reads the calibration, configures it and measures with no
-transfers written out anywhere. Because the part keeps what was written to it, the
-configuration reads back off it afterwards, which is how the example shows `ctrl_hum`
-set before `ctrl_meas` and the part left asleep until a measurement is forced. A
-second one is asked to report four degrees at 1013.25 hPa, which is how a program
-meets a reading it would otherwise wait on the weather, or a cold store, to produce.
+The simulated part holds a real part's calibration and one measurement that part took.
+The driver resets it, identifies it, reads the calibration, configures it and measures,
+and because the part keeps what was written to it, the configuration reads back off the
+bus afterward: humidity oversampling written before the measurement register, and the
+part left asleep until a measurement is forced. A simulated bus counts every wait a
+driver asks for without sleeping through it, so the program reports the datasheet's
+start-up and measurement times and still finishes at once. Then a second part takes the
+first one's place, asked to report four degrees at 1013.25 hPa, and the same driver
+reads it, which is how a program meets a reading it would otherwise wait on the weather
+to produce. A driver pointed at an address no part holds fails with the bus's own reason.
 
-The second is a script of what the datasheet prescribes, in its order: the soft reset,
-the status register once the calibration image has loaded, the chip id, the two
-calibration blocks, the three configuration writes in the order the part requires,
-then one forced measurement with the datasheet's maximum measurement time before the
-status read and the burst read. A transfer the script does not expect is refused, so a
-program that skipped a step or wrote the wrong register fails here rather than on a
-bench. In TypeScript, Python, and C# the program runs that same sequence through a bus
-shaped like the host library, with pamoja compensating the burst against the
-calibration.
+The script is the other half. It lists the transfers the datasheet prescribes, in its
+order: the soft reset, the status register once the calibration image has loaded, the
+chip id, the two calibration blocks, the three configuration writes in the order the
+part requires, then one forced measurement, a status read, and the burst. A transfer the
+script does not expect is refused, so a driver that skipped a step or wrote the wrong
+register fails here rather than on a bench.
 
-The calibration and the burst are what a particular part holds, and they decode to
+The calibration and the burst are what one real part held, and they compensate to
 20.44 C, 848.05 hPa, and 44.65 %.
 
 It proves:
 
 - A driver runs against a part that answers from its registers, with nothing plugged in
   and no transfer sequence written down first.
-- A part reports what it is asked to, so a reading is something a program chooses
-  rather than waits for.
-- The chip id, the calibration, and the configuration are read and written exactly as
-  the datasheet orders them, and once: `ctrl_hum` before `ctrl_meas`, the part left
-  asleep until the forced measurement.
-- A forced measurement waits the datasheet's maximum for the oversampling in use, then
-  confirms the part is idle before the burst read.
-- The same calibration and burst compensate to the same temperature, pressure, and
-  humidity in every language, to the hundredth.
-- Eleven transfers were made and no other, because the scripted bus refuses anything
-  the datasheet did not list.
+- The configuration goes out in the datasheet's order, `ctrl_hum` before `ctrl_meas`,
+  and leaves the part asleep until a measurement is forced.
+- The driver waits the datasheet's 2 ms start-up and 9.3 ms measurement time, which the
+  bus counts rather than sleeps through.
+- A part reports what it is asked to, and a driver carries on across a part swapped in
+  underneath it.
+- An address nothing answers at is an error that names the address, never a reading.
+- The datasheet sequence is eleven transfers and no other, and it compensates to the same
+  reading, to the hundredth, in every language.
 
 ## Run it
 
@@ -86,62 +76,93 @@ repository:
 
 ## Rust
 
+In Rust the bus layer is `pamoja-hal`, and a driver is generic over its `embedded-hal`
+traits, taking the bus by value. On a microcontroller that is the HAL's own I2C
+peripheral, and in a test a simulated part or a script on its own. The example uses
+`pamoja_hal::bus::I2cBus`, the host-side handle a gateway wants: it clones cheaply into
+every driver on one bus while the program keeps its own, and `bus.delay()` hands each
+driver a delay that sleeps only when real parts are on the other end. `I2cBus::open`
+needs the `linux` feature; a single driver that owns the adapter outright can take
+`pamoja_hal::linux::i2c` instead. Every call returns a `Result`, and a driver's error is a
+`DriverError` whose `Bus` variant carries the bus's own `BusError`.
+
 <!-- snippet: examples/guides/hal.rs#example -->
 From [`examples/guides/hal.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/hal.rs):
 
 ```rust
-use pamoja_core::Sensor;
-use pamoja_hal::script::{block_on, DelayLog, I2cScript, I2cStep};
+use pamoja_hal::bus::I2cBus;
+use pamoja_hal::script::{I2cScript, I2cStep};
 use pamoja_sensors::bme280::{
-    register, sim, Bme280, CtrlHum, CtrlMeas, Mode, Oversampling, CHIP_ID, I2C_ADDRESS_PRIMARY,
-    RESET_WORD,
+    register, sim, Bme280, Config, CtrlHum, CtrlMeas, Mode, Oversampling, CHIP_ID,
+    I2C_ADDRESS_PRIMARY, I2C_ADDRESS_SECONDARY, RESET_WORD,
 };
+use pamoja_sensors::DriverError;
 
-// A BME280 that is not there. It holds a real part's calibration and answers from its
-// registers, so the driver runs with nothing plugged in and no transfers written out.
-// On a Raspberry Pi the bus is `pamoja_hal::linux::i2c("/dev/i2c-1")` and the two
-// lines below do not change.
 const BME280: u8 = I2C_ADDRESS_PRIMARY;
 
-// Standing one up costs a line, so this one is asked only what the driver wrote to it.
-// The datasheet requires humidity to be set before the mode register, and the part to be
-// left asleep until a measurement is forced. A bench would tell you that; so does this.
-let mut configured = Bme280::i2c(sim::part(BME280), BME280, DelayLog::new());
-configured.init().expect("the part identifies itself");
-let (written, _) = configured.release();
-let part = written.release();
-let asleep = part.register(register::CTRL_MEAS) & 0x03 == Mode::Sleep.code();
+// A bus with one part on it: a BME280 that is not there. It holds a real part's
+// calibration and one measurement that part took, and it answers from its registers, so
+// the driver runs its whole datasheet sequence against it. On a Raspberry Pi the bus is
+// `I2cBus::open("/dev/i2c-1")` and nothing after this line changes.
+let bus = I2cBus::simulated([sim::part(BME280)]);
+let mut sensor = Bme280::i2c(bus.clone(), BME280, bus.delay());
+
+// Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+// ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
+// the driver wrote, so the configuration reads back off the bus.
+sensor.init()?;
+let part = bus.part(BME280).ok_or("no part at the address")?;
+let humidity = CtrlHum::from_bits(part.register(register::CTRL_HUM)).humidity;
+let ctrl = CtrlMeas::from_bits(part.register(register::CTRL_MEAS));
 println!(
-    "configured   ctrl_hum {:#04x}, left asleep: {asleep}",
-    part.register(register::CTRL_HUM)
+    "configured   humidity x{}, temperature x{}, pressure x{}, asleep: {}",
+    humidity.factor(),
+    ctrl.temperature.factor(),
+    ctrl.pressure.factor(),
+    ctrl.mode == Mode::Sleep
 );
 
-// Another one, read the way a node reads it.
-let mut sensor = Bme280::i2c(sim::part(BME280), BME280, DelayLog::new());
-let measurement = block_on(sensor.read()).expect("the part answers");
+// One forced measurement. The driver waits the datasheet's longest measurement time for
+// these settings before it reads, and a simulated bus counts that wait rather than
+// sleeping through it.
+let reading = sensor.measure()?;
+println!(
+    "measured     {:.2} C, {:.2} hPa, {:.2} %",
+    reading.celsius(),
+    reading.hectopascals(),
+    reading.relative_humidity_percent()
+);
+println!(
+    "waited       {:.2} ms across {} transfers",
+    bus.waited_micros() as f64 / 1000.0,
+    bus.transfers()
+);
 
-let celsius = measurement.celsius();
-let hectopascals = measurement.hectopascals();
-let humidity = measurement.relative_humidity_percent();
-println!("measured     {celsius:.2} C, {hectopascals:.2} hPa, {humidity:.2} %");
-
-// A part reads whatever it is asked to, which is how a program meets a reading it would
-// otherwise have to wait for weather, or a cold store, to produce.
-let cold = sim::reporting(BME280, 4.0, 1013.25, 80.0);
-let mut store = Bme280::i2c(cold, BME280, DelayLog::new());
-let chilled = block_on(store.read()).expect("the part answers");
+// A part reports whatever it is asked to. Putting one in the first one's place is how a
+// program meets a reading it would otherwise wait on the weather for, here a cold store
+// at four degrees, and the driver carries on without noticing.
+bus.attach(sim::reporting(BME280, 4.0, 1013.25, 80.0))?;
+let cold = sensor.measure()?;
 println!(
     "cold store   {:.2} C, {:.2} hPa, {:.2} %",
-    chilled.celsius(),
-    chilled.hectopascals(),
-    chilled.relative_humidity_percent()
+    cold.celsius(),
+    cold.hectopascals(),
+    cold.relative_humidity_percent()
 );
 
+// Nothing answers at the part's other address, and the driver says so rather than
+// returning a reading.
+match Bme280::i2c(bus.clone(), I2C_ADDRESS_SECONDARY, bus.delay()).init() {
+    Ok(()) => println!("absent       a part answered"),
+    Err(DriverError::Bus(error)) => println!("absent       {error}"),
+    Err(error) => println!("absent       {error}"),
+}
+
 // The other half of the bus layer. A script plays one conversation and refuses anything
-// else, which is what proves a driver follows the datasheet rather than merely working:
-// the reset, the status read once the calibration image has loaded, the chip id, the two
-// calibration blocks, the three configuration writes in the order the part requires,
-// then one forced measurement.
+// else, which proves a driver follows the datasheet rather than merely working: the
+// reset, the status once the calibration has loaded, the chip id, the two calibration
+// blocks, the three configuration writes in the order the part requires, then one forced
+// measurement.
 let settings = CtrlMeas {
     temperature: Oversampling::X1,
     pressure: Oversampling::X1,
@@ -151,7 +172,7 @@ let forced = CtrlMeas {
     mode: Mode::Forced,
     ..settings
 };
-let bus = I2cScript::new([
+let script = I2cBus::scripted(I2cScript::new([
     I2cStep::write(BME280, [register::RESET, RESET_WORD]),
     I2cStep::write_read(BME280, [register::STATUS], [sim::STATUS_IDLE]),
     I2cStep::write_read(BME280, [register::CHIP_ID], [CHIP_ID]),
@@ -161,7 +182,7 @@ let bus = I2cScript::new([
         [register::CALIB_HUMIDITY],
         sim::CALIBRATION_HUMIDITY,
     ),
-    I2cStep::write(BME280, [register::CONFIG, 0x00]),
+    I2cStep::write(BME280, [register::CONFIG, Config::default().bits()]),
     I2cStep::write(
         BME280,
         [
@@ -176,125 +197,114 @@ let bus = I2cScript::new([
     I2cStep::write(BME280, [register::CTRL_MEAS, forced.bits()]),
     I2cStep::write_read(BME280, [register::STATUS], [sim::STATUS_IDLE]),
     I2cStep::write_read(BME280, [register::DATA], sim::BURST),
-]);
-
-let mut checked = Bme280::i2c(bus, BME280, DelayLog::new());
-let from_script = block_on(checked.read()).expect("the datasheet sequence runs");
-let (registers, delay) = checked.release();
-let bus = registers.release();
-let transfers = bus.consumed();
-let unexpected = !bus.done();
-println!("datasheet    {transfers} transfers, unexpected: {unexpected}");
+]));
+let checked = Bme280::i2c(script.clone(), BME280, script.delay()).measure()?;
+println!(
+    "datasheet    {:.2} C after {} transfers, {} steps left",
+    checked.celsius(),
+    script.transfers(),
+    script.remaining().unwrap_or_default()
+);
 ```
 <!-- end -->
 
 ## TypeScript
 
+In TypeScript the bus is `I2cBus` from `@pamoja/hal`, and the driver is `Bme280` from
+`@pamoja/sensors`. Transfers on the bus are synchronous and throw on failure. The
+driver's `init` and `measure` run on a worker thread, because a measurement waits the
+datasheet's time before it reads, and return promises that reject with the reason. Bytes
+go in and come out as `Buffer`s, and the setting codes are named on `bme280`, as
+`bme280.oversampling.x1` and `bme280.mode.sleep`.
+
 <!-- snippet: bindings/node/guides/hal.ts#example -->
 From [`bindings/node/guides/hal.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/hal.ts):
 
 ```typescript
-import { setTimeout as sleep } from 'node:timers/promises'
-import { bme280 } from '@pamoja/sensors'
+import { I2cBus, I2cStep } from '@pamoja/hal'
+import { Bme280, type Bme280Measurement, bme280 } from '@pamoja/sensors'
 
 const BME280 = bme280.addressPrimary
-const hex = (byte: number) => `0x${byte.toString(16).toUpperCase()}`
-
-// A bus with the two calls this conversation needs, in the shape of the i2c-bus
-// package: on a gateway `i2c.openSync(1)` gives the real one and nothing below
-// changes. This one answers from a script of what a BME280 sends, in the order the
-// datasheet lists, and refuses any transfer that is not the next one.
-type Step = { register: number; write?: number; reply?: number[] }
-class ScriptedBus {
-  transfers = 0
-  constructor(private readonly script: Step[]) {}
-
-  writeByteSync(address: number, register: number, value: number): void {
-    const step = this.next(address, register)
-    if (step.write !== value) throw new Error(`unexpected write of ${hex(value)}`)
-  }
-
-  readI2cBlockSync(address: number, register: number, length: number, buffer: Buffer): void {
-    const step = this.next(address, register)
-    if (step.reply?.length !== length) throw new Error(`unexpected read of ${length} bytes`)
-    Buffer.from(step.reply).copy(buffer)
-  }
-
-  get done(): boolean {
-    return this.transfers === this.script.length
-  }
-
-  private next(address: number, register: number): Step {
-    const step = this.script[this.transfers]
-    if (address !== BME280 || step?.register !== register) {
-      throw new Error(`unexpected transfer at register ${hex(register)}`)
-    }
-    this.transfers += 1
-    return step
-  }
-}
-
-const CALIBRATION_A = [
-  0x45, 0x6f, 0x6f, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6a, 0xd6, 0xd0, 0x0b, 0x4e, 0x1e, 0x88,
-  0xff, 0xf9, 0xff, 0xac, 0x26, 0x0a, 0xd8, 0xbd, 0x10, 0x00, 0x4b,
-]
-const CALIBRATION_B = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1e]
-const BURST = [0x65, 0x5a, 0xc0, 0x7e, 0xed, 0x00, 0x75, 0x30]
+const x = (code: number): string => `x${bme280.oversamplingFactor(code)}`
+const shown = (reading: Bme280Measurement): string =>
+  `${reading.celsius.toFixed(2)} C, ${reading.hectopascals.toFixed(2)} hPa, ` +
+  `${reading.relativeHumidityPercent.toFixed(2)} %`
 
 async function main() {
-  const bus = new ScriptedBus([
-    { register: 0xe0, write: 0xb6 },
-    { register: 0xf3, reply: [0x00] },
-    { register: 0xd0, reply: [bme280.chipId] },
-    { register: 0x88, reply: CALIBRATION_A },
-    { register: 0xe1, reply: CALIBRATION_B },
-    { register: 0xf5, write: 0x00 },
-    { register: 0xf2, write: 0x01 },
-    { register: 0xf4, write: 0x24 },
-    { register: 0xf4, write: 0x25 },
-    { register: 0xf3, reply: [0x00] },
-    { register: 0xf7, reply: BURST },
+  // A bus with one part on it: a BME280 that is not there. It holds a real part's
+  // calibration and one measurement that part took, and it answers from its registers, so
+  // the driver runs its whole datasheet sequence against it. On a Raspberry Pi the bus is
+  // I2cBus.open('/dev/i2c-1') and nothing after this line changes.
+  const bus = I2cBus.simulated([bme280.sim.part(BME280)])
+  const sensor = new Bme280(bus, BME280)
+
+  // Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+  // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
+  // the driver wrote, so the configuration reads back off the bus.
+  await sensor.init()
+  const part = bus.part(BME280)!
+  const humidity = bme280.ctrlHumFromBits(part.register(bme280.register.ctrlHum))
+  const ctrl = bme280.ctrlMeasFromBits(part.register(bme280.register.ctrlMeas))
+  const asleep = ctrl.mode === bme280.mode.sleep
+  console.log(
+    `configured   humidity ${x(humidity)}, temperature ${x(ctrl.temperature)}, ` +
+      `pressure ${x(ctrl.pressure)}, asleep: ${asleep}`,
+  )
+
+  // One forced measurement. The driver waits the datasheet's longest measurement time for
+  // these settings before it reads, and a simulated bus counts that wait rather than
+  // sleeping through it.
+  const reading = await sensor.measure()
+  console.log(`measured     ${shown(reading)}`)
+  const waitedMs = (bus.waitedMicros / 1000).toFixed(2)
+  console.log(`waited       ${waitedMs} ms across ${bus.transfers} transfers`)
+
+  // A part reports whatever it is asked to. Putting one in the first one's place is how a
+  // program meets a reading it would otherwise wait on the weather for, here a cold store
+  // at four degrees, and the driver carries on without noticing.
+  bus.attach(bme280.sim.reporting(BME280, 4.0, 1013.25, 80.0))
+  const cold = await sensor.measure()
+  console.log(`cold store   ${shown(cold)}`)
+
+  // Nothing answers at the part's other address, and the driver says so rather than
+  // returning a reading.
+  try {
+    await new Bme280(bus, bme280.addressSecondary).init()
+    console.log('absent       a part answered')
+  } catch (error) {
+    console.log(`absent       ${(error as Error).message}`)
+  }
+
+  // The other half of the bus layer. A script plays one conversation and refuses anything
+  // else, which proves a driver follows the datasheet rather than merely working: the
+  // reset, the status once the calibration has loaded, the chip id, the two calibration
+  // blocks, the three configuration writes in the order the part requires, then one forced
+  // measurement.
+  const { register, oversampling, mode, sim } = bme280
+  const settings = { temperature: oversampling.x1, pressure: oversampling.x1, mode: mode.sleep }
+  const forced = { ...settings, mode: mode.forced }
+  const resetState = { standby: bme280.standby.ms0_5, filter: bme280.filter.off, spi3Wire: false }
+  const script = I2cBus.scripted([
+    I2cStep.write(BME280, Buffer.from([register.reset, bme280.resetWord])),
+    I2cStep.writeRead(BME280, Buffer.from([register.status]), Buffer.from([sim.statusIdle])),
+    I2cStep.writeRead(BME280, Buffer.from([register.chipId]), Buffer.from([bme280.chipId])),
+    I2cStep.writeRead(BME280, Buffer.from([register.calibTempPress]), sim.calibration()),
+    I2cStep.writeRead(BME280, Buffer.from([register.calibHumidity]), sim.calibrationHumidity()),
+    I2cStep.write(BME280, Buffer.from([register.config, bme280.configBits(resetState)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlHum, bme280.ctrlHumBits(oversampling.x1)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlMeas, bme280.ctrlMeasBits(settings)])),
+    I2cStep.write(BME280, Buffer.from([register.ctrlMeas, bme280.ctrlMeasBits(forced)])),
+    I2cStep.writeRead(BME280, Buffer.from([register.status]), Buffer.from([sim.statusIdle])),
+    I2cStep.writeRead(BME280, Buffer.from([register.data]), sim.burst()),
   ])
+  const checked = await new Bme280(script, BME280).measure()
+  const left = script.remaining ?? 0
+  console.log(
+    `datasheet    ${checked.celsius.toFixed(2)} C after ${script.transfers} transfers, ` +
+      `${left} steps left`,
+  )
 
-  // The datasheet's start-up: the soft reset word, its 2 ms start-up time, and the
-  // status register, whose low bit clears once the calibration image has loaded.
-  bus.writeByteSync(BME280, 0xe0, 0xb6)
-  await sleep(2)
-  const status = Buffer.alloc(1)
-  bus.readI2cBlockSync(BME280, 0xf3, 1, status)
-
-  // The chip id says it is a BME280, and the two calibration blocks are read once.
-  const id = Buffer.alloc(1)
-  bus.readI2cBlockSync(BME280, 0xd0, 1, id)
-  const tempPress = Buffer.alloc(26)
-  const humidity = Buffer.alloc(7)
-  bus.readI2cBlockSync(BME280, 0x88, 26, tempPress)
-  bus.readI2cBlockSync(BME280, 0xe1, 7, humidity)
-  const calibration = bme280.calibration(tempPress, humidity)
-  console.log(`calibration  read once: ${id[0] === bme280.chipId}`)
-
-  // config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes effect
-  // after the ctrl_meas write: every measurement at oversampling x1, the part asleep.
-  bus.writeByteSync(BME280, 0xf5, 0x00)
-  bus.writeByteSync(BME280, 0xf2, 0x01)
-  bus.writeByteSync(BME280, 0xf4, 0x24)
-
-  // One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for these
-  // settings, the status read that confirms the part is idle, and the burst read.
-  bus.writeByteSync(BME280, 0xf4, 0x25)
-  await sleep(10)
-  bus.readI2cBlockSync(BME280, 0xf3, 1, status)
-  const burst = Buffer.alloc(8)
-  bus.readI2cBlockSync(BME280, 0xf7, 8, burst)
-  const measurement = calibration.compensate(burst)
-  const celsius = measurement.celsius.toFixed(2)
-  const hectopascals = measurement.hectopascals.toFixed(2)
-  const humidityPercent = measurement.relativeHumidityPercent.toFixed(2)
-  console.log(`measured     ${celsius} C, ${hectopascals} hPa, ${humidityPercent} %`)
-
-  // The script is spent: every transfer the datasheet lists was made, and no other.
-  console.log(`bus          ${bus.transfers} transfers, unexpected: ${!bus.done}`)
-  return { measurement, transfers: bus.transfers, done: bus.done }
+  return { humidity, asleep, reading, cold, waited: bus.waitedMicros, checked, script }
 }
 
 main()
@@ -303,233 +313,500 @@ main()
 
 ## Python
 
+In Python the bus is `I2cBus` from `pamoja.hal`, the driver is `Bme280` from
+`pamoja.sensors`, and every call is synchronous. The driver releases the interpreter while
+the part answers, so other threads keep running through a measurement. The setting codes
+are `IntEnum`s on `bme280`, as `bme280.Oversampling.X1`, and a failure raises
+`PamojaError`, which `pamoja.core` exports, with the reason as its message.
+
 <!-- snippet: bindings/python/guides/hal.py#example -->
 From [`bindings/python/guides/hal.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/hal.py):
 
 ```python
-import time
-
-from pamoja.sensors import bme280
+from pamoja.core import PamojaError
+from pamoja.hal import I2cBus, I2cStep
+from pamoja.sensors import Bme280, Bme280Config, Bme280CtrlMeas, Bme280Measurement, bme280
 
 BME280 = bme280.ADDRESS_PRIMARY
 
 
-class ScriptedBus:
-    """A bus with the two calls this conversation needs, in the shape of smbus2.
-
-    On a gateway ``SMBus(1)`` gives the real one and nothing below changes. This one
-    answers from a script of what a BME280 sends, in the order the datasheet lists,
-    and refuses any transfer that is not the next one.
-    """
-
-    def __init__(self, script):
-        self.script = script
-        self.transfers = 0
-
-    def write_byte_data(self, address, register, value):
-        step = self._next(address, register)
-        if step.get("write") != value:
-            raise ValueError(f"unexpected write of {value:#04x}")
-
-    def read_i2c_block_data(self, address, register, length):
-        step = self._next(address, register)
-        reply = step.get("reply")
-        if reply is None or len(reply) != length:
-            raise ValueError(f"unexpected read of {length} bytes")
-        return bytes(reply)
-
-    @property
-    def done(self):
-        return self.transfers == len(self.script)
-
-    def _next(self, address, register):
-        step = self.script[self.transfers] if self.transfers < len(self.script) else None
-        if address != BME280 or step is None or step["register"] != register:
-            raise ValueError(f"unexpected transfer at register {register:#04x}")
-        self.transfers += 1
-        return step
+def shown(reading: Bme280Measurement) -> str:
+    """A reading the way every line below prints it."""
+    return (
+        f"{reading.celsius:.2f} C, {reading.hectopascals:.2f} hPa, "
+        f"{reading.relative_humidity_percent:.2f} %"
+    )
 
 
-CALIBRATION_A = bytes([
-    0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E, 0x1E,
-    0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
+def x(code: int) -> str:
+    """An oversampling setting the way a datasheet writes it."""
+    return f"x{bme280.oversampling_factor(code)}"
+
+
+# A bus with one part on it: a BME280 that is not there. It holds a real part's calibration
+# and one measurement that part took, and it answers from its registers, so the driver runs
+# its whole datasheet sequence against it. On a Raspberry Pi the bus is
+# I2cBus.open("/dev/i2c-1") and nothing after this line changes.
+bus = I2cBus.simulated([bme280.sim.part(BME280)])
+sensor = Bme280(bus, BME280)
+
+# Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+# ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what the
+# driver wrote, so the configuration reads back off the bus.
+sensor.init()
+part = bus.part(BME280)
+humidity = bme280.ctrl_hum_from_bits(part.register(bme280.REGISTER_CTRL_HUM))
+ctrl = bme280.ctrl_meas_from_bits(part.register(bme280.REGISTER_CTRL_MEAS))
+asleep = ctrl.mode == bme280.Mode.SLEEP
+print(
+    f"configured   humidity {x(humidity)}, temperature {x(ctrl.temperature)}, "
+    f"pressure {x(ctrl.pressure)}, asleep: {str(asleep).lower()}"
+)
+
+# One forced measurement. The driver waits the datasheet's longest measurement time for
+# these settings before it reads, and a simulated bus counts that wait rather than sleeping
+# through it.
+reading = sensor.measure()
+print(f"measured     {shown(reading)}")
+print(f"waited       {bus.waited_micros / 1000:.2f} ms across {bus.transfers} transfers")
+waited = bus.waited_micros
+
+# A part reports whatever it is asked to. Putting one in the first one's place is how a
+# program meets a reading it would otherwise wait on the weather for, here a cold store at
+# four degrees, and the driver carries on without noticing.
+bus.attach(bme280.sim.reporting(BME280, 4.0, 1013.25, 80.0))
+cold = sensor.measure()
+print(f"cold store   {shown(cold)}")
+
+# Nothing answers at the part's other address, and the driver says so rather than
+# returning a reading.
+try:
+    Bme280(bus, bme280.ADDRESS_SECONDARY).init()
+    print("absent       a part answered")
+except PamojaError as error:
+    print(f"absent       {error}")
+
+# The other half of the bus layer. A script plays one conversation and refuses anything
+# else, which proves a driver follows the datasheet rather than merely working: the reset,
+# the status once the calibration has loaded, the chip id, the two calibration blocks, the
+# three configuration writes in the order the part requires, then one forced measurement.
+x1 = bme280.Oversampling.X1
+settings = Bme280CtrlMeas(temperature=x1, pressure=x1, mode=bme280.Mode.SLEEP)
+forced = Bme280CtrlMeas(temperature=x1, pressure=x1, mode=bme280.Mode.FORCED)
+idle = bytes([bme280.sim.STATUS_IDLE])
+script = I2cBus.scripted([
+    I2cStep.write(BME280, bytes([bme280.REGISTER_RESET, bme280.RESET_WORD])),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_STATUS]), idle),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_CHIP_ID]), bytes([bme280.CHIP_ID])),
+    I2cStep.write_read(
+        BME280, bytes([bme280.REGISTER_CALIB_TEMP_PRESS]), bme280.sim.calibration()
+    ),
+    I2cStep.write_read(
+        BME280, bytes([bme280.REGISTER_CALIB_HUMIDITY]), bme280.sim.calibration_humidity()
+    ),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CONFIG, bme280.config_bits(Bme280Config())])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_HUM, bme280.ctrl_hum_bits(x1)])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_MEAS, bme280.ctrl_meas_bits(settings)])),
+    I2cStep.write(BME280, bytes([bme280.REGISTER_CTRL_MEAS, bme280.ctrl_meas_bits(forced)])),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_STATUS]), idle),
+    I2cStep.write_read(BME280, bytes([bme280.REGISTER_DATA]), bme280.sim.burst()),
 ])
-CALIBRATION_B = bytes([0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E])
-BURST = bytes([0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30])
-
-
-def main():
-    bus = ScriptedBus([
-        {"register": 0xE0, "write": 0xB6},
-        {"register": 0xF3, "reply": [0x00]},
-        {"register": 0xD0, "reply": [bme280.CHIP_ID]},
-        {"register": 0x88, "reply": CALIBRATION_A},
-        {"register": 0xE1, "reply": CALIBRATION_B},
-        {"register": 0xF5, "write": 0x00},
-        {"register": 0xF2, "write": 0x01},
-        {"register": 0xF4, "write": 0x24},
-        {"register": 0xF4, "write": 0x25},
-        {"register": 0xF3, "reply": [0x00]},
-        {"register": 0xF7, "reply": BURST},
-    ])
-
-    # The datasheet's start-up: the soft reset word, its 2 ms start-up time, and the
-    # status register, whose low bit clears once the calibration image has loaded.
-    bus.write_byte_data(BME280, 0xE0, 0xB6)
-    time.sleep(0.002)
-    bus.read_i2c_block_data(BME280, 0xF3, 1)
-
-    # The chip id says it is a BME280, and the two calibration blocks are read once.
-    chip_id = bus.read_i2c_block_data(BME280, 0xD0, 1)[0]
-    temp_press = bus.read_i2c_block_data(BME280, 0x88, 26)
-    humidity = bus.read_i2c_block_data(BME280, 0xE1, 7)
-    calibration = bme280.calibration(temp_press, humidity)
-    print(f"calibration  read once: {str(chip_id == bme280.CHIP_ID).lower()}")
-
-    # config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes
-    # effect after the ctrl_meas write: every measurement at oversampling x1, asleep.
-    bus.write_byte_data(BME280, 0xF5, 0x00)
-    bus.write_byte_data(BME280, 0xF2, 0x01)
-    bus.write_byte_data(BME280, 0xF4, 0x24)
-
-    # One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for these
-    # settings, the status read that confirms the part is idle, and the burst read.
-    bus.write_byte_data(BME280, 0xF4, 0x25)
-    time.sleep(0.010)
-    bus.read_i2c_block_data(BME280, 0xF3, 1)
-    burst = bus.read_i2c_block_data(BME280, 0xF7, 8)
-    measurement = calibration.compensate(burst)
-    celsius = measurement.celsius
-    hectopascals = measurement.hectopascals
-    humidity_percent = measurement.relative_humidity_percent
-    print(f"measured     {celsius:.2f} C, {hectopascals:.2f} hPa, {humidity_percent:.2f} %")
-
-    # The script is spent: every transfer the datasheet lists was made, and no other.
-    print(f"bus          {bus.transfers} transfers, unexpected: {str(not bus.done).lower()}")
-    return measurement, bus.transfers, bus.done
-
-
-measurement, transfers, done = main()
+checked = Bme280(script, BME280).measure()
+print(
+    f"datasheet    {checked.celsius:.2f} C after {script.transfers} transfers, "
+    f"{script.remaining} steps left"
+)
 ```
 <!-- end -->
 
 ## C#
 
-The scripted device:
-
-<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs#parts -->
-From [`bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs):
-
-```csharp
-/// <summary>One transfer the script expects: a register written or read.</summary>
-private sealed record Step(byte Register, byte? Write = null, byte[]? Reply = null);
-
-/// <summary>
-/// A device with the two calls this conversation needs, in the shape of
-/// System.Device.I2c's I2cDevice: on a gateway <c>I2cDevice.Create</c> gives the
-/// real one and nothing below changes. This one answers from a script of what a
-/// BME280 sends, in the order the datasheet lists, and refuses any other transfer.
-/// </summary>
-private sealed class ScriptedDevice(Step[] script)
-{
-    public int Transfers { get; private set; }
-
-    public bool Done => Transfers == script.Length;
-
-    public void Write(ReadOnlySpan<byte> bytes)
-    {
-        Step step = Next(bytes[0]);
-        if (bytes.Length != 2 || step.Write != bytes[1])
-        {
-            throw new InvalidOperationException($"unexpected write of 0x{bytes[1]:X2}");
-        }
-    }
-
-    public void WriteRead(ReadOnlySpan<byte> write, Span<byte> read)
-    {
-        Step step = Next(write[0]);
-        if (step.Reply is null || step.Reply.Length != read.Length)
-        {
-            throw new InvalidOperationException($"unexpected read of {read.Length} bytes");
-        }
-
-        step.Reply.CopyTo(read);
-    }
-
-    private Step Next(byte register)
-    {
-        if (Transfers >= script.Length || script[Transfers].Register != register)
-        {
-            throw new InvalidOperationException($"unexpected transfer at register 0x{register:X2}");
-        }
-
-        return script[Transfers++];
-    }
-}
-```
-<!-- end -->
-
-The conversation:
+In C# the bus is `I2cBus` in `Pamoja.Hal`, and the driver is `Bme280` in
+`Pamoja.Sensors`, whose static members are the part's datasheet: its addresses,
+`Bme280.Register`, the setting enums, and `Bme280.Sim`. Buses, parts, and drivers hold
+native handles, so they are `IDisposable` and the example takes them with `using`; a
+driver keeps its own share of the bus, so the bus may be disposed first. A failure throws
+`PamojaException` with the reason as its message, and opening an adapter anywhere but
+Linux throws `PlatformNotSupportedException`.
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/HalGuide.cs):
 
 ```csharp
-var bus = new ScriptedDevice(
-[
-    new Step(0xE0, Write: 0xB6),
-    new Step(0xF3, Reply: [0x00]),
-    new Step(0xD0, Reply: [Bme280.ChipId]),
-    new Step(0x88, Reply: CalibrationA),
-    new Step(0xE1, Reply: CalibrationB),
-    new Step(0xF5, Write: 0x00),
-    new Step(0xF2, Write: 0x01),
-    new Step(0xF4, Write: 0x24),
-    new Step(0xF4, Write: 0x25),
-    new Step(0xF3, Reply: [0x00]),
-    new Step(0xF7, Reply: Burst),
-]);
+const byte Part = Bme280.AddressPrimary;
+static string Fixed(float value) => value.ToString("F2", CultureInfo.InvariantCulture);
+static string Shown(Bme280Measurement reading) =>
+    $"{Fixed(reading.Celsius)} C, {Fixed(reading.Hectopascals)} hPa, {Fixed(reading.RelativeHumidityPercent)} %";
+static string X(Bme280.Oversampling oversampling) => $"x{Bme280.OversamplingFactor(oversampling)}";
 
-// The datasheet's start-up: the soft reset word, its 2 ms start-up time, and
-// the status register, whose low bit clears once the calibration image loaded.
-bus.Write([0xE0, 0xB6]);
-await Task.Delay(2);
-byte[] status = new byte[1];
-bus.WriteRead([0xF3], status);
+// A bus with one part on it: a BME280 that is not there. It holds a real part's
+// calibration and one measurement that part took, and it answers from its registers,
+// so the driver runs its whole datasheet sequence against it. On a Raspberry Pi the
+// bus is I2cBus.Open("/dev/i2c-1") and nothing after this line changes.
+using I2cPart simulated = Bme280.Sim.Part(Part);
+using I2cBus bus = I2cBus.Simulated(simulated);
+using var sensor = new Bme280(bus, Part);
 
-// The chip id says it is a BME280, and the two calibration blocks are read once.
-byte[] id = new byte[1];
-bus.WriteRead([0xD0], id);
-byte[] tempPress = new byte[26];
-byte[] humidity = new byte[7];
-bus.WriteRead([0x88], tempPress);
-bus.WriteRead([0xE1], humidity);
-using var calibration = new Bme280Calibration(tempPress, humidity);
-Console.WriteLine($"calibration  read once: {(id[0] == Bme280.ChipId).ToString().ToLowerInvariant()}");
+// Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+// ctrl_meas, and the part left asleep until a measurement is forced. The part keeps
+// what the driver wrote, so the configuration reads back off the bus.
+sensor.Init();
+using I2cPart part = bus.Part(Part)!;
+Bme280.Oversampling humidity = Bme280.CtrlHumFromBits(part.Register(Bme280.Register.CtrlHum));
+Bme280CtrlMeas ctrl = Bme280.CtrlMeasFromBits(part.Register(Bme280.Register.CtrlMeas));
+bool asleep = ctrl.Mode == Bme280.Mode.Sleep;
+Console.WriteLine(
+    $"configured   humidity {X(humidity)}, temperature {X(ctrl.Temperature)}, " +
+    $"pressure {X(ctrl.Pressure)}, asleep: {asleep.ToString().ToLowerInvariant()}");
 
-// config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes
-// effect after the ctrl_meas write: every measurement at oversampling x1, asleep.
-bus.Write([0xF5, 0x00]);
-bus.Write([0xF2, 0x01]);
-bus.Write([0xF4, 0x24]);
+// One forced measurement. The driver waits the datasheet's longest measurement time
+// for these settings before it reads, and a simulated bus counts that wait rather
+// than sleeping through it.
+Bme280Measurement reading = sensor.Measure();
+Console.WriteLine($"measured     {Shown(reading)}");
+ulong waited = bus.WaitedMicros;
+string waitedMs = (waited / 1000.0).ToString("F2", CultureInfo.InvariantCulture);
+Console.WriteLine($"waited       {waitedMs} ms across {bus.Transfers} transfers");
 
-// One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for
-// these settings, the status read that confirms the part is idle, the burst.
-bus.Write([0xF4, 0x25]);
-await Task.Delay(10);
-bus.WriteRead([0xF3], status);
-byte[] burst = new byte[8];
-bus.WriteRead([0xF7], burst);
-Bme280Measurement measurement = calibration.Compensate(burst);
-string celsius = measurement.Celsius.ToString("F2", CultureInfo.InvariantCulture);
-string hectopascals = measurement.Hectopascals.ToString("F2", CultureInfo.InvariantCulture);
-string humidityPercent = measurement.RelativeHumidityPercent.ToString("F2", CultureInfo.InvariantCulture);
-Console.WriteLine($"measured     {celsius} C, {hectopascals} hPa, {humidityPercent} %");
+// A part reports whatever it is asked to. Putting one in the first one's place is how
+// a program meets a reading it would otherwise wait on the weather for, here a cold
+// store at four degrees, and the driver carries on without noticing.
+using (I2cPart chilled = Bme280.Sim.Reporting(Part, 4.0f, 1013.25f, 80.0f))
+{
+    bus.Attach(chilled);
+}
 
-// The script is spent: every transfer the datasheet lists was made, and no other.
-Console.WriteLine($"bus          {bus.Transfers} transfers, unexpected: {(!bus.Done).ToString().ToLowerInvariant()}");
+Bme280Measurement cold = sensor.Measure();
+Console.WriteLine($"cold store   {Shown(cold)}");
+
+// Nothing answers at the part's other address, and the driver says so rather than
+// returning a reading.
+try
+{
+    using var absent = new Bme280(bus, Bme280.AddressSecondary);
+    absent.Init();
+    Console.WriteLine("absent       a part answered");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"absent       {error.Message}");
+}
+
+// The other half of the bus layer. A script plays one conversation and refuses
+// anything else, which proves a driver follows the datasheet rather than merely
+// working: the reset, the status once the calibration has loaded, the chip id, the
+// two calibration blocks, the three configuration writes in the order the part
+// requires, then one forced measurement.
+const Bme280.Oversampling X1 = Bme280.Oversampling.X1;
+var settings = new Bme280CtrlMeas(X1, X1, Bme280.Mode.Sleep);
+var forced = settings with { Mode = Bme280.Mode.Forced };
+var resetState = new Bme280Config(Bme280.Standby.Ms0_5, Bme280.Filter.Off, Spi3Wire: false);
+byte[] idle = [Bme280.Sim.StatusIdle];
+using I2cBus script = I2cBus.Scripted(
+    I2cStep.Write(Part, [Bme280.Register.Reset, Bme280.ResetWord]),
+    I2cStep.WriteRead(Part, [Bme280.Register.Status], idle),
+    I2cStep.WriteRead(Part, [Bme280.Register.ChipId], [Bme280.ChipId]),
+    I2cStep.WriteRead(Part, [Bme280.Register.CalibTempPress], Bme280.Sim.Calibration()),
+    I2cStep.WriteRead(Part, [Bme280.Register.CalibHumidity], Bme280.Sim.CalibrationHumidity()),
+    I2cStep.Write(Part, [Bme280.Register.Config, Bme280.ConfigBits(resetState)]),
+    I2cStep.Write(Part, [Bme280.Register.CtrlHum, Bme280.CtrlHumBits(X1)]),
+    I2cStep.Write(Part, [Bme280.Register.CtrlMeas, Bme280.CtrlMeasBits(settings)]),
+    I2cStep.Write(Part, [Bme280.Register.CtrlMeas, Bme280.CtrlMeasBits(forced)]),
+    I2cStep.WriteRead(Part, [Bme280.Register.Status], idle),
+    I2cStep.WriteRead(Part, [Bme280.Register.Data], Bme280.Sim.Burst()));
+using var datasheet = new Bme280(script, Part);
+Bme280Measurement checkedReading = datasheet.Measure();
+Console.WriteLine(
+    $"datasheet    {Fixed(checkedReading.Celsius)} C after {script.Transfers} transfers, " +
+    $"{script.Remaining ?? 0} steps left");
 ```
 <!-- end -->
+
+## On a board
+
+The same driver on a Raspberry Pi, reading a real BME280 every two seconds. Only the
+line that opens the bus changes. Wire the breakout to the header's I2C pins:
+
+| BME280 breakout | Raspberry Pi |
+| --- | --- |
+| VIN | a 3V3 pin |
+| GND | a ground pin |
+| SDA | GPIO2 |
+| SCL | GPIO3 |
+
+GPIO2 and GPIO3 carry the board's own pull-up resistors, so the breakout needs none.
+[Turn the I2C interface on](../boards/raspberry-pi.md#turning-the-buses-on), make sure the
+account is [in the `i2c` group](../boards/raspberry-pi.md#permissions), and run
+`i2cdetect -y 1` before anything else: it prints every address that answers, and a part
+missing from that grid is a wiring problem, not a software one. The
+[Raspberry Pi page](../boards/raspberry-pi.md#reading-the-sensor) runs the same program as
+the first of four.
+
+### Rust
+
+<!-- snippet: examples/boards/raspberry-pi/src/main.rs#example -->
+From [`examples/boards/raspberry-pi/src/main.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/main.rs):
+
+```rust
+use pamoja_hal::bus::I2cBus;
+use pamoja_sensors::bme280::{Bme280, I2C_ADDRESS_PRIMARY};
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+    let bus = I2cBus::open("/dev/i2c-1")?;
+
+    // The driver runs the datasheet's sequence over that bus: reset, identify, read the
+    // calibration, configure, and then a forced measurement per read.
+    let mut sensor = Bme280::i2c(bus.clone(), I2C_ADDRESS_PRIMARY, bus.delay());
+    sensor.init()?;
+
+    loop {
+        let measurement = sensor.measure()?;
+        println!(
+            "{:.2} C, {:.2} hPa, {:.2} % humidity",
+            measurement.celsius(),
+            measurement.hectopascals(),
+            measurement.relative_humidity_percent()
+        );
+        thread::sleep(Duration::from_secs(2));
+    }
+}
+```
+<!-- end -->
+
+```sh
+cd examples/boards/raspberry-pi
+cargo run --release
+```
+
+### TypeScript
+
+<!-- snippet: bindings/node/boards/raspberry-pi/sensor.ts#example -->
+From [`bindings/node/boards/raspberry-pi/sensor.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/boards/raspberry-pi/sensor.ts):
+
+```typescript
+import { setTimeout as sleep } from 'node:timers/promises'
+import { I2cBus } from '@pamoja/hal'
+import { Bme280, bme280 } from '@pamoja/sensors'
+
+async function main(): Promise<void> {
+  // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+  const bus = I2cBus.open('/dev/i2c-1')
+
+  // The driver runs the datasheet's sequence over that bus: reset, identify, read the
+  // calibration, configure, and then a forced measurement per read.
+  const sensor = new Bme280(bus, bme280.addressPrimary)
+  await sensor.init()
+
+  for (;;) {
+    const reading = await sensor.measure()
+    console.log(
+      `${reading.celsius.toFixed(2)} C, ${reading.hectopascals.toFixed(2)} hPa, ` +
+        `${reading.relativeHumidityPercent.toFixed(2)} % humidity`,
+    )
+    await sleep(2000)
+  }
+}
+
+main().catch((error: Error) => {
+  console.error(error.message)
+  process.exitCode = 1
+})
+```
+<!-- end -->
+
+```sh
+npm --prefix bindings/node run boards
+node bindings/node/build/boards/raspberry-pi/sensor.js
+```
+
+### Python
+
+<!-- snippet: bindings/python/boards/raspberry_pi/sensor.py#example -->
+From [`bindings/python/boards/raspberry_pi/sensor.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/boards/raspberry_pi/sensor.py):
+
+```python
+import time
+
+from pamoja.hal import I2cBus
+from pamoja.sensors import Bme280, bme280
+
+
+def main() -> None:
+    # The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+    bus = I2cBus.open("/dev/i2c-1")
+
+    # The driver runs the datasheet's sequence over that bus: reset, identify, read the
+    # calibration, configure, and then a forced measurement per read.
+    sensor = Bme280(bus, bme280.ADDRESS_PRIMARY)
+    sensor.init()
+
+    while True:
+        reading = sensor.measure()
+        print(
+            f"{reading.celsius:.2f} C, {reading.hectopascals:.2f} hPa, "
+            f"{reading.relative_humidity_percent:.2f} % humidity"
+        )
+        time.sleep(2)
+```
+<!-- end -->
+
+```sh
+python bindings/python/boards/raspberry_pi/sensor.py
+```
+
+### C#
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs#example -->
+From [`bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Boards/RaspberryPi/Sensor.cs):
+
+```csharp
+using System.Globalization;
+
+using Pamoja.Hal;
+using Pamoja.Sensors;
+
+namespace Boards.RaspberryPi;
+
+/// <summary>
+/// The first program on a Raspberry Pi: a BME280 on the 40-pin header's I2C bus, read through
+/// the driver pamoja ships, printed every two seconds. Wire the BME280's SDA to GPIO2, its SCL
+/// to GPIO3, VIN to 3V3, and GND to ground, and turn the I2C interface on.
+/// </summary>
+public static class Sensor
+{
+    /// <summary>Runs until the process is stopped.</summary>
+    public static void Run()
+    {
+        // The header's I2C bus is a file once the interface is on: /dev/i2c-1 on every model.
+        using I2cBus bus = I2cBus.Open("/dev/i2c-1");
+
+        // The driver runs the datasheet's sequence over that bus: reset, identify, read the
+        // calibration, configure, and then a forced measurement per read.
+        using var sensor = new Bme280(bus, Bme280.AddressPrimary);
+        sensor.Init();
+
+        while (true)
+        {
+            Bme280Measurement reading = sensor.Measure();
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{reading.Celsius:F2} C, {reading.Hectopascals:F2} hPa, {reading.RelativeHumidityPercent:F2} % humidity"));
+            Thread.Sleep(TimeSpan.FromSeconds(2));
+        }
+    }
+}
+```
+<!-- end -->
+
+```sh
+dotnet run --project bindings/dotnet/samples/Pamoja.Boards -- raspberry-pi/sensor
+```
+
+## Values at a glance
+
+**What answers on a bus** decides what a transfer does and whether a driver's wait is
+spent:
+
+| Kind | Made with | What answers | A driver's wait |
+| --- | --- | --- | --- |
+| Adapter | `open(path)`, such as `/dev/i2c-1` | the parts wired to the bus | sleeps the process |
+| Simulated | `simulated(parts)` | each part at its own address, from 256 registers; nothing anywhere else | counted, not slept |
+| Scripted | `scripted(steps)` | the next step, when the transfer matches it; a refusal otherwise | counted, not slept |
+
+**The BME280** answers at `0x76` with its SDO pin low and `0x77` with it high. The
+registers a driver touches, in the order it first reaches them:
+
+| Register | Address | What it holds |
+| --- | --- | --- |
+| `reset` | `0xE0` | writing `0xB6` restarts the part |
+| `status` | `0xF3` | whether a measurement is running, and whether the calibration image is still loading |
+| `chip_id` | `0xD0` | `0x60` on a BME280, `0x58` on a BMP280 |
+| calibration | `0x88` and `0xE1` | 26 bytes and 7 bytes, read once at start-up |
+| `config` | `0xF5` | the normal-mode standby period, the IIR filter, and 3-wire SPI |
+| `ctrl_hum` | `0xF2` | humidity oversampling, which takes effect at the next `ctrl_meas` write |
+| `ctrl_meas` | `0xF4` | temperature and pressure oversampling, and the power mode |
+| data | `0xF7` | 8 bytes: pressure, temperature, and humidity |
+
+**Oversampling** averages samples for each measurement: code 0 skips it, and codes 1 to 5
+average 1, 2, 4, 8, and 16. More samples mean less noise and a longer wait, which the
+driver takes from the datasheet's longest measurement time for the settings in use:
+
+| Settings | Temperature | Pressure | Humidity | Longest measurement | Typical |
+| --- | --- | --- | --- | --- | --- |
+| each measured once | x1 | x1 | x1 | 9.3 ms | 8 ms |
+| humidity left out | x1 | x1 | skipped | 6.425 ms | 5.5 ms |
+| pressure averaged over 16 | x2 | x16 | x1 | 46.1 ms | 40 ms |
+| each averaged over 16 | x16 | x16 | x16 | 112.8 ms | 98 ms |
+
+**The IIR filter** smooths pressure and temperature across measurements, never humidity.
+Codes 0 to 4 give off, 2, 4, 8, and 16. The **standby period** only matters in normal
+mode, which the driver does not use: it measures on demand in forced mode, and the part
+sleeps in between.
+
+**The same calls in each language:**
+
+| To | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- |
+| open the kernel's adapter | `I2cBus::open(path)` | `I2cBus.open(path)` | `I2cBus.open(path)` | `I2cBus.Open(path)` |
+| put parts on a bus | `I2cBus::simulated(parts)` | `I2cBus.simulated(parts)` | `I2cBus.simulated(parts)` | `I2cBus.Simulated(parts)` |
+| swap a part in | `bus.attach(part)` | `bus.attach(part)` | `bus.attach(part)` | `bus.Attach(part)` |
+| play a script | `I2cBus::scripted(I2cScript::new(steps))` | `I2cBus.scripted(steps)` | `I2cBus.scripted(steps)` | `I2cBus.Scripted(steps)` |
+| read a register | `bus.write_read(a, bytes, &mut out)` | `bus.writeRead(a, bytes, n)` | `bus.write_read(a, data, n)` | `bus.WriteRead(a, bytes, n)` |
+| see what a part holds | `bus.part(a)` | `bus.part(a)` | `bus.part(a)` | `bus.Part(a)` |
+| count transfers and waits | `transfers()`, `waited_micros()` | `transfers`, `waitedMicros` | `transfers`, `waited_micros` | `Transfers`, `WaitedMicros` |
+| see what a script has left | `remaining()` | `remaining` | `remaining` | `Remaining` |
+| build a BME280 driver | `Bme280::i2c(bus.clone(), a, bus.delay())` | `new Bme280(bus, a)` | `Bme280(bus, a)` | `new Bme280(bus, a)` |
+| stand a BME280 up | `sim::part(a)`, `sim::reporting(a, c, hpa, rh)` | `bme280.sim.part(a)`, `bme280.sim.reporting(...)` | `bme280.sim.part(a)`, `bme280.sim.reporting(...)` | `Bme280.Sim.Part(a)`, `Bme280.Sim.Reporting(...)` |
+
+A step can also fail on purpose, the way a missing or busy part does. The faults are the
+ones `embedded-hal` names: no acknowledge of the address, of a data byte, or of either;
+a bus error; lost arbitration; an overrun; and anything else.
+
+## When it goes wrong
+
+What a bus or a driver refuses, and what it says:
+
+| What happened | The message | What to check |
+| --- | --- | --- |
+| an adapter opened anywhere but Linux | `an I2C adapter is opened through the kernel's i2c-dev interface, which only Linux has` | run it on the board, or run it on a simulated bus |
+| the I2C interface is off | `/dev/i2c-1: No such file or directory (os error 2)` | [turn it on](../boards/raspberry-pi.md#turning-the-buses-on) and reboot |
+| the account may not open the bus | `/dev/i2c-1: Permission denied (os error 13)` | [add the account to the `i2c` group](../boards/raspberry-pi.md#permissions) |
+| nothing wired answered on a Raspberry Pi | `/dev/i2c-1: EREMOTEIO: Remote I/O error` | the wiring, the power, and the address; `i2cdetect -y 1` shows what answers |
+| nothing on a simulated bus holds the address | `nothing answered at 0x77` | the part's address, or attach a part there |
+| a part answered that is not a BME280 | `sensor identification mismatch` | the chip id; `0x58` is a BMP280, which has no humidity |
+| a kernel driver already holds the part | `/dev/i2c-1: EBUSY: Device or resource busy` | a `dtoverlay=i2c-sensor` line in `config.txt`, which gives the part to the kernel's own driver; remove it and reboot |
+| the part stayed busy past the datasheet's time | `the part did not finish its conversion in time` | the supply, and whether another program is driving the same part |
+| a script met a transfer it did not expect | `i2c script step 3: expected ..., the driver issued ...` | the step the message names, against the datasheet |
+
+How each language hands those over:
+
+| Language | A transfer or a driver call that fails | Opening an adapter off Linux |
+| --- | --- | --- |
+| Rust | `Err(DriverError::Bus(BusError))`, `Err(DriverError::Sensor(..))`, `Err(DriverError::Timeout)` | `Err(OpenError::Unsupported)` |
+| TypeScript | a thrown `Error`, or a rejected promise from `init` and `measure` | a thrown `Error` |
+| Python | `PamojaError` | `PamojaError` |
+| C# | `PamojaException` | `PlatformNotSupportedException` |
+
+A Raspberry Pi's I2C controllers report a part that did not acknowledge as `EREMOTEIO`,
+which the bus treats as a missing acknowledge, the same as a simulated bus with nothing at
+the address.
+
+The mistakes that cost an afternoon:
+
+- **Nothing answers at all.** SDA and SCL are swapped, or the breakout has no power.
+  `i2cdetect -y 1` prints an empty grid until they are right.
+- **The part answers at the other address.** Breakouts differ in which way they tie SDO,
+  so one board answers at `0x76` and another at `0x77`. `i2cdetect -y 1` shows which.
+- **The chip id says `0x58`.** The part is a BMP280, which comes on breakouts that look
+  the same: it measures pressure and temperature and has no humidity at all. Its decoder
+  is in the [sensor drivers](sensors.md).
+- **Two parts share an address.** Both answer every transfer and garble each other's
+  replies. Move one with its address jumper.
+- **The breakout is powered from 5 V.** The header's pins are 3.3 V logic, and a
+  breakout whose pull-ups go to its own supply puts that supply on SDA and SCL. Power it
+  from a 3V3 pin, as the [Raspberry Pi page](../boards/raspberry-pi.md#the-header)
+  explains.
 
 ## Where next
 
@@ -545,7 +822,7 @@ Console.WriteLine($"bus          {bus.Transfers} transfers, unexpected: {(!bus.D
 
 <!-- table: reference hal -->
 - Rust: [`pamoja-hal`](https://pamoja.molex.cloud/docs/reference/rust/pamoja_hal/index.html), [install](https://pamoja.molex.cloud/docs/reference/rust.html#rust-hal)
-- TypeScript: [`@pamoja/core`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_core.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal)
-- Python: [`pamoja.core`](https://pamoja.molex.cloud/docs/reference/python/pamoja/core.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal)
-- C#: [`Pamoja.Core`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Core.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal)
+- TypeScript: [`@pamoja/hal`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_hal.html), [install](https://pamoja.molex.cloud/docs/reference/node.html#node-hal)
+- Python: [`pamoja.hal`](https://pamoja.molex.cloud/docs/reference/python/pamoja/hal.html), [install](https://pamoja.molex.cloud/docs/reference/python.html#python-hal)
+- C#: [`Pamoja.Hal`](https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Hal.html), [install](https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-hal)
 <!-- end -->

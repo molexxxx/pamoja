@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using Pamoja;
+using Pamoja.Hal;
 using Pamoja.Sensors;
 
 using static Guides.Guide;
@@ -7,135 +9,114 @@ using static Guides.Guide;
 namespace Guides;
 
 /// <summary>
-/// The bus layer: a BME280 read over an I2C device in the shape of System.Device.I2c,
-/// answered by a script of what the datasheet says the part sends.
+/// The bus layer: one I2C bus a program and its drivers share, a BME280 read through a part
+/// that answers from its registers, and the same driver held to the exact conversation its
+/// datasheet prescribes.
 /// </summary>
 public static class HalGuide
 {
-    private const byte Part = Bme280.AddressPrimary;
-
-    private static readonly byte[] CalibrationA =
-    [
-        0x45, 0x6F, 0x6F, 0x68, 0x32, 0x00, 0x46, 0x91, 0x6A, 0xD6, 0xD0, 0x0B, 0x4E, 0x1E,
-        0x88, 0xFF, 0xF9, 0xFF, 0xAC, 0x26, 0x0A, 0xD8, 0xBD, 0x10, 0x00, 0x4B,
-    ];
-
-    private static readonly byte[] CalibrationB = [0x62, 0x01, 0x00, 0x15, 0x23, 0x03, 0x1E];
-
-    private static readonly byte[] Burst = [0x65, 0x5A, 0xC0, 0x7E, 0xED, 0x00, 0x75, 0x30];
-
-    // ANCHOR: parts
-    /// <summary>One transfer the script expects: a register written or read.</summary>
-    private sealed record Step(byte Register, byte? Write = null, byte[]? Reply = null);
-
-    /// <summary>
-    /// A device with the two calls this conversation needs, in the shape of
-    /// System.Device.I2c's I2cDevice: on a gateway <c>I2cDevice.Create</c> gives the
-    /// real one and nothing below changes. This one answers from a script of what a
-    /// BME280 sends, in the order the datasheet lists, and refuses any other transfer.
-    /// </summary>
-    private sealed class ScriptedDevice(Step[] script)
-    {
-        public int Transfers { get; private set; }
-
-        public bool Done => Transfers == script.Length;
-
-        public void Write(ReadOnlySpan<byte> bytes)
-        {
-            Step step = Next(bytes[0]);
-            if (bytes.Length != 2 || step.Write != bytes[1])
-            {
-                throw new InvalidOperationException($"unexpected write of 0x{bytes[1]:X2}");
-            }
-        }
-
-        public void WriteRead(ReadOnlySpan<byte> write, Span<byte> read)
-        {
-            Step step = Next(write[0]);
-            if (step.Reply is null || step.Reply.Length != read.Length)
-            {
-                throw new InvalidOperationException($"unexpected read of {read.Length} bytes");
-            }
-
-            step.Reply.CopyTo(read);
-        }
-
-        private Step Next(byte register)
-        {
-            if (Transfers >= script.Length || script[Transfers].Register != register)
-            {
-                throw new InvalidOperationException($"unexpected transfer at register 0x{register:X2}");
-            }
-
-            return script[Transfers++];
-        }
-    }
-    // ANCHOR_END: parts
-
     /// <summary>Runs the example.</summary>
-    /// <returns>A task that completes when the measurement has been decoded.</returns>
-    public static async Task RunAsync()
+    public static void Run()
     {
         // ANCHOR: example
-        var bus = new ScriptedDevice(
-        [
-            new Step(0xE0, Write: 0xB6),
-            new Step(0xF3, Reply: [0x00]),
-            new Step(0xD0, Reply: [Bme280.ChipId]),
-            new Step(0x88, Reply: CalibrationA),
-            new Step(0xE1, Reply: CalibrationB),
-            new Step(0xF5, Write: 0x00),
-            new Step(0xF2, Write: 0x01),
-            new Step(0xF4, Write: 0x24),
-            new Step(0xF4, Write: 0x25),
-            new Step(0xF3, Reply: [0x00]),
-            new Step(0xF7, Reply: Burst),
-        ]);
+        const byte Part = Bme280.AddressPrimary;
+        static string Fixed(float value) => value.ToString("F2", CultureInfo.InvariantCulture);
+        static string Shown(Bme280Measurement reading) =>
+            $"{Fixed(reading.Celsius)} C, {Fixed(reading.Hectopascals)} hPa, {Fixed(reading.RelativeHumidityPercent)} %";
+        static string X(Bme280.Oversampling oversampling) => $"x{Bme280.OversamplingFactor(oversampling)}";
 
-        // The datasheet's start-up: the soft reset word, its 2 ms start-up time, and
-        // the status register, whose low bit clears once the calibration image loaded.
-        bus.Write([0xE0, 0xB6]);
-        await Task.Delay(2);
-        byte[] status = new byte[1];
-        bus.WriteRead([0xF3], status);
+        // A bus with one part on it: a BME280 that is not there. It holds a real part's
+        // calibration and one measurement that part took, and it answers from its registers,
+        // so the driver runs its whole datasheet sequence against it. On a Raspberry Pi the
+        // bus is I2cBus.Open("/dev/i2c-1") and nothing after this line changes.
+        using I2cPart simulated = Bme280.Sim.Part(Part);
+        using I2cBus bus = I2cBus.Simulated(simulated);
+        using var sensor = new Bme280(bus, Part);
 
-        // The chip id says it is a BME280, and the two calibration blocks are read once.
-        byte[] id = new byte[1];
-        bus.WriteRead([0xD0], id);
-        byte[] tempPress = new byte[26];
-        byte[] humidity = new byte[7];
-        bus.WriteRead([0x88], tempPress);
-        bus.WriteRead([0xE1], humidity);
-        using var calibration = new Bme280Calibration(tempPress, humidity);
-        Console.WriteLine($"calibration  read once: {(id[0] == Bme280.ChipId).ToString().ToLowerInvariant()}");
+        // Reset, identify, calibrate, configure. The datasheet wants ctrl_hum written before
+        // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps
+        // what the driver wrote, so the configuration reads back off the bus.
+        sensor.Init();
+        using I2cPart part = bus.Part(Part)!;
+        Bme280.Oversampling humidity = Bme280.CtrlHumFromBits(part.Register(Bme280.Register.CtrlHum));
+        Bme280CtrlMeas ctrl = Bme280.CtrlMeasFromBits(part.Register(Bme280.Register.CtrlMeas));
+        bool asleep = ctrl.Mode == Bme280.Mode.Sleep;
+        Console.WriteLine(
+            $"configured   humidity {X(humidity)}, temperature {X(ctrl.Temperature)}, " +
+            $"pressure {X(ctrl.Pressure)}, asleep: {asleep.ToString().ToLowerInvariant()}");
 
-        // config, ctrl_hum, then ctrl_meas, in that order because ctrl_hum only takes
-        // effect after the ctrl_meas write: every measurement at oversampling x1, asleep.
-        bus.Write([0xF5, 0x00]);
-        bus.Write([0xF2, 0x01]);
-        bus.Write([0xF4, 0x24]);
+        // One forced measurement. The driver waits the datasheet's longest measurement time
+        // for these settings before it reads, and a simulated bus counts that wait rather
+        // than sleeping through it.
+        Bme280Measurement reading = sensor.Measure();
+        Console.WriteLine($"measured     {Shown(reading)}");
+        ulong waited = bus.WaitedMicros;
+        string waitedMs = (waited / 1000.0).ToString("F2", CultureInfo.InvariantCulture);
+        Console.WriteLine($"waited       {waitedMs} ms across {bus.Transfers} transfers");
 
-        // One forced measurement: the mode bits, the datasheet's 9.3 ms maximum for
-        // these settings, the status read that confirms the part is idle, the burst.
-        bus.Write([0xF4, 0x25]);
-        await Task.Delay(10);
-        bus.WriteRead([0xF3], status);
-        byte[] burst = new byte[8];
-        bus.WriteRead([0xF7], burst);
-        Bme280Measurement measurement = calibration.Compensate(burst);
-        string celsius = measurement.Celsius.ToString("F2", CultureInfo.InvariantCulture);
-        string hectopascals = measurement.Hectopascals.ToString("F2", CultureInfo.InvariantCulture);
-        string humidityPercent = measurement.RelativeHumidityPercent.ToString("F2", CultureInfo.InvariantCulture);
-        Console.WriteLine($"measured     {celsius} C, {hectopascals} hPa, {humidityPercent} %");
+        // A part reports whatever it is asked to. Putting one in the first one's place is how
+        // a program meets a reading it would otherwise wait on the weather for, here a cold
+        // store at four degrees, and the driver carries on without noticing.
+        using (I2cPart chilled = Bme280.Sim.Reporting(Part, 4.0f, 1013.25f, 80.0f))
+        {
+            bus.Attach(chilled);
+        }
 
-        // The script is spent: every transfer the datasheet lists was made, and no other.
-        Console.WriteLine($"bus          {bus.Transfers} transfers, unexpected: {(!bus.Done).ToString().ToLowerInvariant()}");
+        Bme280Measurement cold = sensor.Measure();
+        Console.WriteLine($"cold store   {Shown(cold)}");
+
+        // Nothing answers at the part's other address, and the driver says so rather than
+        // returning a reading.
+        try
+        {
+            using var absent = new Bme280(bus, Bme280.AddressSecondary);
+            absent.Init();
+            Console.WriteLine("absent       a part answered");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"absent       {error.Message}");
+        }
+
+        // The other half of the bus layer. A script plays one conversation and refuses
+        // anything else, which proves a driver follows the datasheet rather than merely
+        // working: the reset, the status once the calibration has loaded, the chip id, the
+        // two calibration blocks, the three configuration writes in the order the part
+        // requires, then one forced measurement.
+        const Bme280.Oversampling X1 = Bme280.Oversampling.X1;
+        var settings = new Bme280CtrlMeas(X1, X1, Bme280.Mode.Sleep);
+        var forced = settings with { Mode = Bme280.Mode.Forced };
+        var resetState = new Bme280Config(Bme280.Standby.Ms0_5, Bme280.Filter.Off, Spi3Wire: false);
+        byte[] idle = [Bme280.Sim.StatusIdle];
+        using I2cBus script = I2cBus.Scripted(
+            I2cStep.Write(Part, [Bme280.Register.Reset, Bme280.ResetWord]),
+            I2cStep.WriteRead(Part, [Bme280.Register.Status], idle),
+            I2cStep.WriteRead(Part, [Bme280.Register.ChipId], [Bme280.ChipId]),
+            I2cStep.WriteRead(Part, [Bme280.Register.CalibTempPress], Bme280.Sim.Calibration()),
+            I2cStep.WriteRead(Part, [Bme280.Register.CalibHumidity], Bme280.Sim.CalibrationHumidity()),
+            I2cStep.Write(Part, [Bme280.Register.Config, Bme280.ConfigBits(resetState)]),
+            I2cStep.Write(Part, [Bme280.Register.CtrlHum, Bme280.CtrlHumBits(X1)]),
+            I2cStep.Write(Part, [Bme280.Register.CtrlMeas, Bme280.CtrlMeasBits(settings)]),
+            I2cStep.Write(Part, [Bme280.Register.CtrlMeas, Bme280.CtrlMeasBits(forced)]),
+            I2cStep.WriteRead(Part, [Bme280.Register.Status], idle),
+            I2cStep.WriteRead(Part, [Bme280.Register.Data], Bme280.Sim.Burst()));
+        using var datasheet = new Bme280(script, Part);
+        Bme280Measurement checkedReading = datasheet.Measure();
+        Console.WriteLine(
+            $"datasheet    {Fixed(checkedReading.Celsius)} C after {script.Transfers} transfers, " +
+            $"{script.Remaining ?? 0} steps left");
         // ANCHOR_END: example
 
-        Expect(celsius == "20.44", "the temperature the calibration compensates to");
-        Expect(measurement.Pascals == 84805, "the pressure in pascals");
-        Expect(humidityPercent == "44.65", "the humidity in percent");
-        Expect(bus.Transfers == 11, "the datasheet lists eleven transfers");
-        Expect(bus.Done, "and the script is spent");
+        Expect(humidity == Bme280.Oversampling.X1, "humidity is sampled once");
+        Expect(asleep, "the part is left asleep until a measurement is forced");
+        Expect(Fixed(reading.Celsius) == "20.44", "the temperature the calibration compensates to");
+        Expect(reading.Pascals == 84805, "the pressure in pascals");
+        Expect(waited == 2_000 + 9_300, "the start-up time and one measurement");
+        Expect(cold.Celsius == 4.0f, "the cold part reads four degrees");
+        Expect(Math.Abs(cold.Hectopascals - 1013.25f) < 0.01f, "and standard pressure");
+        Expect(bus.WaitedMicros == 2_000 + 2 * 9_300, "the absent part failed before any wait");
+        Expect(checkedReading.Pascals == reading.Pascals, "the same part, read two ways");
+        Expect(script.Transfers == 11, "the datasheet lists eleven transfers");
+        Expect(script.Remaining == 0, "and the script is spent");
     }
 }

@@ -216,6 +216,322 @@ pub unsafe extern "C" fn pamoja_bme280_calibration_free(calibration: *mut Pamoja
     }
 }
 
+/// The address a BME280 answers on with its SDO pin low.
+pub const PAMOJA_BME280_I2C_ADDRESS_PRIMARY: u8 = 0x76;
+
+/// The address it answers on with SDO high.
+pub const PAMOJA_BME280_I2C_ADDRESS_SECONDARY: u8 = 0x77;
+
+/// The value a BME280's chip id register reads, which tells it from a BMP280.
+pub const PAMOJA_BME280_CHIP_ID: u8 = 0x60;
+
+/// The word written to the reset register to restart the part.
+pub const PAMOJA_BME280_RESET_WORD: u8 = 0xB6;
+
+/// How long the part takes to start after a reset, in microseconds.
+pub const PAMOJA_BME280_STARTUP_MICROS: u32 = 2_000;
+
+/// The chip id register.
+pub const PAMOJA_BME280_REGISTER_CHIP_ID: u8 = 0xD0;
+
+/// The reset register.
+pub const PAMOJA_BME280_REGISTER_RESET: u8 = 0xE0;
+
+/// The first of the 26 temperature and pressure calibration registers.
+pub const PAMOJA_BME280_REGISTER_CALIB_TEMP_PRESS: u8 = 0x88;
+
+/// The first of the 7 humidity calibration registers.
+pub const PAMOJA_BME280_REGISTER_CALIB_HUMIDITY: u8 = 0xE1;
+
+/// The first of the 8 data registers a burst read covers.
+pub const PAMOJA_BME280_REGISTER_DATA: u8 = 0xF7;
+
+/// The humidity control register, `ctrl_hum`.
+pub const PAMOJA_BME280_REGISTER_CTRL_HUM: u8 = 0xF2;
+
+/// The status register.
+pub const PAMOJA_BME280_REGISTER_STATUS: u8 = 0xF3;
+
+/// The measurement control register, `ctrl_meas`.
+pub const PAMOJA_BME280_REGISTER_CTRL_MEAS: u8 = 0xF4;
+
+/// The configuration register, `config`.
+pub const PAMOJA_BME280_REGISTER_CONFIG: u8 = 0xF5;
+
+const _: () = assert!(PAMOJA_BME280_I2C_ADDRESS_PRIMARY == bme280::I2C_ADDRESS_PRIMARY);
+const _: () = assert!(PAMOJA_BME280_I2C_ADDRESS_SECONDARY == bme280::I2C_ADDRESS_SECONDARY);
+const _: () = assert!(PAMOJA_BME280_CHIP_ID == bme280::CHIP_ID);
+const _: () = assert!(PAMOJA_BME280_RESET_WORD == bme280::RESET_WORD);
+const _: () = assert!(PAMOJA_BME280_STARTUP_MICROS == bme280::STARTUP_MICROS);
+const _: () = assert!(PAMOJA_BME280_REGISTER_CHIP_ID == bme280::register::CHIP_ID);
+const _: () = assert!(PAMOJA_BME280_REGISTER_RESET == bme280::register::RESET);
+const _: () =
+    assert!(PAMOJA_BME280_REGISTER_CALIB_TEMP_PRESS == bme280::register::CALIB_TEMP_PRESS);
+const _: () = assert!(PAMOJA_BME280_REGISTER_CALIB_HUMIDITY == bme280::register::CALIB_HUMIDITY);
+const _: () = assert!(PAMOJA_BME280_REGISTER_DATA == bme280::register::DATA);
+const _: () = assert!(PAMOJA_BME280_REGISTER_CTRL_HUM == bme280::register::CTRL_HUM);
+const _: () = assert!(PAMOJA_BME280_REGISTER_STATUS == bme280::register::STATUS);
+const _: () = assert!(PAMOJA_BME280_REGISTER_CTRL_MEAS == bme280::register::CTRL_MEAS);
+const _: () = assert!(PAMOJA_BME280_REGISTER_CONFIG == bme280::register::CONFIG);
+
+/// A BME280 `ctrl_meas` register, field by field.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaBme280CtrlMeas {
+    /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
+    pub temperature: u8,
+    /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
+    pub pressure: u8,
+    /// The power mode code: `0` sleep, `1` forced, `3` normal.
+    pub mode: u8,
+}
+
+/// A BME280 `config` register, field by field.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PamojaBme280Config {
+    /// The normal-mode standby code, `0..=7`.
+    pub standby: u8,
+    /// The IIR filter code, `0..=4`, where `0` is off.
+    pub filter: u8,
+    /// `1` enables the 3-wire SPI interface.
+    pub spi_3wire: u8,
+}
+
+/// Reports whether a BME280 status byte says a conversion is running.
+///
+/// # Arguments
+///
+/// * `status` - the status register.
+///
+/// # Returns
+///
+/// `true` while the part is measuring.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_measuring(status: u8) -> bool {
+    bme280::measuring(status)
+}
+
+/// Reports whether a BME280 status byte says the calibration image is loading.
+///
+/// # Arguments
+///
+/// * `status` - the status register.
+///
+/// # Returns
+///
+/// `true` while the coefficients are being copied out of non-volatile memory.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_image_updating(status: u8) -> bool {
+    bme280::image_updating(status)
+}
+
+/// Assembles a BME280 `ctrl_meas` register value.
+///
+/// # Arguments
+///
+/// * `config` - the oversampling codes and the power mode.
+///
+/// # Returns
+///
+/// The register value to write.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_ctrl_meas_bits(config: PamojaBme280CtrlMeas) -> u8 {
+    bme280::CtrlMeas::from(config).bits()
+}
+
+/// Parses a BME280 `ctrl_meas` register value.
+///
+/// # Arguments
+///
+/// * `bits` - the register value.
+/// * `out_config` - receives the fields.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value decodes, so this
+/// fails only on a null pointer.
+///
+/// # Safety
+///
+/// `out_config` must point to a writable `PamojaBme280CtrlMeas`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_bme280_ctrl_meas_from_bits(
+    bits: u8,
+    out_config: *mut PamojaBme280CtrlMeas,
+) -> PamojaStatus {
+    if out_config.is_null() {
+        set_last_error("out_config must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_config = bme280::CtrlMeas::from_bits(bits).into();
+    PamojaStatus::Ok
+}
+
+/// Assembles a BME280 `ctrl_hum` register value.
+///
+/// # Arguments
+///
+/// * `humidity` - the humidity oversampling code, `0..=5`, where `0` skips it.
+///
+/// # Returns
+///
+/// The register value to write. It takes effect only after the next `ctrl_meas` write.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_ctrl_hum_bits(humidity: u8) -> u8 {
+    bme280::CtrlHum {
+        humidity: bme280::Oversampling::from_code(humidity),
+    }
+    .bits()
+}
+
+/// Parses a BME280 `ctrl_hum` register value.
+///
+/// # Arguments
+///
+/// * `bits` - the register value.
+///
+/// # Returns
+///
+/// The humidity oversampling code it holds.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_ctrl_hum_from_bits(bits: u8) -> u8 {
+    bme280::CtrlHum::from_bits(bits).humidity.code()
+}
+
+/// Assembles a BME280 `config` register value.
+///
+/// # Arguments
+///
+/// * `config` - the standby period, filter, and interface settings.
+///
+/// # Returns
+///
+/// The register value to write.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_config_bits(config: PamojaBme280Config) -> u8 {
+    bme280::Config::from(config).bits()
+}
+
+/// Parses a BME280 `config` register value.
+///
+/// # Arguments
+///
+/// * `bits` - the register value.
+/// * `out_config` - receives the fields.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], with `*out_config` filled in. Every register value decodes, so this
+/// fails only on a null pointer.
+///
+/// # Safety
+///
+/// `out_config` must point to a writable `PamojaBme280Config`.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_bme280_config_from_bits(
+    bits: u8,
+    out_config: *mut PamojaBme280Config,
+) -> PamojaStatus {
+    if out_config.is_null() {
+        set_last_error("out_config must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_config = bme280::Config::from_bits(bits).into();
+    PamojaStatus::Ok
+}
+
+/// Returns how many samples a BME280 oversampling code averages.
+///
+/// # Arguments
+///
+/// * `code` - the oversampling code.
+///
+/// # Returns
+///
+/// The factor, `1` to `16`, or `0` when the code skips the measurement.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_oversampling_factor(code: u8) -> u8 {
+    bme280::Oversampling::from_code(code).factor()
+}
+
+/// Returns the normal-mode standby period a BME280 code selects.
+///
+/// # Arguments
+///
+/// * `code` - the standby code.
+///
+/// # Returns
+///
+/// The period in microseconds.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_standby_micros(code: u8) -> u32 {
+    bme280::Standby::from_code(code).microseconds()
+}
+
+/// Returns the IIR filter coefficient a BME280 code selects.
+///
+/// # Arguments
+///
+/// * `code` - the filter code.
+///
+/// # Returns
+///
+/// The coefficient, `2` to `16`, or `0` when the filter is off.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_filter_coefficient(code: u8) -> u8 {
+    bme280::Filter::from_code(code).coefficient()
+}
+
+/// Returns the longest one BME280 measurement can take, which is how long a driver waits
+/// after forcing one.
+///
+/// # Arguments
+///
+/// * `temperature` - the temperature oversampling code.
+/// * `pressure` - the pressure oversampling code.
+/// * `humidity` - the humidity oversampling code.
+///
+/// # Returns
+///
+/// The datasheet's maximum measurement time in microseconds.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_max_measurement_micros(
+    temperature: u8,
+    pressure: u8,
+    humidity: u8,
+) -> u32 {
+    bme280::max_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
+/// Returns the typical time one BME280 measurement takes.
+///
+/// # Arguments
+///
+/// * `temperature` - the temperature oversampling code.
+/// * `pressure` - the pressure oversampling code.
+/// * `humidity` - the humidity oversampling code.
+///
+/// # Returns
+///
+/// The datasheet's typical measurement time in microseconds.
+#[no_mangle]
+pub extern "C" fn pamoja_bme280_typical_measurement_micros(
+    temperature: u8,
+    pressure: u8,
+    humidity: u8,
+) -> u32 {
+    bme280::typical_measurement_micros(
+        bme280::Oversampling::from_code(temperature),
+        bme280::Oversampling::from_code(pressure),
+        bme280::Oversampling::from_code(humidity),
+    )
+}
+
 /// Parses and CRC-checks a nine-byte DS18B20 scratchpad.
 ///
 /// # Returns
@@ -4175,6 +4491,46 @@ impl From<bmp280::Measurement> for PamojaBmp280Measurement {
             temperature: value.temperature,
             pressure_skipped: u8::from(value.pressure_skipped()),
             temperature_skipped: u8::from(value.temperature_skipped()),
+        }
+    }
+}
+
+impl From<PamojaBme280CtrlMeas> for bme280::CtrlMeas {
+    fn from(value: PamojaBme280CtrlMeas) -> Self {
+        bme280::CtrlMeas {
+            temperature: bme280::Oversampling::from_code(value.temperature),
+            pressure: bme280::Oversampling::from_code(value.pressure),
+            mode: bme280::Mode::from_code(value.mode),
+        }
+    }
+}
+
+impl From<bme280::CtrlMeas> for PamojaBme280CtrlMeas {
+    fn from(value: bme280::CtrlMeas) -> Self {
+        PamojaBme280CtrlMeas {
+            temperature: value.temperature.code(),
+            pressure: value.pressure.code(),
+            mode: value.mode.code(),
+        }
+    }
+}
+
+impl From<PamojaBme280Config> for bme280::Config {
+    fn from(value: PamojaBme280Config) -> Self {
+        bme280::Config {
+            standby: bme280::Standby::from_code(value.standby),
+            filter: bme280::Filter::from_code(value.filter),
+            spi_3wire: value.spi_3wire != 0,
+        }
+    }
+}
+
+impl From<bme280::Config> for PamojaBme280Config {
+    fn from(value: bme280::Config) -> Self {
+        PamojaBme280Config {
+            standby: value.standby.code(),
+            filter: value.filter.code(),
+            spi_3wire: u8::from(value.spi_3wire),
         }
     }
 }

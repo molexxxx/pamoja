@@ -63,6 +63,8 @@ export * as gateway from '@pamoja/gateway'
 
 export * as gpio from '@pamoja/gpio'
 
+export * as hal from '@pamoja/hal'
+
 export * as ladder from '@pamoja/ladder'
 
 export * as loopback from '@pamoja/loopback'

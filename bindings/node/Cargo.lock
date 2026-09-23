@@ -747,6 +747,7 @@ version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
+ "pamoja-hal",
 ]
 
 [[package]]
@@ -755,7 +756,7 @@ version = "0.1.18"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
- "nix 0.29.0",
+ "nix 0.31.3",
 ]
 
 [[package]]
@@ -832,6 +833,7 @@ dependencies = [
  "pamoja-core",
  "pamoja-gateway",
  "pamoja-gpio",
+ "pamoja-hal",
  "pamoja-kit",
  "pamoja-ladder",
  "pamoja-loopback",
