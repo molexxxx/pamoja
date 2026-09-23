@@ -11313,6 +11313,19 @@
       "criticalUs": 3600000000,
       "saverBelow": 0.5,
       "saverUs": 300000000
+    },
+    "tenth": {
+      "activeUs": 6000000,
+      "fraction": 0.10000000149011612,
+      "periodUs": 60000000,
+      "sleepUs": 54000000
+    },
+    "unreadable": {
+      "charging": "Saver",
+      "dutyActiveUs": 0,
+      "dutySleepUs": 1000000,
+      "intervalUs": 3600000000,
+      "mode": "Critical"
     }
   },
   "profile": {

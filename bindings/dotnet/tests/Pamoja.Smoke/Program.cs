@@ -7158,6 +7158,35 @@ static void ConformPower(JsonElement vector)
         dutyWant.GetProperty("fraction").GetSingle());
     Assert(duty.ActiveUs == dutyWant.GetProperty("activeUs").GetUInt64(), "the time awake");
     Assert(duty.SleepUs == dutyWant.GetProperty("sleepUs").GetUInt64(), "the time asleep");
+
+    JsonElement tenthWant = vector.GetProperty("tenth");
+    DutyCycle tenth = DutyCycle.FromFraction(
+        tenthWant.GetProperty("periodUs").GetUInt64(),
+        tenthWant.GetProperty("fraction").GetSingle());
+    Assert(tenth.ActiveUs == tenthWant.GetProperty("activeUs").GetUInt64(), "a tenth awake");
+    Assert(tenth.SleepUs == tenthWant.GetProperty("sleepUs").GetUInt64(), "the rest asleep");
+    Assert(
+        tenth.PeriodUs == tenthWant.GetProperty("periodUs").GetUInt64(),
+        "adding up to the period");
+
+    JsonElement unreadable = vector.GetProperty("unreadable");
+    Assert(
+        plan.Mode(float.NaN).ToString() == unreadable.GetProperty("mode").GetString(),
+        "an unreadable charge");
+    Assert(
+        plan.ModeWhileCharging(float.NaN, true).ToString()
+            == unreadable.GetProperty("charging").GetString(),
+        "an unreadable charge while charging");
+    Assert(
+        plan.IntervalUs(float.NaN) == unreadable.GetProperty("intervalUs").GetUInt64(),
+        "the interval at an unreadable charge");
+    DutyCycle asleep = DutyCycle.FromFraction(dutyWant.GetProperty("periodUs").GetUInt64(), float.NaN);
+    Assert(
+        asleep.ActiveUs == unreadable.GetProperty("dutyActiveUs").GetUInt64(),
+        "an unreadable fraction keeps it asleep");
+    Assert(
+        asleep.SleepUs == unreadable.GetProperty("dutySleepUs").GetUInt64(),
+        "for the whole period");
 }
 
 static void ConformTelemetry(JsonElement vector)

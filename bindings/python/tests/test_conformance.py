@@ -2572,6 +2572,20 @@ def test_power_vectors_match():
     assert duty.active_us == vector["duty"]["activeUs"]
     assert duty.sleep_us == vector["duty"]["sleepUs"]
 
+    tenth_want = vector["tenth"]
+    tenth = power.DutyCycle.from_fraction(tenth_want["periodUs"], tenth_want["fraction"])
+    assert tenth.active_us == tenth_want["activeUs"]
+    assert tenth.sleep_us == tenth_want["sleepUs"]
+    assert tenth.period_us == tenth_want["periodUs"]
+
+    unreadable = vector["unreadable"]
+    assert plan.mode(float("nan")) == unreadable["mode"]
+    assert plan.mode_while_charging(float("nan"), True) == unreadable["charging"]
+    assert plan.interval_us(float("nan")) == unreadable["intervalUs"]
+    asleep = power.DutyCycle.from_fraction(vector["duty"]["periodUs"], float("nan"))
+    assert asleep.active_us == unreadable["dutyActiveUs"]
+    assert asleep.sleep_us == unreadable["dutySleepUs"]
+
 
 def test_telemetry_vectors_match():
     vector = VECTORS["telemetry"]

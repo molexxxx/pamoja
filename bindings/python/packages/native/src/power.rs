@@ -37,10 +37,15 @@ impl DutyCycle {
     }
 
     /// Creates a duty cycle that spends `fraction` of `period_us` awake.
+    ///
+    /// The fraction is clamped to 0 through 1, and one that is not a number keeps the node
+    /// asleep for the whole period. The time awake is rounded down to a whole microsecond
+    /// and the rest of the period is spent asleep, so the two always add up to the period.
     #[staticmethod]
     fn from_fraction(period_us: u64, fraction: f32) -> Self {
+        let split = CoreDutyCycle::from_fraction(Duration::from_micros(period_us), fraction);
         DutyCycle {
-            inner: CoreDutyCycle::from_fraction(Duration::from_micros(period_us), fraction),
+            inner: whole(split),
         }
     }
 
@@ -112,6 +117,9 @@ impl PowerPlan {
     }
 
     /// Returns the mode this plan calls for at a state of charge, by name.
+    ///
+    /// A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+    /// as critical.
     fn mode(&self, soc: f32) -> String {
         name(self.inner.mode(soc))
     }
@@ -130,6 +138,13 @@ impl PowerPlan {
     fn interval_us(&self, soc: f32) -> u64 {
         micros(self.inner.interval(soc))
     }
+}
+
+/// Rounds the awake half of a split down to a whole microsecond and gives the rest of the
+/// period to sleep, so the halves that cross add up to the period.
+fn whole(split: CoreDutyCycle) -> CoreDutyCycle {
+    let active = Duration::from_micros(micros(split.active()));
+    CoreDutyCycle::new(active, split.period() - active)
 }
 
 /// Narrows a duration to the microseconds the boundary carries.

@@ -111,6 +111,10 @@ impl PowerPlan {
 
     /// Returns the mode for the given state of charge.
     ///
+    /// A charge that is not a number, such as a fuel gauge that failed to answer, is
+    /// taken as critical: a node that cannot tell how much it has left does the least
+    /// until it can.
+    ///
     /// # Arguments
     ///
     /// * `soc` - the battery state of charge in `[0.0, 1.0]`.
@@ -119,7 +123,7 @@ impl PowerPlan {
     ///
     /// The [`PowerMode`] the node should run in.
     pub fn mode(&self, soc: f32) -> PowerMode {
-        if soc < self.critical_below {
+        if soc.is_nan() || soc < self.critical_below {
             PowerMode::Critical
         } else if soc < self.saver_below {
             PowerMode::Saver
@@ -233,5 +237,17 @@ mod tests {
         let plan = plan().thresholds(0.7, 0.3);
         assert_eq!(plan.mode(0.65), PowerMode::Saver);
         assert_eq!(plan.mode(0.25), PowerMode::Critical);
+    }
+
+    #[test]
+    fn a_charge_that_is_not_a_number_is_taken_as_critical() {
+        let plan = plan();
+        assert_eq!(plan.mode(f32::NAN), PowerMode::Critical);
+        assert_eq!(plan.interval(f32::NAN), Duration::from_secs(3600));
+        assert_eq!(
+            plan.mode_while_charging(f32::NAN, true),
+            PowerMode::Saver,
+            "a delivering panel still buys back one mode"
+        );
     }
 }

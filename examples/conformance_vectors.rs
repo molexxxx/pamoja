@@ -6171,6 +6171,10 @@ fn power() -> Value {
     );
     let charges = [1.0f32, 0.6, 0.5, 0.49, 0.2, 0.19, 0.0];
     let duty = DutyCycle::from_fraction(core::time::Duration::from_micros(1_000_000), 0.25);
+    let tenth = DutyCycle::from_fraction(core::time::Duration::from_micros(60_000_000), 0.1);
+    let tenth_active = tenth.active().as_micros() as u64;
+    let unreadable = f32::NAN;
+    let asleep = DutyCycle::from_fraction(core::time::Duration::from_micros(1_000_000), unreadable);
 
     json!({
         "plan": {
@@ -6198,6 +6202,19 @@ fn power() -> Value {
             "fraction": 0.25,
             "activeUs": duty.active().as_micros() as u64,
             "sleepUs": duty.sleep().as_micros() as u64,
+        },
+        "tenth": {
+            "periodUs": 60_000_000u64,
+            "fraction": 0.1f32,
+            "activeUs": tenth_active,
+            "sleepUs": 60_000_000 - tenth_active,
+        },
+        "unreadable": {
+            "mode": power_mode_name(plan.mode(unreadable)),
+            "charging": power_mode_name(plan.mode_while_charging(unreadable, true)),
+            "intervalUs": plan.interval(unreadable).as_micros() as u64,
+            "dutyActiveUs": asleep.active().as_micros() as u64,
+            "dutySleepUs": asleep.sleep().as_micros() as u64,
         },
     })
 }
