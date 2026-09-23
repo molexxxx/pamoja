@@ -61,20 +61,27 @@ impl Quantizer {
     /// A scale of `100` keeps two decimal places. It must be positive and finite,
     /// and decoding must use the same scale the batch was encoded with.
     #[new]
-    fn new(scale: f32) -> PyResult<Self> {
-        if !scale.is_finite() || scale <= 0.0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "scale must be positive and finite",
-            ));
+    fn new(scale: f64) -> PyResult<Self> {
+        let narrowed = scale as f32;
+        if !narrowed.is_finite() || narrowed <= 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "a quantizer's scale must be a positive, finite number, not {scale}"
+            )));
         }
         Ok(Self {
-            inner: Inner::new(scale),
+            inner: Inner::new(narrowed),
         })
     }
 
     /// Quantizes and delta-encodes a batch of readings.
-    fn encode<'py>(&self, py: Python<'py>, readings: Vec<f32>) -> Bound<'py, PyBytes> {
-        PyBytes::new(py, &self.inner.encode(&readings))
+    ///
+    /// A reading that is not a number, is infinite, or is too large for the scale is
+    /// refused, since the format has no way to carry a missing reading.
+    fn encode<'py>(&self, py: Python<'py>, readings: Vec<f32>) -> PyResult<Bound<'py, PyBytes>> {
+        self.inner
+            .encode(&readings)
+            .map(|bytes| PyBytes::new(py, &bytes))
+            .map_err(to_py)
     }
 
     /// Decodes a batch back into readings, to within the quantizer's precision.

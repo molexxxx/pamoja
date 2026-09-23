@@ -560,7 +560,7 @@ The mistakes that cost an afternoon:
 ## Where next
 
 <!-- table: next coap -->
-- [Codecs](codec.md): CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links.
+- [Codecs](codec.md): CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links.
 - [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
 - [Store and forward](sync.md): Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns.
 - Also in Transports and testing: [MQTT](mqtt.md), [Loopback](loopback.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).

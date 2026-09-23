@@ -18,6 +18,10 @@
 //! formats without a Rust type for it, which is what a caller holding an untyped
 //! payload needs in order to reach the compact form.
 //!
+//! The crate is `no_std` and needs only `alloc`. The [`Codec`] trait, [`BytesCodec`],
+//! and the packers build for a microcontroller with default features off; the CBOR and
+//! JSON codecs rely on libraries that use the standard library.
+//!
 //! # Examples
 //!
 //! A little-endian codec for `u32` values:
@@ -45,6 +49,12 @@
 //! let encoded = codec.encode(&42).unwrap();
 //! assert_eq!(codec.decode(&encoded).unwrap(), 42);
 //! ```
+
+#![cfg_attr(not(test), no_std)]
+
+extern crate alloc;
+
+use alloc::vec::Vec;
 
 use pamoja_core::Result;
 

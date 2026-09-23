@@ -14,9 +14,10 @@ authors.workspace = true
 
 [features]
 default = ["cbor", "json"]
-# Compact CBOR framing for constrained devices and metered links.
+# Compact CBOR framing for constrained devices and metered links. It uses the standard
+# library, so a microcontroller build turns it off.
 cbor = ["dep:ciborium"]
-# Human-readable JSON framing for interop and debugging.
+# Human-readable JSON framing for interop and debugging. It uses the standard library.
 json = ["dep:serde_json"]
 
 [dependencies]

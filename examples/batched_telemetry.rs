@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
 
     // Metered: quantize to 0.01 C and delta-encode the whole batch.
     let quantizer = Quantizer::new(100.0);
-    let packed = quantizer.encode(&batch);
+    let packed = quantizer.encode(&batch)?;
 
     println!("{} readings", batch.len());
     println!("raw CBOR:     {} bytes", raw.len());

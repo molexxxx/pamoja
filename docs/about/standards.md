@@ -211,7 +211,7 @@ The wire formats readings and manifests are written in.
 </header>
 <p class="hw-summary">The published signed-integer mapping, asserted value by value.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://protobuf.dev/programming-guides/encoding/"><span class="hw-main"><b>The document</b><small>Protocol Buffers encoding</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-codec/src/delta.rs#L268"><span class="hw-main"><b>The test</b><small><code>delta.rs</code> line 268</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-codec/src/delta.rs#L407"><span class="hw-main"><b>The test</b><small><code>delta.rs</code> line 407</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-4648">

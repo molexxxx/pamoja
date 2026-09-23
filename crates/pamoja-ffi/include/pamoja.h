@@ -7071,8 +7071,10 @@ PamojaStatus pamoja_codec_decode_deltas(const uint8_t *bytes,
 //
 // [`PamojaStatus::Ok`] on success, with `*out_buffer` set to a new buffer handle
 // the caller must release with
-// [`pamoja_buffer_free`](crate::pamoja_buffer_free), or
-// [`PamojaStatus::InvalidArgument`] if `scale` is not positive and finite.
+// [`pamoja_buffer_free`](crate::pamoja_buffer_free),
+// [`PamojaStatus::InvalidArgument`] if `scale` is not positive and finite, or
+// [`PamojaStatus::Codec`] if a reading is not a number, is infinite, or is too
+// large for the scale; the format has no way to carry a missing reading.
 //
 // # Safety
 //

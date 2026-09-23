@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     for _ in 0..20 {
         batch.push(probe.read().await?);
     }
-    let payload = Quantizer::new(100.0).encode(&batch);
+    let payload = Quantizer::new(100.0).encode(&batch)?;
     println!(
         "{} readings packed into {} bytes",
         batch.len(),

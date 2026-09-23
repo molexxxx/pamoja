@@ -1,6 +1,6 @@
 # pamoja-codec
 
-CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/codec.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -26,38 +26,56 @@ From [`bindings/python/guides/codec.py`](https://github.com/molexxxx/pamoja/blob
 
 ```python
 import json
+import math
 
 from pamoja.codec import Quantizer, from_cbor, pack_samples, to_cbor, unpack_samples
+from pamoja.core import PamojaError
+from pamoja.lora import plan_for
 
-# The same reading as JSON and as CBOR. Nothing is lost, and 21.5 rides as a
-# half-precision float, the shortest form RFC 8949 allows for it.
-reading = {"c": 21.5, "ok": True}
+# The gauge reports over LoRaWAN in the US915 plan, at the slowest data rate because it
+# reaches farthest. An uplink there carries only a few bytes of payload.
+budget = plan_for("US915").max_payload(0).application
+
+
+def fits(size: int) -> str:
+    return "fits one uplink" if size <= budget else "too big for one uplink"
+
+
+print(f"uplink    carries {budget} bytes at the slowest US915 data rate")
+
+# One reading as the JSON a web service would take. CBOR carries the same document in
+# fewer bytes, but every key name still rides along with every reading.
+reading = {"depth_cm": 142.5, "air_c": -6.5, "battery_mv": 3712}
 as_json = json.dumps(reading, separators=(",", ":")).encode()
 cbor = to_cbor(reading)
-print(f"json      {len(as_json)} bytes")
-print(f"cbor      {len(cbor)} bytes")
+print(f"json      {len(as_json)} bytes, {fits(len(as_json))}")
+print(f"cbor      {len(cbor)} bytes, {fits(len(cbor))}")
+print(f"cbor      reads back as {json.dumps(from_cbor(cbor), separators=(',', ':'))}")
 
-# A gateway that speaks JSON gets it back unchanged, so the compact form is a transport
-# choice rather than a different data model.
-restored = from_cbor(cbor)
-print(f"back to json, unchanged: {restored == reading}")
+# A batch the gauge and the server agree on needs no key names. Six hourly depths, kept to
+# the millimeter, pack to a count, the first depth, and five small steps.
+quantizer = Quantizer(10)
+depths = [142.5, 143.8, 145.2, 146.0, 145.7, 145.5]
+depth_batch = quantizer.encode(depths)
+depth_bytes = len(depth_batch)
+print(f"depths    {len(depths)} readings in {depth_bytes} bytes, {fits(depth_bytes)}")
+depths_back = [f"{depth:.1f}" for depth in quantizer.decode(depth_batch)]
+print(f"depths    read back as {', '.join(depths_back)}")
 
-# A batch of readings packs to a count, then the difference between each sample and the
-# one before it. Successive readings differ by very little, so the differences cost about
-# a byte each where the samples would cost eight.
-samples = [10, 11, 13, 12, 900]
-packed = pack_samples(samples)
-print(f"batch     {len(samples)} samples in {len(packed)} bytes")
-print(f"unpacked  {unpack_samples(packed)}")
+# Battery millivolts are whole numbers already, so they pack with no scale, and a falling
+# voltage packs as small as a rising one.
+battery = [3712, 3709, 3705, 3702, 3698, 3695]
+battery_batch = pack_samples(battery)
+battery_bytes = len(battery_batch)
+print(f"battery   {len(battery)} readings in {battery_bytes} bytes, {fits(battery_bytes)}")
+print(f"battery   reads back as {', '.join(map(str, unpack_samples(battery_batch)))}")
 
-# Readings that arrive as floats pack the same way once a scale is chosen. Nothing in the
-# bytes records that scale, so the sender and the receiver have to agree on it.
-quantizer = Quantizer(100)
-celsius = [20.0, 20.1, 20.2, 20.3]
-packed_celsius = quantizer.encode(celsius)
-recovered = quantizer.decode(packed_celsius)
-print(f"degrees   {len(celsius)} readings in {len(packed_celsius)} bytes")
-print(f"recovered {[round(value, 1) for value in recovered]}")
+# Heavy snowfall can swallow the sensor's echo, leaving no depth at all. The quantizer
+# refuses the batch rather than send the gap as a depth.
+try:
+    quantizer.encode([145.5, math.nan])
+except PamojaError as error:
+    print(f"depths    refused a batch with a missing depth: {error}")
 ```
 
 ## The same capability in every language

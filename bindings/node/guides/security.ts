@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 
 // ANCHOR: example
-import { DeviceIdentity, fingerprint, verify } from '@pamoja/security'
+import { DeviceIdentity, fingerprint, verify, verifyMessage } from '@pamoja/security'
 
 // The seed is provisioned into the device once and never leaves it. A real one comes from
 // the factory or a secure element; any 32 bytes stand in here.
@@ -39,9 +39,31 @@ if (verify(impostor.publicKey(), reading, signature)) {
 } else {
   console.log("rejected   a signature offered under another device's key")
 }
+
+// On a link the signature and the reading usually travel as one message, signature first,
+// and the gateway gets the reading back only once it has checked it.
+const message = device.signMessage(reading)
+const size = message.length
+console.log(`message    ${size} bytes on the wire, the signature and the reading together`)
+const carried = verifyMessage(gatewayKey, message)
+if (carried) {
+  console.log(`accepted   ${carried.toString()}, read out of the message`)
+} else {
+  console.log('rejected   a message the device really did sign, which should never happen')
+}
+
+// A message that lost its last byte on the way is refused whole.
+if (verifyMessage(gatewayKey, message.subarray(0, size - 1))) {
+  console.log('accepted   a message cut short, which should never happen')
+} else {
+  console.log('rejected   a message that lost its last byte on the way')
+}
 // ANCHOR_END: example
 
 assert.deepEqual(device.sign(reading), signature)
 assert.ok(verify(gatewayKey, reading, signature))
 assert.ok(!verify(gatewayKey, edited, signature))
 assert.ok(!verify(impostor.publicKey(), reading, signature))
+assert.equal(message.length, 64 + Buffer.byteLength(reading))
+assert.equal(verifyMessage(gatewayKey, message)?.toString(), reading)
+assert.equal(verifyMessage(gatewayKey, message.subarray(0, message.length - 1)), null)

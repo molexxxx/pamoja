@@ -154,7 +154,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="python-codec">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">pamoja.codec</code><p>CBOR, JSON, and raw codecs behind one trait, delta and varint batch packing, and an f32 quantizer for metered links</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/codec.html">Codecs</a><code class="pkg-import">pamoja.codec</code><p>CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings</p></div>
 <div class="pkg-get"><code class="cmd">pip install pamoja-codec</code><button class="copy" type="button" data-copy="pip install pamoja-codec" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

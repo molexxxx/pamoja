@@ -226,7 +226,7 @@ fn codec() -> Value {
         "quantizer": {
             "scale": scale,
             "readings": readings,
-            "packed": hex(&Quantizer::new(scale).encode(&readings)),
+            "packed": hex(&Quantizer::new(scale).encode(&readings).expect("finite readings")),
             "tolerance": 1.0 / f64::from(scale),
         },
     })

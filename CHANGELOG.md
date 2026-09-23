@@ -231,6 +231,21 @@ released together, so one entry covers all of them.
   backlog held through a storm, and orders from shore, printing the same nine lines in all
   four languages. Its tables cover the calls in each language, what a send does in each
   state, the stores a ladder buffers into, and what each error means.
+- The codec's packers build without the standard library. `pamoja-codec` is `no_std`, and
+  with default features off the `Codec` trait, `BytesCodec`, `encode_deltas`,
+  `decode_deltas`, and `Quantizer` cross-compile for a Cortex-M4F in CI, so a node packs its
+  own batch before it transmits. The CBOR and JSON codecs still use the standard library.
+- The codecs guide rewritten around a snow gauge on a ridge that has to fit what it reports
+  into the 11 bytes a US915 uplink carries at the slowest data rate: one reading as JSON and
+  as CBOR, neither of which fits, then six hours of depths through the quantizer and battery
+  voltages through the integer packer, each fitting one uplink, and a batch with a missing
+  depth refused, printing the same nine lines in all four languages. Its tables cover the
+  calls and the types each language hands in, the three codecs, how a batch is laid out,
+  what a step and a CBOR value cost, how to choose a scale, and what each error means.
+- The device identity guide gains the signed message, the form a reading usually takes on a
+  link, and a message cut short that is refused whole, printing the same seven lines in all
+  four languages. Its tables cover the calls on the device and on the gateway in each
+  language, the sizes, and what each check says when it fails.
 - The stepper drivers in TypeScript, Python, and C#: `FourWire` for four coil lines
   through a ULN2003 or an H-bridge, and `StepDir` for a step and direction chip such as
   the A4988 or the DRV8825, each over any output line, a `GpioLine` on a board or a
@@ -734,6 +749,18 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- `Quantizer::encode` returns a `Result` in Rust, and throws in the other languages, for a
+  reading that is not a number, is infinite, or is too large for the scale, such as
+  `codec error: reading 1 is NaN, which cannot be quantized`. A scale that is not a positive,
+  finite number is refused with the same message in every language: in Rust from `encode`
+  and `decode`, and elsewhere from the constructor.
+- A packed batch that ends early now says `the batch ends part-way through a value` rather
+  than `truncated varint`, and one holding a value past 64 bits says
+  `a value in the batch does not fit in 64 bits` rather than `varint is too long`.
+- `to_cbor` in Python raises `ValueError` for a document holding a NaN or an infinity, which
+  JSON has no way to write, where the core refused the text with a parser error.
+- `LoraChannelPlan.maxPayload` in TypeScript takes the data rate first and the table second,
+  defaulting to an uplink sent directly, as it does in Python and C#.
 - On the event bus in TypeScript, Python, and C#, only the waits wait. An endpoint's
   `subscribe` and `publish` return at once rather than a promise or a coroutine in
   TypeScript and Python, and C#'s `PublishAsync` is now `Publish`. A wait gives the event
@@ -904,6 +931,23 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A quantizer packed a reading that was not a number as 0 and an infinite one as the largest
+  64-bit number, so a sensor's missing reading arrived as a real one. It refuses both now.
+- A packed batch followed by more bytes decoded as the batch alone, so two batches run
+  together lost the second without a word. The bytes are refused now:
+  `codec error: 2 bytes follow the batch's last sample`. A value longer than 64 bits was cut
+  to 64 rather than refused.
+- `packSamples` in TypeScript cut a fraction to its whole part, packed a NaN as 0, and
+  rounded a sample past `Number.MAX_SAFE_INTEGER`, and `unpackSamples` rounded one on the way
+  back. Both refuse such a sample now, `sample 1 is 10.5, which is not a whole number`.
+- A CBOR document that failed to decode said so in the library's debug form, such as
+  `Semantic(None, "...")`. The codec puts it into words now:
+  `the CBOR ends part-way through a value`, `the CBOR is malformed at byte 3`, or
+  `the CBOR has no JSON form:` and why.
+- `DeviceIdentity.Verify`, `VerifyMessage`, and `FingerprintOf` in C# read past the end of a
+  key shorter than 32 bytes or a signature shorter than 64, since the native call reads a
+  fixed length. They throw `ArgumentException` now, and `VerifyMessage` returns null only for
+  a message that fails its check, throwing for any other failure.
 - An event bus endpoint in TypeScript and Python could not publish or subscribe while its own
   wait for the next event was open: the call waited behind the wait, for good if nothing else
   published. In C#, a publish beside a waiting `NextAsync` reached the native endpoint

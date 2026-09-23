@@ -1123,8 +1123,11 @@ export declare class LoraChannelPlan {
   /**
    * Returns what a data rate may carry in one frame, or null where the plan
    * publishes no limit for it.
+   *
+   * The table defaults to `UplinkDirect`, an uplink from a device that does not sit
+   * behind a repeater.
    */
-  maxPayload(table: LoraPayloadTable, dataRate: number): LoraMaxPayload | null
+  maxPayload(dataRate: number, table?: LoraPayloadTable | undefined | null): LoraMaxPayload | null
   /**
    * Returns the share of time a transmitter may hold a frequency, in parts per
    * thousand, or null if the frequency falls in no sub-band this plan
@@ -2444,7 +2447,12 @@ export declare class Quantizer {
    * and decoding must use the same scale the batch was encoded with.
    */
   constructor(scale: number)
-  /** Quantizes and delta-encodes a batch of readings. */
+  /**
+   * Quantizes and delta-encodes a batch of readings.
+   *
+   * A reading that is not a number, is infinite, or is too large for the scale is
+   * refused, since the format has no way to carry a missing reading.
+   */
   encode(readings: Array<number>): Buffer
   /** Decodes a batch back into readings, to within the quantizer's precision. */
   decode(bytes: Buffer): Array<number>
@@ -3917,7 +3925,12 @@ export interface Coord {
 /** Suppresses movement within `width` of `center`, so noise does not act. */
 export declare function deadband(value: number, center: number, width: number): number
 
-/** Decodes a delta-encoded buffer back into its integer samples. */
+/**
+ * Decodes a delta-encoded buffer back into its integer samples.
+ *
+ * A sample past what a JavaScript number holds exactly is refused rather than
+ * rounded, since packing is meant to lose nothing.
+ */
 export declare function decodeDeltaSamples(bytes: Buffer): Array<number>
 
 /**
@@ -4058,7 +4071,12 @@ export interface ElementSpec {
   state?: string
 }
 
-/** Delta-encodes a series of integer samples into a compact buffer. */
+/**
+ * Delta-encodes a series of integer samples into a compact buffer.
+ *
+ * A sample must be a whole number a JavaScript number holds exactly. Anything else is
+ * refused rather than rounded, since packing is meant to lose nothing.
+ */
 export declare function encodeDeltaSamples(samples: Array<number>): Buffer
 
 /** Encodes the body of a manifest, which is the part a signature covers. */
