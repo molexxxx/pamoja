@@ -103,7 +103,7 @@ to a card on SPI alone.
 | `concentrator.front_end` | `sx1250`, or `sx1255`, `sx1257`, `sx125x` for the older boards. | `sx1250` |
 | `concentrator.clock` | Which chain the concentrator takes its clock from, `a` or `b`. | `a` |
 | `concentrator.single_input` | Whether the board wires its front ends single ended rather than differential. | `false` |
-| `concentrator.listen_before_talk` | The SX1261 beside the concentrator and the channels it checks, for a gateway that has to listen before it talks. See below. | off |
+| `concentrator.sx1261` | The SX1261 beside the concentrator, and its jobs: the channels it checks before the gateway talks, the band it surveys, or both. See below. | off |
 | `radio.carrier_hz` | The carrier every channel offset is measured from. | |
 | `radio.channels` | One to eight offsets from it, in hertz, signed. | |
 | `radio.spreading_factors` | Which factors to look for, each 5 to 12. | all of them |
@@ -173,25 +173,28 @@ the chip accepts the number, and those channels then hear nothing at all.
 Anything the file is missing or cannot use is refused by name, so a gateway that
 will not start says which field to fix rather than that the file is wrong.
 
-## Listening before talking
+## The radio beside the concentrator
 
-Some rules forbid transmitting into a channel someone else is already using:
-ARIB STD-T108 in Japan, and Korea's rules for the 920 MHz band. A gateway under
-them carries an SX1261 beside the concentrator, as Semtech's CoreCell reference
-does, and checks each channel before it transmits on it. `listen_before_talk`
-turns that on:
+Semtech's CoreCell reference carries a second radio, an SX1261, for two things
+the concentrator cannot do for itself: check a channel is free before the gateway
+transmits on it, and survey the band. Both run from the same patch, so the radio
+is named once under `sx1261`, and each job is a section inside it. A radio with
+neither job is refused rather than brought up for nothing.
 
 ```json
-"listen_before_talk": {
+"sx1261": {
   "spi": "/dev/spidev0.1",
   "reset_line": 22,
   "patch": "/opt/sx1302_hal/libloragw/src/sx1261_pram.var",
   "rssi_offset_db": 0,
-  "threshold_dbm": -80,
-  "channels": [
-    { "frequency_hz": 920600000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 },
-    { "frequency_hz": 920800000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 }
-  ]
+  "listen_before_talk": {
+    "threshold_dbm": -80,
+    "channels": [
+      { "frequency_hz": 920600000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 },
+      { "frequency_hz": 920800000, "bandwidth_hz": 125000, "scan_time_us": 5000, "transmit_time_ms": 4000 }
+    ]
+  },
+  "spectral_scan": { "start_hz": 920600000, "channels": 8, "samples": 2000, "every_s": 10 }
 }
 ```
 
@@ -199,8 +202,20 @@ turns that on:
 | --- | --- | --- |
 | `spi` | The SX1261's own SPI device, for a card on SPI. A USB card reaches it through its bridge and names none. | |
 | `reset_line` | Its reset line on the concentrator's GPIO chip, for a card on SPI. | |
-| `patch` | Semtech's `sx1261_pram.var`, from `sx1302_hal`, which gives the radio its carrier check. | |
+| `patch` | Semtech's `sx1261_pram.var`, from `sx1302_hal`, which gives the radio its carrier check and its scan. | |
 | `rssi_offset_db` | The board's correction to the levels the radio measures. | `0` |
+| `listen_before_talk` | The channels the gateway checks before it talks. | off |
+| `spectral_scan` | The band the gateway surveys. | off |
+
+### Listening before talking
+
+Some rules forbid transmitting into a channel someone else is already using:
+ARIB STD-T108 in Japan, and Korea's rules for the 920 MHz band. A gateway under
+them names the channels it checks, the level above which one counts as busy, and
+how long a transmission may hold one.
+
+| Field | Value | Default |
+| --- | --- | --- |
 | `threshold_dbm` | The level above which a channel counts as busy, -127 to 0 dBm. | |
 | `channels` | Each channel the gateway may transmit on. | |
 | `channels[].frequency_hz` | The channel's carrier. | |
@@ -221,6 +236,34 @@ time, the chain is armed, and the gain control reports whether the packet went
 out. A channel found busy leaves the packet unsent. A gateway that checks
 channels transmits on no others, which is what the reference does, so the second
 receive window's frequency belongs in the list as well.
+
+### Surveying the band
+
+A survey says what else is on the air where the gateway listens: a channel
+that is always busy, a neighbor on the wrong frequency, a noise floor that has
+crept up. The SX1261 scans one channel at a time between the gateway's other
+work, counting how many of its samples were at or above each of thirty-three
+levels, four decibels apart, and the daemon prints the counts:
+
+```text
+pamoja-gateway: spectral scan 867100000 Hz, from -3 dBm down in 4 dB steps: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 7 15 40 128 512 1204 1802 1980 2000 2000 2000 2000
+```
+
+The channels are 200 kHz apart from the first, and the sweep starts over after
+the last. A scan stands aside for a downlink, since the radio is wanted for the
+carrier check and the chain is about to be busy, and one that runs two seconds is
+abandoned, both as the reference's scan thread does.
+
+| Field | Value | Default |
+| --- | --- | --- |
+| `start_hz` | The first channel's carrier. | |
+| `channels` | How many channels, 200 kHz apart, from there; 1 to 255. | |
+| `samples` | How many samples each scan takes; 1 to 65535. | |
+| `every_s` | Seconds between scans, held to at least one. | `10` |
+
+The reference names these `freq_start`, `nb_chan`, `nb_scan` and `pace_s`, under
+its own `sx1261_conf.spectral_scan`, so its example values carry across
+unchanged.
 
 Naming a `station` upstream instead of a `forwarder` runs the other protocol.
 The gateway asks that address where its network server is, opens the websocket

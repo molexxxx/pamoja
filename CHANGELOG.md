@@ -9,6 +9,20 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A survey of the band from a gateway's SX1261. `pamoja-gateway` takes a
+  `spectral_scan` section under `concentrator.sx1261`, beside `listen_before_talk`,
+  naming where the survey starts, how many channels it covers 200 kHz apart, how many
+  samples each scan takes and how often one runs. The daemon scans one channel at a
+  time between its other work and prints how many samples were at or above each of
+  thirty-three levels, four decibels apart, the way Semtech's packet forwarder's scan
+  thread does: a scan stands aside for a downlink, one that runs two seconds is
+  abandoned, and a downlink that arrives mid-scan abandons it first. The schedule is
+  `pamoja_gateway::daemon::scan::Sweep`, which decides which channel is next, whether
+  a scan is due and whether one has run too long, so it is tested without a radio.
+  The radio's wiring and patch moved under `concentrator.sx1261` with the two jobs
+  as sections inside it, since both run from the same patch and the reference lays
+  them out that way; a radio named with neither job is refused. The gateway page
+  covers both.
 - The four LoRaWAN application layer packages, and the update block they carry, in
   every language. TypeScript, Python and C# gain the multicast key chain and the
   parity matrix as plain calls, the clock synchronization package, the firmware
@@ -399,11 +413,12 @@ released together, so one entry covers all of them.
   the image, points the receiver at a channel, runs a carrier check and a spectral
   scan, each transfer as Semtech's `sx1302_hal` makes it. `Sx1302::checked_transmission`
   reads from the gain control whether a checked packet went out, and `Sx1302::abort`
-  takes back an armed one. The `pamoja-gateway` daemon takes a `listen_before_talk`
-  section naming the radio, its patch, the threshold and the channels, holds each
-  downlink on a checked channel until 80 ms before its window, checks the channel,
-  and reports a busy one rather than transmitting into it. The gateway page covers
-  the configuration and what the daemon answers.
+  takes back an armed one. The `pamoja-gateway` daemon names the radio and its patch
+  under an `sx1261` section, with the threshold and the channels it checks in a
+  `listen_before_talk` section inside it; it holds each downlink on a checked channel
+  until 80 ms before its window, checks the channel, and reports a busy one rather
+  than transmitting into it. The gateway page covers the configuration and what the
+  daemon answers.
 - A channel plan's rules in C, TypeScript, Python and C#: its kind and channel list
   numbering, whether it answers `TXParamSetupReq`, what each `ChMaskCntl` value
   does, its numbered downlink channels and where the first receive window lands
