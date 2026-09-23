@@ -508,8 +508,16 @@ fn order(buys: &mut toml_edit::ArrayOfTables) {
     }
 }
 
-// A price string such as "US$14.95" or "£11.50" as an amount in dollars, for ordering.
-fn usd(price: &str) -> Option<f64> {
+/// A price string such as "US$14.95" or "£11.50" as an amount in dollars, for ordering.
+///
+/// # Arguments
+///
+/// * `price` - the price as the hardware reference records it.
+///
+/// # Returns
+///
+/// The amount at the indicative rates, or `None` for a currency they do not cover.
+pub(crate) fn usd(price: &str) -> Option<f64> {
     let (currency, digits) = if let Some(rest) = price.strip_prefix("US$") {
         ("USD", rest)
     } else if let Some(rest) = price.strip_prefix('£') {

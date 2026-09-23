@@ -253,6 +253,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .article h4 { font-size: 1rem; font-weight: 700; font-stretch: var(--cond); text-transform: uppercase; letter-spacing: var(--track); margin: 1.6rem 0 0.5rem; }
 .article p, .article li { color: var(--ink); }
 .article p { margin: 0 0 1rem; max-width: 68ch; }
+.article time { white-space: nowrap; }
 .article ul, .article ol { margin: 0 0 1.1rem; padding-left: 1.3rem; max-width: 68ch; }
 .article li + li { margin-top: 0.3rem; }
 .article li > p { margin-bottom: 0.35rem; }
