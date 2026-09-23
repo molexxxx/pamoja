@@ -83,6 +83,9 @@ internal delegate TResult NativeConfigAction<out TResult>(ref PamojaCoapConfig c
 /// CoAP is the transport for links where MQTT is more than the budget allows: it
 /// runs over UDP, its headers are a handful of bytes, and a node can fire a
 /// reading and forget it rather than holding a session open.
+///
+/// Calls on one endpoint run one at a time, so a send made while a receive is
+/// waiting runs once the receive returns.
 /// </remarks>
 public sealed class CoapClient : IDisposable
 {
@@ -97,13 +100,14 @@ public sealed class CoapClient : IDisposable
         _handle = options.WithNativeConfig((ref PamojaCoapConfig config) => NativeHandle.Create(
             NativeMethods.pamoja_coap_client_new(ref config),
             NativeMethods.pamoja_coap_client_free,
-            "CoAP endpoint"));
+            "CoAP endpoint",
+            serialized: true));
     }
 
     /// <summary>Binds the local socket so the endpoint can carry traffic.</summary>
     /// <exception cref="PamojaException">The socket could not be bound.</exception>
-    public Task ConnectAsync() => Task.Run(() => Status.ThrowIfError(
-        _handle.Use(NativeMethods.pamoja_coap_client_connect)));
+    public Task ConnectAsync() => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_coap_client_connect(handle)));
 
     /// <summary>Sends text to a resource path: words, or a number written out.</summary>
     /// <param name="topic">The resource path.</param>
@@ -119,14 +123,13 @@ public sealed class CoapClient : IDisposable
     public Task SendAsync(string topic, ReadOnlyMemory<byte> payload)
     {
         byte[] bytes = payload.ToArray();
-        return Task.Run(() =>
+        return _handle.UseAsync(handle =>
         {
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                Status.ThrowIfError(_handle.Use(handle =>
-                    NativeMethods.pamoja_coap_client_send(
-                        handle, topicPtr, bytes, (nuint)bytes.Length)));
+                Status.ThrowIfError(NativeMethods.pamoja_coap_client_send(
+                    handle, topicPtr, bytes, (nuint)bytes.Length));
             }
             finally
             {
@@ -138,13 +141,12 @@ public sealed class CoapClient : IDisposable
     /// <summary>Observes a resource path, so messages published to it arrive.</summary>
     /// <param name="topic">The resource path.</param>
     /// <exception cref="PamojaException">The observation was refused.</exception>
-    public Task SubscribeAsync(string topic) => Task.Run(() =>
+    public Task SubscribeAsync(string topic) => _handle.UseAsync(handle =>
     {
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            Status.ThrowIfError(_handle.Use(handle =>
-                NativeMethods.pamoja_coap_client_subscribe(handle, topicPtr)));
+            Status.ThrowIfError(NativeMethods.pamoja_coap_client_subscribe(handle, topicPtr));
         }
         finally
         {
@@ -155,23 +157,41 @@ public sealed class CoapClient : IDisposable
     /// <summary>Waits for the next message on an observed path.</summary>
     /// <returns>The message, or <c>null</c> once the endpoint is closed.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
+    public Task<TransportMessage?> ReceiveAsync() => _handle.UseAsync(handle =>
     {
-        IntPtr message = IntPtr.Zero;
-        Status.ThrowIfError(_handle.Use(handle =>
-            NativeMethods.pamoja_coap_client_recv(handle, out message)));
+        Status.ThrowIfError(NativeMethods.pamoja_coap_client_recv(handle, out IntPtr message));
         return Messages.Take(message);
     });
 
+    /// <summary>Waits a limited time for the next message on an observed path.</summary>
+    /// <remarks>
+    /// When the time runs out nothing is lost: a message arriving afterwards waits
+    /// for the next receive.
+    /// </remarks>
+    /// <param name="timeout">How long to wait.</param>
+    /// <returns>The message, or <c>null</c> once the endpoint is closed.</returns>
+    /// <exception cref="TimeoutException">No message arrived in time.</exception>
+    /// <exception cref="PamojaException">The native call failed.</exception>
+    public Task<TransportMessage?> ReceiveAsync(TimeSpan timeout)
+    {
+        ulong milliseconds = Messages.Milliseconds(timeout);
+        return _handle.UseAsync(handle =>
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_coap_client_recv_within(
+                handle, milliseconds, out IntPtr message, out bool timedOut));
+            return timedOut ? throw Messages.TimedOut(timeout) : Messages.Take(message);
+        });
+    }
+
     /// <summary>Reports whether the local socket is bound.</summary>
     /// <returns><c>true</c> when bound.</returns>
-    public Task<bool> IsConnectedAsync() => Task.Run(() =>
-        _handle.Use(NativeMethods.pamoja_coap_client_is_connected));
+    public Task<bool> IsConnectedAsync() =>
+        _handle.UseAsync(NativeMethods.pamoja_coap_client_is_connected);
 
     /// <summary>Releases the socket the endpoint holds.</summary>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task DisconnectAsync() => Task.Run(() => Status.ThrowIfError(
-        _handle.Use(NativeMethods.pamoja_coap_client_disconnect)));
+    public Task DisconnectAsync() => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_coap_client_disconnect(handle)));
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

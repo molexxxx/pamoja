@@ -280,8 +280,11 @@ export declare class CoapClient {
   /**
    * Waits for the next message on an observed path, or `null` once the
    * endpoint is closed.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a message that arrives later
+   * waits for the next receive.
    */
-  recv(): Promise<TransportMessage | null>
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
   /** Whether the local socket is bound. */
   isConnected(): Promise<boolean>
   /** Releases the socket the endpoint holds. */
@@ -890,8 +893,11 @@ export declare class Ladder {
    * Throws if no connected rung listens: none was added, the ladder is not
    * connected, or every listening link has ended. The ladder is held while
    * waiting, so a send from elsewhere waits behind the receive.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a message that arrives later
+   * waits for the next receive.
    */
-  recv(): Promise<TransportMessage | null>
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
 }
 
 /**
@@ -924,10 +930,14 @@ export declare class LoopbackTransport {
   /** Subscribes this link to a topic. */
   subscribe(topic: string): Promise<void>
   /**
-   * Waits for the next message on a subscribed topic, or `null` once the link
-   * is closed.
+   * Waits for the next message on a subscribed topic. A connected link never ends on
+   * its own, so without a limit this waits until a message arrives. Rejects when the
+   * link is not connected.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a message that arrives later
+   * waits for the next receive.
    */
-  recv(): Promise<TransportMessage | null>
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
   /** Whether this link is connected. */
   isConnected(): Promise<boolean>
   /** Marks this link disconnected, so sends over it fail. */
@@ -2127,9 +2137,13 @@ export declare class MqttClient {
   subscribe(topic: string): Promise<void>
   /**
    * Awaits the next message from any subscribed topic, or `null` once the
-   * connection has ended.
+   * connection has ended. A connection that ends on its own rejects one receive
+   * with the reason.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a message that arrives later
+   * waits for the next receive.
    */
-  recv(): Promise<MqttMessage | null>
+  recv(timeoutMs?: number | undefined | null): Promise<MqttMessage | null>
   /** Reports whether the client currently holds an active connection. */
   isConnected(): Promise<boolean>
   /** Closes the connection and stops the background event loop. */
@@ -2882,6 +2896,13 @@ export declare class Tmp117 {
   get siliconRevision(): number | null
 }
 
+/**
+ * One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`, or to
+ * compose into a ladder or a wrapper.
+ *
+ * Build one with the static factories, then drive it or hand it to whatever should own it.
+ * A transport handed on is spent: calling anything on it afterwards throws.
+ */
 export declare class Transport {
   /** Creates an MQTT transport from broker settings. */
   static mqtt(options: MqttClientOptions): Transport
@@ -2920,6 +2941,29 @@ export declare class Transport {
   static degraded(inner: Transport, faults?: Faults | undefined | null): Transport
   /** Whether this transport is still holdable, or has been handed on. */
   get isAvailable(): boolean
+  /**
+   * Establishes the link. Rejects when it cannot be established, or when the transport
+   * was handed on.
+   */
+  connect(): Promise<void>
+  /**
+   * Publishes a payload to a topic: bytes, or text such as a reading written out. Rejects
+   * when the link refuses it, or when the transport was handed on.
+   */
+  send(topic: string, payload: Buffer | string): Promise<void>
+  /**
+   * Subscribes to a topic, with the `+` and `#` wildcards. Rejects when the link refuses
+   * it, or when the transport was handed on.
+   */
+  subscribe(topic: string): Promise<void>
+  /**
+   * Waits for the next message on a subscribed topic, or `null` once the link has ended.
+   * Rejects when the link fails, or when the transport was handed on.
+   *
+   * @param timeoutMs - how long to wait before rejecting; a message that arrives later
+   * waits for the next receive. Without it the receive waits as long as it takes.
+   */
+  recv(timeoutMs?: number | undefined | null): Promise<TransportMessage | null>
 }
 
 /** Fits a line through recent readings, so a slow drift is visible before it matters. */
@@ -3871,13 +3915,7 @@ export declare const enum EntityKindName {
  */
 export declare function envelopeBody(bytes: Buffer): Buffer
 
-/**
- * One transport, ready to compose into a ladder or a wrapper.
- *
- * Build one with the static factories, then hand it to whatever should own it.
- * A transport handed on is spent: calling anything on it afterwards throws.
- * Which faults a degraded link injects, each off unless named.
- */
+/** Which faults a degraded link injects, each off unless named. */
 export interface Faults {
   /** Lose one send in every this many. */
   dropEvery?: number
@@ -7205,6 +7243,12 @@ export interface MqttClientOptions {
   capacity?: number
   /** Default quality of service. Defaults to `AtLeastOnce` when omitted. */
   qos?: Qos
+  /**
+   * The largest packet the connection sends or accepts, in bytes. Defaults to 10,240
+   * when omitted. A publish that would be larger is refused and the connection stays
+   * up, but a larger packet arriving from the broker ends the connection.
+   */
+  maxPacketSize?: number
 }
 
 /** A message received from a subscribed topic. */

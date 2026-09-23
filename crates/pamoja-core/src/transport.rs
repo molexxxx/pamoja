@@ -311,6 +311,23 @@ mod tests {
     }
 
     #[test]
+    fn the_worked_examples_in_section_4_7_1_hold() {
+        assert!(topic_matches("sport/#", "sport"));
+        assert!(topic_matches(
+            "sport/tennis/player1/#",
+            "sport/tennis/player1/score/wimbledon"
+        ));
+        assert!(topic_matches("sport/tennis/+", "sport/tennis/player2"));
+        assert!(!topic_matches(
+            "sport/tennis/+",
+            "sport/tennis/player1/ranking"
+        ));
+        assert!(topic_matches("+/+", "/finance"));
+        assert!(topic_matches("/+", "/finance"));
+        assert!(!topic_matches("+", "/finance"));
+    }
+
+    #[test]
     fn leading_wildcards_do_not_match_dollar_topics() {
         assert!(!topic_matches("#", "$SYS/broker/uptime"));
         assert!(!topic_matches("+/broker", "$SYS/broker"));

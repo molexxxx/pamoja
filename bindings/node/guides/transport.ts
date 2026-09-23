@@ -12,10 +12,10 @@ const TOPIC = 'sensors/1/temperature'
 
 async function main() {
   // Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it reaches
-  // the rest of the framework through one contract. Anything that takes a link works with
-  // any of them, so a node is written once and pointed at whichever link it has.
+  // the rest of the framework as a Transport, driven with the same four calls: connect,
+  // subscribe, send, and recv. A node is written once and pointed at whichever link it has.
   const broker = new LoopbackBroker()
-  const gateway = broker.link()
+  const gateway: Transport = broker.rung()
   await gateway.connect()
   await gateway.subscribe(TOPIC)
 

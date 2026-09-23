@@ -35,4 +35,19 @@ public static class Messages
             NativeMethods.pamoja_message_free(message);
         }
     }
+
+    /// <summary>Converts a receive time limit to the whole milliseconds a native call takes.</summary>
+    /// <param name="timeout">The time limit, rounded up to the next millisecond.</param>
+    /// <returns>The milliseconds.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The time limit is negative.</exception>
+    public static ulong Milliseconds(TimeSpan timeout) => timeout < TimeSpan.Zero
+        ? throw new ArgumentOutOfRangeException(
+            nameof(timeout), timeout, "a time limit cannot be negative")
+        : (ulong)Math.Ceiling(timeout.TotalMilliseconds);
+
+    /// <summary>Builds the exception a receive throws when its time runs out.</summary>
+    /// <param name="timeout">The time limit that ran out.</param>
+    /// <returns>The exception.</returns>
+    public static TimeoutException TimedOut(TimeSpan timeout) =>
+        new($"no message arrived within {Milliseconds(timeout)} ms");
 }

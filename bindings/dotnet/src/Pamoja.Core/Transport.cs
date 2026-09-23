@@ -31,26 +31,30 @@ public sealed record TransportMessage(string Topic, byte[] Payload)
 /// a spent transport throws rather than aliasing a link it no longer holds. A link
 /// written in .NET enters through <see cref="FromHandlers"/> and is one of these
 /// from then on.
+///
+/// Calls on one transport run one at a time, so a send made while a receive is
+/// waiting runs once the receive returns. A task that listens should have a link
+/// of its own.
 /// </remarks>
 public sealed class Transport : IDisposable
 {
-    private IntPtr _handle;
+    private const string Spent = "this transport was already added to a ladder or a wrapper";
+    private const string Busy = "this transport is busy with a call";
+
+    private NativeHandle? _handle;
 
     /// <summary>Wraps a native transport handle.</summary>
     /// <param name="handle">The pointer a native call produced.</param>
     /// <param name="what">What was being created, for the exception message.</param>
+    /// <exception cref="PamojaException">The native call produced no transport.</exception>
     public Transport(IntPtr handle, string what)
     {
-        if (handle == IntPtr.Zero)
-        {
-            throw new PamojaException(Status.LastError() ?? $"failed to create the {what}");
-        }
-
-        _handle = handle;
+        _handle = NativeHandle.Create(
+            handle, NativeMethods.pamoja_transport_free, what, serialized: true);
     }
 
     /// <summary>Whether this transport is still holdable, or has been handed on.</summary>
-    public bool IsAvailable => _handle != IntPtr.Zero;
+    public bool IsAvailable => _handle is { IsClosed: false };
 
     /// <summary>Wraps a link written in .NET as a transport.</summary>
     /// <remarks>
@@ -117,9 +121,8 @@ public sealed class Transport : IDisposable
 
     /// <summary>Connects this transport.</summary>
     /// <exception cref="PamojaException">The link could not be established.</exception>
-    public Task ConnectAsync() =>
-        Task.Run(() => Status.ThrowIfError(
-            NativeMethods.pamoja_transport_connect(Live())));
+    public Task ConnectAsync() => Live().UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_transport_connect(handle)));
 
     /// <summary>Sends text to a topic over this transport: words, or a number written out.</summary>
     /// <param name="topic">The destination topic.</param>
@@ -135,13 +138,13 @@ public sealed class Transport : IDisposable
     public Task SendAsync(string topic, ReadOnlyMemory<byte> payload)
     {
         byte[] bytes = payload.ToArray();
-        return Task.Run(() =>
+        return Live().UseAsync(handle =>
         {
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
                 Status.ThrowIfError(NativeMethods.pamoja_transport_send(
-                    Live(), topicPtr, bytes, (nuint)bytes.Length));
+                    handle, topicPtr, bytes, (nuint)bytes.Length));
             }
             finally
             {
@@ -153,13 +156,12 @@ public sealed class Transport : IDisposable
     /// <summary>Subscribes this transport to a topic.</summary>
     /// <param name="topic">The topic to subscribe to.</param>
     /// <exception cref="PamojaException">The subscription was refused.</exception>
-    public Task SubscribeAsync(string topic) => Task.Run(() =>
+    public Task SubscribeAsync(string topic) => Live().UseAsync(handle =>
     {
         IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
         try
         {
-            Status.ThrowIfError(
-                NativeMethods.pamoja_transport_subscribe(Live(), topicPtr));
+            Status.ThrowIfError(NativeMethods.pamoja_transport_subscribe(handle, topicPtr));
         }
         finally
         {
@@ -170,41 +172,64 @@ public sealed class Transport : IDisposable
     /// <summary>Waits for the next message this transport delivers on a subscribed topic.</summary>
     /// <returns>The message, or <c>null</c> once the link has ended.</returns>
     /// <exception cref="PamojaException">The transport is not connected.</exception>
-    public Task<TransportMessage?> ReceiveAsync() => Task.Run(() =>
+    public Task<TransportMessage?> ReceiveAsync() => Live().UseAsync(handle =>
     {
-        IntPtr message = IntPtr.Zero;
-        Status.ThrowIfError(NativeMethods.pamoja_transport_recv(Live(), out message));
+        Status.ThrowIfError(NativeMethods.pamoja_transport_recv(handle, out IntPtr message));
         return Messages.Take(message);
     });
+
+    /// <summary>Waits a limited time for the next message on a subscribed topic.</summary>
+    /// <remarks>
+    /// When the time runs out nothing is lost: a message arriving afterwards waits
+    /// for the next receive.
+    /// </remarks>
+    /// <param name="timeout">How long to wait.</param>
+    /// <returns>The message, or <c>null</c> once the link has ended.</returns>
+    /// <exception cref="TimeoutException">No message arrived in time.</exception>
+    /// <exception cref="PamojaException">The transport is not connected.</exception>
+    public Task<TransportMessage?> ReceiveAsync(TimeSpan timeout)
+    {
+        ulong milliseconds = Messages.Milliseconds(timeout);
+        return Live().UseAsync(handle =>
+        {
+            Status.ThrowIfError(NativeMethods.pamoja_transport_recv_within(
+                handle, milliseconds, out IntPtr message, out bool timedOut));
+            return timedOut ? throw Messages.TimedOut(timeout) : Messages.Take(message);
+        });
+    }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (_handle != IntPtr.Zero)
-        {
-            NativeMethods.pamoja_transport_free(_handle);
-            _handle = IntPtr.Zero;
-        }
+        _handle?.Dispose();
+        _handle = null;
     }
 
     /// <summary>Hands the native handle on, leaving this one spent.</summary>
     /// <returns>The pointer the caller now owns.</returns>
-    /// <exception cref="PamojaException">This transport was already handed on.</exception>
+    /// <exception cref="PamojaException">
+    /// This transport was already handed on, or a call on it is still running.
+    /// </exception>
     public IntPtr Take()
     {
-        IntPtr handle = Live();
-        _handle = IntPtr.Zero;
-        return handle;
+        IntPtr pointer = Live().Take(Busy);
+        _handle = null;
+        return pointer;
     }
 
-    /// <summary>Lends the native handle without giving it away.</summary>
-    /// <returns>The pointer, still owned by this transport.</returns>
+    /// <summary>
+    /// Lends the native handle to asynchronous work, such as a store draining into
+    /// this transport, which runs once any call on the transport has returned.
+    /// </summary>
+    /// <typeparam name="TResult">The value the work produces.</typeparam>
+    /// <param name="work">The work to run with the pointer.</param>
+    /// <returns>Whatever the work produced.</returns>
     /// <exception cref="PamojaException">This transport was already handed on.</exception>
-    public IntPtr Borrow() => Live();
+    public Task<TResult> LendAsync<TResult>(Func<IntPtr, Task<TResult>> work) =>
+        Live().LendAsync(work);
 
     /// <summary>Returns the handle, refusing one that has been handed on.</summary>
-    private IntPtr Live() => _handle != IntPtr.Zero
-        ? _handle
-        : throw new PamojaException(
-            "this transport was already added to a ladder or a wrapper");
+    private NativeHandle Live() => _handle is { IsClosed: false } handle
+        ? handle
+        : throw new PamojaException(Spent);
 }

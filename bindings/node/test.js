@@ -2101,6 +2101,40 @@ async function asyncTransports() {
     "adding it twice is refused",
   );
 
+  // A transport is driven directly with the calls every link keeps, one call at a
+  // time, and one with a call running is not handed on.
+  const listening = broker.rung();
+  await listening.connect();
+  await listening.subscribe("alarms/1");
+  const waiting = listening.recv();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await assert.rejects(
+    () => rungs.rung(listening),
+    /busy with a call/,
+    "a transport with a call running is not handed on",
+  );
+  assert.ok(listening.isAvailable, "and it is still the caller's");
+  await upstream.send("alarms/1", "smoke");
+  assert.strictEqual((await waiting).text, "smoke", "the receive took the alarm");
+
+  // A receive with a limit gives up without taking the next message.
+  await assert.rejects(
+    () => listening.recv(20),
+    /no message arrived within 20 ms/,
+    "a quiet transport runs out of time",
+  );
+  await upstream.send("alarms/1", "heat");
+  assert.strictEqual(
+    (await listening.recv(5000)).text,
+    "heat",
+    "the next message waited for the next receive",
+  );
+  const quiet = broker.link();
+  await quiet.connect();
+  await quiet.subscribe("quiet/1");
+  await assert.rejects(() => quiet.recv(20), /no message arrived/, "so does a quiet link");
+  await assert.rejects(() => offline.recv(20), /no message arrived/, "and a quiet ladder");
+
   // One publisher, many subscribers, in one process.
   const hub = new bus.EventBus(8);
   const first = await hub.subscribe();

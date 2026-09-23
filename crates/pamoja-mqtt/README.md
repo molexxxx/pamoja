@@ -31,6 +31,12 @@ delivery handshakes, and forwards inbound messages to an internal queue that
 `recv` drains. Publishing and subscribing use the default
 `QualityOfService` configured on the transport.
 
+The client speaks MQTT 3.1.1 with a clean session, so a connection starts with
+no subscriptions and a reconnect places them again. Topics and filters are
+checked against the rules of the OASIS MQTT 3.1.1 standard, section 4.7, before
+anything is sent, and a message too large for the connection's packet limit is
+refused rather than ending the connection.
+
 **Examples**
 
 ```rust
@@ -57,6 +63,15 @@ These map one-to-one onto the MQTT protocol's quality-of-service levels.
 - `AtLeastOnce` - The message is delivered at least once and acknowledged.
 - `ExactlyOnce` - The message is delivered exactly once via a four-step handshake.
 
+## const `DEFAULT_MAX_PACKET_SIZE`
+
+The largest packet a connection sends or accepts unless configured otherwise, in
+bytes.
+
+```rust
+const DEFAULT_MAX_PACKET_SIZE: usize
+```
+
 ## struct `MqttConfig`
 
 Connection settings for an `MqttTransport`.
@@ -77,11 +92,34 @@ Creates a configuration for the given client id and broker address.
 
 **Returns**
 
-A configuration with a 30-second keep-alive, a request capacity of 64, and
-a default quality of service of `QualityOfService::AtLeastOnce`.
+A configuration with a 30-second keep-alive, a request capacity of 64, a
+default quality of service of `QualityOfService::AtLeastOnce`, and a
+packet limit of `DEFAULT_MAX_PACKET_SIZE`.
 
 ```rust
 fn new(client_id: impl Into <String>, host: impl Into <String>, port: u16) -> Self
+```
+
+### `MqttConfig::max_packet_size`
+
+Sets the largest packet the connection sends or accepts, in bytes.
+
+A packet is a message's topic and payload plus a few bytes of framing. A send
+whose packet would be larger is refused and the connection stays up, but a
+larger packet arriving from the broker ends the connection, so every client
+that shares a topic needs a limit that fits it. MQTT itself allows a packet of
+up to 268,435,455 bytes after its fixed header.
+
+**Arguments**
+
+* `bytes` - the limit, which applies to both directions.
+
+**Returns**
+
+The updated configuration, for chaining.
+
+```rust
+fn max_packet_size(mut self, bytes: usize) -> Self
 ```
 
 ### `MqttConfig::keep_alive`
@@ -143,6 +181,12 @@ link and spawns the background task that runs the MQTT event loop for the life
 of the connection. Inbound messages are queued and read with
 `recv`.
 
+A connection can end without being asked to: the broker restarts, another client
+connects with the same client id, or a packet over the limit arrives. From then
+on `is_connected` is `false`, a send answers
+`Error::Closed`, and the next receive reports why the connection ended, until
+`connect` opens a new one.
+
 ### `MqttTransport::new`
 
 Creates a transport from the given configuration without connecting.
@@ -165,8 +209,9 @@ Reports whether the transport currently holds an active connection.
 
 **Returns**
 
-`true` once `connect` has succeeded and before
-`disconnect` is called.
+`true` once `connect` has succeeded, until
+`disconnect` is called or the connection ends
+on its own.
 
 ```rust
 fn is_connected(&self) -> bool

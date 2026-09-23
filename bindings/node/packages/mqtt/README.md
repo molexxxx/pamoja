@@ -28,7 +28,9 @@ import { MqttClient, Qos } from '@pamoja/mqtt'
 const BROKER = '127.0.0.1'
 const PORT = 1883
 
-async function main(): Promise<{ topic: string; text?: string }> {
+const connection = (connected: boolean) => (connected ? 'still connected' : 'not connected')
+
+async function main() {
   // The gateway takes every temperature on the site. A `+` stands for exactly one level,
   // so this matches every node's temperature and nothing deeper.
   const gateway = new MqttClient({
@@ -41,8 +43,8 @@ async function main(): Promise<{ topic: string; text?: string }> {
   await gateway.subscribe('sensors/+/temperature')
   console.log('gateway   subscribed to sensors/+/temperature')
 
-  // A node publishes under that pattern. At-least-once means the broker acknowledges the
-  // message, so a node knows its reading was taken rather than hoping.
+  // A node publishes under that pattern. At least once has the broker acknowledge each
+  // message, where at most once would send it and forget it.
   const node = new MqttClient({
     clientId: 'node-1',
     host: BROKER,
@@ -58,10 +60,25 @@ async function main(): Promise<{ topic: string; text?: string }> {
   const received = (await gateway.recv())!
   console.log(`gateway   got ${received.text!} on ${received.topic}`)
 
+  // Two days of readings saved at one a minute, sent as one message, make a packet over
+  // the connection's 10 KiB limit. The send is refused before anything leaves and the
+  // connection stays up; a node that must send it raises the limit on every client that
+  // shares the topic, or splits it.
+  const backlog = Array(2 * 24 * 60).fill('21.5').join(',')
+  try {
+    await node.publish('sensors/1/backlog', backlog)
+    console.log('node      sent an oversized backlog, which should never happen')
+  } catch (error) {
+    console.log(`node      backlog refused: ${(error as Error).message}`)
+  }
+  const afterRefusal = await node.isConnected()
+  console.log(`node      ${connection(afterRefusal)}`)
+
   // Disconnecting leaves the client reusable, so a node that loses its link can reconnect
   // the same object when the broker comes back.
   await node.disconnect()
-  console.log(`node      disconnected, still connected: ${await node.isConnected()}`)
+  const afterDisconnect = await node.isConnected()
+  console.log(`node      ${connection(afterDisconnect)} after disconnecting`)
   await gateway.disconnect()
 
   // A broker that is not there is reported rather than leaving a client that looks
@@ -74,7 +91,7 @@ async function main(): Promise<{ topic: string; text?: string }> {
     console.log(`unreachable broker refused: ${(error as Error).message}`)
   }
 
-  return received
+  return { received, afterRefusal, afterDisconnect }
 }
 
 main()

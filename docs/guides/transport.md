@@ -61,6 +61,15 @@ repository:
 
 ## Rust
 
+In Rust the contract is two traits in `pamoja-core`. `Transport` has `connect`, `subscribe`,
+`send`, and `send_text`; `Receive` adds `recv` for a link that delivers, which gives `Ok(None)`
+once the link has ended. Every call is async and returns `pamoja_core::Result`, whose `Error`
+names the failure. A received `Message` is a topic and a payload that reads itself with `text()`
+and `number()`. A receive is cancel-safe, so `tokio::time::timeout(limit, link.recv())` gives up
+without losing the message it would have taken. Anything that carries traffic is generic over the
+traits, and composition is a move: `Faulty::new(link, 1)` and a ladder's `rung(link)` take the
+link by value, so the compiler stops it being used after it has been handed on.
+
 <!-- snippet: examples/guides/transport.rs#example -->
 From [`examples/guides/transport.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/transport.rs):
 
@@ -108,6 +117,15 @@ println!("flush forwarded {forwarded}, gateway saw {earlier} then {later}");
 
 ## TypeScript
 
+In TypeScript the contract is the `Transport` class in `@pamoja/core`. `Transport.mqtt(options)`
+and `Transport.coap(options)` open the network links, `Transport.fromHandlers(handlers)` wraps one
+written in JavaScript, and a broker's `rung()` gives the loopback. `connect`, `subscribe`, `send`,
+and `recv` return promises; `recv` resolves with a `TransportMessage`, `{ topic, payload, text?,
+number? }`, or `null` once the link has ended, and `recv(timeoutMs)` rejects when the time runs
+out without losing the next message. Calls on one transport run one at a time.
+`Transport.faulty`, `Transport.degraded`, and a ladder's `rung` take a transport and empty it:
+`isAvailable` turns false, and a call on it rejects.
+
 <!-- snippet: bindings/node/guides/transport.ts#example -->
 From [`bindings/node/guides/transport.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/transport.ts):
 
@@ -121,10 +139,10 @@ const TOPIC = 'sensors/1/temperature'
 
 async function main() {
   // Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it reaches
-  // the rest of the framework through one contract. Anything that takes a link works with
-  // any of them, so a node is written once and pointed at whichever link it has.
+  // the rest of the framework as a Transport, driven with the same four calls: connect,
+  // subscribe, send, and recv. A node is written once and pointed at whichever link it has.
   const broker = new LoopbackBroker()
-  const gateway = broker.link()
+  const gateway: Transport = broker.rung()
   await gateway.connect()
   await gateway.subscribe(TOPIC)
 
@@ -159,6 +177,14 @@ main()
 
 ## Python
 
+In Python it is the same `Transport` class, in `pamoja.core`: `Transport.mqtt(...)`,
+`Transport.coap(...)`, `Transport.from_handlers(...)`, and a broker's `rung()`. `connect`,
+`subscribe`, `send`, and `recv` are coroutines, and `recv` returns a `Message`, whose `payload` is
+bytes and whose `text` and `number` raise `ValueError` when the payload is not one, or `None`
+once the link has ended. `asyncio.wait_for(link.recv(), seconds)` gives up without losing the
+next message. Composing empties the handle, `is_available` turns false, and using it raises
+`PamojaError`, as every failed call does.
+
 <!-- snippet: bindings/python/guides/transport.py#example -->
 From [`bindings/python/guides/transport.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/transport.py):
 
@@ -175,10 +201,10 @@ TOPIC = "sensors/1/temperature"
 
 async def main() -> None:
     # Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it reaches
-    # the rest of the framework through one contract. Anything that takes a link works with
-    # any of them, so a node is written once and pointed at whichever link it has.
+    # the rest of the framework as a Transport, driven with the same four calls: connect,
+    # subscribe, send, and recv. A node is written once and pointed at whichever link it has.
     broker = LoopbackBroker()
-    gateway = broker.link()
+    gateway: Transport = broker.rung()
     await gateway.connect()
     await gateway.subscribe(TOPIC)
 
@@ -213,6 +239,15 @@ first, second, queued, forwarded, left, earlier, later = asyncio.run(main())
 
 ## C#
 
+In C# it is `Transport` in `Pamoja.Core`, disposable, with `ConnectAsync`, `SubscribeAsync`,
+`SendAsync`, and `ReceiveAsync`, which returns a `TransportMessage` record, `(Topic, Payload)` with
+`Text` and `Number`, or `null` once the link has ended. `ReceiveAsync(limit)` throws
+`TimeoutException` when the time runs out without losing the next message, and calls on one
+transport run one at a time. `MqttTransport.Open` and `CoapTransport.Open` open the network links
+and `Transport.FromHandlers` wraps one written in .NET. `Transport.Faulty`, `Transport.Degraded`,
+and a ladder's `Rung` take a transport and empty it; `IsAvailable` turns false, and a call on it
+throws `PamojaException`, as every failure does.
+
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs):
 
@@ -220,11 +255,11 @@ From [`bindings/dotnet/samples/Pamoja.Guides/TransportGuide.cs`](https://github.
 const string Topic = "sensors/1/temperature";
 
 // Whatever a link is underneath, MQTT, CoAP, or the in-process broker here, it
-// reaches the rest of the framework through one contract. Anything that takes a
-// link works with any of them, so a node is written once and pointed at whichever
-// link it has.
+// reaches the rest of the framework as a Transport, driven with the same four calls:
+// connect, subscribe, send, and receive. A node is written once and pointed at
+// whichever link it has.
 using var broker = new LoopbackBroker();
-using var gateway = broker.Link();
+using Transport gateway = broker.Rung();
 await gateway.ConnectAsync();
 await gateway.SubscribeAsync(Topic);
 
@@ -255,6 +290,84 @@ Console.WriteLine(
     + $" {later.Text}");
 ```
 <!-- end -->
+
+## Values at a glance
+
+**The contract, call by call:**
+
+| Call | What it does | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- | --- |
+| connect | establishes the link, which every other call needs | `connect().await?` | `await t.connect()` | `await t.connect()` | `await t.ConnectAsync()` |
+| subscribe | asks for a topic, with `+` for one level and `#` for the rest | `subscribe(topic).await?` | `await t.subscribe(topic)` | `await t.subscribe(topic)` | `await t.SubscribeAsync(topic)` |
+| send | publishes bytes or text to a topic | `send(topic, &bytes)`, `send_text(topic, text)` | `await t.send(topic, bytesOrText)` | `await t.send(topic, bytes_or_text)` | `await t.SendAsync(topic, bytesOrText)` |
+| receive | the next message on a subscribed topic, or none once the link has ended | `recv().await?` | `await t.recv()` | `await t.recv()` | `await t.ReceiveAsync()` |
+| receive with a limit | the same, giving up when the time runs out and leaving the next message queued | `timeout(limit, t.recv()).await` | `await t.recv(ms)` | `await asyncio.wait_for(t.recv(), seconds)` | `await t.ReceiveAsync(limit)` |
+
+**The links that keep it:**
+
+| Link | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- |
+| MQTT | `MqttTransport::new(config)` | `Transport.mqtt(options)` | `Transport.mqtt(...)` | `MqttTransport.Open(options)` |
+| CoAP | `CoapTransport::new(config)` | `Transport.coap(options)` | `Transport.coap(...)` | `CoapTransport.Open(options)` |
+| loopback | `LoopbackTransport::new(broker)` | `broker.rung()` | `broker.rung()` | `broker.Rung()` |
+| your own | `impl Transport` | `Transport.fromHandlers(handlers)` | `Transport.from_handlers(handlers)` | `Transport.FromHandlers(handlers)` |
+| a fault injector | `Faulty::new(link, failures)` | `Transport.faulty(link, failures)` | `Transport.faulty(link, failures)` | `Transport.Faulty(link, failures)` |
+| a degraded link | `DegradedLink::new(link)` | `Transport.degraded(link, faults)` | `Transport.degraded(link, ...)` | `Transport.Degraded(link, ...)` |
+| a ladder | `TransportLadder::new(store)` | `new Ladder(store)` | `Ladder(store)` | `new Ladder(store)` |
+
+Rust also carries Zenoh and a LoRa mesh radio behind the same traits. [Your own link](link.md)
+writes one in each language, and [Simulators](sim.md) has the degraded link.
+
+**What a received message holds:**
+
+| Part | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- |
+| the topic it was published to | `message.topic` | `message.topic` | `message.topic` | `message.Topic` |
+| the payload | `message.payload`, a `Vec<u8>` | `message.payload`, a `Buffer` | `message.payload`, `bytes` | `message.Payload`, a `byte[]` |
+| the payload as text | `message.text()?` | `message.text`, or absent | `message.text`, or `ValueError` | `message.Text` |
+| the payload as a number | `message.number()?` | `message.number`, or absent | `message.number`, or `ValueError` | `message.Number`, or `null` |
+
+## When it goes wrong
+
+What the contract refuses, and what it says:
+
+| What happened | The message | What to check |
+| --- | --- | --- |
+| a transport used after it was handed on | `this transport was already added to a ladder or a wrapper` | build another, or drive the thing it was handed to |
+| a transport handed on while a call runs | `this transport is busy with a call` | await the call first |
+| a link used before `connect`, or after it closed | `resource is closed` | `connect` first, or again once it has closed |
+| a receive given a limit ran out of time | `no message arrived within 250 ms` in TypeScript and C# | nothing had arrived; the next message waits for the next receive |
+| a fault injector refused a send | `transport error: simulated link failure` | nothing: that is its job |
+| a payload read as text that is not | `the payload is not UTF-8 text`, in Python | read `payload`, the bytes |
+| a payload read as a number that is not | `the payload is not a number`, in Python | read `text`, or check it first |
+
+How each language hands a failure over:
+
+| Language | A failed call | A receive out of time | A spent transport |
+| --- | --- | --- | --- |
+| Rust | `Err(pamoja_core::Error)`: `Transport`, `Closed`, `Codec`, `Io`, `Auth`, or `Unsupported` | `Err(Elapsed)` from `tokio::time::timeout` | a compile error, since the link was moved |
+| TypeScript | a rejected promise with an `Error` | a rejected promise | the same, and `isAvailable` is false |
+| Python | `PamojaError` | `asyncio.TimeoutError` from `asyncio.wait_for` | the same, and `is_available` is false |
+| C# | `PamojaException` | `TimeoutException` | the same, and `IsAvailable` is false |
+
+The mistakes that cost an afternoon:
+
+- **A reading goes nowhere and nothing complains.** A link was sent to after it was handed to a
+  ladder. In Rust the compiler catches it; in the bindings the call fails, so do not swallow it.
+- **A subscriber hears nothing.** It subscribed after the reading went out. A link hears what is
+  published after its `subscribe`, and an MQTT broker hands it an older message only when that
+  one was retained.
+- **A link that listens stops sending.** A receive holds the link until a message arrives, and a
+  handle runs one call at a time, so a send on the same handle waits behind it. Receive with a
+  limit in a loop and send between receives, or give a task that listens a link of its own.
+- **A message vanished after a timer won a race.** In TypeScript and C#, a receive raced against a
+  timer with `Promise.race` or `Task.WhenAny` keeps running after it loses, and takes the next
+  message. Pass the limit to the receive instead, which gives up without taking anything.
+- **A message arrives and the program reads nonsense.** A payload is bytes; `text` and `number`
+  only work when the sender wrote text. Agree on the encoding at both ends, or use
+  [Codecs](codec.md).
+- **Every send fails in a test, and not in the field.** A fault injector is still in the chain.
+  It fails the number of sends it was told to, then passes the rest through.
 
 ## Where next
 

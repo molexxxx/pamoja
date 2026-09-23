@@ -17,7 +17,8 @@ It builds one broker, takes a publisher and a subscriber off it, and moves a
 temperature reading from one to the other. The subscriber's filter is
 single-level, and the reading a level deeper is published first, so what comes
 back is `21.5` from the temperature topic and not the `2150` sent a moment
-earlier under `/raw`.
+earlier under `/raw`. The subscriber then waits 50 milliseconds for anything
+more, which is how a test shows that the raw reading never reached it.
 
 A third link joins on the multi-level filter after both of those publishes have
 gone out, and takes the next `/raw` reading. The publisher is disconnected
@@ -30,6 +31,8 @@ It proves:
 - `+` matches exactly one level, so the filter takes the temperature topic and
   leaves the `/raw` reading a level below it, even though that one went out
   first.
+- A receive with a time limit runs out when nothing more matches, so a test
+  proves a reading did not arrive without hanging on it.
 - `#` matches the levels that remain, so the second filter takes the deeper
   topic the single-level one passed over.
 - A link can join a broker that has already routed traffic, take a filter of
@@ -53,10 +56,20 @@ repository:
 
 ## Rust
 
+In Rust, `LoopbackBroker::new()` makes the routing table and cloning it shares the table, so
+every `LoopbackTransport::new(broker.clone())` is a link on the same broker. A link implements
+the `Transport` and `Receive` traits, which gives it the calls every link keeps, `connect`,
+`subscribe`, `send`, `send_text`, and `recv`, and it adds `is_connected()` and `disconnect()`. To
+stop waiting, wrap `recv` in `tokio::time::timeout`: a receive is cancel-safe, so the message it
+would have taken stays queued for the next one. `Faulty::new(link, n)` makes any link fail its
+next `n` sends, and `fail_next(n)` arms it again.
+
 <!-- snippet: examples/guides/loopback.rs#example -->
 From [`examples/guides/loopback.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/loopback.rs):
 
 ```rust
+use std::time::Duration;
+
 use pamoja_core::{Receive, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 
@@ -78,6 +91,18 @@ publisher.send_text("line/mixer/temp", "21.5").await?;
 let message = subscriber.recv().await?.expect("a message");
 let reading = message.text().expect("text");
 println!("line/+/temp took {reading} from {}", message.topic);
+
+// The raw reading went out first and never arrived, which a test proves by waiting a
+// set time for anything more rather than forever. Giving up loses nothing: a message
+// that came later would wait for the next receive.
+let quiet = Duration::from_millis(50);
+match tokio::time::timeout(quiet, subscriber.recv()).await {
+    Ok(_) => println!("line/+/temp took a second reading, which should never happen"),
+    Err(_) => println!(
+        "line/+/temp heard nothing more within {} ms",
+        quiet.as_millis()
+    ),
+}
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
@@ -102,11 +127,21 @@ match publisher.send_text("line/mixer/temp", "21.6").await {
 
 ## TypeScript
 
+In TypeScript, `new LoopbackBroker()` from `@pamoja/loopback` makes the broker, `broker.link()`
+gives a `LoopbackTransport` to drive directly, and `broker.rung()` gives a `Transport` to hand to
+a ladder or a wrapper. Every call returns a promise: `connect`, `subscribe`,
+`send(topic, bufferOrText)`, `recv(timeoutMs?)`, `isConnected`, and `disconnect`. `recv`
+resolves with a `TransportMessage`, `{ topic, payload, text?, number? }`. Given a limit, it
+rejects once the time runs out and the next message waits for the next receive, where racing a
+plain `recv()` against a timer would leave it running to take that message.
+
 <!-- snippet: bindings/node/guides/loopback.ts#example -->
 From [`bindings/node/guides/loopback.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/loopback.ts):
 
 ```typescript
 import { LoopbackBroker, type TransportMessage } from '@pamoja/loopback'
+
+const QUIET_MS = 50
 
 async function main() {
   // One broker and two links off it, all in this process. Nothing binds a port and nothing
@@ -126,6 +161,16 @@ async function main() {
 
   const message = (await subscriber.recv())!
   console.log(`line/+/temp took ${message.text!} from ${message.topic}`)
+
+  // The raw reading went out first and never arrived, which a test proves by waiting a
+  // set time for anything more rather than forever. Giving up loses nothing: a message
+  // that came later would wait for the next receive.
+  try {
+    await subscriber.recv(QUIET_MS)
+    console.log('line/+/temp took a second reading, which should never happen')
+  } catch {
+    console.log(`line/+/temp heard nothing more within ${QUIET_MS} ms`)
+  }
 
   // A `#` covers every level that remains, so a second link takes the whole subtree,
   // including the reading the single-level filter passed over.
@@ -156,6 +201,13 @@ main()
 
 ## Python
 
+In Python, `LoopbackBroker()` from `pamoja.loopback` makes the broker, `broker.link()` a link to
+drive, and `broker.rung()` a `Transport` to compose. The calls are coroutines: `connect`,
+`subscribe`, `send(topic, bytes_or_text)`, `recv`, `is_connected`, and `disconnect`. `recv`
+returns a `Message` whose `payload` is bytes and whose `text` and `number` read it.
+`asyncio.wait_for(link.recv(), seconds)` stops waiting, and the receive it cancels leaves its
+message queued for the next one. A failure raises `PamojaError`.
+
 <!-- snippet: bindings/python/guides/loopback.py#example -->
 From [`bindings/python/guides/loopback.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/loopback.py):
 
@@ -164,6 +216,8 @@ import asyncio
 
 from pamoja.core import PamojaError
 from pamoja.loopback import LoopbackBroker
+
+QUIET_MS = 50
 
 
 async def main() -> None:
@@ -184,6 +238,15 @@ async def main() -> None:
 
     message = await subscriber.recv()
     print(f"line/+/temp took {message.text} from {message.topic}")
+
+    # The raw reading went out first and never arrived, which a test proves by waiting a
+    # set time for anything more rather than forever. Giving up loses nothing: a message
+    # that came later would wait for the next receive.
+    try:
+        await asyncio.wait_for(subscriber.recv(), QUIET_MS / 1000)
+        print("line/+/temp took a second reading, which should never happen")
+    except asyncio.TimeoutError:
+        print(f"line/+/temp heard nothing more within {QUIET_MS} ms")
 
     # A `#` covers every level that remains, so a second link takes the whole subtree,
     # including the reading the single-level filter passed over.
@@ -213,6 +276,14 @@ message, deep = asyncio.run(main())
 
 ## C#
 
+In C#, `new LoopbackBroker()` in `Pamoja.Loopback` makes the broker, `Link()` a
+`LoopbackTransport` to drive, and `Rung()` a `Transport` to compose, all disposable. The calls
+are `ConnectAsync`, `SubscribeAsync`, `SendAsync(topic, bytesOrText)`, `ReceiveAsync()`,
+`ReceiveAsync(limit)`, `IsConnectedAsync`, and `DisconnectAsync`, and calls on one link run one at
+a time. `ReceiveAsync(limit)` throws `TimeoutException` when the time runs out and leaves the next
+message for the next receive, where a `ReceiveAsync()` abandoned through `Task.WhenAny` would take
+it. A failure throws `PamojaException`.
+
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/LoopbackGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/LoopbackGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/LoopbackGuide.cs):
 
@@ -236,6 +307,20 @@ TransportMessage message = (await subscriber.ReceiveAsync())!;
 Console.WriteLine(
     $"line/+/temp took {message.Text}"
     + $" from {message.Topic}");
+
+// The raw reading went out first and never arrived, which a test proves by waiting
+// a set time for anything more rather than forever. Giving up loses nothing: a
+// message that came later would wait for the next receive.
+TimeSpan quiet = TimeSpan.FromMilliseconds(50);
+try
+{
+    await subscriber.ReceiveAsync(quiet);
+    Console.WriteLine("line/+/temp took a second reading, which should never happen");
+}
+catch (TimeoutException)
+{
+    Console.WriteLine($"line/+/temp heard nothing more within {quiet.TotalMilliseconds} ms");
+}
 
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
@@ -263,6 +348,86 @@ catch (PamojaException error)
 }
 ```
 <!-- end -->
+
+## Values at a glance
+
+**The broker and its links:**
+
+| What | Rust | TypeScript | Python | C# |
+| --- | --- | --- | --- | --- |
+| a broker | `LoopbackBroker::new()`, cloned to share | `new LoopbackBroker()` | `LoopbackBroker()` | `new LoopbackBroker()` |
+| a link to drive | `LoopbackTransport::new(broker.clone())` | `broker.link()` | `broker.link()` | `broker.Link()` |
+| a link to compose | the same link, moved into the ladder | `broker.rung()` | `broker.rung()` | `broker.Rung()` |
+| connect | `link.connect().await?` | `await link.connect()` | `await link.connect()` | `await link.ConnectAsync()` |
+| subscribe | `link.subscribe(filter).await?` | `await link.subscribe(filter)` | `await link.subscribe(filter)` | `await link.SubscribeAsync(filter)` |
+| send | `link.send(topic, &bytes)`, `link.send_text(topic, text)` | `await link.send(topic, bytesOrText)` | `await link.send(topic, bytes_or_text)` | `await link.SendAsync(topic, bytesOrText)` |
+| receive | `link.recv().await?` | `await link.recv()` | `await link.recv()` | `await link.ReceiveAsync()` |
+| receive with a limit | `timeout(limit, link.recv()).await` | `await link.recv(ms)` | `await asyncio.wait_for(link.recv(), seconds)` | `await link.ReceiveAsync(limit)` |
+| is it connected | `link.is_connected()` | `await link.isConnected()` | `await link.is_connected()` | `await link.IsConnectedAsync()` |
+| disconnect | `link.disconnect()` | `await link.disconnect()` | `await link.disconnect()` | `await link.DisconnectAsync()` |
+| fail the next sends | `Faulty::new(link, n)`, then `fail_next(n)` | `Transport.faulty(broker.rung(), n)` | `Transport.faulty(broker.rung(), n)` | `Transport.Faulty(broker.Rung(), n)` |
+
+**How a filter matches a topic.** The rules are MQTT's, from sections 4.7.1 and 4.7.2 of the
+OASIS MQTT 3.1.1 standard, and they are the same on the loopback as on a broker:
+
+| Filter | Topic | Delivered | Why |
+| --- | --- | --- | --- |
+| `line/+/temp` | `line/mixer/temp` | yes | `+` takes exactly one level |
+| `line/+/temp` | `line/mixer/temp/raw` | no | the topic has a level the filter does not |
+| `line/+` | `line` | no | `+` needs a level to take, and there is none |
+| `line/#` | `line/mixer/temp/raw` | yes | `#` takes every level that remains |
+| `line/#` | `line` | yes | `#` takes the parent level too |
+| `+/+` | `/finance` | yes | a leading `/` makes an empty first level, and `+` takes it |
+| `+` | `/finance` | no | the topic has two levels |
+| `#` | `$SYS/broker/uptime` | no | a filter that starts with a wildcard never takes a `$` topic |
+| `$SYS/#` | `$SYS/broker/uptime` | yes | naming `$SYS` first lets the rest match |
+
+**What the loopback does, and what a broker adds.** Code that passes here meets these
+differences when it moves to [MQTT](mqtt.md); the section numbers are the MQTT 3.1.1
+standard's:
+
+| Behavior | Loopback | An MQTT broker |
+| --- | --- | --- |
+| who hears a publish | every link whose filters match, the publisher included | every client with a matching subscription, the publisher included (3.3.5) |
+| a publish that matches two of a link's filters | one copy | at least one, and it may send one per filter (3.3.5) |
+| a message published before the subscribe | never delivered | never delivered, unless it was published to be retained (3.3.1.3) |
+| a link slow to read | its queue grows without a limit | the broker's own limits apply |
+| a disconnect | drops what was queued; the filters stay for the next connect | with pamoja's clean session, the subscriptions end too (3.1.2.4) |
+| a topic the publisher may not use | there is no access control | the broker acknowledges and drops it, or closes the connection (3.3.5) |
+
+## When it goes wrong
+
+What the loopback refuses, and what it says:
+
+| What happened | The message | What to check |
+| --- | --- | --- |
+| a call on a link that is not connected | `resource is closed` | `connect` first, or again after `disconnect` |
+| a fault injector refused a send | `transport error: simulated link failure` | nothing: that is its job |
+| no message within the limit | `no message arrived within 50 ms` in TypeScript and C#, `asyncio.TimeoutError` in Python, `Elapsed` in Rust | nothing matched, which may be the point of the test |
+| a composed link used after it was handed on | `this transport was already added to a ladder or a wrapper` | build another with `rung()` |
+| a composed link handed on while a call runs | `this transport is busy with a call` | await the call first |
+
+The mistakes that cost an afternoon:
+
+- **A test hangs instead of failing.** It waits on a receive for a message that never comes, and
+  a connected loopback link never ends on its own. Give the receive a limit, as the example does.
+- **A test raced a receive against a timer and lost the next message.** In TypeScript and C# a
+  receive nobody awaits any more keeps running, and it takes the next message. Pass the limit to
+  `recv` or `ReceiveAsync` instead. Rust and Python cancel the receive when the time runs out, so
+  the message stays queued.
+- **Two links that should talk never do.** They were taken off two brokers: `LoopbackBroker::new()`
+  called twice rather than one broker cloned, or a second `new LoopbackBroker()`. Take every link
+  off the same broker.
+- **A link receives its own messages.** A link subscribed to a topic it publishes on hears itself,
+  as an MQTT client would. Keep commands and readings on topics of their own.
+- **Memory climbs over a long run.** A link that subscribes and never reads keeps every matching
+  message, because its queue has no limit. Read what a link subscribes to, or leave it
+  unsubscribed.
+- **A reconnected link missed what was sent while it was away.** Disconnecting drops what was
+  queued for the link. Its filters stay, and apply again from the reconnect.
+- **Everything passes here and fails against a real broker.** The loopback has no retained
+  messages, no access control, and one copy per publish, as the table above sets out. Run the
+  same code against a broker before it ships, which the [MQTT](mqtt.md) guide does.
 
 ## Where next
 

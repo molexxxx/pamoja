@@ -15,7 +15,11 @@ namespace Pamoja.Mqtt;
 /// client with broker settings, <see cref="ConnectAsync"/>, then
 /// <see cref="PublishAsync(string, ReadOnlyMemory{byte})"/>,
 /// <see cref="SubscribeAsync"/>, and read inbound messages with
-/// <see cref="RecvAsync"/> or by iterating the client with <c>await foreach</c>.
+/// <see cref="RecvAsync()"/> or by iterating the client with <c>await foreach</c>.
+///
+/// Calls on one client run one at a time, so a publish made while a receive is
+/// waiting runs once the receive returns. A client that both listens and publishes
+/// receives with a time limit, or iterates, and publishes between messages.
 /// </remarks>
 /// <example>
 /// <code>
@@ -36,7 +40,9 @@ namespace Pamoja.Mqtt;
 /// </example>
 public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable, IDisposable
 {
-    private readonly MqttClientHandle _handle;
+    private static readonly TimeSpan CancellationCheck = TimeSpan.FromMilliseconds(250);
+
+    private readonly NativeHandle _handle;
 
     /// <summary>Creates a disconnected client from the given options.</summary>
     /// <param name="options">The broker connection settings.</param>
@@ -58,16 +64,14 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                 KeepAliveSecs = options.KeepAliveSecs ?? 0,
                 Capacity = options.Capacity ?? 0,
                 Qos = (PamojaQos)(int)(options.Qos ?? Qos.AtLeastOnce),
+                MaxPacketSize = options.MaxPacketSize ?? 0,
             };
 
-            IntPtr client = NativeMethods.pamoja_mqtt_client_new(ref config);
-            if (client == IntPtr.Zero)
-            {
-                throw new PamojaException(
-                    Status.LastError() ?? "failed to create the MQTT client");
-            }
-
-            _handle = new MqttClientHandle(client);
+            _handle = NativeHandle.Create(
+                NativeMethods.pamoja_mqtt_client_new(ref config),
+                NativeMethods.pamoja_mqtt_client_free,
+                "MQTT client",
+                serialized: true);
         }
         finally
         {
@@ -79,8 +83,8 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     /// <summary>Connects to the broker and starts the background event loop.</summary>
     /// <returns>A task that completes once connected.</returns>
     /// <exception cref="PamojaException">The connection could not be established.</exception>
-    public Task ConnectAsync() =>
-        InvokeAsync(NativeMethods.pamoja_mqtt_client_connect);
+    public Task ConnectAsync() => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_connect(handle)));
 
     /// <summary>Publishes a payload to a topic.</summary>
     /// <param name="topic">The destination topic.</param>
@@ -91,29 +95,20 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(topic);
         byte[] bytes = payload.ToArray();
-        return Task.Run(() =>
+        return _handle.UseAsync(handle =>
         {
-            bool added = false;
-            _handle.DangerousAddRef(ref added);
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             IntPtr payloadPtr = IntPtr.Zero;
             try
             {
-                PamojaStatus status;
-                if (bytes.Length == 0)
-                {
-                    status = NativeMethods.pamoja_mqtt_client_publish(
-                        _handle.DangerousGetHandle(), topicPtr, IntPtr.Zero, 0);
-                }
-                else
+                if (bytes.Length > 0)
                 {
                     payloadPtr = Marshal.AllocCoTaskMem(bytes.Length);
                     Marshal.Copy(bytes, 0, payloadPtr, bytes.Length);
-                    status = NativeMethods.pamoja_mqtt_client_publish(
-                        _handle.DangerousGetHandle(), topicPtr, payloadPtr, (nuint)bytes.Length);
                 }
 
-                Status.ThrowIfError(status);
+                Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_publish(
+                    handle, topicPtr, payloadPtr, (nuint)bytes.Length));
             }
             finally
             {
@@ -123,10 +118,6 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                 }
 
                 Marshal.FreeCoTaskMem(topicPtr);
-                if (added)
-                {
-                    _handle.DangerousRelease();
-                }
             }
         });
     }
@@ -149,108 +140,71 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     public Task SubscribeAsync(string topic)
     {
         ArgumentNullException.ThrowIfNull(topic);
-        return Task.Run(() =>
+        return _handle.UseAsync(handle =>
         {
-            bool added = false;
-            _handle.DangerousAddRef(ref added);
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                PamojaStatus status = NativeMethods.pamoja_mqtt_client_subscribe(
-                    _handle.DangerousGetHandle(), topicPtr);
-                Status.ThrowIfError(status);
+                Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_subscribe(handle, topicPtr));
             }
             finally
             {
                 Marshal.FreeCoTaskMem(topicPtr);
-                if (added)
-                {
-                    _handle.DangerousRelease();
-                }
             }
         });
     }
 
     /// <summary>Awaits the next message from any subscribed topic.</summary>
     /// <returns>The next message, or <c>null</c> once the connection has ended.</returns>
-    /// <exception cref="PamojaException">The client is not connected.</exception>
-    public Task<MqttMessage?> RecvAsync()
+    /// <exception cref="PamojaException">
+    /// The client is not connected, or, once, saying why, the connection ended on its own
+    /// because the broker went away or another client connected with the same id.
+    /// </exception>
+    public Task<MqttMessage?> RecvAsync() => _handle.UseAsync(handle =>
     {
-        return Task.Run<MqttMessage?>(() =>
+        Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_recv(handle, out IntPtr message));
+        return TakeMessage(message);
+    });
+
+    /// <summary>Waits a limited time for the next message from any subscribed topic.</summary>
+    /// <remarks>
+    /// When the time runs out nothing is lost: a message arriving afterwards waits
+    /// for the next receive.
+    /// </remarks>
+    /// <param name="timeout">How long to wait.</param>
+    /// <returns>The next message, or <c>null</c> once the connection has ended.</returns>
+    /// <exception cref="TimeoutException">No message arrived in time.</exception>
+    /// <exception cref="PamojaException">
+    /// The client is not connected, or the connection ended on its own.
+    /// </exception>
+    public Task<MqttMessage?> RecvAsync(TimeSpan timeout)
+    {
+        ulong milliseconds = Pamoja.Core.Messages.Milliseconds(timeout);
+        return _handle.UseAsync(handle =>
         {
-            bool added = false;
-            _handle.DangerousAddRef(ref added);
-            try
-            {
-                PamojaStatus status = NativeMethods.pamoja_mqtt_client_recv(
-                    _handle.DangerousGetHandle(), out IntPtr message);
-                Status.ThrowIfError(status);
-
-                if (message == IntPtr.Zero)
-                {
-                    return null;
-                }
-
-                try
-                {
-                    string topic =
-                        Marshal.PtrToStringUTF8(NativeMethods.pamoja_mqtt_message_topic(message))
-                        ?? string.Empty;
-
-                    int length = checked((int)NativeMethods.pamoja_mqtt_message_payload_len(message));
-                    byte[] payload = new byte[length];
-                    if (length > 0)
-                    {
-                        Marshal.Copy(
-                            NativeMethods.pamoja_mqtt_message_payload(message), payload, 0, length);
-                    }
-
-                    return new MqttMessage(topic, payload);
-                }
-                finally
-                {
-                    NativeMethods.pamoja_mqtt_message_free(message);
-                }
-            }
-            finally
-            {
-                if (added)
-                {
-                    _handle.DangerousRelease();
-                }
-            }
+            Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_recv_within(
+                handle, milliseconds, out IntPtr message, out bool timedOut));
+            return timedOut ? throw Pamoja.Core.Messages.TimedOut(timeout) : TakeMessage(message);
         });
     }
 
     /// <summary>Reports whether the client currently holds an active connection.</summary>
     /// <returns>A task resolving to the connection state.</returns>
-    public Task<bool> IsConnectedAsync()
-    {
-        return Task.Run(() =>
-        {
-            bool added = false;
-            _handle.DangerousAddRef(ref added);
-            try
-            {
-                return NativeMethods.pamoja_mqtt_client_is_connected(_handle.DangerousGetHandle());
-            }
-            finally
-            {
-                if (added)
-                {
-                    _handle.DangerousRelease();
-                }
-            }
-        });
-    }
+    public Task<bool> IsConnectedAsync() =>
+        _handle.UseAsync(NativeMethods.pamoja_mqtt_client_is_connected);
 
     /// <summary>Closes the connection and stops the background event loop.</summary>
     /// <returns>A task that completes once the client has disconnected.</returns>
     /// <exception cref="PamojaException">The disconnect failed.</exception>
-    public Task DisconnectAsync() =>
-        InvokeAsync(NativeMethods.pamoja_mqtt_client_disconnect);
+    public Task DisconnectAsync() => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_disconnect(handle)));
 
     /// <summary>Yields messages from subscribed topics until the connection ends.</summary>
+    /// <remarks>
+    /// The client is free between messages, so the body of an <c>await foreach</c>
+    /// can publish, and canceling stops the wait within a quarter of a second. A
+    /// connection that ends on its own throws its reason out of the loop.
+    /// </remarks>
     /// <param name="cancellationToken">Stops iteration when canceled.</param>
     /// <returns>An async stream over incoming messages.</returns>
     public async IAsyncEnumerable<MqttMessage> Messages(
@@ -259,7 +213,16 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            MqttMessage? message = await RecvAsync().ConfigureAwait(false);
+            MqttMessage? message;
+            try
+            {
+                message = await RecvAsync(CancellationCheck).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                continue;
+            }
+
             if (message is null)
             {
                 yield break;
@@ -286,7 +249,6 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
         }
         catch (PamojaException)
         {
-            // Disconnect is best-effort during disposal.
         }
 
         _handle.Dispose();
@@ -300,27 +262,31 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Runs a unit-returning native call on the thread pool, holding the handle alive
-    /// for the call and throwing on a non-OK status read on the same thread.
-    /// </summary>
-    private Task InvokeAsync(Func<IntPtr, PamojaStatus> call)
+    /// <summary>Copies a native message out and releases it.</summary>
+    private static MqttMessage? TakeMessage(IntPtr message)
     {
-        return Task.Run(() =>
+        if (message == IntPtr.Zero)
         {
-            bool added = false;
-            _handle.DangerousAddRef(ref added);
-            try
+            return null;
+        }
+
+        try
+        {
+            string topic =
+                Marshal.PtrToStringUTF8(NativeMethods.pamoja_mqtt_message_topic(message))
+                ?? string.Empty;
+            int length = checked((int)NativeMethods.pamoja_mqtt_message_payload_len(message));
+            byte[] payload = new byte[length];
+            if (length > 0)
             {
-                Status.ThrowIfError(call(_handle.DangerousGetHandle()));
+                Marshal.Copy(NativeMethods.pamoja_mqtt_message_payload(message), payload, 0, length);
             }
-            finally
-            {
-                if (added)
-                {
-                    _handle.DangerousRelease();
-                }
-            }
-        });
+
+            return new MqttMessage(topic, payload);
+        }
+        finally
+        {
+            NativeMethods.pamoja_mqtt_message_free(message);
+        }
     }
 }

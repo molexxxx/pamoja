@@ -11,6 +11,12 @@
 //! [`recv`](Receive::recv) drains. Publishing and subscribing use the default
 //! [`QualityOfService`] configured on the transport.
 //!
+//! The client speaks MQTT 3.1.1 with a clean session, so a connection starts with
+//! no subscriptions and a reconnect places them again. Topics and filters are
+//! checked against the rules of the OASIS MQTT 3.1.1 standard, section 4.7, before
+//! anything is sent, and a message too large for the connection's packet limit is
+//! refused rather than ending the connection.
+//!
 //! # Examples
 //!
 //! ```no_run
@@ -61,6 +67,10 @@ impl From<QualityOfService> for QoS {
     }
 }
 
+/// The largest packet a connection sends or accepts unless configured otherwise, in
+/// bytes.
+pub const DEFAULT_MAX_PACKET_SIZE: usize = 10 * 1024;
+
 /// Connection settings for an [`MqttTransport`].
 ///
 /// Construct with [`MqttConfig::new`] and refine with the chained setters; every
@@ -74,6 +84,7 @@ pub struct MqttConfig {
     keep_alive: Duration,
     capacity: usize,
     qos: QualityOfService,
+    max_packet_size: usize,
 }
 
 impl MqttConfig {
@@ -87,8 +98,9 @@ impl MqttConfig {
     ///
     /// # Returns
     ///
-    /// A configuration with a 30-second keep-alive, a request capacity of 64, and
-    /// a default quality of service of [`QualityOfService::AtLeastOnce`].
+    /// A configuration with a 30-second keep-alive, a request capacity of 64, a
+    /// default quality of service of [`QualityOfService::AtLeastOnce`], and a
+    /// packet limit of [`DEFAULT_MAX_PACKET_SIZE`].
     pub fn new(client_id: impl Into<String>, host: impl Into<String>, port: u16) -> Self {
         Self {
             client_id: client_id.into(),
@@ -97,7 +109,28 @@ impl MqttConfig {
             keep_alive: Duration::from_secs(30),
             capacity: 64,
             qos: QualityOfService::AtLeastOnce,
+            max_packet_size: DEFAULT_MAX_PACKET_SIZE,
         }
+    }
+
+    /// Sets the largest packet the connection sends or accepts, in bytes.
+    ///
+    /// A packet is a message's topic and payload plus a few bytes of framing. A send
+    /// whose packet would be larger is refused and the connection stays up, but a
+    /// larger packet arriving from the broker ends the connection, so every client
+    /// that shares a topic needs a limit that fits it. MQTT itself allows a packet of
+    /// up to 268,435,455 bytes after its fixed header.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - the limit, which applies to both directions.
+    ///
+    /// # Returns
+    ///
+    /// The updated configuration, for chaining.
+    pub fn max_packet_size(mut self, bytes: usize) -> Self {
+        self.max_packet_size = bytes;
+        self
     }
 
     /// Sets the keep-alive interval used to hold the connection open.
@@ -151,10 +184,16 @@ impl MqttConfig {
 /// link and spawns the background task that runs the MQTT event loop for the life
 /// of the connection. Inbound messages are queued and read with
 /// [`recv`](Receive::recv).
+///
+/// A connection can end without being asked to: the broker restarts, another client
+/// connects with the same client id, or a packet over the limit arrives. From then
+/// on [`is_connected`](MqttTransport::is_connected) is `false`, a send answers
+/// [`Error::Closed`], and the next receive reports why the connection ended, until
+/// [`connect`](Transport::connect) opens a new one.
 pub struct MqttTransport {
     config: MqttConfig,
     client: Option<AsyncClient>,
-    incoming: Option<mpsc::UnboundedReceiver<Message>>,
+    incoming: Option<mpsc::UnboundedReceiver<Result<Message>>>,
     pump: Option<JoinHandle<()>>,
 }
 
@@ -181,10 +220,19 @@ impl MqttTransport {
     ///
     /// # Returns
     ///
-    /// `true` once [`connect`](Transport::connect) has succeeded and before
-    /// [`disconnect`](MqttTransport::disconnect) is called.
+    /// `true` once [`connect`](Transport::connect) has succeeded, until
+    /// [`disconnect`](MqttTransport::disconnect) is called or the connection ends
+    /// on its own.
     pub fn is_connected(&self) -> bool {
-        self.client.is_some()
+        self.live().is_ok()
+    }
+
+    /// The client, while its connection is up.
+    fn live(&self) -> Result<&AsyncClient> {
+        match (&self.client, &self.pump) {
+            (Some(client), Some(pump)) if !pump.is_finished() => Ok(client),
+            _ => Err(Error::Closed),
+        }
     }
 
     /// Closes the connection and stops the background event loop.
@@ -213,13 +261,28 @@ impl MqttTransport {
 }
 
 impl Transport for MqttTransport {
+    /// Opens a connection to the broker, closing any the transport already holds.
+    ///
+    /// The session is clean, so subscriptions from an earlier connection are gone
+    /// and have to be placed again.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the broker has accepted the connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Transport`] if the broker cannot be reached or refuses the
+    /// connection.
     async fn connect(&mut self) -> Result<()> {
+        self.disconnect().await?;
         let mut options = MqttOptions::new(
             self.config.client_id.clone(),
             self.config.host.clone(),
             self.config.port,
         );
         options.set_keep_alive(self.config.keep_alive);
+        options.set_max_packet_size(self.config.max_packet_size, self.config.max_packet_size);
 
         let (client, mut eventloop) = AsyncClient::new(options, self.config.capacity);
         let (tx, rx) = mpsc::unbounded_channel();
@@ -236,14 +299,21 @@ impl Transport for MqttTransport {
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
                         let message = Message::new(publish.topic, publish.payload.to_vec());
-                        if tx.send(message).is_err() {
+                        if tx.send(Ok(message)).is_err() {
                             break;
                         }
                     }
                     Ok(_) => {}
                     Err(err) => {
-                        if let Some(ready_tx) = ready_tx.take() {
-                            let _ = ready_tx.send(Err(map_connection_error(err)));
+                        match ready_tx.take() {
+                            Some(ready_tx) => {
+                                let _ = ready_tx.send(Err(map_connection_error(err)));
+                            }
+                            None => {
+                                let _ = tx.send(Err(Error::Transport(format!(
+                                    "the connection to the broker ended: {err}"
+                                ))));
+                            }
                         }
                         break;
                     }
@@ -271,16 +341,46 @@ impl Transport for MqttTransport {
         }
     }
 
+    /// Publishes a payload to a topic under the configured quality of service.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the message is queued for the broker.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Transport`] if MQTT does not allow the topic or the message
+    /// is over the connection's packet limit, both before anything is sent, or
+    /// [`Error::Closed`] if the transport is not connected.
     async fn send(&mut self, topic: &str, payload: &[u8]) -> Result<()> {
-        let client = self.client.as_ref().ok_or(Error::Closed)?;
+        let client = self.live()?;
+        check_topic(topic)?;
+        let size = publish_size(topic, payload.len(), self.config.qos);
+        if size > self.config.max_packet_size {
+            return Err(Error::Transport(format!(
+                "the message makes a {size}-byte packet, over this connection's {}-byte limit",
+                self.config.max_packet_size
+            )));
+        }
         client
             .publish(topic, self.config.qos.into(), false, payload.to_vec())
             .await
             .map_err(map_client_error)
     }
 
+    /// Subscribes to a topic filter under the configured quality of service.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` once the subscription is queued for the broker.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Transport`] if the filter places a wildcard where MQTT does
+    /// not allow one, or [`Error::Closed`] if the transport is not connected.
     async fn subscribe(&mut self, topic: &str) -> Result<()> {
-        let client = self.client.as_ref().ok_or(Error::Closed)?;
+        let client = self.live()?;
+        check_filter(topic)?;
         client
             .subscribe(topic, self.config.qos.into())
             .await
@@ -293,21 +393,103 @@ impl Receive for MqttTransport {
     ///
     /// # Returns
     ///
-    /// `Some(message)` for the next queued message, or `None` once the event loop
-    /// has stopped and no further messages will arrive.
+    /// `Some(message)` for the next queued message, or `None` once the connection
+    /// has ended and its reason has been reported.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Closed`] if the transport is not connected.
+    /// Returns [`Error::Closed`] if the transport is not connected, or
+    /// [`Error::Transport`] once, saying why, when the connection ended on its own.
     async fn recv(&mut self) -> Result<Option<Message>> {
         let incoming = self.incoming.as_mut().ok_or(Error::Closed)?;
-        Ok(incoming.recv().await)
+        incoming.recv().await.transpose()
     }
 }
 
+/// Refuses a topic MQTT does not allow a message to be published to.
+///
+/// The rules are the OASIS MQTT 3.1.1 standard's: a topic name holds no wildcard
+/// (section 4.7.1) and is between one and 65,535 bytes of UTF-8 with no null
+/// character (section 4.7.3).
+fn check_topic(topic: &str) -> Result<()> {
+    if topic.contains(['+', '#']) {
+        return Err(Error::Transport(format!(
+            "the topic {topic} holds a wildcard, which only a subscription may use"
+        )));
+    }
+    check_length(topic)
+}
+
+/// Refuses a filter that places a wildcard where MQTT does not allow one.
+///
+/// The rules are the OASIS MQTT 3.1.1 standard's, section 4.7.1: `#` stands alone
+/// in the last level, and `+` fills a whole level.
+fn check_filter(filter: &str) -> Result<()> {
+    let levels: Vec<&str> = filter.split('/').collect();
+    let last = levels.len() - 1;
+    let misplaced = levels.iter().enumerate().any(|(at, level)| {
+        let hash = level.contains('#') && (*level != "#" || at != last);
+        let plus = level.contains('+') && *level != "+";
+        hash || plus
+    });
+    if misplaced {
+        return Err(Error::Transport(format!(
+            "the filter {filter} places a wildcard where MQTT does not allow one: \
+             # only alone in the last level, + only as a whole level"
+        )));
+    }
+    check_length(filter)
+}
+
+/// Refuses a topic or filter outside the lengths and characters MQTT allows.
+fn check_length(topic: &str) -> Result<()> {
+    if topic.is_empty() {
+        return Err(Error::Transport(
+            "an MQTT topic has at least one character".into(),
+        ));
+    }
+    if topic.contains('\0') {
+        return Err(Error::Transport(
+            "an MQTT topic cannot hold a null character".into(),
+        ));
+    }
+    if topic.len() > usize::from(u16::MAX) {
+        return Err(Error::Transport(
+            "an MQTT topic is at most 65,535 bytes".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// The size of the packet that publishes a message, framing included.
+///
+/// A publish is a fixed-header byte, a remaining length of one to four bytes, a
+/// two-byte topic length, the topic, a two-byte packet identifier above QoS 0, and
+/// the payload (OASIS MQTT 3.1.1, sections 2.2.3 and 3.3). This is the size the
+/// event loop checks against the limit, so a send that would fail there is refused
+/// before it can end the connection.
+fn publish_size(topic: &str, payload: usize, qos: QualityOfService) -> usize {
+    let packet_id = if qos == QualityOfService::AtMostOnce {
+        0
+    } else {
+        2
+    };
+    let remaining = 2 + topic.len() + packet_id + payload;
+    let length_bytes = match remaining {
+        0..=127 => 1,
+        128..=16_383 => 2,
+        16_384..=2_097_151 => 3,
+        _ => 4,
+    };
+    1 + length_bytes + remaining
+}
+
 /// Maps a `rumqttc` client error onto the shared transport error.
-fn map_client_error(err: ClientError) -> Error {
-    Error::Transport(err.to_string())
+///
+/// Topics and filters are checked before a request is made, so the one failure
+/// left is a request the event loop can no longer take: the connection has ended.
+fn map_client_error(_: ClientError) -> Error {
+    Error::Closed
 }
 
 /// Maps a `rumqttc` event-loop error onto the shared transport error.
@@ -337,6 +519,75 @@ mod tests {
     fn capacity_is_clamped_to_at_least_one() {
         let config = MqttConfig::new("c", "localhost", 1883).capacity(0);
         assert_eq!(config.capacity, 1);
+    }
+
+    #[test]
+    fn filters_follow_the_examples_in_section_4_7_1() {
+        for valid in [
+            "sport/tennis/player1/#",
+            "#",
+            "sport/tennis/#",
+            "+",
+            "+/tennis/#",
+            "sport/+/player1",
+            "/+",
+            "+/+",
+        ] {
+            assert!(check_filter(valid).is_ok(), "{valid} is a valid filter");
+        }
+        for invalid in ["sport/tennis#", "sport/tennis/#/ranking", "sport+"] {
+            assert!(
+                matches!(check_filter(invalid), Err(Error::Transport(_))),
+                "{invalid} is not a valid filter"
+            );
+        }
+    }
+
+    #[test]
+    fn a_topic_to_publish_to_holds_no_wildcard_and_has_a_length() {
+        assert!(check_topic("sport/tennis/player1").is_ok());
+        assert!(check_topic("/finance").is_ok());
+        for refused in ["sport/+/player1", "sport/#", "", "a\0b"] {
+            assert!(
+                matches!(check_topic(refused), Err(Error::Transport(_))),
+                "{refused:?} is refused"
+            );
+        }
+        let longest = "t".repeat(65_535);
+        assert!(check_topic(&longest).is_ok());
+        assert!(check_topic(&format!("{longest}t")).is_err());
+    }
+
+    #[test]
+    fn a_publish_packet_grows_its_length_field_at_the_table_2_4_boundaries() {
+        use QualityOfService::{AtLeastOnce, AtMostOnce};
+        assert_eq!(publish_size("a", 124, AtMostOnce), 1 + 1 + 127);
+        assert_eq!(publish_size("a", 125, AtMostOnce), 1 + 2 + 128);
+        assert_eq!(publish_size("a", 122, AtLeastOnce), 1 + 1 + 127);
+        assert_eq!(publish_size("a", 16_380, AtMostOnce), 1 + 2 + 16_383);
+        assert_eq!(publish_size("a", 16_381, AtMostOnce), 1 + 3 + 16_384);
+        assert_eq!(publish_size("a", 2_097_148, AtMostOnce), 1 + 3 + 2_097_151);
+        assert_eq!(publish_size("a", 2_097_149, AtMostOnce), 1 + 4 + 2_097_152);
+    }
+
+    #[test]
+    fn a_temperature_reading_packs_into_the_sizes_the_guide_lists() {
+        use QualityOfService::{AtLeastOnce, AtMostOnce};
+        let topic = "sensors/1/temperature";
+        assert_eq!(publish_size(topic, 100, AtMostOnce), 125);
+        assert_eq!(publish_size(topic, 100, AtLeastOnce), 127);
+        assert_eq!(publish_size(topic, 10_000, AtMostOnce), 10_026);
+        assert_eq!(publish_size(topic, 10_000, AtLeastOnce), 10_028);
+        assert_eq!(publish_size(topic, 10_215, AtMostOnce), 10_241);
+        assert_eq!(publish_size(topic, 10_215, AtLeastOnce), 10_243);
+        assert!(publish_size(topic, 10_214, AtMostOnce) <= DEFAULT_MAX_PACKET_SIZE);
+    }
+
+    #[test]
+    fn the_packet_limit_defaults_to_ten_kibibytes_and_can_be_raised() {
+        let config = MqttConfig::new("c", "localhost", 1883);
+        assert_eq!(config.max_packet_size, DEFAULT_MAX_PACKET_SIZE);
+        assert_eq!(config.max_packet_size(65_536).max_packet_size, 65_536);
     }
 
     #[tokio::test]

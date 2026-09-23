@@ -50,7 +50,8 @@ impl From<PamojaQos> for QualityOfService {
 /// Connection settings for an MQTT client.
 ///
 /// `client_id` and `host` are borrowed null-terminated UTF-8 strings. A
-/// `keep_alive_secs` or `capacity` of `0` selects the core default.
+/// `keep_alive_secs`, `capacity`, or `max_packet_size` of `0` selects the core
+/// default.
 #[repr(C)]
 pub struct PamojaMqttConfig {
     /// The MQTT client identifier presented to the broker.
@@ -65,6 +66,9 @@ pub struct PamojaMqttConfig {
     pub capacity: u32,
     /// Default quality of service for publishes and subscriptions.
     pub qos: PamojaQos,
+    /// The largest packet the connection sends or accepts, in bytes, or 0 for the
+    /// default of 10,240.
+    pub max_packet_size: u32,
 }
 
 /// An opaque handle to an MQTT client transport.
@@ -133,6 +137,9 @@ pub(crate) unsafe fn mqtt_settings(config: *const PamojaMqttConfig) -> Option<Mq
     }
     if config.capacity != 0 {
         settings = settings.capacity(config.capacity as usize);
+    }
+    if config.max_packet_size != 0 {
+        settings = settings.max_packet_size(config.max_packet_size as usize);
     }
     Some(settings.qos(config.qos.into()))
 }
@@ -225,7 +232,9 @@ pub unsafe extern "C" fn pamoja_mqtt_client_subscribe(
 ///
 /// # Returns
 ///
-/// [`PamojaStatus::Ok`] on success (including end of stream), or an error status.
+/// [`PamojaStatus::Ok`] on success (including end of stream), or an error status:
+/// [`PamojaStatus::Transport`] once, with the reason as the last error message,
+/// when the connection ended on its own.
 ///
 /// # Safety
 ///
@@ -260,6 +269,78 @@ pub unsafe extern "C" fn pamoja_mqtt_client_recv(
         }
         Ok(Ok(None)) => PamojaStatus::Ok,
         Ok(Err(error)) => {
+            set_last_error(error.to_string());
+            PamojaStatus::from_error(&error)
+        }
+        Err(_) => {
+            set_last_error("panic at the FFI boundary".to_owned());
+            PamojaStatus::Panic
+        }
+    }
+}
+
+/// Waits a limited time for the next message from any subscribed topic.
+///
+/// Running out of time loses nothing: a message that arrives afterwards waits for
+/// the next receive. This is the call to use rather than abandoning a receive that
+/// is still waiting, which would take that message instead.
+///
+/// # Arguments
+///
+/// * `client` - the client.
+/// * `timeout_ms` - how long to wait, in milliseconds.
+/// * `out_message` - receives a message handle the caller releases with
+///   [`pamoja_mqtt_message_free`], or null when the time ran out or the
+///   connection has ended.
+/// * `out_timed_out` - receives whether the time ran out before a message arrived.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+/// the connection has ended, or an error status.
+///
+/// # Safety
+///
+/// `client` must be a live handle from [`pamoja_mqtt_client_new`], and
+/// `out_message` and `out_timed_out` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_mqtt_client_recv_within(
+    client: *mut PamojaMqttClient,
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMqttMessage,
+    out_timed_out: *mut bool,
+) -> PamojaStatus {
+    if out_message.is_null() || out_timed_out.is_null() {
+        set_last_error("out_message and out_timed_out must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_message = ptr::null_mut();
+    *out_timed_out = false;
+    let Some(client) = client_handle(client) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    let inner = Arc::clone(&client.inner);
+    let limit = Duration::from_millis(timeout_ms);
+
+    match catch_unwind(AssertUnwindSafe(|| {
+        runtime().block_on(async move {
+            tokio::time::timeout(limit, async move { inner.lock().await.recv().await }).await
+        })
+    })) {
+        Ok(Err(_)) => {
+            *out_timed_out = true;
+            PamojaStatus::Ok
+        }
+        Ok(Ok(Ok(Some(message)))) => {
+            *out_message = Box::into_raw(Box::new(PamojaMqttMessage {
+                topic: CString::new(message.topic)
+                    .unwrap_or_else(|_| CString::new("").expect("static")),
+                payload: message.payload,
+            }));
+            PamojaStatus::Ok
+        }
+        Ok(Ok(Ok(None))) => PamojaStatus::Ok,
+        Ok(Ok(Err(error))) => {
             set_last_error(error.to_string());
             PamojaStatus::from_error(&error)
         }
@@ -493,6 +574,7 @@ mod tests {
             keep_alive_secs: 0,
             capacity: 0,
             qos: PamojaQos::AtMostOnce,
+            max_packet_size: 0,
         };
         // Safety: the config and its borrowed strings are valid for the call.
         let client = unsafe { pamoja_mqtt_client_new(&config) };

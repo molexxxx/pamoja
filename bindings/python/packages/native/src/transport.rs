@@ -17,7 +17,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::Arc;
 
 use pamoja_core::{Error, Message as CoreMessage, Receive, Result, Transport};
 use pyo3::prelude::*;
@@ -493,21 +493,22 @@ impl Payload {
     }
 }
 
-/// One transport, ready to compose into a ladder or a wrapper.
+/// One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`,
+/// or to compose into a ladder or a wrapper.
 ///
-/// Build one with the module constructors, then hand it to whatever should own
-/// it. A transport handed on is spent: using it afterwards raises.
+/// Build one with the module constructors, then drive it or hand it to whatever should
+/// own it. A transport handed on is spent: using it afterwards raises.
 #[gen_stub_pyclass]
 #[pyclass]
 pub struct PyTransport {
-    inner: Mutex<Option<Kind>>,
+    inner: Arc<tokio::sync::Mutex<Option<Kind>>>,
 }
 
 impl PyTransport {
     /// Wraps a transport kind in the class Python holds.
     pub(crate) fn wrap(kind: Kind) -> Self {
         Self {
-            inner: Mutex::new(Some(kind)),
+            inner: Arc::new(tokio::sync::Mutex::new(Some(kind))),
         }
     }
 
@@ -515,16 +516,20 @@ impl PyTransport {
     ///
     /// The transport is behind a lock so a shared reference can empty it, which
     /// is what Python hands a method, and so the class is `Sync` as a `pyclass`
-    /// has to be.
+    /// has to be. A call still running on the transport holds the lock, so it cannot
+    /// be handed on mid-call.
     pub(crate) fn take(&self) -> PyResult<Kind> {
         self.inner
-            .lock()
-            .map_err(|_| PamojaError::new_err("this transport is poisoned"))?
+            .try_lock()
+            .map_err(|_| PamojaError::new_err("this transport is busy with a call"))?
             .take()
-            .ok_or_else(|| {
-                PamojaError::new_err("this transport was already added to a ladder or a wrapper")
-            })
+            .ok_or_else(spent)
     }
+}
+
+/// The error for a transport that was handed to a ladder or a wrapper.
+fn spent() -> PyErr {
+    PamojaError::new_err("this transport was already added to a ladder or a wrapper")
 }
 
 #[gen_stub_pymethods]
@@ -533,7 +538,7 @@ impl PyTransport {
     /// Creates an MQTT transport from broker settings.
     #[cfg(feature = "mqtt")]
     #[staticmethod]
-    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None))]
+    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None, max_packet_size=None))]
     fn mqtt(
         client_id: String,
         host: String,
@@ -541,8 +546,17 @@ impl PyTransport {
         keep_alive_secs: Option<u32>,
         capacity: Option<u32>,
         qos: Option<String>,
+        max_packet_size: Option<u32>,
     ) -> PyResult<Self> {
-        let config = crate::mqtt::settings(client_id, host, port, keep_alive_secs, capacity, qos)?;
+        let config = crate::mqtt::settings(
+            client_id,
+            host,
+            port,
+            keep_alive_secs,
+            capacity,
+            qos,
+            max_packet_size,
+        )?;
         Ok(Self::wrap(Kind::Mqtt(pamoja_mqtt::MqttTransport::new(
             config,
         ))))
@@ -620,9 +634,72 @@ impl PyTransport {
     /// Whether this transport is still holdable, or has been handed on.
     #[getter]
     fn is_available(&self) -> bool {
-        self.inner
-            .lock()
-            .map(|held| held.is_some())
-            .unwrap_or(false)
+        self.inner.try_lock().map_or(true, |held| held.is_some())
     }
+
+    /// Establishes the link.
+    ///
+    /// Raises `PamojaError` when the link cannot be established, or when the transport
+    /// was handed on.
+    fn connect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut held = inner.lock().await;
+            let transport = held.as_mut().ok_or_else(spent)?;
+            transport.connect().await.map_err(to_pyerr)
+        })
+    }
+
+    /// Publishes a payload to a topic: bytes, or text such as a reading written out.
+    ///
+    /// Raises `PamojaError` when the link refuses it, or when the transport was handed on.
+    fn send<'py>(
+        &self,
+        py: Python<'py>,
+        topic: String,
+        payload: Payload,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut held = inner.lock().await;
+            let transport = held.as_mut().ok_or_else(spent)?;
+            transport
+                .send(&topic, &payload.into_bytes())
+                .await
+                .map_err(to_pyerr)
+        })
+    }
+
+    /// Subscribes to a topic, with the `+` and `#` wildcards.
+    ///
+    /// Raises `PamojaError` when the link refuses it, or when the transport was handed on.
+    fn subscribe<'py>(&self, py: Python<'py>, topic: String) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut held = inner.lock().await;
+            let transport = held.as_mut().ok_or_else(spent)?;
+            transport.subscribe(&topic).await.map_err(to_pyerr)
+        })
+    }
+
+    /// Waits for the next message on a subscribed topic, or `None` once the link has ended.
+    ///
+    /// Raises `PamojaError` when the link fails, or when the transport was handed on.
+    fn recv<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = Arc::clone(&self.inner);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut held = inner.lock().await;
+            let transport = held.as_mut().ok_or_else(spent)?;
+            let received = transport.recv().await.map_err(to_pyerr)?;
+            Ok(received.map(|message| Message {
+                topic: message.topic,
+                payload: message.payload,
+            }))
+        })
+    }
+}
+
+/// Maps a core error onto the one Python raises.
+fn to_pyerr(error: Error) -> PyErr {
+    PamojaError::new_err(error.to_string())
 }

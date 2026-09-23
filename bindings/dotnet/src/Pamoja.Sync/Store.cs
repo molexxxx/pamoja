@@ -16,24 +16,24 @@ namespace Pamoja.Sync;
 ///
 /// Handing a store to a ladder consumes it, because the ladder owns it from then
 /// on, so a spent store throws rather than aliasing a buffer it no longer holds.
+/// Calls on one store run one at a time.
 /// </remarks>
 public sealed class Store : IDisposable
 {
-    private IntPtr _handle;
+    private const string Spent = "this store was already given to a ladder";
+    private const string Busy = "this store is busy with a call";
+
+    private NativeHandle? _handle;
 
     /// <summary>Wraps a native store handle.</summary>
     private Store(IntPtr handle)
     {
-        if (handle == IntPtr.Zero)
-        {
-            throw new PamojaException(Status.LastError() ?? "failed to open the store");
-        }
-
-        _handle = handle;
+        _handle = NativeHandle.Create(
+            handle, NativeMethods.pamoja_store_free, "store", serialized: true);
     }
 
     /// <summary>Whether this store is still holdable, or has been given away.</summary>
-    public bool IsAvailable => _handle != IntPtr.Zero;
+    public bool IsAvailable => _handle is { IsClosed: false };
 
     /// <summary>Creates a buffer held in memory.</summary>
     /// <remarks>
@@ -74,27 +74,25 @@ public sealed class Store : IDisposable
     public Task AppendAsync(ReadOnlyMemory<byte> record)
     {
         byte[] bytes = record.ToArray();
-        return Task.Run(() => Status.ThrowIfError(
-            NativeMethods.pamoja_store_append(Live(), bytes, (nuint)bytes.Length)));
+        return Live().UseAsync(handle => Status.ThrowIfError(
+            NativeMethods.pamoja_store_append(handle, bytes, (nuint)bytes.Length)));
     }
 
     /// <summary>Reads the oldest record without removing it.</summary>
     /// <returns>The record, or <c>null</c> when the buffer is empty.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<byte[]?> PeekAsync() => Task.Run(() =>
+    public Task<byte[]?> PeekAsync() => Live().UseAsync(handle =>
     {
-        IntPtr record = IntPtr.Zero;
-        Status.ThrowIfError(NativeMethods.pamoja_store_peek(Live(), out record));
+        Status.ThrowIfError(NativeMethods.pamoja_store_peek(handle, out IntPtr record));
         return record == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(record);
     });
 
     /// <summary>Removes and returns the oldest record.</summary>
     /// <returns>The record, or <c>null</c> when the buffer is empty.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<byte[]?> PopAsync() => Task.Run(() =>
+    public Task<byte[]?> PopAsync() => Live().UseAsync(handle =>
     {
-        IntPtr record = IntPtr.Zero;
-        Status.ThrowIfError(NativeMethods.pamoja_store_pop(Live(), out record));
+        Status.ThrowIfError(NativeMethods.pamoja_store_pop(handle, out IntPtr record));
         return record == IntPtr.Zero ? null : Pamoja.Codec.Codec.TakeBytes(record);
     });
 
@@ -113,17 +111,17 @@ public sealed class Store : IDisposable
     /// <summary>Reports how many records the buffer holds.</summary>
     /// <returns>The count.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<int> CountAsync() => Task.Run(() =>
+    public Task<int> CountAsync() => Live().UseAsync(handle =>
     {
-        nuint length = 0;
-        Status.ThrowIfError(NativeMethods.pamoja_store_len(Live(), out length));
+        Status.ThrowIfError(NativeMethods.pamoja_store_len(handle, out nuint length));
         return checked((int)length);
     });
 
     /// <summary>Sends every held record over a transport, oldest first.</summary>
     /// <remarks>
     /// A record is removed only once the transport has taken it, so a link that
-    /// fails part-way leaves the rest of the queue intact for the next attempt.
+    /// fails part-way leaves the rest of the queue intact for the next attempt. The
+    /// drain waits for any call already running on the transport.
     /// </remarks>
     /// <param name="transport">The transport to send over, borrowed not consumed.</param>
     /// <param name="topic">The topic to send to.</param>
@@ -132,43 +130,44 @@ public sealed class Store : IDisposable
     public Task<int> DrainToAsync(Transport transport, string topic)
     {
         ArgumentNullException.ThrowIfNull(transport);
-        return Task.Run(() =>
+        NativeHandle store = Live();
+        return transport.LendAsync(link => store.UseAsync(handle =>
         {
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
             try
             {
-                nuint sent = 0;
                 Status.ThrowIfError(NativeMethods.pamoja_store_drain_to(
-                    Live(), transport.Borrow(), topicPtr, out sent));
+                    handle, link, topicPtr, out nuint sent));
                 return checked((int)sent);
             }
             finally
             {
                 Marshal.FreeCoTaskMem(topicPtr);
             }
-        });
+        }));
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (_handle != IntPtr.Zero)
-        {
-            NativeMethods.pamoja_store_free(_handle);
-            _handle = IntPtr.Zero;
-        }
+        _handle?.Dispose();
+        _handle = null;
     }
 
     /// <summary>Hands the native handle on, leaving this one spent.</summary>
+    /// <returns>The pointer the caller now owns.</returns>
+    /// <exception cref="PamojaException">
+    /// This store was already given away, or a call on it is still running.
+    /// </exception>
     public IntPtr Take()
     {
-        IntPtr handle = Live();
-        _handle = IntPtr.Zero;
-        return handle;
+        IntPtr pointer = Live().Take(Busy);
+        _handle = null;
+        return pointer;
     }
 
     /// <summary>Returns the handle, refusing one that has been given away.</summary>
-    private IntPtr Live() => _handle != IntPtr.Zero
-        ? _handle
-        : throw new PamojaException("this store was already given to a ladder");
+    private NativeHandle Live() => _handle is { IsClosed: false } handle
+        ? handle
+        : throw new PamojaException(Spent);
 }

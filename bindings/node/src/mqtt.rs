@@ -11,7 +11,7 @@ use napi::bindgen_prelude::Buffer;
 use napi::Either;
 use napi_derive::napi;
 
-use crate::transport::bytes_of;
+use crate::transport::{bytes_of, within};
 use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
 use tokio::sync::Mutex;
@@ -55,6 +55,10 @@ pub struct MqttClientOptions {
     pub capacity: Option<u32>,
     /// Default quality of service. Defaults to `AtLeastOnce` when omitted.
     pub qos: Option<Qos>,
+    /// The largest packet the connection sends or accepts, in bytes. Defaults to 10,240
+    /// when omitted. A publish that would be larger is refused and the connection stays
+    /// up, but a larger packet arriving from the broker ends the connection.
+    pub max_packet_size: Option<u32>,
 }
 
 /// A message received from a subscribed topic.
@@ -116,18 +120,25 @@ impl MqttClient {
     }
 
     /// Awaits the next message from any subscribed topic, or `null` once the
-    /// connection has ended.
+    /// connection has ended. A connection that ends on its own rejects one receive
+    /// with the reason.
+    ///
+    /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
+    /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self) -> napi::Result<Option<MqttMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<MqttMessage>> {
         let inner = Arc::clone(&self.inner);
-        let mut transport = inner.lock().await;
-        let message = transport.recv().await.map_err(to_napi)?;
-        Ok(message.map(|message| MqttMessage {
-            text: message.text().ok().map(str::to_owned),
-            number: message.number().ok(),
-            topic: message.topic,
-            payload: message.payload.into(),
-        }))
+        within(timeout_ms, async move {
+            let mut transport = inner.lock().await;
+            let message = transport.recv().await.map_err(to_napi)?;
+            Ok(message.map(|message| MqttMessage {
+                text: message.text().ok().map(str::to_owned),
+                number: message.number().ok(),
+                topic: message.topic,
+                payload: message.payload.into(),
+            }))
+        })
+        .await
     }
 
     /// Reports whether the client currently holds an active connection.
@@ -166,6 +177,9 @@ pub(crate) fn settings(options: MqttClientOptions) -> MqttConfig {
     }
     if let Some(qos) = options.qos {
         config = config.qos(qos.into());
+    }
+    if let Some(bytes) = options.max_packet_size {
+        config = config.max_packet_size(bytes as usize);
     }
     config
 }

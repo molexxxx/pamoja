@@ -45,6 +45,20 @@ Console.WriteLine(
     $"line/+/temp took {message.Text}"
     + $" from {message.Topic}");
 
+// The raw reading went out first and never arrived, which a test proves by waiting
+// a set time for anything more rather than forever. Giving up loses nothing: a
+// message that came later would wait for the next receive.
+TimeSpan quiet = TimeSpan.FromMilliseconds(50);
+try
+{
+    await subscriber.ReceiveAsync(quiet);
+    Console.WriteLine("line/+/temp took a second reading, which should never happen");
+}
+catch (TimeoutException)
+{
+    Console.WriteLine($"line/+/temp heard nothing more within {quiet.TotalMilliseconds} ms");
+}
+
 // A `#` covers every level that remains, so a second link takes the whole subtree,
 // including the reading the single-level filter passed over.
 using LoopbackTransport watcher = broker.Link();

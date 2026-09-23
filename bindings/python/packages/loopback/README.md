@@ -30,6 +30,8 @@ import asyncio
 from pamoja.core import PamojaError
 from pamoja.loopback import LoopbackBroker
 
+QUIET_MS = 50
+
 
 async def main() -> None:
     # One broker and two links off it, all in this process. Nothing binds a port and
@@ -49,6 +51,15 @@ async def main() -> None:
 
     message = await subscriber.recv()
     print(f"line/+/temp took {message.text} from {message.topic}")
+
+    # The raw reading went out first and never arrived, which a test proves by waiting a
+    # set time for anything more rather than forever. Giving up loses nothing: a message
+    # that came later would wait for the next receive.
+    try:
+        await asyncio.wait_for(subscriber.recv(), QUIET_MS / 1000)
+        print("line/+/temp took a second reading, which should never happen")
+    except asyncio.TimeoutError:
+        print(f"line/+/temp heard nothing more within {QUIET_MS} ms")
 
     # A `#` covers every level that remains, so a second link takes the whole subtree,
     # including the reading the single-level filter passed over.

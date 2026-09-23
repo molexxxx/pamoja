@@ -41,17 +41,16 @@ public sealed class SimulatedSensor : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_sim_sensor_new(baseline, driftPerRead, noise, seed),
             NativeMethods.pamoja_sim_sensor_free,
-            "simulated sensor");
+            "simulated sensor",
+            serialized: true);
     }
 
     /// <summary>Takes the next reading.</summary>
     /// <returns>The reading.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<float> ReadAsync() => Task.Run(() =>
+    public Task<float> ReadAsync() => _handle.UseAsync(handle =>
     {
-        float reading = 0.0f;
-        Status.ThrowIfError(_handle.Use(handle =>
-            NativeMethods.pamoja_sim_sensor_read(handle, out reading)));
+        Status.ThrowIfError(NativeMethods.pamoja_sim_sensor_read(handle, out float reading));
         return reading;
     });
 
@@ -80,17 +79,16 @@ public sealed class Replay : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_replay_new(readings, (nuint)readings.Length, repeating),
             NativeMethods.pamoja_replay_free,
-            "replay");
+            "replay",
+            serialized: true);
     }
 
     /// <summary>Takes the next reading.</summary>
     /// <returns>The reading.</returns>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task<float> ReadAsync() => Task.Run(() =>
+    public Task<float> ReadAsync() => _handle.UseAsync(handle =>
     {
-        float reading = 0.0f;
-        Status.ThrowIfError(_handle.Use(handle =>
-            NativeMethods.pamoja_replay_read(handle, out reading)));
+        Status.ThrowIfError(NativeMethods.pamoja_replay_read(handle, out float reading));
         return reading;
     });
 
@@ -110,7 +108,8 @@ public sealed class RecordingActuator : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_recording_actuator_new(),
             NativeMethods.pamoja_recording_actuator_free,
-            "recording actuator");
+            "recording actuator",
+            serialized: true);
     }
 
     /// <summary>Gets how many commands have been recorded.</summary>
@@ -137,9 +136,8 @@ public sealed class RecordingActuator : IDisposable
     /// <summary>Applies a command, which is recorded rather than acted on.</summary>
     /// <param name="command">The value commanded.</param>
     /// <exception cref="PamojaException">The native call failed.</exception>
-    public Task ApplyAsync(float command) => Task.Run(() => Status.ThrowIfError(
-        _handle.Use(handle =>
-            NativeMethods.pamoja_recording_actuator_apply(handle, command))));
+    public Task ApplyAsync(float command) => _handle.UseAsync(handle =>
+        Status.ThrowIfError(NativeMethods.pamoja_recording_actuator_apply(handle, command)));
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
@@ -160,7 +158,8 @@ public sealed class SimulatedRobot : IDisposable
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_sim_robot_new(pose, dt),
             NativeMethods.pamoja_sim_robot_free,
-            "simulated robot");
+            "simulated robot",
+            serialized: true);
     }
 
     /// <summary>Gets where the robot has got to.</summary>
@@ -184,8 +183,8 @@ public sealed class SimulatedRobot : IDisposable
             Vy = command.Vy,
             Omega = command.Omega,
         };
-        return Task.Run(() => Status.ThrowIfError(
-            _handle.Use(handle => NativeMethods.pamoja_sim_robot_apply(handle, twist))));
+        return _handle.UseAsync(handle =>
+            Status.ThrowIfError(NativeMethods.pamoja_sim_robot_apply(handle, twist)));
     }
 
     /// <inheritdoc/>

@@ -4304,7 +4304,8 @@ typedef struct {
 // Connection settings for an MQTT client.
 //
 // `client_id` and `host` are borrowed null-terminated UTF-8 strings. A
-// `keep_alive_secs` or `capacity` of `0` selects the core default.
+// `keep_alive_secs`, `capacity`, or `max_packet_size` of `0` selects the core
+// default.
 typedef struct {
   // The MQTT client identifier presented to the broker.
   const char *client_id;
@@ -4318,6 +4319,9 @@ typedef struct {
   uint32_t capacity;
   // Default quality of service for publishes and subscriptions.
   PamojaQos qos;
+  // The largest packet the connection sends or accepts, in bytes, or 0 for the
+  // default of 10,240.
+  uint32_t max_packet_size;
 } PamojaMqttConfig;
 
 // The split between the time a node works and the time it sleeps.
@@ -6539,6 +6543,33 @@ PamojaStatus pamoja_coap_client_subscribe(PamojaCoapClient *client, const char *
 //
 // `client` must be a live handle and `out_message` must be writable.
 PamojaStatus pamoja_coap_client_recv(PamojaCoapClient *client, PamojaMessage **out_message);
+
+// Waits a limited time for the next message on an observed path.
+//
+// Running out of time loses nothing: a message that arrives afterwards waits for
+// the next receive.
+//
+// # Arguments
+//
+// * `client` - the endpoint.
+// * `timeout_ms` - how long to wait, in milliseconds.
+// * `out_message` - receives a message handle, or null when the time ran out or
+//   the endpoint is closed.
+// * `out_timed_out` - receives whether the time ran out before a message arrived.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+// the endpoint has closed.
+//
+// # Safety
+//
+// `client` must be a live handle, and `out_message` and `out_timed_out` must be
+// writable.
+PamojaStatus pamoja_coap_client_recv_within(PamojaCoapClient *client,
+                                            uint64_t timeout_ms,
+                                            PamojaMessage **out_message,
+                                            bool *out_timed_out);
 
 // Reports whether the endpoint is bound.
 //
@@ -9654,6 +9685,34 @@ PamojaStatus pamoja_ladder_subscribe(PamojaLadder *ladder, const char *topic);
 // `ladder` must be a live handle and `out_message` must be writable.
 PamojaStatus pamoja_ladder_recv(PamojaLadder *ladder, PamojaMessage **out_message);
 
+// Waits a limited time for the next message from any rung that listens.
+//
+// Running out of time loses nothing: a message that arrives afterwards waits for
+// the next receive.
+//
+// # Arguments
+//
+// * `ladder` - the ladder.
+// * `timeout_ms` - how long to wait, in milliseconds.
+// * `out_message` - receives a message handle to release with
+//   [`pamoja_message_free`](crate::transport::pamoja_message_free), or null when
+//   the time ran out.
+// * `out_timed_out` - receives whether the time ran out before a message arrived.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message or with the time run out, or
+// [`PamojaStatus::Closed`] if no connected rung listens.
+//
+// # Safety
+//
+// `ladder` must be a live handle, and `out_message` and `out_timed_out` must be
+// writable.
+PamojaStatus pamoja_ladder_recv_within(PamojaLadder *ladder,
+                                       uint64_t timeout_ms,
+                                       PamojaMessage **out_message,
+                                       bool *out_timed_out);
+
 // Releases a ladder handle, and the rungs and buffer it owns.
 //
 // Passing null is a no-op.
@@ -9774,6 +9833,32 @@ PamojaStatus pamoja_loopback_transport_subscribe(PamojaLoopbackTransport *transp
 // `transport` must be a live handle and `out_message` must be writable.
 PamojaStatus pamoja_loopback_transport_recv(PamojaLoopbackTransport *transport,
                                             PamojaMessage **out_message);
+
+// Waits a limited time for the next message on a subscribed topic.
+//
+// Running out of time loses nothing: a message that arrives afterwards waits for
+// the next receive.
+//
+// # Arguments
+//
+// * `transport` - the link.
+// * `timeout_ms` - how long to wait, in milliseconds.
+// * `out_message` - receives a message handle, or null when the time ran out.
+// * `out_timed_out` - receives whether the time ran out before a message arrived.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message or with the time run out, or
+// [`PamojaStatus::Closed`] if the link is not connected.
+//
+// # Safety
+//
+// `transport` must be a live handle, and `out_message` and `out_timed_out` must
+// be writable.
+PamojaStatus pamoja_loopback_transport_recv_within(PamojaLoopbackTransport *transport,
+                                                   uint64_t timeout_ms,
+                                                   PamojaMessage **out_message,
+                                                   bool *out_timed_out);
 
 // Reports whether a link is connected.
 //
@@ -18267,13 +18352,44 @@ PamojaStatus pamoja_mqtt_client_subscribe(PamojaMqttClient *client, const char *
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`] on success (including end of stream), or an error status.
+// [`PamojaStatus::Ok`] on success (including end of stream), or an error status:
+// [`PamojaStatus::Transport`] once, with the reason as the last error message,
+// when the connection ended on its own.
 //
 // # Safety
 //
 // `client` must be a live handle from [`pamoja_mqtt_client_new`] and
 // `out_message` must point to a writable `*mut PamojaMqttMessage`.
 PamojaStatus pamoja_mqtt_client_recv(PamojaMqttClient *client, PamojaMqttMessage **out_message);
+
+// Waits a limited time for the next message from any subscribed topic.
+//
+// Running out of time loses nothing: a message that arrives afterwards waits for
+// the next receive. This is the call to use rather than abandoning a receive that
+// is still waiting, which would take that message instead.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `timeout_ms` - how long to wait, in milliseconds.
+// * `out_message` - receives a message handle the caller releases with
+//   [`pamoja_mqtt_message_free`], or null when the time ran out or the
+//   connection has ended.
+// * `out_timed_out` - receives whether the time ran out before a message arrived.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+// the connection has ended, or an error status.
+//
+// # Safety
+//
+// `client` must be a live handle from [`pamoja_mqtt_client_new`], and
+// `out_message` and `out_timed_out` must be writable.
+PamojaStatus pamoja_mqtt_client_recv_within(PamojaMqttClient *client,
+                                            uint64_t timeout_ms,
+                                            PamojaMqttMessage **out_message,
+                                            bool *out_timed_out);
 
 // Reports whether the client currently holds an active connection.
 //
@@ -25524,6 +25640,35 @@ PamojaStatus pamoja_transport_subscribe(PamojaTransport *transport, const char *
 //
 // `transport` must be a live handle and `out_message` must be writable.
 PamojaStatus pamoja_transport_recv(PamojaTransport *transport, PamojaMessage **out_message);
+
+// Waits a limited time for the next message a transport delivers.
+//
+// Running out of time loses nothing: a message that arrives afterwards waits for
+// the next receive. This is the call to use rather than abandoning a receive that
+// is still waiting, which would take that message instead.
+//
+// # Arguments
+//
+// * `transport` - the transport to receive from.
+// * `timeout_ms` - how long to wait, in milliseconds.
+// * `out_message` - receives a message handle to release with
+//   [`pamoja_message_free`], or null when the time ran out or the link has ended.
+// * `out_timed_out` - receives whether the time ran out before a message arrived.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+// the link has ended, or [`PamojaStatus::Closed`] if the transport is not
+// connected.
+//
+// # Safety
+//
+// `transport` must be a live handle, and `out_message` and `out_timed_out` must
+// be writable.
+PamojaStatus pamoja_transport_recv_within(PamojaTransport *transport,
+                                          uint64_t timeout_ms,
+                                          PamojaMessage **out_message,
+                                          bool *out_timed_out);
 
 // Releases a transport handle.
 //

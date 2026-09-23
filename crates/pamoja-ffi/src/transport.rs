@@ -562,6 +562,45 @@ pub unsafe extern "C" fn pamoja_transport_recv(
     }
 }
 
+/// Waits a limited time for the next message a transport delivers.
+///
+/// Running out of time loses nothing: a message that arrives afterwards waits for
+/// the next receive. This is the call to use rather than abandoning a receive that
+/// is still waiting, which would take that message instead.
+///
+/// # Arguments
+///
+/// * `transport` - the transport to receive from.
+/// * `timeout_ms` - how long to wait, in milliseconds.
+/// * `out_message` - receives a message handle to release with
+///   [`pamoja_message_free`], or null when the time ran out or the link has ended.
+/// * `out_timed_out` - receives whether the time ran out before a message arrived.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message, with the time run out, or with null once
+/// the link has ended, or [`PamojaStatus::Closed`] if the transport is not
+/// connected.
+///
+/// # Safety
+///
+/// `transport` must be a live handle, and `out_message` and `out_timed_out` must
+/// be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_transport_recv_within(
+    transport: *mut PamojaTransport,
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMessage,
+    out_timed_out: *mut bool,
+) -> PamojaStatus {
+    let Some(transport) = transport_handle(transport) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    receive_within(timeout_ms, out_message, out_timed_out, || {
+        transport.kind.recv()
+    })
+}
+
 /// Releases a transport handle.
 ///
 /// Passing null is a no-op.
@@ -603,6 +642,46 @@ pub(crate) unsafe fn take_transport(transport: *mut PamojaTransport) -> Option<K
         return None;
     }
     Some(Box::from_raw(transport).kind)
+}
+
+/// Runs a receive against a time limit and writes what came of it through the
+/// out-parameters every timed receive in this crate shares.
+///
+/// A receive is cancel-safe, so the one dropped when the time runs out leaves the
+/// next message queued rather than taking it.
+///
+/// # Safety
+///
+/// `out_message` and `out_timed_out` must be writable, or null to be refused.
+pub(crate) unsafe fn receive_within<F>(
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMessage,
+    out_timed_out: *mut bool,
+    receive: impl FnOnce() -> F,
+) -> PamojaStatus
+where
+    F: Future<Output = Result<Option<Message>>>,
+{
+    if out_message.is_null() || out_timed_out.is_null() {
+        set_last_error("out_message and out_timed_out must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_message = ptr::null_mut();
+    *out_timed_out = false;
+    let limit = std::time::Duration::from_millis(timeout_ms);
+    let receive = receive();
+    match crate::runtime().block_on(async move { tokio::time::timeout(limit, receive).await }) {
+        Err(_) => {
+            *out_timed_out = true;
+            PamojaStatus::Ok
+        }
+        Ok(Ok(Some(message))) => {
+            *out_message = PamojaMessage::into_raw(message.topic, message.payload);
+            PamojaStatus::Ok
+        }
+        Ok(Ok(None)) => PamojaStatus::Ok,
+        Ok(Err(error)) => status(Err(error)),
+    }
 }
 
 /// Maps a transport result onto a status, recording any failure.

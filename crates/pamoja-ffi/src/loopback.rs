@@ -19,7 +19,7 @@ use pamoja_core::{Receive, Transport};
 use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
 use tokio::sync::Mutex;
 
-use crate::transport::{status, Kind, PamojaMessage, PamojaTransport};
+use crate::transport::{receive_within, status, Kind, PamojaMessage, PamojaTransport};
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};
 
 /// An opaque handle to an in-process broker.
@@ -231,6 +231,43 @@ pub unsafe extern "C" fn pamoja_loopback_transport_recv(
     }
 }
 
+/// Waits a limited time for the next message on a subscribed topic.
+///
+/// Running out of time loses nothing: a message that arrives afterwards waits for
+/// the next receive.
+///
+/// # Arguments
+///
+/// * `transport` - the link.
+/// * `timeout_ms` - how long to wait, in milliseconds.
+/// * `out_message` - receives a message handle, or null when the time ran out.
+/// * `out_timed_out` - receives whether the time ran out before a message arrived.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message or with the time run out, or
+/// [`PamojaStatus::Closed`] if the link is not connected.
+///
+/// # Safety
+///
+/// `transport` must be a live handle, and `out_message` and `out_timed_out` must
+/// be writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_loopback_transport_recv_within(
+    transport: *mut PamojaLoopbackTransport,
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMessage,
+    out_timed_out: *mut bool,
+) -> PamojaStatus {
+    let Some(transport) = transport_handle(transport) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    let inner = Arc::clone(&transport.inner);
+    receive_within(timeout_ms, out_message, out_timed_out, || async move {
+        inner.lock().await.recv().await
+    })
+}
+
 /// Reports whether a link is connected.
 ///
 /// # Arguments
@@ -423,6 +460,69 @@ mod tests {
             );
 
             pamoja_loopback_transport_free(transport);
+            pamoja_loopback_broker_free(broker);
+        }
+    }
+
+    #[test]
+    fn a_timed_receive_runs_out_and_leaves_the_next_message_queued() {
+        use crate::transport::{
+            pamoja_transport_connect, pamoja_transport_free, pamoja_transport_recv_within,
+            pamoja_transport_subscribe,
+        };
+
+        unsafe {
+            let broker = pamoja_loopback_broker_new();
+            let topic = std::ffi::CString::new("sensors/1").expect("static");
+            let publisher = pamoja_loopback_transport_new(broker);
+            let link = pamoja_loopback_transport_new(broker);
+            let composed = pamoja_transport_loopback(broker);
+            pamoja_loopback_transport_connect(publisher);
+            pamoja_loopback_transport_connect(link);
+            pamoja_loopback_transport_subscribe(link, topic.as_ptr());
+            pamoja_transport_connect(composed);
+            pamoja_transport_subscribe(composed, topic.as_ptr());
+
+            let mut message = ptr::null_mut();
+            let mut timed_out = false;
+            assert_eq!(
+                pamoja_loopback_transport_recv_within(link, 20, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(timed_out && message.is_null());
+            assert_eq!(
+                pamoja_transport_recv_within(composed, 20, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(timed_out && message.is_null());
+
+            pamoja_loopback_transport_send(publisher, topic.as_ptr(), b"21.5".as_ptr(), 4);
+            assert_eq!(
+                pamoja_loopback_transport_recv_within(link, 1000, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(!timed_out);
+            assert_eq!(take(message), b"21.5");
+            assert_eq!(
+                pamoja_transport_recv_within(composed, 1000, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(!timed_out);
+            assert_eq!(take(message), b"21.5");
+
+            pamoja_loopback_transport_disconnect(link);
+            assert_eq!(
+                pamoja_loopback_transport_recv_within(link, 20, &mut message, &mut timed_out),
+                PamojaStatus::Closed
+            );
+            assert_eq!(
+                pamoja_loopback_transport_recv_within(link, 20, &mut message, ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
+
+            pamoja_transport_free(composed);
+            pamoja_loopback_transport_free(link);
+            pamoja_loopback_transport_free(publisher);
             pamoja_loopback_broker_free(broker);
         }
     }

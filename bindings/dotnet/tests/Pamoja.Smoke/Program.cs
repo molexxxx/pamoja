@@ -297,6 +297,12 @@ static async Task AsyncTransports()
     Assert((await store.PopAsync())!.AsSpan().SequenceEqual("two"u8), "then the next");
     Assert(await store.PopAsync() is null, "an empty store yields nothing");
 
+    await Task.WhenAll(Enumerable.Range(0, 50).Select(at => store.AppendAsync($"{at}")));
+    Assert(await store.CountAsync() == 50, "appends made at once all land, one at a time");
+    while (await store.PopAsync() is not null)
+    {
+    }
+
     using var bounded = Store.Memory(1);
     await bounded.AppendAsync("one"u8.ToArray());
     try
@@ -401,6 +407,63 @@ static async Task AsyncTransports()
     }
     catch (PamojaException)
     {
+    }
+
+    // Calls on one transport run one at a time: a send made while a receive waits
+    // runs once the receive returns, rather than reaching the link alongside it.
+    using Transport listening = broker.Rung();
+    await listening.ConnectAsync();
+    await listening.SubscribeAsync("alarms/1");
+    Task<TransportMessage?> waiting = listening.ReceiveAsync();
+    Task sending = listening.SendAsync("sensors/9", "7"u8.ToArray());
+    await Task.Delay(50);
+    Assert(!sending.IsCompleted, "a send waits for the receive already running");
+    try
+    {
+        Transport.Faulty(listening, 1);
+        Fail("a transport with a call running must not be handed on");
+    }
+    catch (PamojaException error)
+    {
+        Assert(error.Message.Contains("busy"), $"the reason says so: {error.Message}");
+    }
+
+    Assert(listening.IsAvailable, "and it is still the caller's");
+    await upstream.SendAsync("alarms/1", "smoke"u8.ToArray());
+    Assert((await waiting)!.Text == "smoke", "the receive took the alarm");
+    await sending;
+
+    // A receive with a time limit gives up without taking the next message.
+    try
+    {
+        await listening.ReceiveAsync(TimeSpan.FromMilliseconds(20));
+        Fail("nothing was published, so the receive must run out of time");
+    }
+    catch (TimeoutException)
+    {
+    }
+
+    await upstream.SendAsync("alarms/1", "heat"u8.ToArray());
+    Assert(
+        (await listening.ReceiveAsync(TimeSpan.FromSeconds(5)))!.Text == "heat",
+        "the next message waited for the next receive");
+    using LoopbackTransport quiet = broker.Link();
+    await quiet.ConnectAsync();
+    await quiet.SubscribeAsync("quiet/1");
+    foreach (Func<Task> timed in new Func<Task>[]
+    {
+        () => quiet.ReceiveAsync(TimeSpan.FromMilliseconds(20)),
+        () => offline.ReceiveAsync(TimeSpan.FromMilliseconds(20)),
+    })
+    {
+        try
+        {
+            await timed();
+            Fail("a quiet link must run out of time");
+        }
+        catch (TimeoutException)
+        {
+        }
     }
 
     // One publisher, many subscribers, in one process.

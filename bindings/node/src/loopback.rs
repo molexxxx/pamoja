@@ -15,7 +15,7 @@ use pamoja_core::{Receive, Transport as CoreTransport};
 use pamoja_loopback::{LoopbackBroker as CoreBroker, LoopbackTransport as CoreLoopback};
 use tokio::sync::Mutex;
 
-use crate::transport::{bytes_of, message_of, Kind, Transport, TransportMessage};
+use crate::transport::{bytes_of, message_of, within, Kind, Transport, TransportMessage};
 
 /// An in-process broker.
 ///
@@ -92,14 +92,21 @@ impl LoopbackTransport {
         transport.subscribe(&topic).await.map_err(to_napi)
     }
 
-    /// Waits for the next message on a subscribed topic, or `null` once the link
-    /// is closed.
+    /// Waits for the next message on a subscribed topic. A connected link never ends on
+    /// its own, so without a limit this waits until a message arrives. Rejects when the
+    /// link is not connected.
+    ///
+    /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
+    /// waits for the next receive.
     #[napi]
-    pub async fn recv(&self) -> napi::Result<Option<TransportMessage>> {
+    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
         let inner = Arc::clone(&self.inner);
-        let mut transport = inner.lock().await;
-        let received = transport.recv().await.map_err(to_napi)?;
-        Ok(received.map(message_of))
+        within(timeout_ms, async move {
+            let mut transport = inner.lock().await;
+            let received = transport.recv().await.map_err(to_napi)?;
+            Ok(received.map(message_of))
+        })
+        .await
     }
 
     /// Whether this link is connected.

@@ -30,6 +30,9 @@ From [`bindings/dotnet/samples/Pamoja.Guides/MqttGuide.cs`](https://github.com/m
 const string Broker = "127.0.0.1";
 const ushort Port = 1883;
 
+static string Connection(bool connected) =>
+    connected ? "still connected" : "not connected";
+
 // The gateway takes every temperature on the site. A `+` stands for exactly one
 // level, so this matches every node's temperature and nothing deeper.
 await using var gateway = new MqttClient(new MqttClientOptions
@@ -43,8 +46,8 @@ await gateway.ConnectAsync();
 await gateway.SubscribeAsync("sensors/+/temperature");
 Console.WriteLine("gateway   subscribed to sensors/+/temperature");
 
-// A node publishes under that pattern. At-least-once means the broker
-// acknowledges the message, so a node knows its reading was taken.
+// A node publishes under that pattern. At least once has the broker acknowledge
+// each message, where at most once would send it and forget it.
 await using var node = new MqttClient(new MqttClientOptions
 {
     ClientId = "node-1",
@@ -63,10 +66,29 @@ Console.WriteLine(
     $"gateway   got {received.Text}"
     + $" on {received.Topic}");
 
+// Two days of readings saved at one a minute, sent as one message, make a packet
+// over the connection's 10 KiB limit. The send is refused before anything leaves
+// and the connection stays up; a node that must send it raises the limit on every
+// client that shares the topic, or splits it.
+string backlog = string.Join(",", Enumerable.Repeat("21.5", 2 * 24 * 60));
+try
+{
+    await node.PublishAsync("sensors/1/backlog", backlog);
+    Console.WriteLine("node      sent an oversized backlog, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"node      backlog refused: {error.Message}");
+}
+
+bool afterRefusal = await node.IsConnectedAsync();
+Console.WriteLine($"node      {Connection(afterRefusal)}");
+
 // Disconnecting leaves the client reusable, so a node that loses its link can
 // reconnect the same object when the broker comes back.
 await node.DisconnectAsync();
-Console.WriteLine($"node      disconnected, still connected: {await node.IsConnectedAsync()}");
+bool afterDisconnect = await node.IsConnectedAsync();
+Console.WriteLine($"node      {Connection(afterDisconnect)} after disconnecting");
 
 // A broker that is not there is reported rather than leaving a client that looks
 // connected, so a retry loop has something to test.
@@ -80,7 +102,7 @@ await using var nowhere = new MqttClient(new MqttClientOptions
 try
 {
     await nowhere.ConnectAsync();
-    Console.WriteLine("an unreachable broker accepted a connection, which cannot be");
+    Console.WriteLine("an unreachable broker accepted a connection, which should never happen");
 }
 catch (PamojaException error)
 {

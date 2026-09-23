@@ -8435,9 +8435,13 @@ class MqttClient:
     r"""
     An MQTT client transport backed by the native pamoja core.
     """
-    def __new__(cls, *, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None) -> MqttClient:
+    def __new__(cls, *, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None) -> MqttClient:
         r"""
         Creates a disconnected client from the given options.
+        
+        `max_packet_size` is the largest packet the connection sends or accepts, in
+        bytes, 10,240 when omitted. A publish that would be larger is refused and the
+        connection stays up, but a larger packet arriving from the broker ends it.
         """
     def connect(self) -> typing.Any:
         r"""
@@ -8454,7 +8458,8 @@ class MqttClient:
     def recv(self) -> typing.Any:
         r"""
         Awaits the next message from any subscribed topic, or `None` once the
-        connection has ended.
+        connection has ended. A connection that ends on its own raises `PamojaError`
+        once, saying why.
         """
     def is_connected(self) -> typing.Any:
         r"""
@@ -8972,10 +8977,11 @@ class Progress:
 @typing.final
 class PyTransport:
     r"""
-    One transport, ready to compose into a ladder or a wrapper.
+    One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`,
+    or to compose into a ladder or a wrapper.
     
-    Build one with the module constructors, then hand it to whatever should own
-    it. A transport handed on is spent: using it afterwards raises.
+    Build one with the module constructors, then drive it or hand it to whatever should
+    own it. A transport handed on is spent: using it afterwards raises.
     """
     @property
     def is_available(self) -> builtins.bool:
@@ -8983,7 +8989,7 @@ class PyTransport:
         Whether this transport is still holdable, or has been handed on.
         """
     @staticmethod
-    def mqtt(*, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None) -> PyTransport:
+    def mqtt(*, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None) -> PyTransport:
         r"""
         Creates an MQTT transport from broker settings.
         """
@@ -9019,6 +9025,31 @@ class PyTransport:
         it a link that delivers: it is called again as soon as it returns, from the
         moment the transport connects. Without `recv` the transport only sends, and
         a ladder never listens on it.
+        """
+    def connect(self) -> typing.Any:
+        r"""
+        Establishes the link.
+        
+        Raises `PamojaError` when the link cannot be established, or when the transport
+        was handed on.
+        """
+    def send(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
+        r"""
+        Publishes a payload to a topic: bytes, or text such as a reading written out.
+        
+        Raises `PamojaError` when the link refuses it, or when the transport was handed on.
+        """
+    def subscribe(self, topic: builtins.str) -> typing.Any:
+        r"""
+        Subscribes to a topic, with the `+` and `#` wildcards.
+        
+        Raises `PamojaError` when the link refuses it, or when the transport was handed on.
+        """
+    def recv(self) -> typing.Any:
+        r"""
+        Waits for the next message on a subscribed topic, or `None` once the link has ended.
+        
+        Raises `PamojaError` when the link fails, or when the transport was handed on.
         """
 
 @typing.final

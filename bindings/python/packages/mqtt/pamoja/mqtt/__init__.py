@@ -55,6 +55,7 @@ class MqttClient:
         keep_alive_secs: Optional[int] = None,
         capacity: Optional[int] = None,
         qos: Optional[Qos] = None,
+        max_packet_size: Optional[int] = None,
     ) -> None:
         """Create a disconnected client from the given broker settings.
 
@@ -64,6 +65,10 @@ class MqttClient:
         :param keep_alive_secs: Keep-alive interval in seconds. Defaults to 30.
         :param capacity: Bound on outstanding client requests. Defaults to 64.
         :param qos: Default quality of service. Defaults to ``Qos.AT_LEAST_ONCE``.
+        :param max_packet_size: The largest packet the connection sends or accepts, in
+            bytes. Defaults to 10,240. A publish that would be larger is refused and the
+            connection stays up, but a larger packet arriving from the broker ends the
+            connection, so every client that shares a topic needs a limit that fits it.
         """
         qos_value = qos.value if isinstance(qos, Qos) else qos
         self._native = _NativeMqttClient(
@@ -73,6 +78,7 @@ class MqttClient:
             keep_alive_secs=keep_alive_secs,
             capacity=capacity,
             qos=qos_value,
+            max_packet_size=max_packet_size,
         )
 
     async def connect(self) -> None:
@@ -101,7 +107,12 @@ class MqttClient:
     async def recv(self) -> Optional[MqttMessage]:
         """Await the next message from any subscribed topic.
 
+        Wrap it in :func:`asyncio.wait_for` to stop waiting; the receive it cancels
+        leaves its message queued for the next one.
+
         :returns: The next message, or ``None`` once the connection has ended.
+        :raises PamojaError: Once, saying why, when the connection ended on its own,
+            because the broker went away or another client connected with the same id.
         """
         return await self._native.recv()
 
@@ -114,7 +125,10 @@ class MqttClient:
         await self._native.disconnect()
 
     async def messages(self) -> AsyncIterator[MqttMessage]:
-        """Yield messages from subscribed topics until the connection ends."""
+        """Yield messages from subscribed topics until the connection ends.
+
+        A connection that ends on its own raises its reason out of the loop.
+        """
         while True:
             message = await self._native.recv()
             if message is None:

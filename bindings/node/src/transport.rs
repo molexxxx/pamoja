@@ -486,10 +486,24 @@ pub(crate) fn bytes_of(payload: Either<Buffer, String>) -> Vec<u8> {
     }
 }
 
-/// One transport, ready to compose into a ladder or a wrapper.
+/// Runs a receive, giving up after `timeout_ms` when a limit is given.
 ///
-/// Build one with the static factories, then hand it to whatever should own it.
-/// A transport handed on is spent: calling anything on it afterwards throws.
+/// A receive is cancel-safe, so the one dropped when the time runs out leaves the
+/// next message queued. A promise that JavaScript merely stops awaiting does not
+/// stop the receive behind it, which would then take that message, so the limit
+/// has to live here.
+pub(crate) async fn within<T>(
+    timeout_ms: Option<u32>,
+    receive: impl Future<Output = napi::Result<T>>,
+) -> napi::Result<T> {
+    let Some(limit) = timeout_ms else {
+        return receive.await;
+    };
+    tokio::time::timeout(std::time::Duration::from_millis(u64::from(limit)), receive)
+        .await
+        .map_err(|_| napi::Error::from_reason(format!("no message arrived within {limit} ms")))?
+}
+
 /// Which faults a degraded link injects, each off unless named.
 #[cfg(feature = "sim")]
 #[napi(object)]
@@ -503,31 +517,43 @@ pub struct Faults {
     pub down: Option<u32>,
 }
 
+/// One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`, or to
+/// compose into a ladder or a wrapper.
+///
+/// Build one with the static factories, then drive it or hand it to whatever should own it.
+/// A transport handed on is spent: calling anything on it afterwards throws.
 #[napi]
 pub struct Transport {
-    inner: std::sync::Mutex<Option<Kind>>,
+    inner: Arc<tokio::sync::Mutex<Option<Kind>>>,
 }
 
 impl Transport {
     /// Wraps a transport kind in the class JavaScript holds.
     pub(crate) fn wrap(kind: Kind) -> Self {
         Self {
-            inner: std::sync::Mutex::new(Some(kind)),
+            inner: Arc::new(tokio::sync::Mutex::new(Some(kind))),
         }
     }
 
-    /// Takes the transport, leaving this handle spent.
+    /// Takes the transport, leaving this handle spent. A call still running on the transport
+    /// holds the lock, so it cannot be handed on mid-call.
     pub(crate) fn take(&self) -> napi::Result<Kind> {
         self.inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("this transport is poisoned"))?
+            .try_lock()
+            .map_err(|_| napi::Error::from_reason("this transport is busy with a call"))?
             .take()
-            .ok_or_else(|| {
-                napi::Error::from_reason(
-                    "this transport was already added to a ladder or a wrapper",
-                )
-            })
+            .ok_or_else(spent)
     }
+}
+
+/// The error for a transport that was handed to a ladder or a wrapper.
+fn spent() -> NapiError {
+    napi::Error::from_reason("this transport was already added to a ladder or a wrapper")
+}
+
+/// Maps a core error onto the one JavaScript sees.
+fn failed(error: Error) -> NapiError {
+    napi::Error::from_reason(error.to_string())
 }
 
 #[napi]
@@ -606,6 +632,54 @@ impl Transport {
     /// Whether this transport is still holdable, or has been handed on.
     #[napi(getter)]
     pub fn is_available(&self) -> bool {
-        self.inner.lock().is_ok_and(|slot| slot.is_some())
+        self.inner.try_lock().map_or(true, |slot| slot.is_some())
+    }
+
+    /// Establishes the link. Rejects when it cannot be established, or when the transport
+    /// was handed on.
+    #[napi]
+    pub async fn connect(&self) -> napi::Result<()> {
+        let inner = Arc::clone(&self.inner);
+        let mut held = inner.lock().await;
+        let transport = held.as_mut().ok_or_else(spent)?;
+        transport.connect().await.map_err(failed)
+    }
+
+    /// Publishes a payload to a topic: bytes, or text such as a reading written out. Rejects
+    /// when the link refuses it, or when the transport was handed on.
+    #[napi]
+    pub async fn send(&self, topic: String, payload: Either<Buffer, String>) -> napi::Result<()> {
+        let inner = Arc::clone(&self.inner);
+        let payload = bytes_of(payload);
+        let mut held = inner.lock().await;
+        let transport = held.as_mut().ok_or_else(spent)?;
+        transport.send(&topic, &payload).await.map_err(failed)
+    }
+
+    /// Subscribes to a topic, with the `+` and `#` wildcards. Rejects when the link refuses
+    /// it, or when the transport was handed on.
+    #[napi]
+    pub async fn subscribe(&self, topic: String) -> napi::Result<()> {
+        let inner = Arc::clone(&self.inner);
+        let mut held = inner.lock().await;
+        let transport = held.as_mut().ok_or_else(spent)?;
+        transport.subscribe(&topic).await.map_err(failed)
+    }
+
+    /// Waits for the next message on a subscribed topic, or `null` once the link has ended.
+    /// Rejects when the link fails, or when the transport was handed on.
+    ///
+    /// @param timeoutMs - how long to wait before rejecting; a message that arrives later
+    /// waits for the next receive. Without it the receive waits as long as it takes.
+    #[napi]
+    pub async fn recv(&self, timeout_ms: Option<u32>) -> napi::Result<Option<TransportMessage>> {
+        let inner = Arc::clone(&self.inner);
+        within(timeout_ms, async move {
+            let mut held = inner.lock().await;
+            let transport = held.as_mut().ok_or_else(spent)?;
+            let received = transport.recv().await.map_err(failed)?;
+            Ok(received.map(message_of))
+        })
+        .await
     }
 }

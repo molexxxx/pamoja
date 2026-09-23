@@ -17,7 +17,7 @@ use std::ptr;
 use pamoja_ladder::{Delivery, TransportLadder};
 
 use crate::sync::{take_store, PamojaStore, StoreKind};
-use crate::transport::{take_transport, PamojaMessage, PamojaTransport};
+use crate::transport::{receive_within, take_transport, PamojaMessage, PamojaTransport};
 use crate::{read_bytes, read_str, runtime, set_last_error, PamojaStatus};
 
 /// What became of a message handed to a ladder.
@@ -341,6 +341,42 @@ pub unsafe extern "C" fn pamoja_ladder_recv(
     }
 }
 
+/// Waits a limited time for the next message from any rung that listens.
+///
+/// Running out of time loses nothing: a message that arrives afterwards waits for
+/// the next receive.
+///
+/// # Arguments
+///
+/// * `ladder` - the ladder.
+/// * `timeout_ms` - how long to wait, in milliseconds.
+/// * `out_message` - receives a message handle to release with
+///   [`pamoja_message_free`](crate::transport::pamoja_message_free), or null when
+///   the time ran out.
+/// * `out_timed_out` - receives whether the time ran out before a message arrived.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with a message or with the time run out, or
+/// [`PamojaStatus::Closed`] if no connected rung listens.
+///
+/// # Safety
+///
+/// `ladder` must be a live handle, and `out_message` and `out_timed_out` must be
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ladder_recv_within(
+    ladder: *mut PamojaLadder,
+    timeout_ms: u64,
+    out_message: *mut *mut PamojaMessage,
+    out_timed_out: *mut bool,
+) -> PamojaStatus {
+    let Some(inner) = ladder_inner(ladder) else {
+        return PamojaStatus::InvalidArgument;
+    };
+    receive_within(timeout_ms, out_message, out_timed_out, || inner.recv())
+}
+
 /// Releases a ladder handle, and the rungs and buffer it owns.
 ///
 /// Passing null is a no-op.
@@ -542,6 +578,46 @@ mod tests {
                 !message.is_null(),
                 "the command came back through the ladder"
             );
+            let payload = std::slice::from_raw_parts(
+                pamoja_message_payload(message),
+                pamoja_message_payload_len(message),
+            )
+            .to_vec();
+            assert_eq!(payload, b"open");
+            pamoja_message_free(message);
+
+            pamoja_ladder_free(ladder);
+            pamoja_loopback_transport_free(upstream);
+            pamoja_loopback_broker_free(broker);
+        }
+    }
+
+    #[test]
+    fn a_timed_receive_runs_out_and_leaves_the_next_message_queued() {
+        unsafe {
+            let broker = pamoja_loopback_broker_new();
+            let ladder = pamoja_ladder_new(pamoja_store_memory(0));
+            pamoja_ladder_rung(ladder, pamoja_transport_loopback(broker));
+            pamoja_ladder_connect(ladder);
+            let topic = std::ffi::CString::new("commands/1").expect("static");
+            pamoja_ladder_subscribe(ladder, topic.as_ptr());
+
+            let mut message = ptr::null_mut();
+            let mut timed_out = false;
+            assert_eq!(
+                pamoja_ladder_recv_within(ladder, 20, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(timed_out && message.is_null());
+
+            let upstream = pamoja_loopback_transport_new(broker);
+            pamoja_loopback_transport_connect(upstream);
+            pamoja_loopback_transport_send(upstream, topic.as_ptr(), b"open".as_ptr(), 4);
+            assert_eq!(
+                pamoja_ladder_recv_within(ladder, 1000, &mut message, &mut timed_out),
+                PamojaStatus::Ok
+            );
+            assert!(!timed_out && !message.is_null());
             let payload = std::slice::from_raw_parts(
                 pamoja_message_payload(message),
                 pamoja_message_payload_len(message),
