@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 license = "MIT"
-description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, a relay and a switch on its GPIO lines, a LoRa radio on its SPI bus, a whole profile-driven node, and a dashboard of the LoRaWAN nodes a network server hears."
+description = "Programs for a Raspberry Pi: a sensor on the header's I2C bus, soil probes on its 1-Wire bus, a relay and a switch on its GPIO lines, a LoRa radio on its SPI bus, a whole profile-driven node, and a dashboard of the LoRaWAN nodes a network server hears."
 
 [dependencies]
 pamoja-codec = { path = "../../../crates/pamoja-codec" }
@@ -18,7 +18,7 @@ pamoja-lora = { path = "../../../crates/pamoja-lora" }
 pamoja-mqtt = { path = "../../../crates/pamoja-mqtt" }
 pamoja-profile = { path = "../../../crates/pamoja-profile" }
 pamoja-radios = { path = "../../../crates/pamoja-radios", features = ["linux"] }
-pamoja-sensors = { path = "../../../crates/pamoja-sensors", features = ["std"] }
+pamoja-sensors = { path = "../../../crates/pamoja-sensors", features = ["linux"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [workspace]

@@ -278,9 +278,11 @@ from pamoja._native import bmp280_sim_calibration as _bmp280_sim_calibration
 from pamoja._native import bmp280_sim_part as _bmp280_sim_part
 from pamoja._native import bmp280_sim_reporting as _bmp280_sim_reporting
 from pamoja._native import ds18b20_parse_w1_slave as _ds18b20_parse_w1_slave
+from pamoja._native import ds18b20_w1_slave_text as _ds18b20_w1_slave_text
 from pamoja._native import hdc1080_sim_part as _hdc1080_sim_part
 from pamoja._native import hdc1080_sim_reporting as _hdc1080_sim_reporting
 from pamoja._native import ina219_adc_conversion_micros as _ina219_adc_conversion_micros
+from pamoja._native import ina219_address as _ina219_address
 from pamoja._native import ina219_config_bits as _ina219_config_bits
 from pamoja._native import ina219_config_from_bits as _ina219_config_from_bits
 from pamoja._native import ina219_conversion_micros as _ina219_conversion_micros
@@ -338,8 +340,11 @@ __all__ = [
     "Ina219Reading",
     "Ina226",
     "Ina226AlertFunction",
+    "Ina226Averaging",
     "Ina226Config",
+    "Ina226ConversionTime",
     "Ina226DieId",
+    "Ina226Mode",
     "Ina226MaskEnable",
     "Ina226Reading",
     "Opt3001",
@@ -557,6 +562,67 @@ class Ina219Mode(enum.IntEnum):
     SHUNT_AND_BUS_TRIGGERED = 3
     #: The converter disabled.
     ADC_OFF = 4
+    #: Shunt conversions back to back.
+    SHUNT_CONTINUOUS = 5
+    #: Bus conversions back to back.
+    BUS_CONTINUOUS = 6
+    #: Shunt and bus conversions back to back, the reset setting.
+    SHUNT_AND_BUS_CONTINUOUS = 7
+
+
+class Ina226Averaging(enum.IntEnum):
+    """How many samples an INA226 folds into each result, as its register code."""
+
+    #: Every conversion reported, the reset setting.
+    SAMPLES_1 = 0
+    #: 4 samples.
+    SAMPLES_4 = 1
+    #: 16 samples.
+    SAMPLES_16 = 2
+    #: 64 samples.
+    SAMPLES_64 = 3
+    #: 128 samples.
+    SAMPLES_128 = 4
+    #: 256 samples.
+    SAMPLES_256 = 5
+    #: 512 samples.
+    SAMPLES_512 = 6
+    #: 1024 samples.
+    SAMPLES_1024 = 7
+
+
+class Ina226ConversionTime(enum.IntEnum):
+    """An INA226 conversion time, for the bus or the shunt voltage, as its register code."""
+
+    #: 140 us.
+    US_140 = 0
+    #: 204 us.
+    US_204 = 1
+    #: 332 us.
+    US_332 = 2
+    #: 588 us.
+    US_588 = 3
+    #: 1.1 ms, the reset setting.
+    US_1100 = 4
+    #: 2.116 ms.
+    US_2116 = 5
+    #: 4.156 ms.
+    US_4156 = 6
+    #: 8.244 ms.
+    US_8244 = 7
+
+
+class Ina226Mode(enum.IntEnum):
+    """An INA226 operating mode, as its register code."""
+
+    #: No conversions; the registers stay readable and writable.
+    POWER_DOWN = 0
+    #: One shunt conversion.
+    SHUNT_TRIGGERED = 1
+    #: One bus conversion.
+    BUS_TRIGGERED = 2
+    #: One shunt and one bus conversion.
+    SHUNT_AND_BUS_TRIGGERED = 3
     #: Shunt conversions back to back.
     SHUNT_CONTINUOUS = 5
     #: Bus conversions back to back.
@@ -1029,6 +1095,19 @@ class _Ds18b20:
         """
         return _ds18b20_parse_w1_slave(text)
 
+    def w1_slave_text(self, data: bytes) -> str:
+        """Render the text the Linux kernel's ``w1_therm`` driver serves for a scratchpad
+        it read cleanly, the inverse of :meth:`parse_w1_slave`: the bytes with the CRC the
+        kernel computed and ``YES``, then the bytes again with ``t=`` and the temperature
+        in millidegrees.
+
+        :param data: The nine scratchpad bytes, the ninth their CRC.
+        :returns: The ``w1_slave`` file's two lines.
+        :raises ValueError: If the bytes are not nine.
+        :raises PamojaError: If the CRC does not match.
+        """
+        return _ds18b20_w1_slave_text(bytes(data))
+
 
 class _Ina219Sim:
     """An INA219 that is not there, for a bus with nothing plugged in.
@@ -1088,6 +1167,14 @@ class _Ina219:
 
     #: The address with A1 and A0 tied to ground; the pins add to it.
     BASE_ADDRESS = 0x40
+    #: An address pin tied to GND, as the code :meth:`address` takes.
+    PIN_GROUND = 0
+    #: An address pin tied to VS+.
+    PIN_SUPPLY = 1
+    #: An address pin tied to SDA.
+    PIN_SDA = 2
+    #: An address pin tied to SCL.
+    PIN_SCL = 3
     #: The configuration register's power-on value.
     CONFIG_RESET = 0x399F
     #: The configuration register: range, gain, converter settings, and mode.
@@ -1113,6 +1200,17 @@ class _Ina219:
     Mode = Ina219Mode
     #: An INA219 that is not there, for a bus with nothing plugged in.
     sim = _Ina219Sim()
+
+    def address(self, a1: int, a0: int) -> int:
+        """Return the 7-bit address the A1 and A0 pins select, from Table 1 of the
+        datasheet.
+
+        :param a1: What the A1 pin is tied to, one of the ``PIN_`` codes.
+        :param a0: What the A0 pin is tied to.
+        :returns: The address, 0x40 to 0x4F.
+        :raises ValueError: If either pin code is not 0, 1, 2, or 3.
+        """
+        return _ina219_address(a1, a0)
 
     def config_bits(self, config: Ina219Config) -> int:
         """Assemble the configuration register value.
@@ -4025,6 +4123,21 @@ class Ds18b20Thermometer:
     def path(self) -> str:
         """The path of the file the thermometer reads."""
         return self._native.path
+
+    @property
+    def serial(self) -> Optional[str]:
+        """The serial the kernel named the thermometer's directory after.
+
+        The twelve hex digits after ``28-``, which tell one probe from another and stay with
+        the part for life, or ``None`` when the file does not sit in a DS18B20's directory, as
+        one named by :meth:`at` may not.
+
+        >>> Ds18b20Thermometer.for_serial("000005e2fdc3").serial
+        '000005e2fdc3'
+        >>> Ds18b20Thermometer.at("/tmp/w1_slave").serial is None
+        True
+        """
+        return self._native.serial
 
     def read(self) -> Ds18b20Reading:
         """Read the file, which makes the kernel run a conversion, and decode it.

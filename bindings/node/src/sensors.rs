@@ -244,6 +244,18 @@ pub fn ds18b20_parse_w1_slave(text: String) -> napi::Result<Ds18b20Reading> {
         .map_err(to_napi)
 }
 
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+/// read cleanly, the inverse of `ds18b20ParseW1Slave`. Throws when the CRC does not match.
+#[napi(js_name = "ds18b20W1SlaveText")]
+pub fn ds18b20_w1_slave_text(scratchpad: Buffer) -> napi::Result<String> {
+    let bytes: [u8; 9] = scratchpad
+        .as_ref()
+        .try_into()
+        .map_err(|_| length_error("scratchpad", 9))?;
+    let scratchpad = ds18b20::Scratchpad::parse(&bytes).map_err(to_napi)?;
+    Ok(ds18b20::w1_slave_text(&scratchpad))
+}
+
 /// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
 #[napi(js_name = "ds18b20BuildScratchpad")]
 pub fn ds18b20_build_scratchpad(
@@ -432,6 +444,13 @@ pub struct Ina219Configuration {
     pub shunt_adc: u8,
     /// The operating-mode code, `0..=7`.
     pub mode: u8,
+}
+
+/// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+/// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+#[napi(js_name = "ina219Address")]
+pub fn ina219_address(a1: u8, a0: u8) -> napi::Result<u8> {
+    Ok(ina219::address(address_pin(a1)?, address_pin(a0)?))
 }
 
 /// Assembles the 16-bit INA219 configuration register value.
@@ -2335,7 +2354,7 @@ fn address_pin(code: u8) -> napi::Result<ina226::AddressPin> {
         2 => Ok(ina226::AddressPin::Sda),
         3 => Ok(ina226::AddressPin::Scl),
         _ => Err(napi::Error::from_reason(
-            "an INA226 address pin must be tied to GND, VS, SDA, or SCL: code 0 to 3",
+            "an address pin must be tied to GND, the supply, SDA, or SCL: code 0 to 3",
         )),
     }
 }

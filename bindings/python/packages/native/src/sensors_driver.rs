@@ -184,6 +184,10 @@ pub struct Ads1115Sample {
     /// The voltage in volts.
     #[pyo3(get)]
     volts: f32,
+    /// Whether the conversion sits at an end code, where the output clips for a signal past
+    /// the range, so the voltage is a bound rather than the reading.
+    #[pyo3(get)]
+    clipped: bool,
 }
 
 /// A Bosch BME280 driven over an I2C bus, measuring on demand in forced mode.
@@ -912,6 +916,14 @@ impl Ds18b20Thermometer {
         self.inner.path().to_string_lossy().into_owned()
     }
 
+    /// The serial the kernel named the thermometer's directory after: the twelve hex digits
+    /// after `28-`, which tell one probe from another and stay with the part for life. None
+    /// when the file does not sit in a DS18B20's directory, as one named by `at` may not.
+    #[getter]
+    fn serial(&self) -> Option<String> {
+        self.inner.serial().map(str::to_owned)
+    }
+
     /// Reads the file, which makes the kernel run a conversion, and returns the decoded
     /// reading. Raises `PamojaError` when the file cannot be read or the kernel or this decoder
     /// rejects the checksum.
@@ -1207,6 +1219,7 @@ fn sample_of(sample: ads1115::Sample) -> Ads1115Sample {
         pga: sample.pga.code(),
         nanovolts: sample.nanovolts(),
         volts: sample.volts(),
+        clipped: sample.clipped(),
     }
 }
 

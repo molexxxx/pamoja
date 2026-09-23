@@ -352,7 +352,7 @@ impl I2cBus {
     pub fn part(&self, address: u8) -> Option<Either3<I2cPart, WordPart, CommandPart>> {
         self.inner.part::<AnyPart>(address).map(|part| match part {
             AnyPart::Bytes(inner) => Either3::A(I2cPart { inner }),
-            AnyPart::Words(inner) => Either3::B(WordPart { inner }),
+            AnyPart::Words(inner) => Either3::B(WordPart { inner: *inner }),
             AnyPart::Commands(inner) => Either3::C(CommandPart { inner }),
         })
     }

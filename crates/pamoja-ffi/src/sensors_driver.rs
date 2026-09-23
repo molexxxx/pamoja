@@ -341,6 +341,9 @@ pub struct PamojaAds1115Sample {
     pub nanovolts: i64,
     /// The voltage in volts.
     pub volts: f32,
+    /// `1` when the conversion sits at an end code, where the output clips for a signal past
+    /// the range, so the voltage is a bound rather than the reading.
+    pub clipped: u8,
 }
 
 /// A BME280 driven over an I2C bus. Opaque; release it with [`pamoja_bme280_free`].
@@ -2761,6 +2764,34 @@ pub unsafe extern "C" fn pamoja_ds18b20_thermometer_path(
     }
 }
 
+/// Returns the serial the kernel named a thermometer's directory after.
+///
+/// # Arguments
+///
+/// * `thermometer` - the thermometer.
+///
+/// # Returns
+///
+/// The twelve hex digits after `28-`, which the caller releases with
+/// [`crate::pamoja_string_free`], or null when the file does not sit in a DS18B20's
+/// directory or the thermometer is null.
+///
+/// # Safety
+///
+/// `thermometer` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ds18b20_thermometer_serial(
+    thermometer: *const PamojaDs18b20Thermometer,
+) -> *mut PamojaString {
+    match thermometer
+        .as_ref()
+        .and_then(|held| held.thermometer.serial())
+    {
+        Some(serial) => PamojaString::into_raw(serial.to_owned()),
+        None => std::ptr::null_mut(),
+    }
+}
+
 /// Reads a thermometer's file, which makes the kernel run a conversion, and decodes it.
 ///
 /// # Arguments
@@ -2934,6 +2965,7 @@ fn sample_of(sample: ads1115::Sample) -> PamojaAds1115Sample {
         pga: sample.pga.code(),
         nanovolts: sample.nanovolts(),
         volts: sample.volts(),
+        clipped: u8::from(sample.clipped()),
     }
 }
 
@@ -3681,6 +3713,13 @@ mod tests {
                 .into_owned();
             assert!(path_text.ends_with("w1_slave"), "{path_text}");
             crate::pamoja_string_free(path);
+            let serial = pamoja_ds18b20_thermometer_serial(probe);
+            assert_eq!(
+                CStr::from_ptr(crate::pamoja_string_data(serial)).to_str(),
+                Ok("000005e2fdc3")
+            );
+            crate::pamoja_string_free(serial);
+            assert!(pamoja_ds18b20_thermometer_serial(ptr::null()).is_null());
             pamoja_ds18b20_thermometer_free(probe);
 
             let text = CString::new(text).unwrap();

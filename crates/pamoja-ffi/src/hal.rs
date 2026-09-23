@@ -1091,7 +1091,7 @@ unsafe fn byte_part<'a>(part: *mut PamojaI2cPart) -> Result<&'a mut I2cPart, Pam
 /// `part` must be a live handle or null.
 unsafe fn word_part<'a>(part: *mut PamojaI2cPart) -> Result<&'a mut WordPart, PamojaStatus> {
     match part.as_mut().map(|part| &mut part.part) {
-        Some(Part::Words(part)) => Ok(part),
+        Some(Part::Words(part)) => Ok(&mut **part),
         other => Err(wrong_kind(other.is_some(), "registers sixteen bits wide")),
     }
 }

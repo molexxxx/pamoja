@@ -60,6 +60,22 @@ public sealed class Ina219 : IDisposable
         _handle = new NativeHandle(sensor, NativeMethods.pamoja_ina219_free);
     }
 
+    /// <summary>What an address pin is tied to, as the code <see cref="Address"/> takes.</summary>
+    public enum AddressPin : byte
+    {
+        /// <summary>Tied to GND.</summary>
+        Ground = 0,
+
+        /// <summary>Tied to VS+.</summary>
+        Supply = 1,
+
+        /// <summary>Tied to SDA.</summary>
+        Sda = 2,
+
+        /// <summary>Tied to SCL.</summary>
+        Scl = 3,
+    }
+
     /// <summary>The bus-voltage range, as its register code.</summary>
     public enum BusRange : byte
     {
@@ -173,6 +189,17 @@ public sealed class Ina219 : IDisposable
 
     /// <summary>Releases the driver and its share of the bus.</summary>
     public void Dispose() => _handle.Dispose();
+
+    /// <summary>Returns the 7-bit address the A1 and A0 pins select, from Table 1 of the datasheet.</summary>
+    /// <param name="a1">What the A1 pin is tied to.</param>
+    /// <param name="a0">What the A0 pin is tied to.</param>
+    /// <returns>The address, 0x40 to 0x4F.</returns>
+    /// <exception cref="PamojaException">A pin code is not one of the four levels.</exception>
+    public static byte Address(AddressPin a1, AddressPin a0)
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_ina219_address((byte)a1, (byte)a0, out byte address));
+        return address;
+    }
 
     /// <summary>Assembles the configuration register value.</summary>
     /// <param name="config">The settings.</param>

@@ -29,12 +29,14 @@ import {
   type Bmp280Settings,
   Ds18b20Thermometer,
   ds18b20ParseW1Slave,
+  ds18b20W1SlaveText,
   Hdc1080,
   hdc1080SimPart,
   hdc1080SimReporting,
   type Hdc1080Settings,
   Ina219,
   ina219AdcConversionMicros,
+  ina219Address,
   ina219ConfigBits,
   ina219ConfigFromBits,
   ina219ConversionMicros,
@@ -868,12 +870,36 @@ export const ds18b20 = {
   parseW1Slave(text: string): Ds18b20Reading {
     return ds18b20ParseW1Slave(text)
   },
+
+  /**
+   * Renders the text the Linux kernel's `w1_therm` driver serves for a scratchpad it read
+   * cleanly, the inverse of {@link ds18b20.parseW1Slave}: the bytes with the CRC the kernel
+   * computed and `YES`, then the bytes again with `t=` and the temperature in millidegrees.
+   *
+   * @param scratchpad - The nine scratchpad bytes, the ninth their CRC.
+   * @returns The `w1_slave` file's two lines.
+   * @throws If the bytes are not nine, or the CRC does not match.
+   */
+  w1SlaveText(scratchpad: Uint8Array): string {
+    return ds18b20W1SlaveText(Buffer.from(scratchpad))
+  },
 }
 
 /** A TI INA219 current, voltage, and power monitor. */
 export const ina219 = {
   /** The address with A1 and A0 tied to ground; the pins add to it. */
   baseAddress: 0x40,
+  /** What an address pin is tied to, as the code the address helper takes. */
+  pin: {
+    /** Tied to GND. */
+    ground: 0,
+    /** Tied to VS+. */
+    supply: 1,
+    /** Tied to SDA. */
+    sda: 2,
+    /** Tied to SCL. */
+    scl: 3,
+  },
   /** The configuration register's power-on value. */
   configReset: 0x399f,
   /** The registers a driver reads and writes. */
@@ -952,6 +978,18 @@ export const ina219 = {
     busContinuous: 6,
     /** Shunt and bus conversions back to back, the reset setting. */
     shuntAndBusContinuous: 7,
+  },
+
+  /**
+   * Returns the 7-bit address the A1 and A0 pins select, from Table 1 of the datasheet.
+   *
+   * @param a1 - What the A1 pin is tied to, one of {@link ina219.pin}.
+   * @param a0 - What the A0 pin is tied to.
+   * @returns The address, 0x40 to 0x4F.
+   * @throws If either pin code is not 0, 1, 2, or 3.
+   */
+  address(a1: number, a0: number): number {
+    return ina219Address(a1, a0)
   },
 
   /**
@@ -3133,6 +3171,61 @@ export const ina226 = {
     sda: 2,
     /** Tied to SCL. */
     scl: 3,
+  },
+  /** The averaging codes: how many samples each result folds together. */
+  averaging: {
+    /** Every conversion reported, the reset setting. */
+    samples1: 0,
+    /** 4 samples. */
+    samples4: 1,
+    /** 16 samples. */
+    samples16: 2,
+    /** 64 samples. */
+    samples64: 3,
+    /** 128 samples. */
+    samples128: 4,
+    /** 256 samples. */
+    samples256: 5,
+    /** 512 samples. */
+    samples512: 6,
+    /** 1024 samples. */
+    samples1024: 7,
+  },
+  /** The conversion-time codes, for the bus and the shunt voltage alike. */
+  conversionTime: {
+    /** 140 us. */
+    us140: 0,
+    /** 204 us. */
+    us204: 1,
+    /** 332 us. */
+    us332: 2,
+    /** 588 us. */
+    us588: 3,
+    /** 1.1 ms, the reset setting. */
+    us1100: 4,
+    /** 2.116 ms. */
+    us2116: 5,
+    /** 4.156 ms. */
+    us4156: 6,
+    /** 8.244 ms. */
+    us8244: 7,
+  },
+  /** The operating-mode codes. */
+  mode: {
+    /** No conversions; the registers stay readable and writable. */
+    powerDown: 0,
+    /** One shunt conversion. */
+    shuntTriggered: 1,
+    /** One bus conversion. */
+    busTriggered: 2,
+    /** One shunt and one bus conversion. */
+    shuntAndBusTriggered: 3,
+    /** Shunt conversions back to back. */
+    shuntContinuous: 5,
+    /** Bus conversions back to back. */
+    busContinuous: 6,
+    /** Shunt and bus conversions back to back, the reset setting. */
+    shuntAndBusContinuous: 7,
   },
   /** The registers a driver reads and writes. */
   register: {

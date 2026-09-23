@@ -25,11 +25,11 @@ public sealed class Ina226 : IDisposable
 
     /// <summary>Creates a driver for the part at <paramref name="address"/> on <paramref name="bus"/>.</summary>
     /// <param name="bus">The bus the part is on.</param>
-    /// <param name="address">The address A1 and A0 select, which <see cref="Address"/> works out.</param>
+    /// <param name="address">The address A1 and A0 select, which <see cref="Address(AddressPin, AddressPin)"/> works out.</param>
     /// <param name="shuntMilliohms">The shunt resistance in milliohms.</param>
     /// <param name="maxMicroamps">The largest current the shunt will carry, which sets the finest current step.</param>
     /// <param name="currentLsbMicroamps">A current step to use instead, such as a round 100, or 0 for the finest.</param>
-    /// <param name="config">The averaging and conversion times, or null for the power-on settings.</param>
+    /// <param name="config">The averaging, conversion times, and mode, or null for <see cref="Ina226Config.PowerOn"/>.</param>
     /// <exception cref="PamojaException">The native driver could not be created.</exception>
     public Ina226(
         I2cBus bus,
@@ -37,22 +37,125 @@ public sealed class Ina226 : IDisposable
         uint shuntMilliohms = 100,
         uint maxMicroamps = 3_200_000,
         uint currentLsbMicroamps = 0,
-        PamojaIna226Config? config = null)
+        Ina226Config? config = null)
     {
         ArgumentNullException.ThrowIfNull(bus);
         PamojaIna226Settings settings = NativeMethods.pamoja_ina226_settings_default();
         settings.ShuntMilliohms = shuntMilliohms;
         settings.MaxMicroamps = maxMicroamps;
         settings.CurrentLsbMicroamps = currentLsbMicroamps;
-        settings.Config = config ?? settings.Config;
+        settings.Config = (config ?? Ina226Config.PowerOn).ToNative();
         IntPtr sensor = IntPtr.Zero;
         Status.ThrowIfError(bus.Use(held =>
             NativeMethods.pamoja_ina226_new(held, address, settings, out sensor)));
         _handle = new NativeHandle(sensor, NativeMethods.pamoja_ina226_free);
     }
 
+    /// <summary>What an address pin is tied to, as the code <see cref="Address(AddressPin, AddressPin)"/> takes.</summary>
+    public enum AddressPin : byte
+    {
+        /// <summary>Tied to GND.</summary>
+        Ground = 0,
+
+        /// <summary>Tied to VS.</summary>
+        Supply = 1,
+
+        /// <summary>Tied to SDA.</summary>
+        Sda = 2,
+
+        /// <summary>Tied to SCL.</summary>
+        Scl = 3,
+    }
+
+    /// <summary>How many samples each result folds together, as the register code.</summary>
+    public enum Averaging : byte
+    {
+        /// <summary>Every conversion reported, the reset setting.</summary>
+        Samples1 = 0,
+
+        /// <summary>4 samples.</summary>
+        Samples4 = 1,
+
+        /// <summary>16 samples.</summary>
+        Samples16 = 2,
+
+        /// <summary>64 samples.</summary>
+        Samples64 = 3,
+
+        /// <summary>128 samples.</summary>
+        Samples128 = 4,
+
+        /// <summary>256 samples.</summary>
+        Samples256 = 5,
+
+        /// <summary>512 samples.</summary>
+        Samples512 = 6,
+
+        /// <summary>1024 samples.</summary>
+        Samples1024 = 7,
+    }
+
+    /// <summary>How long one bus or shunt conversion takes, as the register code.</summary>
+    public enum ConversionTime : byte
+    {
+        /// <summary>140 µs.</summary>
+        Us140 = 0,
+
+        /// <summary>204 µs.</summary>
+        Us204 = 1,
+
+        /// <summary>332 µs.</summary>
+        Us332 = 2,
+
+        /// <summary>588 µs.</summary>
+        Us588 = 3,
+
+        /// <summary>1.1 ms, the reset setting.</summary>
+        Us1100 = 4,
+
+        /// <summary>2.116 ms.</summary>
+        Us2116 = 5,
+
+        /// <summary>4.156 ms.</summary>
+        Us4156 = 6,
+
+        /// <summary>8.244 ms.</summary>
+        Us8244 = 7,
+    }
+
+    /// <summary>Which voltages the part converts, and whether once or continuously, as the register code.</summary>
+    public enum Mode : byte
+    {
+        /// <summary>No conversions; the registers stay readable and writable.</summary>
+        PowerDown = 0,
+
+        /// <summary>One shunt conversion.</summary>
+        ShuntTriggered = 1,
+
+        /// <summary>One bus conversion.</summary>
+        BusTriggered = 2,
+
+        /// <summary>One shunt and one bus conversion.</summary>
+        ShuntAndBusTriggered = 3,
+
+        /// <summary>Shunt conversions back to back.</summary>
+        ShuntContinuous = 5,
+
+        /// <summary>Bus conversions back to back.</summary>
+        BusContinuous = 6,
+
+        /// <summary>Shunt and bus conversions back to back, the reset setting.</summary>
+        ShuntAndBusContinuous = 7,
+    }
+
     /// <summary>The current step the driver programs, in microamps per count.</summary>
     public uint CurrentLsbMicroamps => _handle.Use(NativeMethods.pamoja_ina226_current_lsb);
+
+    /// <summary>Returns the 7-bit address the A1 and A0 pins select.</summary>
+    /// <param name="a1">What the A1 pin is tied to.</param>
+    /// <param name="a0">What the A0 pin is tied to.</param>
+    /// <returns>The address, 0x40 to 0x4F.</returns>
+    public static byte Address(AddressPin a1, AddressPin a0) => Address((byte)a1, (byte)a0);
 
     /// <summary>The calibration word the driver programs.</summary>
     public ushort CalibrationWord => _handle.Use(NativeMethods.pamoja_ina226_calibration_word);
@@ -148,11 +251,23 @@ public sealed class Ina226 : IDisposable
     public static ushort ConfigToRegister(PamojaIna226Config config) =>
         NativeMethods.pamoja_ina226_config_to_register(config);
 
+    /// <summary>Assembles the configuration register from named settings.</summary>
+    /// <param name="config">The settings.</param>
+    /// <returns>The register value.</returns>
+    public static ushort ConfigToRegister(Ina226Config config) =>
+        NativeMethods.pamoja_ina226_config_to_register(config.ToNative());
+
     /// <summary>Returns how often an INA226 in a configuration updates its results.</summary>
     /// <param name="config">The config.</param>
     /// <returns>The value the C ABI computes.</returns>
     public static uint UpdateMicros(PamojaIna226Config config) =>
         NativeMethods.pamoja_ina226_update_micros(config);
+
+    /// <summary>Returns how often an INA226 with named settings updates its results.</summary>
+    /// <param name="config">The settings.</param>
+    /// <returns>The update interval in microseconds.</returns>
+    public static uint UpdateMicros(Ina226Config config) =>
+        NativeMethods.pamoja_ina226_update_micros(config.ToNative());
 
     /// <summary>Parses an INA226 Mask/Enable register value.</summary>
     /// <param name="raw">The raw.</param>

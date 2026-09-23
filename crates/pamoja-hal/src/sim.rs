@@ -416,8 +416,8 @@ impl WordPart {
         };
         self.pointer = Some(pointer);
         let mut at = pointer;
-        for pair in words.chunks_exact(2) {
-            let written = u16::from_be_bytes([pair[0], pair[1]]);
+        for pair in words.as_chunks::<2>().0 {
+            let written = u16::from_be_bytes(*pair);
             let fixed = self.fixed[at as usize];
             let held = self.registers[at as usize];
             self.registers[at as usize] = (written & !fixed) | (held & fixed);
@@ -636,13 +636,16 @@ impl I2c<SevenBitAddress> for CommandPart {
 }
 
 /// A simulated part of any of the three kinds, as a simulated bus holds it.
+///
+/// A word part carries two maps of 256 sixteen-bit registers, four times what a byte part
+/// holds, so it is boxed to keep every `Part` the size of the smaller two.
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 pub enum Part {
     /// A part whose registers are a byte wide.
     Bytes(I2cPart),
     /// A part whose registers are sixteen bits wide.
-    Words(WordPart),
+    Words(alloc::boxed::Box<WordPart>),
     /// A part that takes commands.
     Commands(CommandPart),
 }
@@ -655,7 +658,7 @@ impl Part {
     ///
     /// The address.
     #[must_use]
-    pub const fn address(&self) -> u8 {
+    pub fn address(&self) -> u8 {
         match self {
             Part::Bytes(part) => part.address(),
             Part::Words(part) => part.address(),
@@ -669,7 +672,7 @@ impl Part {
     ///
     /// The count.
     #[must_use]
-    pub const fn transfers(&self) -> usize {
+    pub fn transfers(&self) -> usize {
         match self {
             Part::Bytes(part) => part.transfers(),
             Part::Words(part) => part.transfers(),
@@ -688,7 +691,7 @@ impl From<I2cPart> for Part {
 #[cfg(feature = "alloc")]
 impl From<WordPart> for Part {
     fn from(part: WordPart) -> Part {
-        Part::Words(part)
+        Part::Words(alloc::boxed::Box::new(part))
     }
 }
 
@@ -755,7 +758,7 @@ impl FromPart for I2cPart {
 impl FromPart for WordPart {
     fn from_part(part: Part) -> Option<WordPart> {
         match part {
-            Part::Words(part) => Some(part),
+            Part::Words(part) => Some(*part),
             _ => None,
         }
     }

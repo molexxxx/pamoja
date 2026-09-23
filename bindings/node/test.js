@@ -463,11 +463,16 @@ async function sensorDrivers() {
     `${[...s.ds18b20.buildScratchpad(21.5, 12, 75, -10)].map((byte) => byte.toString(16).padStart(2, "0")).join(" ")} : crc=00 YES\n`,
   );
   assert.strictEqual(text.microCelsius, 21_500_000, "the kernel's text decodes");
+  const rendered = s.ds18b20.w1SlaveText(s.ds18b20.buildScratchpad(21.5, 12, 75, -10))
+  assert.ok(rendered.endsWith(' t=21500\n'), "the kernel prints millidegrees on the second line");
+  assert.strictEqual(s.ds18b20.parseW1Slave(rendered).microCelsius, 21_500_000, "and it reads back");
   assert.throws(
     () => s.Ds18b20Thermometer.discover("/pamoja-absent-w1"),
     /pamoja-absent-w1/,
     "a missing device directory is named",
   );
+  assert.strictEqual(s.Ds18b20Thermometer.forSerial("000005e2fdc3").serial, "000005e2fdc3");
+  assert.strictEqual(s.Ds18b20Thermometer.at("/tmp/w1_slave").serial, null, "a bare file has no serial");
 }
 
 // The seven parts added after the first four: a datasheet figure each, and the
@@ -520,6 +525,23 @@ function laterSensors() {
   assert.throws(
     () => sensors.ina226.identify(0x5449, 0x2270),
     "a die that is not an INA226 should throw",
+  );
+  const { averaging, conversionTime, mode } = sensors.ina226;
+  assert.strictEqual(
+    sensors.ina226.configToRegister({
+      reset: false,
+      averaging: averaging.samples1,
+      busConversionTime: conversionTime.us1100,
+      shuntConversionTime: conversionTime.us1100,
+      mode: mode.shuntAndBusContinuous,
+    }),
+    sensors.ina226.configReset,
+    "the named settings spell the power-on register",
+  );
+  assert.strictEqual(
+    sensors.ina226.configFromRegister(0x4527).averaging,
+    averaging.samples16,
+    "and read back by name",
   );
 
   const coefficients = sensors.bmp280.calibration(

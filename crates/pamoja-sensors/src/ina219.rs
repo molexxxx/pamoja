@@ -20,6 +20,37 @@ pub use driver::{Ina219, STATUS_POLLS};
 /// The I2C address with both address pins tied to GND; A1 and A0 select the rest.
 pub const BASE_ADDRESS: u8 = 0x40;
 
+/// What an address pin is tied to: GND, VS+, SDA, or SCL. The INA219 and the INA226 share
+/// one address table, so they share this type.
+pub use crate::ina226::AddressPin;
+
+/// Returns the 7-bit I2C address the A1 and A0 pins select.
+///
+/// This is Table 1 of the datasheet: the address is `1 0 0 A1 A0`, each pin contributing two
+/// bits in the order GND, VS+, SDA, SCL, which gives the sixteen addresses 0x40 through
+/// 0x4F. Several monitors share a bus by tying their pins differently.
+///
+/// # Arguments
+///
+/// * `a1` - what the A1 pin is tied to.
+/// * `a0` - what the A0 pin is tied to.
+///
+/// # Returns
+///
+/// The 7-bit target address, before the read/write bit is appended.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::ina219::{address, AddressPin};
+///
+/// // A1 to ground and A0 to VS+: the first address above the base.
+/// assert_eq!(address(AddressPin::Ground, AddressPin::Supply), 0x41);
+/// ```
+pub fn address(a1: AddressPin, a0: AddressPin) -> u8 {
+    BASE_ADDRESS | ((a1 as u8) << 2) | a0 as u8
+}
+
 /// The INA219 register addresses.
 pub mod register {
     /// Configuration register: bus-voltage range, gain, ADC settings, and mode.
@@ -622,6 +653,33 @@ impl Reading {
 #[cfg(test)]
 mod driver_support_tests {
     use super::*;
+
+    #[test]
+    fn the_address_pins_select_the_datasheet_table() {
+        // Table 1, row by row: A1, A0, and the seven address bits.
+        use AddressPin::{Ground, Scl, Sda, Supply};
+        let table = [
+            (Ground, Ground, 0b100_0000),
+            (Ground, Supply, 0b100_0001),
+            (Ground, Sda, 0b100_0010),
+            (Ground, Scl, 0b100_0011),
+            (Supply, Ground, 0b100_0100),
+            (Supply, Supply, 0b100_0101),
+            (Supply, Sda, 0b100_0110),
+            (Supply, Scl, 0b100_0111),
+            (Sda, Ground, 0b100_1000),
+            (Sda, Supply, 0b100_1001),
+            (Sda, Sda, 0b100_1010),
+            (Sda, Scl, 0b100_1011),
+            (Scl, Ground, 0b100_1100),
+            (Scl, Supply, 0b100_1101),
+            (Scl, Sda, 0b100_1110),
+            (Scl, Scl, 0b100_1111),
+        ];
+        for (a1, a0, expected) in table {
+            assert_eq!(address(a1, a0), expected, "A1 {a1:?}, A0 {a0:?}");
+        }
+    }
 
     #[test]
     fn the_default_configuration_is_the_reset_word() {

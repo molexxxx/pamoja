@@ -299,6 +299,7 @@ __all__ = [
     "ds18b20_parse_w1_slave",
     "ds18b20_resolution_bits",
     "ds18b20_step_micro_celsius",
+    "ds18b20_w1_slave_text",
     "encode_delta_samples",
     "encode_manifest",
     "envelope_body",
@@ -333,6 +334,7 @@ __all__ = [
     "i2c_address_is_reserved",
     "image_digest",
     "ina219_adc_conversion_micros",
+    "ina219_address",
     "ina219_bus_millivolts",
     "ina219_bus_register",
     "ina219_calibration",
@@ -851,6 +853,12 @@ class Ads1115Sample:
     def volts(self) -> builtins.float:
         r"""
         The voltage in volts.
+        """
+    @property
+    def clipped(self) -> builtins.bool:
+        r"""
+        Whether the conversion sits at an end code, where the output clips for a signal past
+        the range, so the voltage is a bound rather than the reading.
         """
 
 @typing.final
@@ -2307,6 +2315,13 @@ class Ds18b20Thermometer:
     def path(self) -> builtins.str:
         r"""
         The path of the file the thermometer reads.
+        """
+    @property
+    def serial(self) -> typing.Optional[builtins.str]:
+        r"""
+        The serial the kernel named the thermometer's directory after: the twelve hex digits
+        after `28-`, which tell one probe from another and stay with the part for life. None
+        when the file does not sit in a DS18B20's directory, as one named by `at` may not.
         """
     @staticmethod
     def for_serial(serial: builtins.str) -> Ds18b20Thermometer:
@@ -10707,6 +10722,13 @@ def ds18b20_step_micro_celsius(bits: builtins.int) -> builtins.int:
     Returns the temperature step a DS18B20 resolution resolves, in micro-degrees.
     """
 
+def ds18b20_w1_slave_text(data: typing.Sequence[builtins.int]) -> builtins.str:
+    r"""
+    Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+    read cleanly, the inverse of `ds18b20_parse_w1_slave`. Raises `PamojaError` when the CRC
+    does not match.
+    """
+
 def encode_delta_samples(samples: typing.Sequence[builtins.int]) -> bytes:
     r"""
     Delta-encodes a series of integer samples into a compact buffer.
@@ -10885,6 +10907,12 @@ def image_digest(image: typing.Sequence[builtins.int]) -> bytes:
 def ina219_adc_conversion_micros(code: builtins.int) -> builtins.int:
     r"""
     Returns how long one INA219 conversion takes at a converter code, in microseconds.
+    """
+
+def ina219_address(a1: builtins.int, a0: builtins.int) -> builtins.int:
+    r"""
+    Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+    datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
     """
 
 def ina219_bus_millivolts(raw: builtins.int) -> builtins.int:

@@ -305,6 +305,20 @@ public static class Ds18b20
         return Read(reading);
     }
 
+    /// <summary>
+    /// Renders the text the Linux kernel's <c>w1_therm</c> driver serves for a scratchpad it
+    /// read cleanly, the inverse of <see cref="ParseW1Slave"/>.
+    /// </summary>
+    /// <param name="scratchpad">The nine scratchpad bytes, the ninth their CRC.</param>
+    /// <returns>The <c>w1_slave</c> file's two lines.</returns>
+    /// <exception cref="PamojaException">The bytes are not nine, or the CRC does not match.</exception>
+    public static string W1SlaveText(ReadOnlySpan<byte> scratchpad)
+    {
+        Status.ThrowIfError(NativeMethods.pamoja_ds18b20_w1_slave_text(
+            scratchpad, (nuint)scratchpad.Length, out IntPtr text));
+        return OwnedString.Read(text);
+    }
+
     /// <summary>Converts the flat struct the C ABI returns.</summary>
     /// <param name="reading">The interop representation.</param>
     /// <returns>The reading.</returns>

@@ -1,9 +1,9 @@
 //! An HDC1080 that is not there.
 //!
 //! [`part`] answers the way an HDC1080 at 22.5 C and 45 % does, and [`reporting`] at any
-//! temperature and humidity. It answers at the one address the part has,
-//! [`I2C_ADDRESS`](super::I2C_ADDRESS), and a measurement reads temperature then humidity in
-//! one four-byte read, as the part's does.
+//! temperature and humidity. It answers at the one address the part has, [`I2C_ADDRESS`],
+//! and a measurement reads temperature then humidity in one four-byte read, as the part's
+//! does.
 
 use pamoja_hal::sim::WordPart;
 

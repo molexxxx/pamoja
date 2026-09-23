@@ -43,7 +43,7 @@ using var sensor = new Bme280(bus, Part);
 // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps
 // what the driver wrote, so the configuration reads back off the bus.
 sensor.Init();
-using I2cPart part = bus.Part(Part)!;
+using I2cPart part = bus.Part<I2cPart>(Part)!;
 Bme280.Oversampling humidity = Bme280.CtrlHumFromBits(part.Register(Bme280.Register.CtrlHum));
 Bme280CtrlMeas ctrl = Bme280.CtrlMeasFromBits(part.Register(Bme280.Register.CtrlMeas));
 bool asleep = ctrl.Mode == Bme280.Mode.Sleep;

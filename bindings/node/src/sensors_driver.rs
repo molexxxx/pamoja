@@ -237,6 +237,9 @@ pub struct Ads1115Sample {
     pub nanovolts: i64,
     /// The voltage in volts.
     pub volts: f64,
+    /// Whether the conversion sits at an end code, where the output clips for a signal past
+    /// the range, so the voltage is a bound rather than the reading.
+    pub clipped: bool,
 }
 
 /// How an SHT3x driver measures. A field left out keeps the default, high repeatability.
@@ -1020,6 +1023,14 @@ impl Ds18b20Thermometer {
         self.inner.path().to_string_lossy().into_owned()
     }
 
+    /// The serial the kernel named the thermometer's directory after: the twelve hex digits
+    /// after `28-`, which tell one probe from another and stay with the part for life. Null
+    /// when the file does not sit in a DS18B20's directory, as one named by `at` may not.
+    #[napi(getter)]
+    pub fn serial(&self) -> Option<String> {
+        self.inner.serial().map(str::to_owned)
+    }
+
     /// Reads the file on a worker thread, which makes the kernel run a conversion, and
     /// resolves with the decoded reading. Rejects when the file cannot be read or the kernel
     /// or this decoder rejects the checksum.
@@ -1296,6 +1307,7 @@ fn sample_of(sample: ads1115::Sample) -> Ads1115Sample {
         pga: sample.pga.code(),
         nanovolts: sample.nanovolts(),
         volts: f64::from(sample.volts()),
+        clipped: sample.clipped(),
     }
 }
 

@@ -156,7 +156,10 @@ summary = "The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, 
 crates = ["pamoja-hal"]
 node = "hal"
 python = "hal"
-dotnet = ["I2cBus", "I2cPart", "I2cStep", "I2cBusKind", "I2cFault"]
+dotnet = [
+    "I2cBus", "SimulatedPart", "I2cPart", "WordPart", "CommandPart", "I2cStep", "I2cBusKind",
+    "I2cFault",
+]
 guide = "guides/hal.md"
 next = ["sensors", "actuators", "device"]
 pages = ["buses.md", "boards/raspberry-pi.md", "boards/rp2040.md"]
@@ -165,14 +168,16 @@ pages = ["buses.md", "boards/raspberry-pi.md", "boards/rp2040.md"]
 key = "sensors"
 chapter = "sensing"
 title = "Sensor drivers"
-summary = "Datasheet-anchored decoders for eleven parts: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117"
+summary = "Datasheet-anchored drivers for eleven parts, from every language: the BME280, BMP280, DS18B20, HDC1080, INA219, INA226, ADS1115, OPT3001, SCD4x, SHT3x, and TMP117"
 crates = ["pamoja-sensors"]
 node = "sensors"
 python = "sensors"
 dotnet = [
     "Bme280", "Bme280Calibration", "Bme280Measurement", "Ds18b20", "Ds18b20Reading",
-    "Ina219", "Ads1115", "Ads1115Config", "Bmp280", "Bmp280Calibration", "Bmp280Reading",
-    "Hdc1080", "Ina226", "Opt3001", "Scd4x", "Sht3x", "Tmp117",
+    "Ds18b20Thermometer", "Ina219", "Ina219Config", "Ina219Reading", "Ads1115",
+    "Ads1115Config", "Ads1115Sample", "Bmp280", "Bmp280Calibration", "Bmp280Reading",
+    "Hdc1080", "Ina226", "Ina226Config", "Ina226Reading", "Opt3001", "Opt3001Reading", "Scd4x", "Sht3x",
+    "Tmp117", "Tmp117Reading", "Tmp117Alerts",
 ]
 guide = "guides/sensors.md"
 next = ["hal", "kit", "profile"]

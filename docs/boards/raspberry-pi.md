@@ -93,11 +93,13 @@ The first turns on the ARM's I2C interface; `dtparam=i2c_arm_baudrate=400000`
 raises it from the default 100000. The second turns on SPI0, which appears as
 `/dev/spidev0.0` and `/dev/spidev0.1`, one per chip select, and the kernel's
 driver drives the select lines as plain GPIO. The third loads the kernel's
-1-Wire driver on GPIO4; `dtoverlay=w1-gpio,gpiopin=17` moves it, and
-`pullup=1` turns on the internal pull-up. Once on, the buses are files:
-`/dev/i2c-1` for the header's I2C, `/dev/spidev0.0` for SPI, `/dev/gpiochip0`
-for the GPIO lines, and `/sys/bus/w1/devices/` for every 1-Wire device the
-kernel found.
+1-Wire driver on GPIO4, and `dtoverlay=w1-gpio,gpiopin=17` moves it. The
+overlay turns the pin's internal pull-up on by default and now ignores its
+`pullup` parameter; a DS18B20 still wants the 4.7 kilohm resistor its
+datasheet shows, as the [sensor drivers guide](../guides/sensors.md#on-a-board)
+wires it. Once on, the buses are files: `/dev/i2c-1` for the header's I2C,
+`/dev/spidev0.0` for SPI, `/dev/gpiochip0` for the GPIO lines, and
+`/sys/bus/w1/devices/` for every 1-Wire device the kernel found.
 
 ## Permissions
 

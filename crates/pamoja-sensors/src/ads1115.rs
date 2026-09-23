@@ -496,6 +496,30 @@ impl Sample {
         to_nanovolts(self.pga, self.raw)
     }
 
+    /// Reports whether the conversion sits at either end code, 7FFFh or 8000h, where the
+    /// output clips for a signal beyond the full-scale range (datasheet section 7.5.4 and
+    /// Table 7-3).
+    ///
+    /// A clipped sample means the input is at or past the range the gain selects, so its
+    /// voltage is a bound rather than the reading; a wider range reads it.
+    ///
+    /// # Returns
+    ///
+    /// `true` at either end code.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_sensors::ads1115::{Pga, Sample};
+    ///
+    /// let pinned = Sample { raw: i16::MAX, pga: Pga::Fsr2_048 };
+    /// assert!(pinned.clipped());
+    /// assert!(!Sample { raw: 18_800, pga: Pga::Fsr4_096 }.clipped());
+    /// ```
+    pub fn clipped(&self) -> bool {
+        self.raw == i16::MAX || self.raw == i16::MIN
+    }
+
     /// Returns the conversion register bytes for this sample, most significant first.
     ///
     /// This is what the part sends when the register is read, so a test can script it.
@@ -507,6 +531,23 @@ impl Sample {
 #[cfg(test)]
 mod driver_support_tests {
     use super::*;
+
+    #[test]
+    fn only_the_end_codes_of_table_7_3_are_clipped() {
+        // Table 7-3: at or above +FS reads 7FFFh, at or below -FS reads 8000h, and one step
+        // either side of zero reads 0001h and FFFFh.
+        let code = |raw: u16| Sample {
+            raw: raw as i16,
+            pga: Pga::Fsr2_048,
+        };
+        assert!(code(0x7FFF).clipped());
+        assert!(code(0x8000).clipped());
+        assert!(!code(0x0001).clipped());
+        assert!(!code(0x0000).clipped());
+        assert!(!code(0xFFFF).clipped());
+        assert!(!code(0x7FFE).clipped());
+        assert!(!code(0x8001).clipped());
+    }
 
     #[test]
     fn conversion_time_is_one_period_plus_the_ten_percent_variation() {

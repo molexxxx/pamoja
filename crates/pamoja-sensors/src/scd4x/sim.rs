@@ -2,10 +2,9 @@
 //!
 //! [`part`] answers the way an SCD4x reading 800 ppm at 22.5 C and 45 % does, and
 //! [`reporting`] at any reading. It answers at the one address the part has,
-//! [`I2C_ADDRESS`](super::I2C_ADDRESS), and takes Sensirion's 16-bit commands: the serial
-//! number, the data-ready status, which always says a reading is waiting, and the reading
-//! itself, each word with its CRC; starting, stopping, and the other commands answer with
-//! nothing.
+//! [`I2C_ADDRESS`], and takes Sensirion's 16-bit commands: the serial number, the
+//! data-ready status, which always says a reading is waiting, and the reading itself, each
+//! word with its CRC; starting, stopping, and the other commands answer with nothing.
 
 use pamoja_hal::sim::CommandPart;
 

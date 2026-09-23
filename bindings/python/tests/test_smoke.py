@@ -391,12 +391,16 @@ def test_every_i2c_sensor_reads_its_simulated_twin_on_one_bus(tmp_path):
 
     scratchpad = s.ds18b20.build_scratchpad(21.5, 12, 75, -10)
     text = f"{scratchpad.hex(' ')} : crc={scratchpad[8]:02x} YES\n"
+    rendered = s.ds18b20.w1_slave_text(scratchpad)
+    assert rendered.startswith(text) and rendered.endswith(' t=21500\n')
     device = tmp_path / "28-000005e2fdc3"
     device.mkdir()
     (device / "w1_slave").write_text(text)
     (tmp_path / "w1_bus_master1").mkdir()
     found = s.Ds18b20Thermometer.discover(str(tmp_path))
     assert [probe.path.endswith("w1_slave") for probe in found] == [True]
+    assert [probe.serial for probe in found] == ["000005e2fdc3"]
+    assert s.Ds18b20Thermometer.at(str(tmp_path / "w1_slave")).serial is None
     assert found[0].read().micro_celsius == 21_500_000
     assert s.ds18b20.parse_w1_slave(text).micro_celsius == 21_500_000
     with pytest.raises(PamojaError, match="w1_slave"):
@@ -456,6 +460,15 @@ def test_the_later_sensor_parts_decode_and_refuse():
     assert sensors.ina226.power_microwatts(4_792, 1_000) == 119_800_000
     with pytest.raises(PamojaError):
         sensors.ina226.identify(0x5449, 0x2270)
+    power_on = sensors.Ina226Config(
+        averaging=sensors.Ina226Averaging.SAMPLES_1,
+        bus_conversion_time=sensors.Ina226ConversionTime.US_1100,
+        shunt_conversion_time=sensors.Ina226ConversionTime.US_1100,
+        mode=sensors.Ina226Mode.SHUNT_AND_BUS_CONTINUOUS,
+    )
+    assert sensors.ina226.config_to_register(power_on) == sensors.ina226.CONFIG_RESET
+    sixteen = sensors.ina226.config_from_register(0x4527).averaging
+    assert sensors.Ina226Averaging(sixteen) is sensors.Ina226Averaging.SAMPLES_16
 
 def test_an_actuator_command_encodes_to_its_registers():
     from pamoja import actuators

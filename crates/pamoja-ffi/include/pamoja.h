@@ -4906,6 +4906,9 @@ typedef struct {
   int64_t nanovolts;
   // The voltage in volts.
   float volts;
+  // `1` when the conversion sits at an end code, where the output clips for a signal past
+  // the range, so the voltage is a bound rather than the reading.
+  uint8_t clipped;
 } PamojaAds1115Sample;
 
 // The header that travels beside a sealed message.
@@ -19460,6 +19463,31 @@ PamojaStatus pamoja_ds18b20_parse_scratchpad(const uint8_t *bytes,
 // null.
 PamojaStatus pamoja_ds18b20_parse_w1_slave(const char *text, PamojaDs18b20Reading *out_reading);
 
+// Renders the text the Linux kernel's `w1_therm` driver serves for a scratchpad it read
+// cleanly, the inverse of [`pamoja_ds18b20_parse_w1_slave`]: the nine bytes and the CRC the
+// kernel computed with `YES`, then the bytes again with the temperature in millidegrees.
+//
+// # Arguments
+//
+// * `bytes` - the nine scratchpad bytes, the ninth their CRC.
+// * `len` - how many bytes; it must be nine.
+// * `out_text` - receives the text.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the text in `out_text`, which the caller releases with
+// [`crate::pamoja_string_free`]; [`PamojaStatus::Codec`] when the CRC does not match, since
+// the kernel only prints a clean read this way; or [`PamojaStatus::InvalidArgument`] for a
+// null argument or a length other than nine.
+//
+// # Safety
+//
+// `bytes` must point to `len` readable bytes, and `out_text` must be a writable pointer or
+// null.
+PamojaStatus pamoja_ds18b20_w1_slave_text(const uint8_t *bytes,
+                                          uintptr_t len,
+                                          PamojaString **out_text);
+
 // Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
 //
 // This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
@@ -19634,6 +19662,25 @@ int32_t pamoja_ina219_current_microamps(int16_t raw, uint32_t current_lsb_microa
 //
 // The power, at the resolution the calibration selected.
 uint32_t pamoja_ina219_power_microwatts(uint16_t raw, uint32_t current_lsb_microamps);
+
+// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+//
+// # Arguments
+//
+// * `a1` - what the A1 pin is tied to.
+// * `a0` - what the A0 pin is tied to.
+// * `out_address` - receives the 7-bit address, `0x40..=0x4F`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer or a code
+// above 3.
+//
+// # Safety
+//
+// `out_address` must point to a writable `uint8_t`, or be null.
+PamojaStatus pamoja_ina219_address(uint8_t a1, uint8_t a0, uint8_t *out_address);
 
 // Assembles the 16-bit INA219 configuration register value.
 //
@@ -22726,6 +22773,23 @@ PamojaStatus pamoja_ds18b20_thermometer_at(const char *path,
 //
 // `thermometer` must be a live handle or null.
 PamojaString *pamoja_ds18b20_thermometer_path(const PamojaDs18b20Thermometer *thermometer);
+
+// Returns the serial the kernel named a thermometer's directory after.
+//
+// # Arguments
+//
+// * `thermometer` - the thermometer.
+//
+// # Returns
+//
+// The twelve hex digits after `28-`, which the caller releases with
+// [`crate::pamoja_string_free`], or null when the file does not sit in a DS18B20's
+// directory or the thermometer is null.
+//
+// # Safety
+//
+// `thermometer` must be a live handle or null.
+PamojaString *pamoja_ds18b20_thermometer_serial(const PamojaDs18b20Thermometer *thermometer);
 
 // Reads a thermometer's file, which makes the kernel run a conversion, and decodes it.
 //

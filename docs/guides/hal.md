@@ -92,6 +92,7 @@ From [`examples/guides/hal.rs`](https://github.com/molexxxx/pamoja/blob/main/exa
 ```rust
 use pamoja_hal::bus::I2cBus;
 use pamoja_hal::script::{I2cScript, I2cStep};
+use pamoja_hal::sim::I2cPart;
 use pamoja_sensors::bme280::{
     register, sim, Bme280, Config, CtrlHum, CtrlMeas, Mode, Oversampling, CHIP_ID,
     I2C_ADDRESS_PRIMARY, I2C_ADDRESS_SECONDARY, RESET_WORD,
@@ -111,7 +112,7 @@ let mut sensor = Bme280::i2c(bus.clone(), BME280, bus.delay());
 // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
 // the driver wrote, so the configuration reads back off the bus.
 sensor.init()?;
-let part = bus.part(BME280).ok_or("no part at the address")?;
+let part: I2cPart = bus.part(BME280).ok_or("no part at the address")?;
 let humidity = CtrlHum::from_bits(part.register(register::CTRL_HUM)).humidity;
 let ctrl = CtrlMeas::from_bits(part.register(register::CTRL_MEAS));
 println!(
@@ -221,7 +222,7 @@ go in and come out as `Buffer`s, and the setting codes are named on `bme280`, as
 From [`bindings/node/guides/hal.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/hal.ts):
 
 ```typescript
-import { I2cBus, I2cStep } from '@pamoja/hal'
+import { I2cBus, I2cPart, I2cStep } from '@pamoja/hal'
 import { Bme280, type Bme280Measurement, bme280 } from '@pamoja/sensors'
 
 const BME280 = bme280.addressPrimary
@@ -242,7 +243,8 @@ async function main() {
   // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps what
   // the driver wrote, so the configuration reads back off the bus.
   await sensor.init()
-  const part = bus.part(BME280)!
+  const part = bus.part(BME280)
+  if (!(part instanceof I2cPart)) throw new Error('no part with byte-wide registers at the address')
   const humidity = bme280.ctrlHumFromBits(part.register(bme280.register.ctrlHum))
   const ctrl = bme280.ctrlMeasFromBits(part.register(bme280.register.ctrlMeas))
   const asleep = ctrl.mode === bme280.mode.sleep
@@ -451,7 +453,7 @@ using var sensor = new Bme280(bus, Part);
 // ctrl_meas, and the part left asleep until a measurement is forced. The part keeps
 // what the driver wrote, so the configuration reads back off the bus.
 sensor.Init();
-using I2cPart part = bus.Part(Part)!;
+using I2cPart part = bus.Part<I2cPart>(Part)!;
 Bme280.Oversampling humidity = Bme280.CtrlHumFromBits(part.Register(Bme280.Register.CtrlHum));
 Bme280CtrlMeas ctrl = Bme280.CtrlMeasFromBits(part.Register(Bme280.Register.CtrlMeas));
 bool asleep = ctrl.Mode == Bme280.Mode.Sleep;
@@ -711,8 +713,17 @@ spent:
 | Kind | Made with | What answers | A driver's wait |
 | --- | --- | --- | --- |
 | Adapter | `open(path)`, such as `/dev/i2c-1` | the parts wired to the bus | sleeps the process |
-| Simulated | `simulated(parts)` | each part at its own address, from 256 registers; nothing anywhere else | counted, not slept |
+| Simulated | `simulated(parts)` | each part at its own address, in the shape of its datasheet; nothing anywhere else | counted, not slept |
 | Scripted | `scripted(steps)` | the next step, when the transfer matches it; a refusal otherwise | counted, not slept |
+
+**A simulated part comes in three kinds**, because parts talk in three ways. Every driver's
+simulated part is one of them, and a bus holds any mix:
+
+| Kind | How it talks | Parts built on it |
+| --- | --- | --- |
+| `I2cPart` | a register address, then bytes from 256 byte-wide registers | BME280, BMP280 |
+| `WordPart` | a pointer byte, then 16-bit registers sent most significant byte first, with bits the part keeps for itself marked read-only | TMP117, OPT3001, HDC1080, INA219, INA226, ADS1115 |
+| `CommandPart` | a command and its arguments, then a read that takes the reply that command left, once | SHT3x, SCD4x |
 
 **The BME280** answers at `0x76` with its SDO pin low and `0x77` with it high. The
 registers a driver touches, in the order it first reaches them:
@@ -753,7 +764,7 @@ sleeps in between.
 | swap a part in | `bus.attach(part)` | `bus.attach(part)` | `bus.attach(part)` | `bus.Attach(part)` |
 | play a script | `I2cBus::scripted(I2cScript::new(steps))` | `I2cBus.scripted(steps)` | `I2cBus.scripted(steps)` | `I2cBus.Scripted(steps)` |
 | read a register | `bus.write_read(a, bytes, &mut out)` | `bus.writeRead(a, bytes, n)` | `bus.write_read(a, data, n)` | `bus.WriteRead(a, bytes, n)` |
-| see what a part holds | `bus.part(a)` | `bus.part(a)` | `bus.part(a)` | `bus.Part(a)` |
+| see what a part holds | `bus.part::<I2cPart>(a)` | `bus.part(a)` | `bus.part(a)` | `bus.Part<I2cPart>(a)` |
 | count transfers and waits | `transfers()`, `waited_micros()` | `transfers`, `waitedMicros` | `transfers`, `waited_micros` | `Transfers`, `WaitedMicros` |
 | see what a script has left | `remaining()` | `remaining` | `remaining` | `Remaining` |
 | build a BME280 driver | `Bme280::i2c(bus.clone(), a, bus.delay())` | `new Bme280(bus, a)` | `Bme280(bus, a)` | `new Bme280(bus, a)` |
@@ -799,8 +810,8 @@ The mistakes that cost an afternoon:
 - **The part answers at the other address.** Breakouts differ in which way they tie SDO,
   so one board answers at `0x76` and another at `0x77`. `i2cdetect -y 1` shows which.
 - **The chip id says `0x58`.** The part is a BMP280, which comes on breakouts that look
-  the same: it measures pressure and temperature and has no humidity at all. Its decoder
-  is in the [sensor drivers](sensors.md).
+  the same: it measures pressure and temperature and has no humidity at all. Its driver
+  is in the [sensor drivers guide](sensors.md).
 - **Two parts share an address.** Both answer every transfer and garble each other's
   replies. Move one with its address jumper.
 - **The breakout is powered from 5 V.** The header's pins are 3.3 V logic, and a
@@ -811,7 +822,7 @@ The mistakes that cost an afternoon:
 ## Where next
 
 <!-- table: next hal -->
-- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- [Sensor drivers](sensors.md): Datasheet-anchored drivers for eleven parts, from every language.
 - [Actuator drivers](actuators.md): PCA9685 PWM and servo pulses, and stepper coil sequencing.
 - [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
 - Beside it: [Buses and links](../buses.md), [Raspberry Pi](../boards/raspberry-pi.md), [RP2040](../boards/rp2040.md).

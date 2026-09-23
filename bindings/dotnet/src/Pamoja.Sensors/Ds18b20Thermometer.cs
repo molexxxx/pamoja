@@ -28,6 +28,14 @@ public sealed class Ds18b20Thermometer : IDisposable
     /// <summary>The path of the file the thermometer reads.</summary>
     public string Path => OwnedString.Read(_handle.Use(NativeMethods.pamoja_ds18b20_thermometer_path));
 
+    /// <summary>
+    /// The serial the kernel named the thermometer's directory after: the twelve hex digits
+    /// after <c>28-</c>, which tell one probe from another and stay with the part for life.
+    /// Null when the file does not sit in a DS18B20's directory, as one named by
+    /// <see cref="At"/> may not.
+    /// </summary>
+    public string? Serial => OwnedString.ReadOrNull(_handle.Use(NativeMethods.pamoja_ds18b20_thermometer_serial));
+
     /// <summary>Names a thermometer by the serial in its directory name.</summary>
     /// <param name="serial">The twelve hex digits after <c>28-</c>.</param>
     /// <returns>The thermometer, reading <c>/sys/bus/w1/devices/28-&lt;serial&gt;/w1_slave</c>.</returns>

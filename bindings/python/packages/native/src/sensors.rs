@@ -427,6 +427,20 @@ pub fn ds18b20_parse_w1_slave(text: &str) -> PyResult<Ds18b20Reading> {
         .map_err(to_py)
 }
 
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+/// read cleanly, the inverse of `ds18b20_parse_w1_slave`. Raises `PamojaError` when the CRC
+/// does not match.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ds18b20_w1_slave_text(data: Vec<u8>) -> PyResult<String> {
+    let bytes: [u8; 9] = data
+        .as_slice()
+        .try_into()
+        .map_err(|_| length_error("scratchpad", 9))?;
+    let scratchpad = ds18b20::Scratchpad::parse(&bytes).map_err(to_py)?;
+    Ok(ds18b20::w1_slave_text(&scratchpad))
+}
+
 impl From<ds18b20::Scratchpad> for Ds18b20Reading {
     fn from(value: ds18b20::Scratchpad) -> Self {
         Ds18b20Reading {
@@ -693,6 +707,14 @@ impl Ina219Config {
     fn __eq__(&self, other: &Ina219Config) -> bool {
         self == other
     }
+}
+
+/// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+/// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ina219_address(a1: u8, a0: u8) -> PyResult<u8> {
+    Ok(ina219::address(address_pin(a1)?, address_pin(a0)?))
 }
 
 /// Assembles the 16-bit INA219 configuration register value.
@@ -3025,7 +3047,7 @@ fn address_pin(code: u8) -> PyResult<ina226::AddressPin> {
         2 => Ok(ina226::AddressPin::Sda),
         3 => Ok(ina226::AddressPin::Scl),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "an INA226 address pin must be tied to GND, VS, SDA, or SCL: code 0 to 3",
+            "an address pin must be tied to GND, the supply, SDA, or SCL: code 0 to 3",
         )),
     }
 }

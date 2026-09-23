@@ -701,6 +701,11 @@ static void LaterSensors()
     {
     }
 
+    Assert(Ina226.ConfigToRegister(Ina226Config.PowerOn) == 0x4127, "the named settings spell the power-on register");
+    Assert(
+        Ina226Config.From(Ina226.ConfigFromRegister(0x4527)).Averaging == Ina226.Averaging.Samples16,
+        "and read back by name");
+
     using var coefficients = new Bmp280Calibration(
         Convert.FromHexString("706b436718fc7d8e43d6d00b270b8c00f9ff8c3cf8c67017"));
     Bmp280Reading reading = coefficients.Compensate(Convert.FromHexString("655ac07eed00"));
@@ -1438,6 +1443,9 @@ static void SensorDrivers()
     string spaced = string.Join(' ', Enumerable.Range(0, scratchpad.Length).Select(index => scratchpad[index].ToString("x2")));
     Assert(Ds18b20.ParseW1Slave($"{spaced} : crc={scratchpad[8]:x2} YES\n").MicroCelsius == 21_500_000, "the kernel's text decodes");
     Refuses(() => Ds18b20.ParseW1Slave(text), "one run-together hex word is not the kernel's format");
+    string rendered = Ds18b20.W1SlaveText(scratchpad);
+    Assert(rendered.StartsWith($"{spaced} : crc={scratchpad[8]:x2} YES\n", StringComparison.Ordinal), "the kernel's first line");
+    Assert(rendered.EndsWith(" t=21500\n", StringComparison.Ordinal), "and the millidegrees on the second");
     string devices = Path.Combine(Path.GetTempPath(), $"pamoja-dotnet-w1-{Environment.ProcessId}");
     string device = Path.Combine(devices, "28-000005e2fdc3");
     Directory.CreateDirectory(device);
@@ -1448,6 +1456,11 @@ static void SensorDrivers()
         Assert(found.Count == 1, "one probe under the directory");
         Assert(found[0].Read().MicroCelsius == 21_500_000, "and it reads 21.5 C");
         Assert(found[0].Path.EndsWith("w1_slave", StringComparison.Ordinal), "from its w1_slave file");
+        Assert(found[0].Serial == "000005e2fdc3", "named by the serial in its directory");
+        using (Ds18b20Thermometer bare = Ds18b20Thermometer.At(Path.Combine(devices, "w1_slave")))
+        {
+            Assert(bare.Serial is null, "a file outside a probe's directory has no serial");
+        }
         foreach (Ds18b20Thermometer probe in found)
         {
             probe.Dispose();

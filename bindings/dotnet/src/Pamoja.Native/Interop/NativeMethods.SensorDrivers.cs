@@ -18,6 +18,10 @@ public static partial class NativeMethods
     /// <summary>The INA219 configuration register's power-on value.</summary>
     public const ushort Ina219ConfigReset = 0x399F;
 
+    /// <summary>Returns the I2C address an INA219's A1 and A0 pin codes select.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ina219_address(byte a1, byte a0, out byte outAddress);
+
     /// <summary>Assembles an INA219 configuration register value.</summary>
     [LibraryImport(Library)]
     public static partial ushort pamoja_ina219_config_bits(PamojaIna219Config config);
@@ -49,6 +53,13 @@ public static partial class NativeMethods
     public static partial PamojaStatus pamoja_ds18b20_parse_w1_slave(
         string text,
         out PamojaDs18b20Reading outReading);
+
+    /// <summary>Renders the text the kernel serves for a DS18B20 scratchpad it read cleanly.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_ds18b20_w1_slave_text(
+        ReadOnlySpan<byte> bytes,
+        nuint len,
+        out IntPtr outText);
 
     /// <summary>Returns the settings a BMP280 driver starts with.</summary>
     [LibraryImport(Library)]
@@ -466,6 +477,13 @@ public static partial class NativeMethods
     /// <summary>Returns the path of the file a thermometer reads, as an owned string.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_ds18b20_thermometer_path(IntPtr thermometer);
+
+    /// <summary>
+    /// Returns the serial in a thermometer's directory name as an owned string, or null when the
+    /// file does not sit in a DS18B20's directory.
+    /// </summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_ds18b20_thermometer_serial(IntPtr thermometer);
 
     /// <summary>Reads and decodes a thermometer's file.</summary>
     [LibraryImport(Library)]

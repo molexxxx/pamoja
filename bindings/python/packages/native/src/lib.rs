@@ -336,8 +336,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_burst, m)?)?;
         m.add_function(wrap_pyfunction!(sensors_driver::bme280_sim_burst_for, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ds18b20_parse_w1_slave, m)?)?;
+        m.add_function(wrap_pyfunction!(sensors::ds18b20_w1_slave_text, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ads1115_conversion_micros, m)?)?;
         m.add_class::<sensors::Ina219Config>()?;
+        m.add_function(wrap_pyfunction!(sensors::ina219_address, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_config_bits, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_config_from_bits, m)?)?;
         m.add_function(wrap_pyfunction!(sensors::ina219_conversion_micros, m)?)?;

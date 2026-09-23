@@ -611,6 +611,54 @@ pub unsafe extern "C" fn pamoja_ds18b20_parse_w1_slave(
     }
 }
 
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a scratchpad it read
+/// cleanly, the inverse of [`pamoja_ds18b20_parse_w1_slave`]: the nine bytes and the CRC the
+/// kernel computed with `YES`, then the bytes again with the temperature in millidegrees.
+///
+/// # Arguments
+///
+/// * `bytes` - the nine scratchpad bytes, the ninth their CRC.
+/// * `len` - how many bytes; it must be nine.
+/// * `out_text` - receives the text.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the text in `out_text`, which the caller releases with
+/// [`crate::pamoja_string_free`]; [`PamojaStatus::Codec`] when the CRC does not match, since
+/// the kernel only prints a clean read this way; or [`PamojaStatus::InvalidArgument`] for a
+/// null argument or a length other than nine.
+///
+/// # Safety
+///
+/// `bytes` must point to `len` readable bytes, and `out_text` must be a writable pointer or
+/// null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ds18b20_w1_slave_text(
+    bytes: *const u8,
+    len: usize,
+    out_text: *mut *mut crate::PamojaString,
+) -> PamojaStatus {
+    if out_text.is_null() {
+        set_last_error("out_text must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_text = std::ptr::null_mut();
+    let bytes = match read_bytes(bytes, len) {
+        Ok(bytes) => bytes,
+        Err(status) => return status,
+    };
+    let Ok(scratchpad) = <[u8; PAMOJA_DS18B20_SCRATCHPAD_LEN]>::try_from(&bytes[..]) else {
+        return wrong_length("scratchpad", 9);
+    };
+    match ds18b20::Scratchpad::parse(&scratchpad) {
+        Ok(scratchpad) => {
+            *out_text = crate::PamojaString::into_raw(ds18b20::w1_slave_text(&scratchpad));
+            PamojaStatus::Ok
+        }
+        Err(error) => failed(error),
+    }
+}
+
 /// Builds the nine bytes a DS18B20 in the given state puts on the bus, CRC last.
 ///
 /// This is the inverse of [`pamoja_ds18b20_parse_scratchpad`], so a node can be
@@ -905,6 +953,43 @@ pub extern "C" fn pamoja_ina219_power_microwatts(raw: u16, current_lsb_microamps
 
 /// The INA219 address with both address pins tied to ground; A1 and A0 add to it.
 pub const PAMOJA_INA219_BASE_ADDRESS: u8 = 0x40;
+
+/// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+/// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+///
+/// # Arguments
+///
+/// * `a1` - what the A1 pin is tied to.
+/// * `a0` - what the A0 pin is tied to.
+/// * `out_address` - receives the 7-bit address, `0x40..=0x4F`.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null pointer or a code
+/// above 3.
+///
+/// # Safety
+///
+/// `out_address` must point to a writable `uint8_t`, or be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_ina219_address(
+    a1: u8,
+    a0: u8,
+    out_address: *mut u8,
+) -> PamojaStatus {
+    if out_address.is_null() {
+        set_last_error("out_address must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let (Some(a1), Some(a0)) = (address_pin(a1), address_pin(a0)) else {
+        set_last_error(
+            "an INA219 address pin must be tied to GND, VS+, SDA, or SCL: code 0 to 3".to_owned(),
+        );
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_address = ina219::address(a1, a0);
+    PamojaStatus::Ok
+}
 
 /// The INA219 configuration register's power-on value: the 32 V range, gain 1/8, 12-bit
 /// conversions, shunt and bus continuous.

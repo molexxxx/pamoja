@@ -213,7 +213,7 @@ foreach (float reading in new[] { percent, 38.0f, 45.0f, 62.0f })
 ## Where next
 
 <!-- table: next kit -->
-- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- [Sensor drivers](sensors.md): Datasheet-anchored drivers for eleven parts, from every language.
 - [Rules](rules.md): Rules between nodes as a file.
 - [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
 <!-- end -->

@@ -425,6 +425,12 @@ export declare class Ds18b20Thermometer {
   /** The path of the file the thermometer reads. */
   get path(): string
   /**
+   * The serial the kernel named the thermometer's directory after: the twelve hex digits
+   * after `28-`, which tell one probe from another and stay with the part for life. Null
+   * when the file does not sit in a DS18B20's directory, as one named by `at` may not.
+   */
+  get serial(): string | null
+  /**
    * Reads the file on a worker thread, which makes the kernel run a conversion, and
    * resolves with the decoded reading. Rejects when the file cannot be read or the kernel
    * or this decoder rejects the checksum.
@@ -2852,6 +2858,11 @@ export interface Ads1115Sample {
   nanovolts: number
   /** The voltage in volts. */
   volts: number
+  /**
+   * Whether the conversion sits at an end code, where the output clips for a signal past
+   * the range, so the voltage is a bound rather than the reading.
+   */
+  clipped: boolean
 }
 
 /** Returns the sample rate an ADS1115 data-rate code selects. */
@@ -3473,6 +3484,12 @@ export declare function ds18b20ResolutionBits(configByte: number): number
 
 /** Returns the temperature step a DS18B20 resolution resolves, in micro-degrees. */
 export declare function ds18b20StepMicroCelsius(bits: number): number
+
+/**
+ * Renders the text the Linux kernel's `w1_therm` driver serves for a nine-byte scratchpad it
+ * read cleanly, the inverse of `ds18b20ParseW1Slave`. Throws when the CRC does not match.
+ */
+export declare function ds18b20W1SlaveText(scratchpad: Buffer): string
 
 /** What a trigger reports when a reading changes its state. */
 export declare const enum Edge {
@@ -4156,6 +4173,12 @@ export declare function imageDigest(image: Buffer): Buffer
 
 /** Returns how long one INA219 conversion takes at a converter code, in microseconds. */
 export declare function ina219AdcConversionMicros(code: number): number
+
+/**
+ * Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
+ * datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
+ */
+export declare function ina219Address(a1: number, a0: number): number
 
 /** Converts a raw INA219 bus-voltage register to millivolts. */
 export declare function ina219BusMillivolts(raw: number): number

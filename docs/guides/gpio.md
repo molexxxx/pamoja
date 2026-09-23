@@ -599,7 +599,7 @@ The mistakes that cost an afternoon:
 
 <!-- table: next gpio -->
 - [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
-- [Sensor drivers](sensors.md): Datasheet-anchored decoders for eleven parts.
+- [Sensor drivers](sensors.md): Datasheet-anchored drivers for eleven parts, from every language.
 - [Actuator drivers](actuators.md): PCA9685 PWM and servo pulses, and stepper coil sequencing.
 - Beside it: [Buses and links](../buses.md), [Raspberry Pi](../boards/raspberry-pi.md), [ESP32](../boards/esp32.md), [RP2040](../boards/rp2040.md).
 - Also in Field I/O: [Serial framing](serial.md), [Modbus RTU](modbus.md), [CAN and J1939](can.md), [Buses](hal.md).

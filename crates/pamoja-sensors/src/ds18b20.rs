@@ -458,6 +458,68 @@ pub fn parse_w1_slave(text: &str) -> Result<Scratchpad, SensorError> {
     Scratchpad::parse(&bytes)
 }
 
+/// Renders the text the Linux kernel's `w1_therm` driver serves for a scratchpad it read
+/// cleanly: the contents of a thermometer's `w1_slave` file.
+///
+/// This is the inverse of [`parse_w1_slave`], so a program that reads the kernel's files is
+/// written and tested with no thermometer and no kernel. The format is the one
+/// `w1_slave_show` prints in `drivers/w1/slaves/w1_therm.c`: the nine bytes as two
+/// lowercase hex digits and a space each, then `: crc=`, the CRC the kernel computed over
+/// the first eight, and `YES`; then the nine bytes again and `t=` with the temperature in
+/// millidegrees, which `w1_DS18B20_convert_temp` takes as the raw register times 1000
+/// divided by 16, truncated toward zero as C divides.
+///
+/// # Arguments
+///
+/// * `scratchpad` - the scratchpad the kernel read.
+///
+/// # Returns
+///
+/// The file's two lines.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_sensors::ds18b20::{
+///     parse_w1_slave, temperature_from_celsius, w1_slave_text, Resolution, Scratchpad,
+/// };
+///
+/// let raw = temperature_from_celsius(21.5, Resolution::Bits12);
+/// let scratchpad = Scratchpad::new(raw, Resolution::Bits12, 75, -10);
+/// let text = w1_slave_text(&scratchpad);
+/// assert!(text.ends_with(" t=21500\n"));
+/// assert_eq!(parse_w1_slave(&text)?, scratchpad);
+/// # Ok::<(), pamoja_sensors::SensorError>(())
+/// ```
+#[cfg(feature = "alloc")]
+pub fn w1_slave_text(scratchpad: &Scratchpad) -> alloc::string::String {
+    use core::fmt::Write;
+
+    let bytes = scratchpad.to_bytes();
+    let mut hex = alloc::string::String::with_capacity(27);
+    for byte in bytes {
+        let _ = write!(hex, "{byte:02x} ");
+    }
+    alloc::format!(
+        "{hex}: crc={:02x} YES\n{hex}t={}\n",
+        crc8(&bytes[..8]),
+        kernel_millidegrees(&bytes)
+    )
+}
+
+// The temperature the kernel prints, as `w1_DS18B20_convert_temp` works it out, including
+// the path it takes for a clone that sets bit 7 of the configuration register.
+#[cfg(feature = "alloc")]
+fn kernel_millidegrees(bytes: &[u8; 9]) -> i32 {
+    let register = u16::from_le_bytes([bytes[0], bytes[1]]);
+    if bytes[4] & 0x80 != 0 {
+        let extended = (register << 2) | u16::from(bytes[4] & 0x03);
+        i32::from(extended as i16) * 1000 / 64
+    } else {
+        i32::from(register as i16) * 1000 / 16
+    }
+}
+
 /// The kernel's own 1-Wire driver: thermometers as files under `/sys/bus/w1/devices`.
 ///
 /// On a Raspberry Pi the `w1-gpio` overlay (`dtoverlay=w1-gpio` in `config.txt`)
@@ -575,6 +637,30 @@ pub mod linux {
             &self.path
         }
 
+        /// Returns the serial the kernel named the thermometer's directory after.
+        ///
+        /// # Returns
+        ///
+        /// The twelve hex digits after `28-`, as in `000005e2fdc3`, which tell one probe
+        /// from another and stay with the part for life. `None` when the file does not sit
+        /// in a DS18B20's directory, as a thermometer named by [`at`](Thermometer::at) may
+        /// not.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use pamoja_sensors::ds18b20::linux::Thermometer;
+        ///
+        /// assert_eq!(Thermometer::new("000005e2fdc3").serial(), Some("000005e2fdc3"));
+        /// assert_eq!(Thermometer::at("/tmp/w1_slave").serial(), None);
+        /// ```
+        pub fn serial(&self) -> Option<&str> {
+            let directory = self.path.parent()?.file_name()?.to_str()?;
+            let (family, serial) = directory.split_once('-')?;
+            let family = u8::from_str_radix(family, 16).ok()?;
+            (family == FAMILY_CODE && !serial.is_empty()).then_some(serial)
+        }
+
         /// Lists every DS18B20 the kernel has found.
         ///
         /// # Returns
@@ -666,6 +752,7 @@ pub mod linux {
             let found = Thermometer::discover_in(&dir).unwrap();
             assert_eq!(found.len(), 1);
             assert_eq!(found[0].path(), device.join(W1_SLAVE));
+            assert_eq!(found[0].serial(), Some("000005e2fdc3"));
             let scratchpad = found[0].read_scratchpad().unwrap();
             assert_eq!(scratchpad.temperature_celsius(), 21.5);
             assert_eq!(
@@ -688,6 +775,20 @@ pub mod linux {
                 probe.path(),
                 Path::new("/sys/bus/w1/devices/28-000005e2fdc3/w1_slave")
             );
+            assert_eq!(probe.serial(), Some("000005e2fdc3"));
+        }
+
+        #[test]
+        fn only_a_ds18b20_directory_names_a_serial() {
+            let at = |path: &str| Thermometer::at(path);
+            assert_eq!(
+                at("/w1/28-0316a2795cff/w1_slave").serial(),
+                Some("0316a2795cff")
+            );
+            assert_eq!(at("/w1/10-000802f1e4a3/w1_slave").serial(), None);
+            assert_eq!(at("/w1/28-/w1_slave").serial(), None);
+            assert_eq!(at("/w1/w1_bus_master1/w1_slave").serial(), None);
+            assert_eq!(at("w1_slave").serial(), None);
         }
     }
 }
@@ -846,5 +947,47 @@ mod tests {
             parse_w1_slave("zz 01 4b 46 7f ff 03 10 e8 : crc=e8 YES\n"),
             Err(SensorError::Invalid)
         );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn the_kernel_text_prints_what_w1_therm_prints() {
+        // Rows of the datasheet's temperature/data table, with the millidegrees the kernel
+        // prints for each: the raw count times 1000 over 16, truncated toward zero, so
+        // -25.0625 C prints as -25062 rather than -25063.
+        let rows: &[(i16, i32)] = &[
+            (0x07D0, 125_000),
+            (0x0191, 25_062),
+            (0x0008, 500),
+            (0x0000, 0),
+            (i16::from_le_bytes([0x5E, 0xFF]), -10_125),
+            (i16::from_le_bytes([0x6F, 0xFE]), -25_062),
+            (i16::from_le_bytes([0x90, 0xFC]), -55_000),
+        ];
+        for &(raw, millidegrees) in rows {
+            let scratchpad = Scratchpad::new(raw, Resolution::Bits12, 75, -10);
+            let bytes = scratchpad.to_bytes();
+            let text = w1_slave_text(&scratchpad);
+            let (first, second) = text.split_once('\n').expect("two lines");
+            let hex: alloc::vec::Vec<alloc::string::String> = bytes
+                .iter()
+                .map(|byte| alloc::format!("{byte:02x}"))
+                .collect();
+            assert_eq!(
+                first,
+                alloc::format!("{} : crc={:02x} YES", hex.join(" "), bytes[8])
+            );
+            assert_eq!(
+                second,
+                alloc::format!("{} t={millidegrees}\n", hex.join(" "))
+            );
+            assert_eq!(parse_w1_slave(&text), Ok(scratchpad));
+        }
+
+        // A clone that sets bit 7 of the configuration register carries two more
+        // temperature bits there, which the kernel folds in before dividing by 64.
+        let mut clone = [0x91, 0x01, 75, 0xF6, 0x83, 0xFF, 0x00, 0x10, 0x00];
+        clone[8] = crc8(&clone[..8]);
+        assert_eq!(kernel_millidegrees(&clone), (0x0191 * 4 + 3) * 1000 / 64);
     }
 }

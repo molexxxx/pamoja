@@ -27,6 +27,42 @@ released together, so one entry covers all of them.
   simulated part holding a real part's calibration, or reporting any reading it is
   asked for. In C#, `Bme280` is now a class whose static members are the datasheet and
   whose instances are drivers.
+- Every other I2C sensor driver in TypeScript, Python, and C#, over an `I2cBus`: the
+  BMP280, TMP117, OPT3001, HDC1080, INA219, INA226, ADS1115, SHT3x, and SCD4x, each with
+  its settings, `init`, `measure` (`sample` and `sample_input` on the ADS1115), and what
+  else its datasheet gives it: the TMP117's alert limits, the OPT3001's interrupt window,
+  the HDC1080's heater, the SHT3x's status register and heater, the SCD4x's data-ready
+  poll, temperature offset, altitude and single shot, and the INA226's alert and identity.
+  The C ABI carries each driver as a handle. The DS18B20 is read the way a Linux board
+  reads it, through the kernel's 1-Wire files, as `Ds18b20Thermometer`: it finds every
+  probe the kernel lists, names each by its serial, and reads it.
+- A simulated part for every I2C sensor, `sim::part` and `sim::reporting` beside each
+  driver, answering as its datasheet says, in every language. `pamoja-hal` gains the two
+  shapes of part they need: `WordPart`, sixteen-bit registers behind a pointer byte, which
+  is how the TI parts talk, with bits the part keeps for itself marked read-only; and
+  `CommandPart`, commands each answered by the reply it leaves, which is how the Sensirion
+  parts talk. `sim::Part` holds any of the three and a simulated bus takes any mix.
+  TypeScript, Python, and C# get `WordPart`, `CommandPart`, and `SimulatedPart` for any
+  of them.
+- `ds18b20::w1_slave_text`, the text the kernel's `w1_therm` driver serves for a
+  scratchpad, so a program that reads the kernel's files is tested with neither a probe
+  nor a kernel; `ds18b20::linux::Thermometer::serial`, the serial the kernel named a
+  probe's directory after; `ina219::address`, from the A1 and A0 pins as
+  `ina226::address` already was; and `ads1115::Sample::clipped`, true when a conversion
+  sits at an end code of the datasheet's Table 7-3 and its voltage is a bound rather than
+  a reading. All four reach every language.
+- The INA226's averaging, conversion times, and mode by name in TypeScript, Python, and
+  C#, as the INA219's settings already were: `ina226.averaging`, `ina226.conversionTime`,
+  and `ina226.mode`; `Ina226Averaging`, `Ina226ConversionTime`, and `Ina226Mode`; and
+  `Ina226.Averaging`, `Ina226.ConversionTime`, and `Ina226.Mode`, with an `Ina226Config`
+  record in C# that the driver takes and `ConfigToRegister` and `UpdateMicros` accept.
+  Before, each was a bare register code.
+- The sensor drivers guide rewritten around a greenhouse bench, nine parts on one bus and
+  a DS18B20 in a pot, printing the same twelve lines in all four languages, with a
+  Raspberry Pi logger of an SHT31 and DS18B20 probes in each. Its tables cover where each
+  part answers, the sixteen INA219 and INA226 addresses, what a measurement waits, every
+  setting and its choices in each language, the ADS1115's ranges, calibrating a current
+  monitor, the simulated parts, and what each error means.
 - The buses guide rewritten around the shared bus in all four languages, each opening
   with how its language hands out the bus and reports a failure, plus the same program
   on a Raspberry Pi, tables of the bus kinds, the BME280's registers, oversampling and
@@ -508,6 +544,12 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- A simulated bus hands a part back as whichever kind it is. In Rust `I2cBus::part` is
+  generic over the kind, `bus.part::<I2cPart>(address)`; in TypeScript and Python it
+  returns the part as it is; in C# `bus.Part(address)` returns a `SimulatedPart` and
+  `bus.Part<I2cPart>(address)` that kind or null. In C#, `Ina219` and `Ads1115` are now
+  classes whose static members are the datasheet and whose instances are drivers, as
+  `Bme280` became.
 - Every guide ends with a Where next generated from the capability map: the guides a
   reader goes to after it, each with what it covers, the pages beside it such as a board
   page, and the rest of its chapter. Before, one guide in 37 had one. The language tabs move
@@ -630,6 +672,9 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The Raspberry Pi page said `pullup=1` turns on the `w1-gpio` overlay's internal
+  pull-up. The overlay turns it on by default and ignores the parameter, as its README
+  says, and a DS18B20 still wants the 4.7 kilohm resistor its datasheet shows.
 - On the documentation site, a paragraph after a set of language tabs showed under the C#
   tab alone, so a reader on any other language never saw it: the lesson after the
   Raspberry Pi's relay and radio programs, the line after the GPIO guide's board program,

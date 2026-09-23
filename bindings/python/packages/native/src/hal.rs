@@ -50,7 +50,10 @@ impl AnyPart<'_> {
 }
 
 /// A simulated part given back as the class of part it is.
+///
+/// It lives only until pyo3 turns it into a Python object, so its size does not matter.
 #[derive(IntoPyObject)]
+#[allow(clippy::large_enum_variant)]
 pub enum HeldPart {
     /// A part whose registers are a byte wide.
     Bytes(I2cPart),
@@ -372,7 +375,7 @@ impl I2cBus {
     fn part(&self, address: u8) -> Option<HeldPart> {
         self.inner.part::<Any>(address).map(|part| match part {
             Any::Bytes(inner) => HeldPart::Bytes(I2cPart { inner }),
-            Any::Words(inner) => HeldPart::Words(WordPart { inner }),
+            Any::Words(inner) => HeldPart::Words(WordPart { inner: *inner }),
             Any::Commands(inner) => HeldPart::Commands(CommandPart { inner }),
         })
     }

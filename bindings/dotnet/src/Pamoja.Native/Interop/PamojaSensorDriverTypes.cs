@@ -225,4 +225,6 @@ public struct PamojaAds1115Sample
     public long Nanovolts;
     /// <summary>The voltage in volts.</summary>
     public float Volts;
+    /// <summary>1 when the conversion sits at an end code, where the output clips.</summary>
+    public byte Clipped;
 }

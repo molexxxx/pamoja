@@ -112,6 +112,48 @@ public readonly record struct Ina219Reading(
         native.MathOverflow != 0);
 }
 
+/// <summary>An INA226 configuration register, field by field.</summary>
+/// <param name="Averaging">How many samples each result folds together.</param>
+/// <param name="BusConversionTime">How long one bus-voltage conversion takes.</param>
+/// <param name="ShuntConversionTime">How long one shunt-voltage conversion takes.</param>
+/// <param name="Mode">Which voltages are converted, and whether once or continuously.</param>
+/// <param name="Reset">Whether writing the register resets the part.</param>
+public readonly record struct Ina226Config(
+    Ina226.Averaging Averaging,
+    Ina226.ConversionTime BusConversionTime,
+    Ina226.ConversionTime ShuntConversionTime,
+    Ina226.Mode Mode,
+    bool Reset = false)
+{
+    /// <summary>The power-on configuration: no averaging, 1.1 ms conversions, shunt and bus continuous.</summary>
+    public static Ina226Config PowerOn { get; } = new(
+        Ina226.Averaging.Samples1,
+        Ina226.ConversionTime.Us1100,
+        Ina226.ConversionTime.Us1100,
+        Ina226.Mode.ShuntAndBusContinuous);
+
+    /// <summary>Converts to the flat struct the C ABI takes.</summary>
+    /// <returns>The interop representation.</returns>
+    public PamojaIna226Config ToNative() => new()
+    {
+        Reset = Reset ? (byte)1 : (byte)0,
+        Averaging = (byte)Averaging,
+        BusConversionTime = (byte)BusConversionTime,
+        ShuntConversionTime = (byte)ShuntConversionTime,
+        Mode = (byte)Mode,
+    };
+
+    /// <summary>Names the fields of the flat struct the C ABI returns, such as <see cref="Ina226.ConfigFromRegister"/>'s.</summary>
+    /// <param name="native">The interop representation.</param>
+    /// <returns>The configuration.</returns>
+    public static Ina226Config From(PamojaIna226Config native) => new(
+        (Ina226.Averaging)native.Averaging,
+        (Ina226.ConversionTime)native.BusConversionTime,
+        (Ina226.ConversionTime)native.ShuntConversionTime,
+        (Ina226.Mode)native.Mode,
+        native.Reset != 0);
+}
+
 /// <summary>One INA226 conversion: the four result registers as read, and what they mean.</summary>
 /// <param name="Shunt">The shunt-voltage register.</param>
 /// <param name="Bus">The bus-voltage register.</param>
@@ -168,11 +210,15 @@ public readonly record struct Ina226Reading(
 /// <param name="Gain">The full-scale range the conversion ran at.</param>
 /// <param name="Nanovolts">The voltage in nanovolts, exact in integers.</param>
 /// <param name="Volts">The voltage in volts.</param>
-public readonly record struct Ads1115Sample(short Raw, Ads1115.Pga Gain, long Nanovolts, float Volts)
+/// <param name="Clipped">
+/// Whether the conversion sits at an end code, where the output clips for a signal past the
+/// range, so the voltage is a bound rather than the reading.
+/// </param>
+public readonly record struct Ads1115Sample(short Raw, Ads1115.Pga Gain, long Nanovolts, float Volts, bool Clipped)
 {
     /// <summary>Converts the flat struct the C ABI returns.</summary>
     /// <param name="native">The interop representation.</param>
     /// <returns>The sample.</returns>
     internal static Ads1115Sample From(PamojaAds1115Sample native) =>
-        new(native.Raw, (Ads1115.Pga)native.Pga, native.Nanovolts, native.Volts);
+        new(native.Raw, (Ads1115.Pga)native.Pga, native.Nanovolts, native.Volts, native.Clipped != 0);
 }
