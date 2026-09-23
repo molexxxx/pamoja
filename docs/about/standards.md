@@ -39,7 +39,7 @@ The primitives under device identity, the secured session, and signed updates.
 </header>
 <p class="hw-summary">Appendix C.1. The cipher itself is the RustCrypto `aes` crate; the vector is asserted through this crate's wrapper.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://csrc.nist.gov/pubs/fips/197/final"><span class="hw-main"><b>The document</b><small>FIPS 197-upd1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/crypto.rs#L113"><span class="hw-main"><b>The test</b><small><code>crypto.rs</code> line 113</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/crypto.rs#L173"><span class="hw-main"><b>The test</b><small><code>crypto.rs</code> line 173</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rfc-4493">
@@ -52,7 +52,7 @@ The primitives under device identity, the secured session, and signed updates.
 </header>
 <p class="hw-summary">All four worked examples in section 4, including the 40 and 64 byte cases.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.rfc-editor.org/info/rfc4493"><span class="hw-main"><b>The document</b><small>RFC 4493</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/crypto.rs#L136"><span class="hw-main"><b>The test</b><small><code>crypto.rs</code> line 136</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/crypto.rs#L224"><span class="hw-main"><b>The test</b><small><code>crypto.rs</code> line 224</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="fips-180-4">
@@ -404,7 +404,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">The join accept field positions in tables 44 and 55.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts001-1-0-4-lorawan-l2-1-0-4-specification"><span class="hw-main"><b>The document</b><small>TS001-1.0.4</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L870"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 870</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L1192"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 1192</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rp002-1-0-5">
@@ -443,7 +443,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">Every command checked against the size the specification gives it, cross-read with Semtech LoRa Basics Modem's own size constants.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts003-2-0-0-application-layer-clock-synchronization"><span class="hw-main"><b>The document</b><small>TS003-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/tests.rs#L34"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 34</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/tests.rs#L35"><span class="hw-main"><b>The test</b><small><code>tests.rs</code> line 35</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="ts004-2-0-0">
@@ -456,7 +456,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">ChirpStack's own command bytes, and the parity matrix against an independent rendering. The coded fragments are seeded by the index among the coded fragments, which is what Semtech's Basics Modem and ChirpStack both do; the appendix reads as though the session index were the seed.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts004-2-0-0-fragmented-data-block-transport"><span class="hw-main"><b>The document</b><small>TS004-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/fragment_tests.rs#L22"><span class="hw-main"><b>The test</b><small><code>fragment_tests.rs</code> line 22</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/fragment_tests.rs#L23"><span class="hw-main"><b>The test</b><small><code>fragment_tests.rs</code> line 23</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="ts005-2-0-0">
@@ -469,7 +469,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">ChirpStack's own command bytes, with the key chain of section 4.3 checked step by step.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts005-2-0-0-remote-multicast-setup"><span class="hw-main"><b>The document</b><small>TS005-2.0.0</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/multicast_tests.rs#L21"><span class="hw-main"><b>The test</b><small><code>multicast_tests.rs</code> line 21</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-lorawan/src/packages/multicast_tests.rs#L22"><span class="hw-main"><b>The test</b><small><code>multicast_tests.rs</code> line 22</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="ts006-1-0-0">
@@ -612,7 +612,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.etsi.org/deliver/etsi_en/300200_300299/30022002/"><span class="hw-main"><b>The document</b><small>ETSI EN 300 220-2 V3.3.1</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md#L359"><span class="hw-main"><b>The test</b><small><code>radio.md</code> line 359</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md?plain=1#L361"><span class="hw-main"><b>The page</b><small><code>radio.md</code> line 361</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="erc-70-03">
@@ -625,7 +625,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">Revised often; the link resolves to the current edition rather than a dated one.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://docdb.cept.org/document/845"><span class="hw-main"><b>The document</b><small>CEPT ERC Recommendation 70-03</small><small class="hw-note">docdb.cept.org refuses a scripted connection outright, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md#L294"><span class="hw-main"><b>The test</b><small><code>radio.md</code> line 294</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md?plain=1#L295"><span class="hw-main"><b>The page</b><small><code>radio.md</code> line 295</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="itu-t-k27">
@@ -638,7 +638,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">With IEC 62305-2 for the risk assessment and IEC 62305-3 for the protection system itself.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.itu.int/rec/T-REC-K.27/en"><span class="hw-main"><b>The document</b><small>ITU-T K.27</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md#L254"><span class="hw-main"><b>The test</b><small><code>radio.md</code> line 254</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/docs/radio.md?plain=1#L255"><span class="hw-main"><b>The page</b><small><code>radio.md</code> line 255</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>
@@ -758,7 +758,7 @@ Naming, typing and carrying messages the way ROS 2 and Zenoh do.
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/ros2/rmw_zenoh/blob/rolling/docs/design.md"><span class="hw-main"><b>The document</b><small>rmw_zenoh key expressions</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-ros2/src/key.rs#L68"><span class="hw-main"><b>The test</b><small><code>key.rs</code> line 68</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-ros2/src/key.rs#L67"><span class="hw-main"><b>The test</b><small><code>key.rs</code> line 67</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="zenoh-keyexpr">

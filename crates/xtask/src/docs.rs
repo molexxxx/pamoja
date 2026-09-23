@@ -218,7 +218,8 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     hardware.check(&root)?;
 
     // The standards register names the document behind every implementation and the test
-    // that pins it there; the check fails on a repeated key or an unknown chapter.
+    // that pins it there; the check fails on a repeated key, an unknown chapter, or a cited
+    // line it cannot place.
     let standards = crate::standards::Standards::load(&root)?;
     standards.check(&catalog)?;
 
