@@ -12,13 +12,14 @@
 
 use std::path::Path;
 use std::process::ExitCode;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi::SpiDevice;
 use pamoja_gateway::daemon::check::{self, Queue, When};
-use pamoja_gateway::daemon::config::ListenBeforeTalk;
+use pamoja_gateway::daemon::config::{ListenBeforeTalk, Sx1261Radio};
+use pamoja_gateway::daemon::scan::{self, Sweep};
 use pamoja_gateway::daemon::{forward, image, walk, Bus, Config, Upstream};
 use pamoja_gateway::station::{Levels, Message, Station};
 use pamoja_gateway::udp::{CrcStatus, Packet as Datagram, Stat, TxStatus, Uplink};
@@ -27,8 +28,10 @@ use pamoja_radios::linux::{self, Wiring};
 use pamoja_radios::sx1302::bridge;
 use pamoja_radios::sx1302::channel::{Plan, MULTI_BANDWIDTH_HZ};
 use pamoja_radios::sx1302::rx::{self, BUFFER_LEN};
+use pamoja_radios::sx1302::sx1261::ScanStatus;
 use pamoja_radios::sx1302::sx1261::{self, PRAM_WORDS};
 use pamoja_radios::sx1302::timestamp::Counter;
+use pamoja_radios::sx1302::tx::TxStatus as ChainStatus;
 use pamoja_radios::sx1302::tx::{gain_for, start_delay, Chain, FrontEnd, Gain, Transmit, Trigger};
 use pamoja_radios::sx1302::{Sx1261, Sx1302};
 use tokio::net::UdpSocket;
@@ -94,9 +97,9 @@ async fn run(path: &Path) -> Result<(), String> {
         .looking_for(&config.radio.spreading_factors)
         .network(config.radio.lorawan_public);
 
-    let patch = match &config.concentrator.listen_before_talk {
+    let patch = match &config.concentrator.sx1261 {
         None => None,
-        Some(checking) => Some(patch(Path::new(&checking.patch))?),
+        Some(radio) => Some(patch(Path::new(&radio.patch))?),
     };
 
     match &config.concentrator.bus {
@@ -119,12 +122,12 @@ async fn run(path: &Path) -> Result<(), String> {
 
             // The SX1261 is on its own chip select and its own reset line, on the same GPIO
             // chip as the concentrator's.
-            let listener = match &config.concentrator.listen_before_talk {
+            let listener = match &config.concentrator.sx1261 {
                 None => None,
-                Some(checking) => {
-                    let (Some(spi), Some(reset_line)) = (&checking.spi, checking.reset_line) else {
+                Some(radio) => {
+                    let (Some(spi), Some(reset_line)) = (&radio.spi, radio.reset_line) else {
                         return Err(
-                            "concentrator.listen_before_talk: a card on SPI names the SX1261's spi device and reset line"
+                            "concentrator.sx1261: a card on SPI names the radio's spi device and reset line"
                                 .to_owned(),
                         );
                     };
@@ -148,11 +151,7 @@ async fn run(path: &Path) -> Result<(), String> {
                     bridge::FIRMWARE_VERSION
                 );
             }
-            let listener = config
-                .concentrator
-                .listen_before_talk
-                .as_ref()
-                .map(|_| card.listener);
+            let listener = config.concentrator.sx1261.as_ref().map(|_| card.listener);
             let firmware = Firmware {
                 gain_control: &gain_control,
                 arbiter: &arbiter,
@@ -170,10 +169,37 @@ struct Firmware<'a> {
     patch: Option<&'a [u32; PRAM_WORDS]>,
 }
 
-/// The SX1261 and the channels it checks, for a gateway that listens before it talks.
-struct Checker<'c, LS, LR, LD> {
+/// The SX1261 beside the concentrator, and the jobs it has: the channels it checks before the
+/// gateway talks, the band it surveys, or both.
+struct Companion<'c, LS, LR, LD> {
     radio: Sx1261<LS, LR, LD>,
-    checking: &'c ListenBeforeTalk,
+    rssi_offset_db: i8,
+    checking: Option<&'c ListenBeforeTalk>,
+    sweep: Option<Sweep>,
+}
+
+impl<LS, LR, LD> Companion<'_, LS, LR, LD>
+where
+    LS: SpiDevice,
+    LR: OutputPin,
+    LD: DelayNs,
+    LS::Error: core::fmt::Debug,
+{
+    /// Abandons a scan that is running, so the radio is free for a carrier check or the
+    /// concentrator for a transmission, as the reference does before every send.
+    fn make_way(&mut self, now: Instant) -> Result<(), String> {
+        let Some(sweep) = self.sweep.as_mut() else {
+            return Ok(());
+        };
+        if sweep.running().is_none() {
+            return Ok(());
+        }
+        self.radio
+            .abort_scan()
+            .map_err(|error| format!("the SX1261 did not abandon its scan: {error}"))?;
+        sweep.stopped(now);
+        Ok(())
+    }
 }
 
 /// Reads Semtech's SX1261 patch out of its source file.
@@ -226,29 +252,21 @@ where
 
     // The reference brings the SX1261 up once the concentrator runs, and calibrates it for the
     // band the first front end is tuned to.
-    let checker = match (
-        listener,
-        &config.concentrator.listen_before_talk,
-        firmware.patch,
-    ) {
-        (Some(mut radio), Some(checking), Some(words)) => {
+    let companion = match (listener, &config.concentrator.sx1261, firmware.patch) {
+        (Some(mut radio), Some(named), Some(words)) => {
             radio
                 .bring_up(words, config.radio.carrier_hz)
                 .map_err(|error| format!("the SX1261 did not come up: {error}"))?;
-            println!(
-                "pamoja-gateway: the SX1261 checks {} channels before the gateway talks on them",
-                checking.channels.len()
-            );
-            Some(Checker { radio, checking })
+            Some(companion(radio, named))
         }
         _ => None,
     };
 
     match &config.upstream {
         Upstream::Forwarder { host, port } => {
-            forwarding(chip, checker, config, (host.as_str(), *port)).await
+            forwarding(chip, companion, config, (host.as_str(), *port)).await
         }
-        Upstream::Station { endpoint } => stationing(chip, checker, config, endpoint).await,
+        Upstream::Station { endpoint } => stationing(chip, companion, config, endpoint).await,
     }
 }
 
@@ -303,7 +321,7 @@ enum Outcome {
 /// the concentrator reports on one that does.
 fn program<SPI, RESET, D, LS, LR, LD>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    checker: Option<&mut Checker<'_, LS, LR, LD>>,
+    mut companion: Option<&mut Companion<'_, LS, LR, LD>>,
     downlink: &Prepared,
 ) -> Result<bool, String>
 where
@@ -317,14 +335,20 @@ where
     LS::Error: core::fmt::Debug,
 {
     let request = downlink.request();
-    let Some(checker) = checker else {
+    let checking = match companion.as_deref_mut() {
+        None => None,
+        Some(companion) => {
+            companion.make_way(Instant::now())?;
+            companion.checking
+        }
+    };
+    let (Some(companion), Some(checking)) = (companion, checking) else {
         chip.transmit(Chain::A, &request, downlink.trigger, downlink.delay)
             .map_err(|error| format!("the downlink was refused: {error}"))?;
         return Ok(true);
     };
 
-    let channel = checker
-        .checking
+    let channel = checking
         .channel(downlink.frequency_hz, downlink.link.bandwidth_hz())
         .ok_or_else(|| {
             format!(
@@ -332,17 +356,20 @@ where
                 downlink.frequency_hz
             )
         })?;
-    checker
+    companion
         .radio
         .listen(downlink.frequency_hz, channel.bandwidth)
         .map_err(|error| format!("the SX1261 could not be pointed at the channel: {error}"))?;
-    checker
+    companion
         .radio
-        .check(channel.scan_time, checker.checking.radio_threshold_dbm())
+        .check(
+            channel.scan_time,
+            checking.radio_threshold_dbm(companion.rssi_offset_db),
+        )
         .map_err(|error| format!("the SX1261 did not start its check: {error}"))?;
 
     if let Err(error) = chip.transmit(Chain::A, &request, downlink.trigger, downlink.delay) {
-        if let Err(stopping) = checker.radio.stop() {
+        if let Err(stopping) = companion.radio.stop() {
             eprintln!("pamoja-gateway: the SX1261 did not stop checking: {stopping}");
         }
         return Err(format!("the downlink was refused: {error}"));
@@ -354,11 +381,126 @@ where
             eprintln!("pamoja-gateway: the chain did not come free: {aborting}");
         }
     }
-    checker
+    companion
         .radio
         .stop()
         .map_err(|error| format!("the SX1261 did not stop checking: {error}"))?;
     outcome.map_err(|error| format!("the concentrator never reported the checked packet: {error}"))
+}
+
+/// Puts the SX1261 to its jobs once it is up.
+fn companion<LS, LR, LD>(
+    radio: Sx1261<LS, LR, LD>,
+    named: &Sx1261Radio,
+) -> Companion<'_, LS, LR, LD> {
+    if let Some(checking) = &named.listen_before_talk {
+        println!(
+            "pamoja-gateway: the SX1261 checks {} channels before the gateway talks on them",
+            checking.channels.len()
+        );
+    }
+    let sweep = named.spectral_scan.as_ref().map(|survey| {
+        println!(
+            "pamoja-gateway: the SX1261 surveys {} channels from {} Hz, {} samples each, one every {} s",
+            survey.channels,
+            survey.start_hz,
+            survey.samples,
+            survey.every_s.max(1)
+        );
+        Sweep::new(
+            survey.start_hz,
+            survey.channels,
+            survey.samples,
+            Duration::from_secs(u64::from(survey.every_s)),
+            Instant::now(),
+        )
+    });
+    Companion {
+        radio,
+        rssi_offset_db: named.rssi_offset_db,
+        checking: named.listen_before_talk.as_ref(),
+        sweep,
+    }
+}
+
+/// One turn of the band survey, taken on every poll.
+///
+/// Semtech's packet forwarder does this in a thread: a scan is started once the pace has
+/// passed and no downlink is waiting on the chain, its status is read every ten milliseconds,
+/// and its counts are printed when it completes. A scan that runs two seconds is abandoned. A
+/// downlink that arrives while a scan runs abandons it too, in [`Companion::make_way`].
+fn survey<SPI, RESET, D, LS, LR, LD>(
+    chip: &mut Sx1302<SPI, RESET, D>,
+    companion: Option<&mut Companion<'_, LS, LR, LD>>,
+) -> Result<(), String>
+where
+    SPI: SpiDevice,
+    RESET: OutputPin,
+    D: DelayNs,
+    SPI::Error: core::fmt::Debug,
+    LS: SpiDevice,
+    LR: OutputPin,
+    LD: DelayNs,
+    LS::Error: core::fmt::Debug,
+{
+    let Some(companion) = companion else {
+        return Ok(());
+    };
+    let Some(sweep) = companion.sweep.as_mut() else {
+        return Ok(());
+    };
+    let now = Instant::now();
+
+    if let Some(hertz) = sweep.running() {
+        if sweep.overdue(now) {
+            eprintln!("pamoja-gateway: the scan of {hertz} Hz ran two seconds and was abandoned");
+            companion
+                .radio
+                .abort_scan()
+                .map_err(|error| format!("the SX1261 did not abandon its scan: {error}"))?;
+            sweep.stopped(now);
+            return Ok(());
+        }
+        let status = companion
+            .radio
+            .scan_status()
+            .map_err(|error| format!("the SX1261 did not report its scan: {error}"))?;
+        match status {
+            ScanStatus::Running => {}
+            ScanStatus::Completed => {
+                let levels = companion
+                    .radio
+                    .scan_counts(companion.rssi_offset_db)
+                    .map_err(|error| format!("the SX1261 did not give up its counts: {error}"))?;
+                let scanned = sweep.finished(now);
+                println!("pamoja-gateway: {}", scan::line(scanned, &levels));
+            }
+            ScanStatus::Aborted | ScanStatus::None => {
+                eprintln!("pamoja-gateway: the scan of {hertz} Hz was stopped before it finished");
+                sweep.stopped(now);
+            }
+        }
+        return Ok(());
+    }
+
+    let Some(hertz) = sweep.due(now) else {
+        return Ok(());
+    };
+    // A scan stands aside for a downlink, since the radio is wanted for the carrier check
+    // and the chain is about to be busy.
+    let chain = chip
+        .tx_status(Chain::A)
+        .map_err(|error| format!("the chain stopped answering: {error}"))?;
+    if matches!(chain, ChainStatus::Scheduled | ChainStatus::Emitting) {
+        sweep.stopped(now);
+        return Ok(());
+    }
+    companion
+        .radio
+        .start_scan(hertz, sweep.samples())
+        .map_err(|error| format!("the SX1261 did not start its scan of {hertz} Hz: {error}"))?;
+    sweep.started(now);
+    Ok(())
 }
 
 /// How much silence the duty cycle still owes the band at a count, if any.
@@ -388,7 +530,7 @@ fn owe_silence(config: &Config, band_free_at: &mut Option<u32>, now: u32, downli
 /// What each one due was held with, beside whether it went out.
 fn release_held<SPI, RESET, D, LS, LR, LD, T>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    mut checker: Option<&mut Checker<'_, LS, LR, LD>>,
+    mut companion: Option<&mut Companion<'_, LS, LR, LD>>,
     config: &Config,
     counter: &mut Counter,
     band_free_at: &mut Option<u32>,
@@ -424,7 +566,7 @@ where
             released.push((with, false));
             continue;
         }
-        let went = match program(chip, checker.as_deref_mut(), &downlink) {
+        let went = match program(chip, companion.as_deref_mut(), &downlink) {
             Ok(true) => {
                 owe_silence(config, band_free_at, now, &downlink);
                 true
@@ -449,7 +591,7 @@ where
 /// Forwards uplinks to a packet forwarder, and transmits what it sends back.
 async fn forwarding<SPI, RESET, D, LS, LR, LD>(
     mut chip: Sx1302<SPI, RESET, D>,
-    mut checker: Option<Checker<'_, LS, LR, LD>>,
+    mut companion: Option<Companion<'_, LS, LR, LD>>,
     config: &Config,
     server: (&str, u16),
 ) -> Result<(), String>
@@ -499,13 +641,14 @@ where
             _ = poll.tick() => {
                 let released = release_held(
                     &mut chip,
-                    checker.as_mut(),
+                    companion.as_mut(),
                     config,
                     &mut counter,
                     &mut band_free_at,
                     &mut held,
                 )?;
                 sent += released.iter().filter(|(_, went)| *went).count() as u32;
+                survey(&mut chip, companion.as_mut())?;
 
                 let taken = chip
                     .receive(&mut buffer)
@@ -569,7 +712,7 @@ where
                     downlinks += 1;
                     let status = match transmit_one(
                         &mut chip,
-                        checker.as_mut(),
+                        companion.as_mut(),
                         config,
                         &transmit,
                         &mut counter,
@@ -653,7 +796,7 @@ impl Clock {
 /// against the uplink it answers rather than against a concentrator count.
 async fn stationing<SPI, RESET, D, LS, LR, LD>(
     mut chip: Sx1302<SPI, RESET, D>,
-    mut checker: Option<Checker<'_, LS, LR, LD>>,
+    mut companion: Option<Companion<'_, LS, LR, LD>>,
     config: &Config,
     endpoint: &str,
 ) -> Result<(), String>
@@ -716,7 +859,7 @@ where
                 let message = message.map_err(|error| format!("the session ended: {error}"))?;
                 answer(
                     &mut chip,
-                    checker.as_mut(),
+                    companion.as_mut(),
                     &mut station,
                     config,
                     &mut counter,
@@ -731,7 +874,7 @@ where
             Err(_) => {
                 for (report, went) in release_held(
                     &mut chip,
-                    checker.as_mut(),
+                    companion.as_mut(),
                     config,
                     &mut counter,
                     &mut band_free_at,
@@ -747,6 +890,7 @@ where
                 chip.counter(&mut counter)
                     .map_err(|error| format!("the counter stopped answering: {error}"))?;
                 clock.advance(&counter);
+                survey(&mut chip, companion.as_mut())?;
 
                 let taken = chip
                     .receive(&mut buffer)
@@ -812,7 +956,7 @@ fn overheard(
 #[allow(clippy::too_many_arguments)]
 async fn answer<SPI, RESET, D, LS, LR, LD>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    checker: Option<&mut Checker<'_, LS, LR, LD>>,
+    companion: Option<&mut Companion<'_, LS, LR, LD>>,
     station: &mut Station,
     config: &Config,
     counter: &mut Counter,
@@ -871,7 +1015,7 @@ where
             };
             match transmit_at(
                 chip,
-                checker,
+                companion,
                 config,
                 counter,
                 band_free_at,
@@ -932,7 +1076,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn transmit_at<SPI, RESET, D, LS, LR, LD>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    checker: Option<&mut Checker<'_, LS, LR, LD>>,
+    companion: Option<&mut Companion<'_, LS, LR, LD>>,
     config: &Config,
     counter: &mut Counter,
     band_free_at: &mut Option<u32>,
@@ -955,7 +1099,7 @@ where
         .map_err(|error| format!("the counter stopped answering: {error}"))?;
 
     // A checked channel needs the time the check takes as well as the time to program.
-    let too_late = match config.concentrator.listen_before_talk {
+    let too_late = match config.concentrator.listen_before_talk() {
         Some(_) => check::CHECKED_TOO_LATE_US,
         None => TOO_LATE_US,
     };
@@ -995,14 +1139,14 @@ where
         delay,
     };
 
-    if let Some(checking) = &config.concentrator.listen_before_talk {
+    if let Some(checking) = config.concentrator.listen_before_talk() {
         checkable(checking, &downlink).map_err(|(_, why)| why)?;
         if check::when(at.wrapping_sub(now)) == When::Hold {
             return Ok((window, Outcome::Held(at, downlink)));
         }
     }
 
-    if !program(chip, checker, &downlink)? {
+    if !program(chip, companion, &downlink)? {
         return Err(format!(
             "the channel at {frequency_hz} Hz was busy, so the downlink was not sent"
         ));
@@ -1051,7 +1195,7 @@ fn checkable(checking: &ListenBeforeTalk, downlink: &Prepared) -> Result<(), (Tx
 /// taken: by the silence the last transmission owes.
 fn transmit_one<SPI, RESET, D, LS, LR, LD>(
     chip: &mut Sx1302<SPI, RESET, D>,
-    checker: Option<&mut Checker<'_, LS, LR, LD>>,
+    companion: Option<&mut Companion<'_, LS, LR, LD>>,
     config: &Config,
     transmit: &pamoja_gateway::udp::Txpk,
     counter: &mut Counter,
@@ -1179,7 +1323,7 @@ where
     // A checked channel is checked as close to the window as the check allows, so a downlink
     // a second out waits, one already inside the lead goes now, and one too close for the
     // check is refused.
-    if let Some(checking) = &config.concentrator.listen_before_talk {
+    if let Some(checking) = config.concentrator.listen_before_talk() {
         checkable(checking, &downlink)?;
         if let Trigger::At(at) = trigger {
             match check::when(at.wrapping_sub(now)) {
@@ -1198,7 +1342,7 @@ where
         }
     }
 
-    let went = program(chip, checker, &downlink).map_err(|why| (TxStatus::TxFreq, why))?;
+    let went = program(chip, companion, &downlink).map_err(|why| (TxStatus::TxFreq, why))?;
     if !went {
         return Err((
             TxStatus::CollisionPacket,
