@@ -42,6 +42,28 @@ const cold = winter.mode(0.6)
 const mild = plan.mode(0.6)
 console.log(`at 60% charge: ${cold} in winter, ${mild} by default`)
 
+// A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+// would change the cadence on every cycle. `nextMode` takes the mode the node is in: it drops
+// as soon as the charge falls below a threshold, and climbs back only once the charge is the
+// plan's hysteresis margin clear of it.
+const wandering = [0.49, 0.51, 0.5, 0.53, 0.48, 0.52]
+const walk = (governor: PowerPlan): string => {
+  let mode: PowerMode = PowerMode.Active
+  const modes: string[] = []
+  for (const charge of wandering) {
+    mode = governor.nextMode(mode, charge)
+    modes.push(mode)
+  }
+  return modes.join(', ')
+}
+const flapping = walk(plan.withHysteresis(0))
+console.log(`a charge wandering around 50% with no margin: ${flapping}`)
+const margin = (plan.hysteresis * 100).toFixed(0)
+const settled = walk(plan)
+console.log(`and with the ${margin} point margin: ${settled}`)
+const back = plan.nextMode(PowerMode.Saver, 0.56)
+console.log(`at 56% the charge has cleared the margin: ${back}`)
+
 // The work is the same two seconds whichever mode the node is in; stretching the cycle is
 // what saves the energy. The duty fraction is the proxy for average draw, so the hourly
 // cadence costs a sixtieth of what the one-minute cadence does.
@@ -78,6 +100,9 @@ assert.equal(plan.mode(unknown), PowerMode.Critical)
 assert.equal(plan.intervalUs(unknown), 3_600_000_000)
 assert.equal(cold, PowerMode.Saver)
 assert.equal(mild, PowerMode.Active)
+assert.equal(flapping, 'Saver, Active, Active, Active, Saver, Active')
+assert.equal(settled, 'Saver, Saver, Saver, Saver, Saver, Saver')
+assert.equal(back, PowerMode.Active)
 assert.ok(Math.abs(healthy.fraction - 2 / 60) < 1e-6)
 assert.ok(Math.abs(flat.fraction - 2 / 3600) < 1e-6)
 assert.equal(cloudy.activeUs, 6_000_000)

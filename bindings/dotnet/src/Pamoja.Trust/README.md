@@ -17,7 +17,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | [Audit log](https://pamoja.molex.cloud/docs/guides/audit.html) | `Pamoja.Audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
 | [Secured session](https://pamoja.molex.cloud/docs/guides/session.html) | `Pamoja.Session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
 | [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html) | `Pamoja.Update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
-| [Power](https://pamoja.molex.cloud/docs/guides/power.html) | `Pamoja.Power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
+| [Power](https://pamoja.molex.cloud/docs/guides/power.html) | `Pamoja.Power` | Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge |
 | [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | `Pamoja.Telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
 
 The guides, with a worked C# example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

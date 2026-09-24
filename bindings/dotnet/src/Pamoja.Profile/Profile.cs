@@ -111,12 +111,14 @@ public readonly record struct ControlPolicy(
 /// <param name="CriticalSecs">Seconds between samples when critically low.</param>
 /// <param name="SaverBelow">Enter the saver cadence below this state of charge; 0.5 unless given.</param>
 /// <param name="CriticalBelow">Enter the critical cadence below this state of charge; 0.2 unless given.</param>
+/// <param name="Hysteresis">How far above a threshold the charge must climb to leave the lower cadence; 0.05 unless given.</param>
 public readonly record struct PowerSchedule(
     ulong ActiveSecs,
     ulong SaverSecs,
     ulong CriticalSecs,
     float SaverBelow = 0.5f,
-    float CriticalBelow = 0.2f);
+    float CriticalBelow = 0.2f,
+    float Hysteresis = PowerPlan.DefaultHysteresis);
 
 /// <summary>A named, ready-to-run node assembled from pamoja capabilities.</summary>
 /// <remarks>
@@ -167,6 +169,7 @@ public sealed class Profile : IDisposable
             CriticalSecs = power.CriticalSecs,
             SaverBelow = power.SaverBelow,
             CriticalBelow = power.CriticalBelow,
+            Hysteresis = power.Hysteresis,
         };
         if (control.Kind == ControlKind.Custom)
         {
@@ -350,7 +353,8 @@ public sealed class Profile : IDisposable
             s.SaverSecs,
             s.CriticalSecs,
             s.SaverBelow,
-            s.CriticalBelow);
+            s.CriticalBelow,
+            s.Hysteresis);
     });
 
     /// <summary>Gets the schedule assembled into a power governor.</summary>
@@ -363,7 +367,8 @@ public sealed class Profile : IDisposable
             plan.SaverUs,
             plan.CriticalUs,
             plan.SaverBelow,
-            plan.CriticalBelow);
+            plan.CriticalBelow,
+            plan.Hysteresis);
     });
 
     /// <summary>Serializes this profile to its JSON manifest.</summary>

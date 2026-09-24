@@ -1,6 +1,6 @@
 # pamoja-power
 
-Duty cycling and an energy-aware governor that stretches work as the battery drains. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/power.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -56,6 +56,30 @@ saver, critical = winter.saver_below * 100, winter.critical_below * 100
 print(f"the winter plan saves below {saver:.0f}% and goes critical below {critical:.0f}%")
 cold, mild = winter.mode(0.60), plan.mode(0.60)
 print(f"at 60% charge: {cold} in winter, {mild} by default")
+
+# A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+# would change the cadence on every cycle. `next_mode` takes the mode the node is in: it
+# drops as soon as the charge falls below a threshold, and climbs back only once the charge
+# is the plan's hysteresis margin clear of it.
+wandering = (0.49, 0.51, 0.50, 0.53, 0.48, 0.52)
+
+
+def walk(governor):
+    mode = PowerMode.ACTIVE
+    modes = []
+    for charge in wandering:
+        mode = governor.next_mode(mode, charge)
+        modes.append(mode)
+    return ", ".join(modes)
+
+
+flapping = walk(plan.with_hysteresis(0))
+print(f"a charge wandering around 50% with no margin: {flapping}")
+margin = plan.hysteresis * 100
+settled = walk(plan)
+print(f"and with the {margin:.0f} point margin: {settled}")
+back = plan.next_mode(PowerMode.SAVER, 0.56)
+print(f"at 56% the charge has cleared the margin: {back}")
 
 # The work is the same two seconds whichever mode the node is in; stretching the cycle is
 # what saves the energy. The duty fraction is the proxy for average draw, so the hourly

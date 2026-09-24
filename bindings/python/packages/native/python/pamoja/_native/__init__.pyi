@@ -9488,6 +9488,12 @@ class PowerPlan:
     The work intervals a node uses in each mode, and where the modes change.
     """
     @property
+    def hysteresis(self) -> builtins.float:
+        r"""
+        How far above a threshold the charge must climb before the plan leaves the lower
+        mode.
+        """
+    @property
     def saver_below(self) -> builtins.float:
         r"""
         The charge below which the plan enters saver mode.
@@ -9500,11 +9506,18 @@ class PowerPlan:
     def __new__(cls, active_us: builtins.int, saver_us: builtins.int, critical_us: builtins.int) -> PowerPlan:
         r"""
         Creates a plan from its three work intervals in microseconds, entering
-        saver mode below 50% charge and critical below 20%.
+        saver mode below 50% charge and critical below 20%, and leaving each lower mode
+        once the charge is five points above the threshold that brought it on.
         """
     def with_thresholds(self, saver_below: builtins.float, critical_below: builtins.float) -> PowerPlan:
         r"""
         Returns a copy of this plan with the state-of-charge thresholds moved.
+        """
+    def with_hysteresis(self, margin: builtins.float) -> PowerPlan:
+        r"""
+        Returns a copy of this plan with the hysteresis margin moved: how far above a
+        threshold the charge must climb before the plan leaves the lower mode. `0` switches
+        at the thresholds themselves; a margin below zero or not a number is taken as `0`.
         """
     def mode(self, soc: builtins.float) -> builtins.str:
         r"""
@@ -9516,6 +9529,18 @@ class PowerPlan:
     def mode_while_charging(self, soc: builtins.float, charging: builtins.bool) -> builtins.str:
         r"""
         Returns the mode, eased one step toward full duty while charging.
+        """
+    def next_mode(self, current: builtins.str, soc: builtins.float) -> builtins.str:
+        r"""
+        Returns the mode a node in `current` moves to at a new charge, by name. It drops to
+        a lower mode as soon as the charge falls below that mode's threshold, and climbs
+        back only once the charge reaches the threshold plus the hysteresis margin, so a
+        charge wandering around a threshold keeps the node where it is.
+        """
+    def next_mode_while_charging(self, current: builtins.str, soc: builtins.float, charging: builtins.bool) -> builtins.str:
+        r"""
+        Returns the mode a node in `current` moves to, eased one step toward full duty while
+        charging. `current` is the mode this returned last time.
         """
     def interval_for_us(self, mode: builtins.str) -> builtins.int:
         r"""
@@ -9556,11 +9581,17 @@ class PowerScheduleSpec:
         r"""
         Enter the critical cadence below this state of charge.
         """
-    def __new__(cls, active_secs: builtins.int, saver_secs: builtins.int, critical_secs: builtins.int, *, saver_below: builtins.float = 0.5, critical_below: builtins.float = 0.20000000298023224) -> PowerScheduleSpec:
+    @property
+    def hysteresis(self) -> builtins.float:
+        r"""
+        How far above a threshold the charge must climb to leave the lower cadence.
+        """
+    def __new__(cls, active_secs: builtins.int, saver_secs: builtins.int, critical_secs: builtins.int, *, saver_below: builtins.float = 0.5, critical_below: builtins.float = 0.20000000298023224, hysteresis: builtins.float = 0.05000000074505806) -> PowerScheduleSpec:
         r"""
         Creates a schedule from its three intervals in whole seconds; the node enters
         the saver cadence below `saver_below` charge and the critical one below
-        `critical_below`.
+        `critical_below`, and leaves each lower cadence once the charge is `hysteresis`
+        above its threshold.
         """
 
 @typing.final

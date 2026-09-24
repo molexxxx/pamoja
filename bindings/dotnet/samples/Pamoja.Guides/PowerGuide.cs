@@ -49,6 +49,30 @@ public static class PowerGuide
         PowerMode mild = plan.Mode(0.60f);
         Console.WriteLine($"at 60% charge: {cold} in winter, {mild} by default");
 
+        // A fuel gauge wanders a point or two between readings, so a charge sitting at a
+        // threshold would change the cadence on every cycle. NextMode takes the mode the
+        // node is in: it drops as soon as the charge falls below a threshold, and climbs
+        // back only once the charge is the plan's hysteresis margin clear of it.
+        float[] wandering = { 0.49f, 0.51f, 0.50f, 0.53f, 0.48f, 0.52f };
+        string Walk(PowerPlan governor)
+        {
+            PowerMode mode = PowerMode.Active;
+            var modes = new List<string>();
+            foreach (float charge in wandering)
+            {
+                mode = governor.NextMode(mode, charge);
+                modes.Add(mode.ToString());
+            }
+            return string.Join(", ", modes);
+        }
+        string flapping = Walk(plan.WithHysteresis(0f));
+        Console.WriteLine($"a charge wandering around 50% with no margin: {flapping}");
+        float margin = plan.Hysteresis * 100;
+        string settled = Walk(plan);
+        Console.WriteLine(Invariant($"and with the {margin:F0} point margin: {settled}"));
+        PowerMode back = plan.NextMode(PowerMode.Saver, 0.56f);
+        Console.WriteLine($"at 56% the charge has cleared the margin: {back}");
+
         // The work is the same two seconds whichever mode the node is in; stretching the
         // cycle is what saves the energy. The duty fraction is the proxy for average draw,
         // so the hourly cadence costs a sixtieth of what the one-minute cadence does.
@@ -85,6 +109,9 @@ public static class PowerGuide
         Expect(plan.IntervalUs(unknown) == 3_600_000_000, "and sampled hourly");
         Expect(cold == PowerMode.Saver, "the winter plan saves at 60%");
         Expect(mild == PowerMode.Active, "where the default plan does not");
+        Expect(flapping == "Saver, Active, Active, Active, Saver, Active", "no margin flaps");
+        Expect(settled == "Saver, Saver, Saver, Saver, Saver, Saver", "the margin holds saver");
+        Expect(back == PowerMode.Active, "until the charge clears it");
         Expect(Math.Abs(healthy.Fraction - 2.0f / 60.0f) < 1e-6, "two seconds in a minute");
         Expect(Math.Abs(flat.Fraction - 2.0f / 3600.0f) < 1e-6, "and two in an hour");
         Expect(cloudy.ActiveUs == 6_000_000, "a tenth of a minute is six seconds");

@@ -6431,6 +6431,30 @@ fn power() -> Value {
     let tenth_active = tenth.active().as_micros() as u64;
     let unreadable = f32::NAN;
     let asleep = DutyCycle::from_fraction(core::time::Duration::from_micros(1_000_000), unreadable);
+    let walk = [
+        (0.52f32, false),
+        (0.49, false),
+        (0.51, false),
+        (0.5, false),
+        (0.53, false),
+        (0.56, false),
+        (0.21, false),
+        (0.19, false),
+        (0.24, false),
+        (0.26, false),
+        (0.22, true),
+        (0.18, true),
+        (0.3, false),
+    ];
+    let walked = |plan: PowerPlan| {
+        let mut mode = PowerMode::Active;
+        walk.iter()
+            .map(|&(soc, charging)| {
+                mode = plan.next_mode_while_charging(mode, soc, charging);
+                power_mode_name(mode)
+            })
+            .collect::<Vec<_>>()
+    };
 
     json!({
         "plan": {
@@ -6439,6 +6463,14 @@ fn power() -> Value {
             "criticalUs": 3_600_000_000u64,
             "saverBelow": plan.saver_below(),
             "criticalBelow": plan.critical_below(),
+            "hysteresis": plan.hysteresis(),
+        },
+        "walk": {
+            "start": "Active",
+            "charges": walk.iter().map(|&(soc, _)| soc).collect::<Vec<_>>(),
+            "charging": walk.iter().map(|&(_, charging)| charging).collect::<Vec<_>>(),
+            "modes": walked(plan),
+            "flatModes": walked(plan.with_hysteresis(0.0)),
         },
         "charges": charges,
         "modes": charges
@@ -6840,6 +6872,7 @@ fn schedule_value(schedule: PowerSchedule) -> Value {
         "criticalSecs": schedule.critical_secs,
         "saverBelow": schedule.saver_below,
         "criticalBelow": schedule.critical_below,
+        "hysteresis": schedule.hysteresis,
     })
 }
 

@@ -46,8 +46,9 @@ def power_plan(active_us: int, saver_us: int, critical_us: int) -> PowerPlan:
     """Describe how a work interval stretches as the charge falls.
 
     The defaults enter :attr:`PowerMode.SAVER` below 50% charge and
-    :attr:`PowerMode.CRITICAL` below 20%; move them with
-    :meth:`PowerPlan.with_thresholds`.
+    :attr:`PowerMode.CRITICAL` below 20%, and leave each lower mode once the charge
+    is five points above the threshold that brought it on; move them with
+    :meth:`PowerPlan.with_thresholds` and :meth:`PowerPlan.with_hysteresis`.
 
     :param active_us: The interval at a healthy charge, in microseconds.
     :param saver_us: The longer interval used to conserve, in microseconds.

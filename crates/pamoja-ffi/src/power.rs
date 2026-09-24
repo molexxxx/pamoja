@@ -10,7 +10,7 @@
 
 use core::time::Duration;
 
-use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
+use pamoja_power::{DutyCycle, PowerMode, PowerPlan, DEFAULT_HYSTERESIS};
 
 /// The split between the time a node works and the time it sleeps.
 #[repr(C)]
@@ -37,7 +37,8 @@ pub enum PamojaPowerMode {
 /// The work intervals a node uses in each mode, and where the modes change.
 ///
 /// Build one with [`pamoja_power_plan_new`], which applies the default
-/// thresholds, then move them with [`pamoja_power_plan_with_thresholds`].
+/// thresholds and hysteresis, then move them with
+/// [`pamoja_power_plan_with_thresholds`] and [`pamoja_power_plan_with_hysteresis`].
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PamojaPowerPlan {
@@ -51,6 +52,9 @@ pub struct PamojaPowerPlan {
     pub saver_below: f32,
     /// Enter [`PamojaPowerMode::Critical`] below this state of charge.
     pub critical_below: f32,
+    /// How far above a threshold the charge must climb before the plan leaves the lower
+    /// mode.
+    pub hysteresis: f32,
 }
 
 /// Creates a duty cycle from the time awake and the time asleep.
@@ -134,7 +138,8 @@ pub extern "C" fn pamoja_duty_cycle_fraction(duty: PamojaDutyCycle) -> f32 {
 /// Creates a power plan from its three work intervals, with default thresholds.
 ///
 /// The defaults enter [`PamojaPowerMode::Saver`] below 50% charge and
-/// [`PamojaPowerMode::Critical`] below 20%.
+/// [`PamojaPowerMode::Critical`] below 20%, and leave each lower mode once the charge is
+/// five points above the threshold that brought it on.
 ///
 /// # Arguments
 ///
@@ -157,6 +162,7 @@ pub extern "C" fn pamoja_power_plan_new(
         critical_us,
         saver_below: 0.5,
         critical_below: 0.2,
+        hysteresis: DEFAULT_HYSTERESIS,
     }
 }
 
@@ -182,6 +188,77 @@ pub extern "C" fn pamoja_power_plan_with_thresholds(
         critical_below,
         ..plan
     }
+}
+
+/// Returns a plan with the hysteresis margin moved.
+///
+/// # Arguments
+///
+/// * `plan` - the plan to adjust.
+/// * `margin` - how far above a threshold the charge must climb before the plan leaves
+///   the lower mode; `0.0` switches at the thresholds themselves, and a margin that is
+///   negative or not a number is taken as `0.0`.
+///
+/// # Returns
+///
+/// The adjusted plan.
+#[no_mangle]
+pub extern "C" fn pamoja_power_plan_with_hysteresis(
+    plan: PamojaPowerPlan,
+    margin: f32,
+) -> PamojaPowerPlan {
+    PamojaPowerPlan {
+        hysteresis: rust_plan(plan).with_hysteresis(margin).hysteresis(),
+        ..plan
+    }
+}
+
+/// Returns the mode a node in a given mode moves to at a new state of charge.
+///
+/// The node drops to a lower mode as soon as the charge falls below its threshold, and
+/// climbs to a higher one only once the charge reaches the threshold plus the plan's
+/// hysteresis, so a charge wandering around a threshold does not switch the mode on
+/// every reading.
+///
+/// # Arguments
+///
+/// * `plan` - the power plan.
+/// * `current` - the mode the node is running in.
+/// * `soc` - the battery state of charge, from 0.0 through 1.0.
+///
+/// # Returns
+///
+/// The mode the node should run in next.
+#[no_mangle]
+pub extern "C" fn pamoja_power_plan_next_mode(
+    plan: PamojaPowerPlan,
+    current: PamojaPowerMode,
+    soc: f32,
+) -> PamojaPowerMode {
+    mode(rust_plan(plan).next_mode(rust_mode(current), soc))
+}
+
+/// Returns the mode a node in a given mode moves to, easing off one step while
+/// charging.
+///
+/// # Arguments
+///
+/// * `plan` - the power plan.
+/// * `current` - the mode the node is running in, as this returned it last time.
+/// * `soc` - the battery state of charge, from 0.0 through 1.0.
+/// * `charging` - `1` if the node is charging, `0` if it is not.
+///
+/// # Returns
+///
+/// The mode the node should run in next.
+#[no_mangle]
+pub extern "C" fn pamoja_power_plan_next_mode_while_charging(
+    plan: PamojaPowerPlan,
+    current: PamojaPowerMode,
+    soc: f32,
+    charging: u8,
+) -> PamojaPowerMode {
+    mode(rust_plan(plan).next_mode_while_charging(rust_mode(current), soc, charging != 0))
 }
 
 /// Returns the mode a plan calls for at a state of charge.
@@ -274,6 +351,7 @@ fn rust_plan(plan: PamojaPowerPlan) -> PowerPlan {
         Duration::from_micros(plan.critical_us),
     )
     .thresholds(plan.saver_below, plan.critical_below)
+    .with_hysteresis(plan.hysteresis)
 }
 
 /// Narrows a duration to the microseconds the boundary carries.
@@ -358,5 +436,32 @@ mod tests {
 
         assert_eq!(pamoja_power_plan_mode(plan, 0.7), PamojaPowerMode::Saver);
         assert_eq!(pamoja_power_plan_mode(plan, 0.3), PamojaPowerMode::Critical);
+    }
+
+    #[test]
+    fn a_charge_must_clear_the_margin_to_climb_back() {
+        let plan = pamoja_power_plan_new(60_000_000, 300_000_000, 3_600_000_000);
+        assert_eq!(plan.hysteresis, DEFAULT_HYSTERESIS);
+
+        let saver = PamojaPowerMode::Saver;
+        assert_eq!(pamoja_power_plan_next_mode(plan, saver, 0.52), saver);
+        assert_eq!(
+            pamoja_power_plan_next_mode(plan, saver, 0.56),
+            PamojaPowerMode::Active
+        );
+        assert_eq!(
+            pamoja_power_plan_next_mode_while_charging(plan, saver, 0.22, 1),
+            saver
+        );
+
+        let flat = pamoja_power_plan_with_hysteresis(plan, 0.0);
+        assert_eq!(
+            pamoja_power_plan_next_mode(flat, saver, 0.52),
+            PamojaPowerMode::Active
+        );
+        assert_eq!(
+            pamoja_power_plan_with_hysteresis(plan, -1.0).hysteresis,
+            0.0
+        );
     }
 }

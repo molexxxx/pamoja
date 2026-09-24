@@ -894,11 +894,15 @@ warns.
 | `critical_secs` | seconds between samples when critically low | required |
 | `saver_below` | the charge, from 0 to 1, below which the node conserves | 0.5 |
 | `critical_below` | the charge below which it does the least | 0.2 |
+| `hysteresis` | how far above a threshold the charge must climb before the node leaves the lower cadence | 0.05 |
 
 A charge below `critical_below` is critical, below `saver_below` is saver, and
 anything else is active. A charge that is not a number, from a fuel gauge that
 failed to answer, is taken as critical. While the panel charges, the plan eases
-the node up one step, from critical to saver and from saver to active.
+the node up one step, from critical to saver and from saver to active. A running
+node remembers its mode: it drops a cadence as soon as the charge crosses a
+threshold, and climbs back only once the charge is `hysteresis` above it, so a
+charge hovering at 50% does not switch the cadence on every sample.
 
 **What a manifest is refused for,** as it loads and as each language's
 constructor builds one:
@@ -915,6 +919,7 @@ constructor builds one:
 | an `active_secs` of zero | `` `active_secs` must be at least one second `` |
 | intervals that shorten as the battery drains | `the intervals must not shorten as the battery drains` |
 | a `saver_below` of 0 or less or above 1, or a `critical_below` not between 0 and it | the threshold and its value |
+| a power `hysteresis` below 0, or one that puts `saver_below` plus it above 1 | `` the power `hysteresis` must be 0 or more `` and its value |
 | a dashboard element with a band whose low end is not first, a key given twice, or a state that is not a `state.` code | the element and what is wrong with it |
 
 The catalog in [Profiles](../profiles.md) holds its own files to more: a file

@@ -472,7 +472,7 @@ The mistakes that cost an afternoon:
 <!-- table: next sync -->
 - [Transport ladder](ladder.md): Cheapest reachable link first, buffering to a store when every link is down.
 - [Codecs](codec.md): CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links.
-- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains.
+- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge.
 - Also in Transports and testing: [MQTT](mqtt.md), [CoAP](coap.md), [Loopback](loopback.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).
 <!-- end -->
 

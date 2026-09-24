@@ -14,7 +14,7 @@ npm install @pamoja/trust
 | [Audit log](https://pamoja.molex.cloud/docs/guides/audit.html) | `@pamoja/audit` | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
 | [Secured session](https://pamoja.molex.cloud/docs/guides/session.html) | `@pamoja/session` | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
 | [Signed updates](https://pamoja.molex.cloud/docs/guides/update.html) | `@pamoja/update` | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
-| [Power](https://pamoja.molex.cloud/docs/guides/power.html) | `@pamoja/power` | Duty cycling and an energy-aware governor that stretches work as the battery drains |
+| [Power](https://pamoja.molex.cloud/docs/guides/power.html) | `@pamoja/power` | Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge |
 | [Telemetry](https://pamoja.molex.cloud/docs/guides/telemetry.html) | `@pamoja/telemetry` | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
 
 The guides, with a worked TypeScript example for each, are at [https://pamoja.molex.cloud/docs](https://pamoja.molex.cloud/docs/).

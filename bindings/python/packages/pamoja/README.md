@@ -42,7 +42,7 @@ Each module name opens its reference.
 | `pamoja-audit` | [`pamoja.audit`](https://pamoja.molex.cloud/docs/reference/python/pamoja/audit.html) | A tamper-evident, hash-chained log; altering, reordering, or dropping a record breaks verification |
 | `pamoja-session` | [`pamoja.session`](https://pamoja.molex.cloud/docs/reference/python/pamoja/session.html) | X25519 key agreement, HKDF, and ChaCha20-Poly1305 with an anti-replay window, with no TLS stack |
 | `pamoja-update` | [`pamoja.update`](https://pamoja.molex.cloud/docs/reference/python/pamoja/update.html) | Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own |
-| `pamoja-power` | [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) | Duty cycling and an energy-aware governor that stretches work as the battery drains |
+| `pamoja-power` | [`pamoja.power`](https://pamoja.molex.cloud/docs/reference/python/pamoja/power.html) | Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge |
 | `pamoja-telemetry` | [`pamoja.telemetry`](https://pamoja.molex.cloud/docs/reference/python/pamoja/telemetry.html) | Observability that ships only what is worth the bytes as link cost rises, while counting everything |
 | `pamoja-mqtt` | [`pamoja.mqtt`](https://pamoja.molex.cloud/docs/reference/python/pamoja/mqtt.html) | An MQTT client with the topic and wildcard rules, as the core transport |
 | `pamoja-coap` | [`pamoja.coap`](https://pamoja.molex.cloud/docs/reference/python/pamoja/coap.html) | A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe |

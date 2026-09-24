@@ -44,6 +44,9 @@ public struct PamojaPowerPlan
 
     /// <summary>Enter critical mode below this state of charge.</summary>
     public float CriticalBelow;
+
+    /// <summary>How far above a threshold the charge must climb before the plan leaves the lower mode.</summary>
+    public float Hysteresis;
 }
 
 /// <summary>How urgent a telemetry event is.</summary>
