@@ -11,8 +11,12 @@
  * a threshold worth raising. The presentation a dashboard reads travels inside
  * the manifest JSON and is read and built here as a typed {@link Presentation}.
  *
- * The alert and control kinds are re-exported as runtime objects, because the
- * generated enums are types-only.
+ * A rule file decides between nodes: {@link RuleEvaluator} judges each reading
+ * a program hands it with the topic it arrived on, and says which rules set or
+ * cleared and what each calls for, which the program then carries out.
+ *
+ * The alert, control, and rule action kinds are re-exported as runtime objects,
+ * because the generated enums are types-only.
  *
  * @packageDocumentation
  */
@@ -20,10 +24,11 @@
 import type {
   AlertKind as AlertKindName,
   ControlKind as ControlKindName,
+  RuleActionKind as RuleActionKindName,
   Viz as VizName,
 } from '@pamoja/native'
 
-export { Controller, Profile } from '@pamoja/native'
+export { Controller, Profile, RuleEvaluator } from '@pamoja/native'
 
 export type {
   AlertReport,
@@ -33,8 +38,25 @@ export type {
   PowerScheduleSpec,
   Presentation,
   Reaction,
+  RuleAction,
+  RuleFired,
   Theme,
 } from '@pamoja/native'
+
+/**
+ * What a rule calls for when its condition sets or clears.
+ *
+ * Provided as a runtime object plus a matching string-union type.
+ */
+export const RuleActionKind = {
+  /** Switch the output the program holds under `actuator`. */
+  Drive: 'drive' as RuleActionKindName,
+  /** Publish `payload` to `topic`. */
+  Publish: 'publish' as RuleActionKindName,
+} as const
+
+/** One of the {@link RuleActionKind} choices. */
+export type RuleActionKind = RuleActionKindName
 
 /**
  * The graphic a dashboard draws an element with, named by the instrument rather

@@ -24,7 +24,8 @@ impl Actuator for Valve {
 }
 
 /// A rule file that reads one node's topic and drives another node's valve, run by the
-/// engine off an in-process broker.
+/// engine off an in-process broker; then the same file judged by an evaluator, and what
+/// goes wrong.
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
@@ -32,87 +33,159 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     use pamoja_core::{Receive, Transport};
     use pamoja_kit::Edge;
     use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
-    use pamoja_profile::{Compare, RuleEngine, Rules};
+    use pamoja_profile::{Action, RuleEngine, Rules};
 
     // A rule is a file: the topic it watches, the line a reading crosses, the release
-    // band that stops it firing over and over, and what to do on the way down and on
-    // the way back. The same file runs in every language.
-    let rules = Rules::from_json(
-        r#"{ "rules": [ {
-            "name": "water-when-dry",
-            "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-                      "threshold": 30.0, "hysteresis": 5.0 },
-            "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-                      { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-            "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                           { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ]
-        } ] }"#,
-    )
-    .expect("a well-formed rule file");
-    let when = &rules.rules[0].when;
-    let side = match when.compare {
-        Compare::Below => "below",
-        Compare::Above => "above",
-    };
-    let clears = when.threshold + when.hysteresis;
-    println!(
-        "the rule watches {} {side} {}, clearing above {clears}",
-        when.topic, when.threshold
-    );
+    // band that stops it firing over and over, and what to do on the way down and on the
+    // way back. Two rules watch one bed here: one waters it when it dries past 30 and
+    // stops once it is wetter than 35, and one raises an alarm when it is soaked past 60.
+    let file = r#"{ "rules": [
+        { "name": "water-when-dry",
+          "when": { "topic": "garden/bed-1/moisture", "compare": "below",
+                    "threshold": 30.0, "hysteresis": 5.0 },
+          "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
+                    { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
+          "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
+                         { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
+        { "name": "flood-alarm",
+          "when": { "topic": "garden/bed-1/moisture", "compare": "above",
+                    "threshold": 60.0, "hysteresis": 5.0 },
+          "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+    ] }"#;
 
-    // Three parties on one broker: the node that reads the bed, the engine that holds
-    // the valve, and a watcher on the topic the rule publishes to.
+    // Three parties on one broker: the node that reads the bed, the engine that holds the
+    // valve, and a watcher on the topics the rules publish to.
     let broker = LoopbackBroker::new();
     let mut probe = LoopbackTransport::new(broker.clone());
     let mut watcher = LoopbackTransport::new(broker.clone());
     probe.connect().await?;
     watcher.connect().await?;
-    watcher
-        .subscribe("garden/bed-1/valve")
-        .await
-        .expect("a subscription");
+    watcher.subscribe("garden/bed-1/valve").await?;
+    watcher.subscribe("garden/alarm").await?;
 
     let valve = Valve::default();
-    let mut engine = RuleEngine::new(rules, LoopbackTransport::new(broker), JsonCodec)
-        .with_actuator("bed-valve", valve.clone());
+    let mut engine = RuleEngine::new(
+        Rules::from_json(file)?,
+        LoopbackTransport::new(broker),
+        JsonCodec,
+    )
+    .with_actuator("bed-valve", valve.clone());
     engine.connect().await?;
+    println!(
+        "watches   {}, and drives {}",
+        engine.topics().join(", "),
+        engine.actuators().join(", ")
+    );
 
-    // The bed dries out and is watered back: the rule fires once on the way down and
-    // once on the way back, and holds its state for the readings in between.
-    for reading in [42.0f32, 31.0, 28.0, 33.0, 36.0] {
+    // The bed dries out, is watered, and floods. A rule fires only as its condition sets
+    // or clears, and the readings in between change nothing. At 65 two rules fire on one
+    // reading, in the order the file lists them.
+    for reading in [42.0f32, 31.0, 28.0, 33.0, 65.0, 50.0] {
         probe
             .send_text("garden/bed-1/moisture", &reading.to_string())
-            .await
-            .expect("the probe publishes");
-        let fired = engine
-            .step()
-            .await
-            .expect("a step")
-            .expect("the link is up");
-        let edge = match fired.first().map(|fired| fired.edge) {
-            Some(Edge::Set) => "set",
-            Some(Edge::Cleared) => "cleared",
-            None => "no edge",
-        };
-        let open = valve.switches.lock().expect("valve lock").last().copied();
-        let state = if open == Some(true) { "on" } else { "off" };
-        println!("{reading}: {edge}, valve {state}");
+            .await?;
+        let fired = engine.step().await?.expect("the link is up");
+        if fired.is_empty() {
+            println!("{reading:<10}nothing fired");
+        }
+        for one in &fired {
+            let edge = match one.edge {
+                Edge::Set => "set",
+                Edge::Cleared => "cleared",
+            };
+            let actions: Vec<String> = one
+                .actions
+                .iter()
+                .map(|action| match action {
+                    Action::Drive { actuator, on } => {
+                        format!("drive {actuator} {}", if *on { "on" } else { "off" })
+                    }
+                    Action::Publish { topic, payload } => format!("publish {payload} to {topic}"),
+                })
+                .collect();
+            if actions.is_empty() {
+                println!("{reading:<10}{} {edge}, with nothing to do", one.rule);
+            } else {
+                println!("{reading:<10}{} {edge}: {}", one.rule, actions.join(", "));
+            }
+        }
     }
 
-    // The watcher on the other topic heard each edge as the rule published it.
+    // The watcher heard every message the rules published, in the order they went out.
     let mut heard = Vec::new();
-    for _ in 0..2 {
+    for _ in 0..3 {
         let message = watcher.recv().await?.expect("a message");
         heard.push(message.text().expect("words").to_owned());
     }
-    println!("the watcher heard {}", heard.join(", "));
-    let switched = valve.switches.lock().expect("valve lock").len();
-    println!("the valve switched {switched} times");
+    println!("heard     {}", heard.join(", "));
+    let switches = valve.switches.lock().expect("valve lock").clone();
+    let state = if switches.last() == Some(&true) {
+        "on"
+    } else {
+        "off"
+    };
+    println!(
+        "valve     switched {} times, and it is {state}",
+        switches.len()
+    );
     // ANCHOR_END: example
 
-    assert_eq!(heard, ["open", "closed"]);
-    assert_eq!(*valve.switches.lock().unwrap(), [true, false]);
+    assert_eq!(heard, ["open", "closed", "waterlogged"]);
+    assert_eq!(switches, [true, false]);
     assert_eq!(engine.is_set("water-when-dry"), Some(false));
+    assert_eq!(engine.is_set("flood-alarm"), Some(false));
+
+    // ANCHOR: wrong
+    use pamoja_profile::RuleEvaluator;
+
+    // A program that moves its own messages hands each reading to an evaluator, the
+    // engine's deciding half on its own, and carries out what it says.
+    let mut evaluator = RuleEvaluator::new(Rules::from_json(file)?)?;
+
+    // A reading that is not a number, such as the NaN a failed probe reports, is refused
+    // on a watched topic rather than leaving every rule as it was with nothing to say why.
+    match evaluator.evaluate("garden/bed-1/moisture", f32::NAN) {
+        Ok(_) => println!("a reading of NaN was judged, which should never happen"),
+        Err(error) => println!("refused   {error}"),
+    }
+
+    // A topic no rule watches is not judged at all, so even a NaN there says nothing.
+    if evaluator
+        .evaluate("garden/bed-2/moisture", f32::NAN)?
+        .is_empty()
+    {
+        println!(
+            "ignored   no rule watches garden/bed-2/moisture, so even a NaN there is not judged"
+        );
+    }
+
+    // A file no engine could run is refused as it loads, with the rule and the reason.
+    for edited in [
+        file.replace("garden/bed-1/moisture", "garden/+/moisture"),
+        file.replace("\"flood-alarm\"", "\"water-when-dry\""),
+    ] {
+        match Rules::from_json(&edited).and_then(RuleEvaluator::new) {
+            Ok(_) => println!("a file no engine could run was accepted, which should never happen"),
+            Err(error) => println!("refused   {error}"),
+        }
+    }
+
+    // With no release band, readings that hover at the line set and clear the rule on
+    // every sample, and each edge switches the valve. The band of 5 holds it through them.
+    let fires = |text: &str| -> std::result::Result<usize, Box<dyn Error>> {
+        let mut judge = RuleEvaluator::new(Rules::from_json(text)?)?;
+        let mut count = 0;
+        for reading in [29.9, 30.1, 29.8, 30.2] {
+            count += judge.evaluate("garden/bed-1/moisture", reading)?.len();
+        }
+        Ok(count)
+    };
+    let bare = fires(&file.replace("\"hysteresis\": 5.0", "\"hysteresis\": 0.0"))?;
+    let banded = fires(file)?;
+    println!(
+        "chatter   4 readings hovering at 30 fire the rule {bare} times with no release band, {banded} with a band of 5"
+    );
+    // ANCHOR_END: wrong
 
     Ok(())
 }

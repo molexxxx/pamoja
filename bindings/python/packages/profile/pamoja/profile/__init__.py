@@ -10,6 +10,10 @@ describes: hand it a reading and it says what the output should do and whether
 the reading crossed a threshold worth raising. The presentation a dashboard
 reads travels inside the manifest JSON and is read and built here as a typed
 :class:`Presentation` of :class:`ElementSpec` entries, drawn with a :class:`Viz`.
+
+A rule file decides between nodes: a :class:`RuleEvaluator` judges each reading a
+program hands it with the topic it arrived on, and says which rules set or cleared
+and what each calls for, which the program then carries out.
 """
 
 from __future__ import annotations
@@ -25,6 +29,9 @@ from pamoja._native import (
     Presentation,
     Profile,
     Reaction,
+    RuleAction,
+    RuleEvaluator,
+    RuleFired,
     Theme,
 )
 
@@ -39,9 +46,22 @@ __all__ = [
     "Presentation",
     "Profile",
     "Reaction",
+    "RuleAction",
+    "RuleActionKind",
+    "RuleEvaluator",
+    "RuleFired",
     "Theme",
     "Viz",
 ]
+
+
+class RuleActionKind(str, enum.Enum):
+    """What a rule calls for when its condition sets or clears."""
+
+    #: Switch the output the program holds under ``actuator``.
+    DRIVE = "drive"
+    #: Publish ``payload`` to ``topic``.
+    PUBLISH = "publish"
 
 
 class Viz(str, enum.Enum):

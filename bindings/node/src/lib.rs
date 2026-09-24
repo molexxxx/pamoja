@@ -91,6 +91,8 @@ pub mod radios;
 pub mod ros2;
 #[cfg(feature = "routing")]
 pub mod routing;
+#[cfg(feature = "profile")]
+pub mod rules;
 #[cfg(feature = "security")]
 pub mod security;
 #[cfg(feature = "sensors")]

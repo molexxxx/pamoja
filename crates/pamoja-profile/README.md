@@ -220,6 +220,10 @@ let fired = engine.step().await?.expect("the link is up");
 assert_eq!((fired[0].rule.as_str(), fired[0].edge), ("water-when-dry", Edge::Set));
 ```
 
+A program that moves its own messages hands each reading to a `RuleEvaluator`
+instead, which is the engine's deciding half on its own: it says which rules set or
+cleared and what each calls for, and the program carries it out.
+
 # Power: sampling that follows the battery
 
 A `PowerSchedule` sets how often a node samples as its battery drains - often when
@@ -313,7 +317,7 @@ dashboard reads it; control actions queue back for you to apply. See the
 - **A rule of your own?** Implement `Policy` and run it with `Node::with_policy`;
   name it in a manifest and resolve it with a `PolicyRegistry`.
 - **One node acting on another's reading?** Write a `Rules` file and run it with a
-  `RuleEngine`.
+  `RuleEngine`, or judge readings with a `RuleEvaluator` from a loop of your own.
 - **A sensor we do not draw?** Add an `ElementSpec` with the `Viz` you want.
 - **Your own look and words?** Add a `Theme` and
   `with_message` for custom states and events.

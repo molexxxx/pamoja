@@ -86,6 +86,8 @@ mod radios;
 mod ros2;
 #[cfg(feature = "routing")]
 mod routing;
+#[cfg(feature = "profile")]
+mod rules;
 #[cfg(feature = "security")]
 mod security;
 #[cfg(feature = "sensors")]
@@ -1141,6 +1143,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<profile::ElementSpec>()?;
         m.add_class::<profile::Theme>()?;
         m.add_class::<profile::Presentation>()?;
+        m.add_class::<rules::RuleEvaluator>()?;
+        m.add_class::<rules::RuleFired>()?;
+        m.add_class::<rules::RuleAction>()?;
     }
     #[cfg(feature = "ros2")]
     {

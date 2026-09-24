@@ -2836,6 +2836,41 @@ def _assert_reactions(control, reactions: list[dict]) -> None:
             assert math.isnan(reaction.alert.reading) == math.isnan(reading)
 
 
+def test_rules_vectors_match():
+    vector = VECTORS["rules"]
+    evaluator = profile.RuleEvaluator.from_json(vector["file"])
+    assert evaluator.topics == vector["topics"]
+    assert evaluator.actuators == vector["actuators"]
+
+    def written(action):
+        """Writes an action back in the rule file's own shape, to compare with the vector."""
+        if action.kind == profile.RuleActionKind.DRIVE:
+            return {"do": "drive", "actuator": action.actuator, "on": action.on}
+        return {"do": "publish", "topic": action.topic, "payload": action.payload}
+
+    for step in vector["steps"]:
+        fired = [
+            {"rule": one.rule, "edge": one.edge, "actions": [written(a) for a in one.actions]}
+            for one in evaluator.evaluate(step["topic"], step["reading"])
+        ]
+        assert fired == step["fired"], f"what {step['topic']} at {step['reading']} fired"
+    for state in vector["states"]:
+        assert evaluator.is_set(state["rule"]) == state["set"]
+    assert evaluator.is_set("nowhere") is None
+
+    for refused in vector["refused"]:
+        with pytest.raises(PamojaError, match=re.escape(refused["reason"])):
+            profile.RuleEvaluator.from_json(refused["file"])
+
+    invalid = vector["notANumber"]
+    with pytest.raises(PamojaError, match=re.escape(invalid["reason"])):
+        evaluator.evaluate(invalid["topic"], float("nan"))
+    assert evaluator.evaluate(invalid["unwatched"], float("nan")) == []
+    assert json.loads(profile.RuleEvaluator.from_json(evaluator.to_json()).to_json()) == json.loads(
+        evaluator.to_json()
+    )
+
+
 def test_profile_vectors_match():
     vector = VECTORS["profile"]
 

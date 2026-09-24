@@ -2759,6 +2759,12 @@ typedef struct PamojaReporter PamojaReporter;
 // [`pamoja_router_observe`], and release it with [`pamoja_router_free`].
 typedef struct PamojaRouter PamojaRouter;
 
+// An opaque handle to a set of rules armed to judge readings.
+//
+// Create it with [`pamoja_rule_evaluator_from_json`] and release it with
+// [`pamoja_rule_evaluator_free`].
+typedef struct PamojaRuleEvaluator PamojaRuleEvaluator;
+
 // An opaque handle to the gate every motion command passes through: an e-stop, a
 // watchdog, and limits.
 typedef struct PamojaSafetyGate PamojaSafetyGate;
@@ -23200,6 +23206,150 @@ uintptr_t pamoja_router_capacity(const PamojaRouter *router);
 // `router` must be a handle from [`pamoja_router_new`] that has not already been
 // freed, or null. After this call it must not be used again.
 void pamoja_router_free(PamojaRouter *router);
+
+// Loads a rule file and arms its rules, every condition starting cleared.
+//
+// # Arguments
+//
+// * `text` - the rule file, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_rule_evaluator_free`], or null if the
+// text is not a rule file or holds a rule no engine could run, with the reason
+// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `text` must be a valid null-terminated UTF-8 string for the duration of the call, or
+// null.
+PamojaRuleEvaluator *pamoja_rule_evaluator_from_json(const char *text);
+
+// Writes the rules back out as the file a fleet shares.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `rules` is null.
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null.
+PamojaString *pamoja_rule_evaluator_to_json(const PamojaRuleEvaluator *rules);
+
+// Judges one reading from one topic against every rule that watches it.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+// * `topic` - the topic the reading arrived on, as null-terminated UTF-8.
+// * `reading` - the reading, already decoded from the message.
+//
+// # Returns
+//
+// The JSON array of what fired, in the order the rules are listed, which is `[]` when no
+// rule watches the topic or the reading changed nothing. The caller releases it with
+// [`pamoja_string_free`](crate::pamoja_string_free). Null if a pointer is null, or if a
+// rule watches the topic and the reading is not a finite number, with the reason
+// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null, and
+// `topic` must be a valid null-terminated UTF-8 string for the duration of the call, or
+// null.
+PamojaString *pamoja_rule_evaluator_evaluate(PamojaRuleEvaluator *rules,
+                                             const char *topic,
+                                             float reading);
+
+// Reports whether any rule watches a topic, so the host knows whether to decode a
+// message before handing it over.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+// * `topic` - the topic a message arrived on, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when some rule watches the topic, and `false` otherwise or if a pointer is
+// null.
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null, and
+// `topic` must be a valid null-terminated UTF-8 string for the duration of the call, or
+// null.
+bool pamoja_rule_evaluator_watches(const PamojaRuleEvaluator *rules, const char *topic);
+
+// Lists the topics the rules watch, which are the topics to subscribe to.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+//
+// # Returns
+//
+// A JSON array of the topics, each once, in name order, which the caller releases with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if `rules` is null.
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null.
+PamojaString *pamoja_rule_evaluator_topics_json(const PamojaRuleEvaluator *rules);
+
+// Lists the actuators the rules drive, which are the outputs the host has to have.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+//
+// # Returns
+//
+// A JSON array of the actuator names, each once, in name order, which the caller
+// releases with [`pamoja_string_free`](crate::pamoja_string_free), or null if `rules`
+// is null.
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null.
+PamojaString *pamoja_rule_evaluator_actuators_json(const PamojaRuleEvaluator *rules);
+
+// Reports whether a rule's condition currently holds.
+//
+// # Arguments
+//
+// * `rules` - the evaluator.
+// * `rule` - the rule's name, as null-terminated UTF-8.
+// * `out_set` - receives whether the condition holds.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with `*out_set` written, or [`PamojaStatus::InvalidArgument`] if
+// a pointer is null or no rule has that name.
+//
+// # Safety
+//
+// `rules` must be a live handle from [`pamoja_rule_evaluator_from_json`], or null,
+// `rule` must be a valid null-terminated UTF-8 string for the duration of the call, or
+// null, and `out_set` must be writable.
+PamojaStatus pamoja_rule_evaluator_is_set(const PamojaRuleEvaluator *rules,
+                                          const char *rule,
+                                          bool *out_set);
+
+// Releases an evaluator handle.
+//
+// Passing null is a no-op.
+//
+// # Safety
+//
+// `rules` must be a handle from [`pamoja_rule_evaluator_from_json`] that has not already
+// been freed, or null. After this call it must not be used again.
+void pamoja_rule_evaluator_free(PamojaRuleEvaluator *rules);
 
 // Creates a device identity from a provisioned 32-byte secret seed.
 //

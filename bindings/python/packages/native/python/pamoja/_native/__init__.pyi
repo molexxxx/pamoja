@@ -213,6 +213,9 @@ __all__ = [
     "Reporter",
     "Route",
     "Router",
+    "RuleAction",
+    "RuleEvaluator",
+    "RuleFired",
     "SafetyGate",
     "Scd4x",
     "Scd4xMeasurement",
@@ -10125,6 +10128,115 @@ class Router:
         r"""
         How many routes the table currently holds.
         """
+
+@typing.final
+class RuleAction:
+    r"""
+    One thing a rule calls for, as the rule file writes it.
+    
+    Only the attributes belonging to `kind` are set; the rest are `None`.
+    """
+    @property
+    def kind(self) -> builtins.str:
+        r"""
+        `drive` to switch an output, or `publish` to send a message.
+        """
+    @property
+    def actuator(self) -> typing.Optional[builtins.str]:
+        r"""
+        The output to switch, for a drive.
+        """
+    @property
+    def on(self) -> typing.Optional[builtins.bool]:
+        r"""
+        The setting to switch it to, for a drive.
+        """
+    @property
+    def topic(self) -> typing.Optional[builtins.str]:
+        r"""
+        The topic to publish to, for a publish.
+        """
+    @property
+    def payload(self) -> typing.Optional[builtins.str]:
+        r"""
+        The text to publish, for a publish.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class RuleEvaluator:
+    r"""
+    The decisions a rule file makes, reading by reading, with no link and no outputs of
+    its own.
+    """
+    @property
+    def topics(self) -> builtins.list[builtins.str]:
+        r"""
+        The topics the rules watch, each once, in name order: the topics to subscribe to.
+        """
+    @property
+    def actuators(self) -> builtins.list[builtins.str]:
+        r"""
+        The actuators the rules drive, each once, in name order: the outputs the program
+        has to have.
+        """
+    @staticmethod
+    def from_json(text: builtins.str) -> RuleEvaluator:
+        r"""
+        Loads a rule file and arms its rules, every condition starting cleared.
+        
+        Raises `PamojaError` if the text is not a rule file, or holds a rule no engine
+        could run, such as one that watches a filter or has nothing to do.
+        """
+    def to_json(self) -> builtins.str:
+        r"""
+        Writes the rules back out as the file a fleet shares.
+        """
+    def evaluate(self, topic: builtins.str, reading: builtins.float) -> builtins.list[RuleFired]:
+        r"""
+        Judges one reading from one topic against every rule that watches it, and returns
+        what fired in the order the rules are listed: empty when no rule watches the topic
+        or the reading changed nothing.
+        
+        Raises `PamojaError` if a rule watches the topic and the reading is not a finite
+        number.
+        """
+    def watches(self, topic: builtins.str) -> builtins.bool:
+        r"""
+        Whether any rule watches a topic, so the program knows whether to decode a message.
+        """
+    def is_set(self, rule: builtins.str) -> typing.Optional[builtins.bool]:
+        r"""
+        Whether a rule's condition currently holds, or `None` for a name no rule has.
+        """
+
+@typing.final
+class RuleFired:
+    r"""
+    What one rule did with one reading.
+    """
+    @property
+    def rule(self) -> builtins.str:
+        r"""
+        The rule's name.
+        """
+    @property
+    def edge(self) -> builtins.str:
+        r"""
+        `set` when the rule's condition became true, `cleared` when it stopped holding.
+        """
+    @property
+    def reading(self) -> builtins.float:
+        r"""
+        The reading that did it.
+        """
+    @property
+    def actions(self) -> builtins.list[RuleAction]:
+        r"""
+        What the rule calls for on this edge: its `then` actions when it set and its
+        `otherwise` actions when it cleared, in the order the file gives them.
+        """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class SafetyGate:
