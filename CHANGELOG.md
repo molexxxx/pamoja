@@ -1268,6 +1268,10 @@ released together, so one entry covers all of them.
   same twenty-six lines. The page gains a paragraph for each language, tables of the frame,
   the named values, a command's answers, a signature, the mission exchange, and the calls,
   and a section on what goes wrong.
+- The site's search index sends each page's address, title, and group once, with its
+  sections beneath it, where it repeated all three on every section, and the search box
+  expands it as it loads. The index is 193 KB where the guides had grown it to 257 KB,
+  past the 250 KB it is held to, and every section is still found.
 
 ### Fixed
 
