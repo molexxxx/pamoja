@@ -5,6 +5,7 @@
 //! Every call is a pure function of its arguments. Keys cross as a pair of 16-byte buffers,
 //! and times as microsecond numbers, which stay exact below 2^53.
 
+use crate::checked;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lora::region::RelayChannel;
@@ -67,9 +68,9 @@ pub const LORAWAN_MIN_WOR_PREAMBLE_SYMBOLS: u16 = relay::MIN_WOR_PREAMBLE_SYMBOL
 #[napi(object)]
 pub struct LorawanCarrier {
     /// The frequency in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The data rate.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
 }
 
 /// Which WOR frame a relay heard.
@@ -159,13 +160,13 @@ pub struct LorawanStateSync {
     /// Whether it forwards.
     pub forward: LorawanRelayForward,
     /// The data rate it forwards at.
-    pub relay_data_rate: u8,
+    pub relay_data_rate: checked::u8,
     /// How accurate its crystal is.
     pub xtal_accuracy: LorawanXtalAccuracy,
     /// How often it scans.
     pub cad_periodicity: LorawanCadPeriodicity,
     /// Milliseconds from the start of the scan to the end of the WOR preamble.
-    pub t_offset_ms: u16,
+    pub t_offset_ms: checked::u16,
 }
 
 /// Which of a relay's channels a WOR frame arrived on.
@@ -183,11 +184,11 @@ pub struct LorawanUplinkMetadata {
     /// The channel the WOR frame came in on.
     pub wor_channel: LorawanWorChannel,
     /// The uplink's signal strength in dBm, carried from -142 to -15.
-    pub rssi_dbm: i32,
+    pub rssi_dbm: checked::i32,
     /// Its signal-to-noise ratio in dB, carried from -20 to 11.
-    pub snr_db: i32,
+    pub snr_db: checked::i32,
     /// The data rate it arrived at.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
 }
 
 /// An end device's uplink as a relay forwards it on port 226.
@@ -196,7 +197,7 @@ pub struct LorawanForwardedUplink {
     /// What the relay heard of it.
     pub metadata: LorawanUplinkMetadata,
     /// The frequency it arrived on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The end device's frame.
     pub phy_payload: Buffer,
 }
@@ -258,13 +259,13 @@ fn keys_out(keys: &WorKeys) -> LorawanWorKeys {
 }
 
 fn carrier_in(carrier: &LorawanCarrier) -> Carrier {
-    Carrier::new(carrier.frequency_hz, carrier.data_rate)
+    Carrier::new(carrier.frequency_hz.get(), carrier.data_rate.get())
 }
 
 pub(crate) fn carrier_out(carrier: Carrier) -> LorawanCarrier {
     LorawanCarrier {
-        frequency_hz: carrier.frequency_hz,
-        data_rate: carrier.data_rate,
+        frequency_hz: carrier.frequency_hz.into(),
+        data_rate: carrier.data_rate.into(),
     }
 }
 
@@ -335,10 +336,10 @@ fn state_in(state: &LorawanStateSync) -> StateSync {
             LorawanRelayForward::RetryIn60Minutes => Forward::RetryIn60Minutes,
             LorawanRelayForward::Disabled => Forward::Disabled,
         },
-        relay_data_rate: state.relay_data_rate,
+        relay_data_rate: state.relay_data_rate.get(),
         xtal_accuracy: xtal_in(&state.xtal_accuracy),
         cad_periodicity: periodicity_in(&state.cad_periodicity),
-        t_offset_ms: state.t_offset_ms,
+        t_offset_ms: state.t_offset_ms.get(),
     }
 }
 
@@ -361,10 +362,10 @@ fn state_out(state: StateSync) -> LorawanStateSync {
             Forward::RetryIn60Minutes => LorawanRelayForward::RetryIn60Minutes,
             Forward::Disabled => LorawanRelayForward::Disabled,
         },
-        relay_data_rate: state.relay_data_rate,
+        relay_data_rate: state.relay_data_rate.into(),
         xtal_accuracy: xtal_out(state.xtal_accuracy),
         cad_periodicity: periodicity_out(state.cad_periodicity),
-        t_offset_ms: state.t_offset_ms,
+        t_offset_ms: state.t_offset_ms.into(),
     }
 }
 
@@ -387,10 +388,10 @@ pub fn lorawan_relay_root_wor_s_key(network_key: Buffer) -> Result<Buffer> {
 
 /// Derives an end device's wake-on-radio keys from its root relay session key, section 4.5.
 #[napi(js_name = "lorawanRelayWorKeys")]
-pub fn lorawan_relay_wor_keys(root_key: Buffer, dev_addr: u32) -> Result<LorawanWorKeys> {
+pub fn lorawan_relay_wor_keys(root_key: Buffer, dev_addr: checked::u32) -> Result<LorawanWorKeys> {
     Ok(keys_out(&WorKeys::derive(
         &sixteen(&root_key, "rootKey")?,
-        dev_addr,
+        dev_addr.get(),
     )))
 }
 
@@ -406,15 +407,15 @@ pub fn lorawan_relay_wor_join_request(uplink: LorawanCarrier) -> Result<Buffer> 
 #[napi(js_name = "lorawanRelayWorUplink")]
 pub fn lorawan_relay_wor_uplink(
     keys: LorawanWorKeys,
-    dev_addr: u32,
-    wfcnt: u32,
+    dev_addr: checked::u32,
+    wfcnt: checked::u32,
     uplink: LorawanCarrier,
     wor: LorawanCarrier,
 ) -> Result<Buffer> {
     wor_uplink(
         &keys_in(&keys)?,
-        dev_addr,
-        wfcnt,
+        dev_addr.get(),
+        wfcnt.get(),
         carrier_in(&uplink),
         carrier_in(&wor),
     )
@@ -446,7 +447,7 @@ pub fn lorawan_relay_wor_parse(frame: Buffer) -> Result<LorawanWor> {
 pub fn lorawan_relay_wor_open(
     frame: Buffer,
     keys: LorawanWorKeys,
-    wfcnt: u32,
+    wfcnt: checked::u32,
     wor: LorawanCarrier,
 ) -> Result<LorawanCarrier> {
     let Wor::Uplink(sealed) = Wor::parse(frame.as_ref()).map_err(refused)? else {
@@ -455,7 +456,7 @@ pub fn lorawan_relay_wor_open(
         ));
     };
     sealed
-        .open(&keys_in(&keys)?, wfcnt, carrier_in(&wor))
+        .open(&keys_in(&keys)?, wfcnt.get(), carrier_in(&wor))
         .map(carrier_out)
         .map_err(refused)
 }
@@ -464,16 +465,16 @@ pub fn lorawan_relay_wor_open(
 #[napi(js_name = "lorawanRelayWorAck")]
 pub fn lorawan_relay_wor_ack(
     keys: LorawanWorKeys,
-    dev_addr: u32,
-    wfcnt: u32,
+    dev_addr: checked::u32,
+    wfcnt: checked::u32,
     ack: LorawanCarrier,
     uplink: LorawanCarrier,
     state: LorawanStateSync,
 ) -> Result<Buffer> {
     wor_ack(
         &keys_in(&keys)?,
-        dev_addr,
-        wfcnt,
+        dev_addr.get(),
+        wfcnt.get(),
         carrier_in(&ack),
         carrier_in(&uplink),
         state_in(&state),
@@ -487,16 +488,16 @@ pub fn lorawan_relay_wor_ack(
 pub fn lorawan_relay_wor_ack_open(
     frame: Buffer,
     keys: LorawanWorKeys,
-    dev_addr: u32,
-    wfcnt: u32,
+    dev_addr: checked::u32,
+    wfcnt: checked::u32,
     ack: LorawanCarrier,
     uplink: LorawanCarrier,
 ) -> Result<LorawanStateSync> {
     open_wor_ack(
         frame.as_ref(),
         &keys_in(&keys)?,
-        dev_addr,
-        wfcnt,
+        dev_addr.get(),
+        wfcnt.get(),
         carrier_in(&ack),
         carrier_in(&uplink),
     )
@@ -513,11 +514,11 @@ pub fn lorawan_relay_forward_encode(forwarded: LorawanForwardedUplink) -> Result
                 LorawanWorChannel::Default => WorChannel::Default,
                 LorawanWorChannel::Second => WorChannel::Second,
             },
-            rssi_dbm: clamp_i16(forwarded.metadata.rssi_dbm),
-            snr_db: clamp_i8(forwarded.metadata.snr_db),
-            data_rate: forwarded.metadata.data_rate,
+            rssi_dbm: clamp_i16(forwarded.metadata.rssi_dbm.get()),
+            snr_db: clamp_i8(forwarded.metadata.snr_db.get()),
+            data_rate: forwarded.metadata.data_rate.get(),
         },
-        frequency_hz: forwarded.frequency_hz,
+        frequency_hz: forwarded.frequency_hz.get(),
         phy_payload: forwarded.phy_payload.as_ref(),
     };
     let mut out = vec![0u8; relay::FORWARD_OVERHEAD + uplink.phy_payload.len()];
@@ -535,11 +536,11 @@ pub fn lorawan_relay_forward_parse(payload: Buffer) -> Result<LorawanForwardedUp
                 WorChannel::Default => LorawanWorChannel::Default,
                 WorChannel::Second => LorawanWorChannel::Second,
             },
-            rssi_dbm: i32::from(forwarded.metadata.rssi_dbm),
-            snr_db: i32::from(forwarded.metadata.snr_db),
-            data_rate: forwarded.metadata.data_rate,
+            rssi_dbm: i32::from(forwarded.metadata.rssi_dbm).into(),
+            snr_db: i32::from(forwarded.metadata.snr_db).into(),
+            data_rate: forwarded.metadata.data_rate.into(),
         },
-        frequency_hz: forwarded.frequency_hz,
+        frequency_hz: forwarded.frequency_hz.into(),
         phy_payload: forwarded.phy_payload.to_vec().into(),
     })
 }
@@ -572,13 +573,13 @@ pub fn lorawan_relay_t_offset_ms(scan_start_us: f64, preamble_end_us: f64) -> Re
 #[napi(js_name = "lorawanRelaySynchronization")]
 pub fn lorawan_relay_synchronization(
     wor_start_us: f64,
-    preamble_symbols: u16,
+    preamble_symbols: checked::u16,
     symbol_us: f64,
     state: LorawanStateSync,
 ) -> Result<LorawanSynchronization> {
     let sync = Synchronization::from_ack(
         micros(wor_start_us, "worStartUs")?,
-        preamble_symbols,
+        preamble_symbols.get(),
         micros(symbol_us, "symbolUs")?,
         &state_in(&state),
     );
@@ -596,7 +597,7 @@ pub fn lorawan_relay_synchronization(
 pub fn lorawan_relay_next_wor(
     synchronization: LorawanSynchronization,
     now_us: f64,
-    device_xtal_ppm: u32,
+    device_xtal_ppm: checked::u32,
     symbol_us: f64,
     other_channel: bool,
 ) -> Result<Option<LorawanWorSlot>> {
@@ -609,7 +610,7 @@ pub fn lorawan_relay_next_wor(
     Ok(sync
         .next_wor(
             micros(now_us, "nowUs")?,
-            device_xtal_ppm,
+            device_xtal_ppm.get(),
             micros(symbol_us, "symbolUs")?,
             other_channel,
         )
@@ -623,17 +624,21 @@ pub fn lorawan_relay_next_wor(
 /// index is not 1 or the offset is reserved.
 #[napi(js_name = "lorawanRelaySecondChannel")]
 pub fn lorawan_relay_second_channel(
-    second_channel_index: u8,
-    data_rate: u8,
-    ack_offset: u8,
-    frequency_hz: u32,
+    second_channel_index: checked::u8,
+    data_rate: checked::u8,
+    ack_offset: checked::u8,
+    frequency_hz: checked::u32,
 ) -> Option<LoraRelayChannel> {
-    relay_second_channel(second_channel_index, data_rate, ack_offset, frequency_hz).map(|channel| {
-        LoraRelayChannel {
-            wor_frequency_hz: channel.wor_frequency_hz,
-            ack_frequency_hz: channel.ack_frequency_hz,
-            data_rate: channel.data_rate,
-        }
+    relay_second_channel(
+        second_channel_index.get(),
+        data_rate.get(),
+        ack_offset.get(),
+        frequency_hz.get(),
+    )
+    .map(|channel| LoraRelayChannel {
+        wor_frequency_hz: channel.wor_frequency_hz.into(),
+        ack_frequency_hz: channel.ack_frequency_hz.into(),
+        data_rate: channel.data_rate.into(),
     })
 }
 
@@ -649,7 +654,7 @@ pub struct LorawanScan {
     /// The LoRa settings of a wake-on-radio frame, heard with inverted IQ.
     pub link: LoraLink,
     /// The longest preamble an end device sends on the channel, in symbols.
-    pub preamble_symbols: u16,
+    pub preamble_symbols: checked::u16,
 }
 
 /// The acknowledgment a relay answers a wake-on-radio frame with.
@@ -812,10 +817,10 @@ impl LorawanRelay {
         &mut self,
         env: Env,
         cad_periodicity: LorawanCadPeriodicity,
-        default_channel_index: u8,
+        default_channel_index: checked::u8,
         second_channel: Option<LoraRelayChannel>,
     ) -> Result<()> {
-        let Some(default_channel) = self.inner.region_channel(default_channel_index) else {
+        let Some(default_channel) = self.inner.region_channel(default_channel_index.get()) else {
             return Err(Error::new(
                 Status::InvalidArg,
                 "the region does not define that wake-on-radio channel",
@@ -824,9 +829,9 @@ impl LorawanRelay {
         let mut config = RelayConfig::new(periodicity_in(&cad_periodicity), default_channel);
         if let Some(second) = second_channel {
             config = config.with_second_channel(RelayChannel::new(
-                second.wor_frequency_hz,
-                second.ack_frequency_hz,
-                second.data_rate,
+                second.wor_frequency_hz.get(),
+                second.ack_frequency_hz.get(),
+                second.data_rate.get(),
             ));
         }
         self.inner
@@ -850,18 +855,22 @@ impl LorawanRelay {
     #[napi]
     pub fn trust(
         &mut self,
-        index: u8,
-        dev_addr: u32,
+        index: checked::u8,
+        dev_addr: checked::u32,
         root_wor_s_key: Buffer,
-        next_wfcnt: u32,
-        reload_rate: u8,
-        bucket_size: u8,
+        next_wfcnt: checked::u32,
+        reload_rate: checked::u8,
+        bucket_size: checked::u8,
     ) -> Result<()> {
         let key = sixteen(&root_wor_s_key, "rootWorSKey")?;
-        if self
-            .inner
-            .trust(index, dev_addr, &key, next_wfcnt, reload_rate, bucket_size)
-        {
+        if self.inner.trust(
+            index.get(),
+            dev_addr.get(),
+            &key,
+            next_wfcnt.get(),
+            reload_rate.get(),
+            bucket_size.get(),
+        ) {
             Ok(())
         } else {
             Err(Error::new(
@@ -880,7 +889,7 @@ impl LorawanRelay {
             channel: channel_out(scan.channel),
             carrier: carrier_out(scan.carrier),
             link: lora_link_of(scan.link),
-            preamble_symbols: scan.preamble_symbols,
+            preamble_symbols: scan.preamble_symbols.into(),
         }))
     }
 
@@ -891,25 +900,30 @@ impl LorawanRelay {
         env: Env,
         scan: LorawanScan,
         frame: Buffer,
-        rssi_dbm: i32,
-        snr_db: i32,
+        rssi_dbm: checked::i32,
+        snr_db: checked::i32,
         ended_us: f64,
     ) -> Result<LorawanWake> {
         let ended_us = micros(ended_us, "endedUs")?;
         let scan = Scan {
             start_us: micros(scan.start_us, "startUs")?,
             channel: channel_in(&scan.channel),
-            carrier: Carrier::new(scan.carrier.frequency_hz, scan.carrier.data_rate),
+            carrier: Carrier::new(
+                scan.carrier.frequency_hz.get(),
+                scan.carrier.data_rate.get(),
+            ),
             link: crate::lora::settings(&scan.link),
-            preamble_symbols: scan.preamble_symbols,
+            preamble_symbols: scan.preamble_symbols.get(),
         };
         let wake = self
             .inner
             .heard_wor(
                 &scan,
                 frame.as_ref(),
-                rssi_dbm.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
-                snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
+                rssi_dbm
+                    .get()
+                    .clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
+                snr_db.get().clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
                 ended_us,
             )
             .map_err(|error| relay_thrown(&env, error))?;
@@ -924,16 +938,18 @@ impl LorawanRelay {
         &mut self,
         env: Env,
         frame: Buffer,
-        rssi_dbm: i32,
-        snr_db: i32,
+        rssi_dbm: checked::i32,
+        snr_db: checked::i32,
         ended_us: f64,
     ) -> Result<f64> {
         let ended_us = micros(ended_us, "endedUs")?;
         self.inner
             .heard_uplink(
                 frame.as_ref(),
-                rssi_dbm.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
-                snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
+                rssi_dbm
+                    .get()
+                    .clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
+                snr_db.get().clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
                 ended_us,
             )
             .map(|due_us| due_us as f64)
@@ -969,9 +985,9 @@ impl LorawanRelay {
         env: Env,
         window: LorawanReceiveWindow,
         frame: Buffer,
-        snr_db: i32,
+        snr_db: checked::i32,
     ) -> Result<LorawanRelayHeard> {
-        let snr_db = snr_db.clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
+        let snr_db = snr_db.get().clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
         let heard = self
             .inner
             .heard_in(window_in(window), frame.as_ref(), snr_db)
@@ -1026,11 +1042,16 @@ impl LorawanRelay {
 
     /// Makes the relay's own join request.
     #[napi]
-    pub fn join(&mut self, env: Env, dev_nonce: u16, now_us: f64) -> Result<LorawanTransmission> {
+    pub fn join(
+        &mut self,
+        env: Env,
+        dev_nonce: checked::u16,
+        now_us: f64,
+    ) -> Result<LorawanTransmission> {
         let now_us = micros(now_us, "nowUs")?;
         self.inner
             .device_mut()
-            .join(dev_nonce, now_us)
+            .join(dev_nonce.get(), now_us)
             .map(transmission_out)
             .map_err(|error| device_thrown(&env, error))
     }
@@ -1040,7 +1061,7 @@ impl LorawanRelay {
     pub fn send(
         &mut self,
         env: Env,
-        port: u8,
+        port: checked::u8,
         payload: Buffer,
         confirmed: bool,
         now_us: f64,
@@ -1048,7 +1069,7 @@ impl LorawanRelay {
         let now_us = micros(now_us, "nowUs")?;
         self.inner
             .device_mut()
-            .send(port, payload.as_ref(), confirmed, now_us)
+            .send(port.get(), payload.as_ref(), confirmed, now_us)
             .map(transmission_out)
             .map_err(|error| device_thrown(&env, error))
     }

@@ -18,6 +18,7 @@
 //! actuator, transport, and codec. Nothing is lost: the controller holds the
 //! decisions, and the caller drives their own hardware around it.
 
+use crate::checked::{self, OptionalWhole};
 use std::collections::{BTreeMap, HashMap};
 
 use napi::bindgen_prelude::Either3;
@@ -66,7 +67,7 @@ pub struct ControlPolicy {
     /// The level treated as empty, for a level policy.
     pub empty: Option<f64>,
     /// How many samples ahead to warn, for a level policy.
-    pub warn_within: Option<u32>,
+    pub warn_within: Option<checked::u32>,
     /// Whether a rise rather than a fall is watched, for a surge policy.
     pub rising: Option<bool>,
     /// The largest safe change per sample, for a surge policy.
@@ -282,7 +283,7 @@ fn policy_of(spec: &ControlSpec) -> ControlPolicy {
         ControlSpec::Level { empty, warn_within } => {
             policy.kind = ControlKind::Level;
             policy.empty = Some(f64::from(empty));
-            policy.warn_within = Some(warn_within);
+            policy.warn_within = Some(warn_within.into());
         }
         ControlSpec::Surge { rising, limit } => {
             policy.kind = ControlKind::Surge;
@@ -329,7 +330,7 @@ fn spec_of(policy: ControlPolicy) -> napi::Result<ControlSpec> {
         }),
         ControlKind::Level => Ok(ControlSpec::Level {
             empty: needs(policy.empty, "Level", "empty")? as f32,
-            warn_within: needs(policy.warn_within, "Level", "warnWithin")?,
+            warn_within: needs(policy.warn_within.get(), "Level", "warnWithin")?,
         }),
         ControlKind::Surge => Ok(ControlSpec::Surge {
             rising: policy.rising.unwrap_or(false),
@@ -790,9 +791,9 @@ impl Controller {
     /// @param empty - the level treated as empty.
     /// @param warn_within - warn once empty is this many samples away.
     #[napi(factory)]
-    pub fn level(empty: f64, warn_within: u32) -> Self {
+    pub fn level(empty: f64, warn_within: checked::u32) -> Self {
         Self {
-            inner: CoreController::level(empty as f32, warn_within),
+            inner: CoreController::level(empty as f32, warn_within.get()),
         }
     }
 

@@ -10,6 +10,7 @@
 //! without a ROS distribution anywhere near it. Driving a live graph does need
 //! one, so the Rust crate's `bridge` feature stays Rust-only.
 
+use crate::checked;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_ros2::key::entity_key;
@@ -122,13 +123,13 @@ pub fn ros2_type_hash_digest(text: String) -> Option<Buffer> {
 /// @param typeHash - the message type hash as its `RIHS01_` string.
 #[napi]
 pub fn ros2_entity_key(
-    domain_id: u32,
+    domain_id: checked::u32,
     fqn: String,
     ros_type: String,
     type_hash: String,
 ) -> Option<String> {
     let hash = TypeHash::parse(&type_hash)?;
-    entity_key(domain_id, &fqn, &ros_type, &hash)
+    entity_key(domain_id.get(), &fqn, &ros_type, &hash)
 }
 
 /// Encodes a twist into its CDR representation.
@@ -178,14 +179,14 @@ impl CdrWriter {
 
     /// Appends a 32-bit signed integer.
     #[napi]
-    pub fn write_i32(&mut self, value: i32) {
-        self.inner.write_i32(value);
+    pub fn write_i32(&mut self, value: checked::i32) {
+        self.inner.write_i32(value.get());
     }
 
     /// Appends a 32-bit unsigned integer.
     #[napi]
-    pub fn write_u32(&mut self, value: u32) {
-        self.inner.write_u32(value);
+    pub fn write_u32(&mut self, value: checked::u32) {
+        self.inner.write_u32(value.get());
     }
 
     /// Appends a 32-bit float.

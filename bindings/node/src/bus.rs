@@ -11,6 +11,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::checked::{self, OptionalWhole};
 use crate::transport::{bytes_of, limit_of};
 use napi::bindgen_prelude::Buffer;
 use napi::Either;
@@ -90,8 +91,8 @@ impl EventBus {
     ///   before it starts missing them, rounded up to the next power of two and
     ///   at most 1048576; 64 when not given.
     #[napi(constructor)]
-    pub fn new(capacity: Option<f64>) -> napi::Result<Self> {
-        Ok(Self::of(BroadcastBus::new(capacity_of(capacity)?)))
+    pub fn new(capacity: Option<checked::u32>) -> Self {
+        Self::of(BroadcastBus::new(capacity_of(capacity)))
     }
 
     /// Takes another endpoint on the same bus.
@@ -170,10 +171,10 @@ impl EventPublisher {
     ///   before it starts missing them, rounded up to the next power of two and
     ///   at most 1048576; 64 when not given.
     #[napi(constructor)]
-    pub fn new(capacity: Option<f64>) -> napi::Result<Self> {
-        Ok(Self {
-            inner: pamoja_bus::EventPublisher::new(capacity_of(capacity)?),
-        })
+    pub fn new(capacity: Option<checked::u32>) -> Self {
+        Self {
+            inner: pamoja_bus::EventPublisher::new(capacity_of(capacity)),
+        }
     }
 
     /// Hands an event to every current subscriber: bytes, or text such as an
@@ -204,16 +205,11 @@ impl EventPublisher {
     }
 }
 
-/// Reads a capacity, refusing one that is negative or not a number.
-///
-/// JavaScript hands a negative number to an unsigned parameter as a very large
-/// one, so a capacity is taken as a number and checked here instead.
-fn capacity_of(capacity: Option<f64>) -> napi::Result<usize> {
-    match capacity {
-        None => Ok(DEFAULT_CAPACITY),
-        Some(capacity) if capacity >= 0.0 => Ok(capacity as usize),
-        Some(_) => Err(napi::Error::from_reason("a capacity must be 0 or more")),
-    }
+/// Reads a capacity, falling back to the default when none is given.
+fn capacity_of(capacity: Option<checked::u32>) -> usize {
+    capacity
+        .get()
+        .map_or(DEFAULT_CAPACITY, |capacity| capacity as usize)
 }
 
 /// Maps a core error onto the one JavaScript sees.

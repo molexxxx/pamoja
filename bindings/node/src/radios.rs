@@ -11,6 +11,7 @@
 //! answers are plain objects. The duty-cycle guard keeps state between calls, so it is a
 //! class. Microsecond clocks cross as numbers, exact far past any deployment's uptime.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_radios::duty::DutyCycle;
@@ -165,15 +166,15 @@ pub enum Sx126xCommandStatus {
 #[napi(object, js_name = "Sx126xTxPower")]
 pub struct Sx126xTxPower {
     /// paDutyCycle, the conduction angle of the amplifier.
-    pub pa_duty_cycle: u8,
+    pub pa_duty_cycle: checked::u8,
     /// hpMax, the size of the SX1262 amplifier; no effect on the SX1261.
-    pub hp_max: u8,
+    pub hp_max: checked::u8,
     /// deviceSel: 0 for the SX1262 and the LLCC68, 1 for the SX1261.
-    pub device_sel: u8,
+    pub device_sel: checked::u8,
     /// paLut, reserved and always 1.
-    pub pa_lut: u8,
+    pub pa_lut: checked::u8,
     /// The power byte of SetTxParams, in dBm.
-    pub setting_dbm: i32,
+    pub setting_dbm: checked::i32,
 }
 
 /// A command the chip answers in the same SPI transaction.
@@ -218,36 +219,36 @@ pub struct Sx126xRxBufferStatus {
 
 /// Returns the word SetRfFrequency takes for a frequency.
 #[napi(js_name = "sx126xFrequencyWord")]
-pub fn sx126x_frequency_word(frequency_hz: u32) -> u32 {
-    config::frequency_word(frequency_hz)
+pub fn sx126x_frequency_word(frequency_hz: checked::u32) -> u32 {
+    config::frequency_word(frequency_hz.get())
 }
 
 /// Returns the 24-bit timeout word SetTx and SetRx take for a duration in microseconds.
 #[napi(js_name = "sx126xTimeoutSteps")]
-pub fn sx126x_timeout_steps(timeout_us: f64) -> u32 {
-    config::timeout_steps(micros(timeout_us))
+pub fn sx126x_timeout_steps(timeout_us: f64) -> napi::Result<u32> {
+    Ok(config::timeout_steps(micros(timeout_us)?))
 }
 
 /// Returns the two CalibrateImage codes that cover a band.
 #[napi(js_name = "sx126xImageCalibration")]
-pub fn sx126x_image_calibration(low_hz: u32, high_hz: u32) -> Buffer {
-    Buffer::from(config::image_calibration(low_hz, high_hz).to_vec())
+pub fn sx126x_image_calibration(low_hz: checked::u32, high_hz: checked::u32) -> Buffer {
+    Buffer::from(config::image_calibration(low_hz.get(), high_hz.get()).to_vec())
 }
 
 /// Returns the shortest amplifier ramp time the chip offers that lasts at least a
 /// duration, in microseconds.
 #[napi(js_name = "sx126xRampTimeUs")]
-pub fn sx126x_ramp_time_us(at_least_us: u32) -> u32 {
-    RampTime::at_least(at_least_us).micros()
+pub fn sx126x_ramp_time_us(at_least_us: checked::u32) -> u32 {
+    RampTime::at_least(at_least_us.get()).micros()
 }
 
 /// Chooses the amplifier settings for an output power, clamped to what the amplifier
 /// allows.
 #[napi(js_name = "sx126xTxPower")]
-pub fn sx126x_tx_power(amplifier: Sx126xAmplifier, output_dbm: i32) -> Sx126xTxPower {
+pub fn sx126x_tx_power(amplifier: Sx126xAmplifier, output_dbm: checked::i32) -> Sx126xTxPower {
     power_of(TxPower::for_output(
         chip_amplifier(amplifier),
-        dbm(output_dbm),
+        dbm(output_dbm.get()),
     ))
 }
 
@@ -280,17 +281,18 @@ pub fn sx126x_set_packet_type_lora() -> Buffer {
 
 /// SetRfFrequency for a carrier frequency in hertz.
 #[napi(js_name = "sx126xSetRfFrequency")]
-pub fn sx126x_set_rf_frequency(frequency_hz: u32) -> Buffer {
+pub fn sx126x_set_rf_frequency(frequency_hz: checked::u32) -> Buffer {
     bytes_of(command::set_rf_frequency(config::frequency_word(
-        frequency_hz,
+        frequency_hz.get(),
     )))
 }
 
 /// CalibrateImage over a band given by its edges in hertz.
 #[napi(js_name = "sx126xCalibrateImage")]
-pub fn sx126x_calibrate_image(low_hz: u32, high_hz: u32) -> Buffer {
+pub fn sx126x_calibrate_image(low_hz: checked::u32, high_hz: checked::u32) -> Buffer {
     bytes_of(command::calibrate_image(config::image_calibration(
-        low_hz, high_hz,
+        low_hz.get(),
+        high_hz.get(),
     )))
 }
 
@@ -302,10 +304,10 @@ pub fn sx126x_set_pa_config(power: Sx126xTxPower) -> Buffer {
 
 /// SetTxParams for a power setting and the least ramp time wanted, in microseconds.
 #[napi(js_name = "sx126xSetTxParams")]
-pub fn sx126x_set_tx_params(power: Sx126xTxPower, ramp_us: u32) -> Buffer {
+pub fn sx126x_set_tx_params(power: Sx126xTxPower, ramp_us: checked::u32) -> Buffer {
     bytes_of(command::set_tx_params(
         tx_power(&power).setting_dbm,
-        RampTime::at_least(ramp_us),
+        RampTime::at_least(ramp_us.get()),
     ))
 }
 
@@ -328,12 +330,12 @@ pub fn sx126x_set_lora_modulation_params(link: LoraLink) -> napi::Result<Buffer>
 #[napi(js_name = "sx126xSetLoraPacketParams")]
 pub fn sx126x_set_lora_packet_params(
     link: LoraLink,
-    payload_length: u8,
+    payload_length: checked::u8,
     invert_iq: bool,
 ) -> Buffer {
     bytes_of(command::set_lora_packet_params(LoraPacket::from_link(
         &settings(&link),
-        payload_length,
+        payload_length.get(),
         invert_iq,
     )))
 }
@@ -341,35 +343,39 @@ pub fn sx126x_set_lora_packet_params(
 /// SetDioIrqParams: which interrupts are enabled, and which DIO lines raise them.
 #[napi(js_name = "sx126xSetDioIrqParams")]
 pub fn sx126x_set_dio_irq_params(
-    irq: u32,
-    dio1: u32,
-    dio2: Option<u32>,
-    dio3: Option<u32>,
+    irq: checked::u32,
+    dio1: checked::u32,
+    dio2: Option<checked::u32>,
+    dio3: Option<checked::u32>,
 ) -> Buffer {
     bytes_of(command::set_dio_irq_params(
-        irq_of(irq),
-        irq_of(dio1),
-        irq_of(dio2.unwrap_or(0)),
-        irq_of(dio3.unwrap_or(0)),
+        irq_of(irq.get()),
+        irq_of(dio1.get()),
+        irq_of(dio2.get().unwrap_or(0)),
+        irq_of(dio3.get().unwrap_or(0)),
     ))
 }
 
 /// ClearIrqStatus for a set of interrupts.
 #[napi(js_name = "sx126xClearIrqStatus")]
-pub fn sx126x_clear_irq_status(irq: u32) -> Buffer {
-    bytes_of(command::clear_irq_status(irq_of(irq)))
+pub fn sx126x_clear_irq_status(irq: checked::u32) -> Buffer {
+    bytes_of(command::clear_irq_status(irq_of(irq.get())))
 }
 
 /// SetTx with a timeout in microseconds; `0` disables the timeout.
 #[napi(js_name = "sx126xSetTx")]
-pub fn sx126x_set_tx(timeout_us: f64) -> Buffer {
-    bytes_of(command::set_tx(config::timeout_steps(micros(timeout_us))))
+pub fn sx126x_set_tx(timeout_us: f64) -> napi::Result<Buffer> {
+    Ok(bytes_of(command::set_tx(config::timeout_steps(micros(
+        timeout_us,
+    )?))))
 }
 
 /// SetRx with a timeout in microseconds; `0` listens for one packet with no timeout.
 #[napi(js_name = "sx126xSetRx")]
-pub fn sx126x_set_rx(timeout_us: f64) -> Buffer {
-    bytes_of(command::set_rx(config::timeout_steps(micros(timeout_us))))
+pub fn sx126x_set_rx(timeout_us: f64) -> napi::Result<Buffer> {
+    Ok(bytes_of(command::set_rx(config::timeout_steps(micros(
+        timeout_us,
+    )?))))
 }
 
 /// SetRx in continuous mode, receiving packet after packet until another command.
@@ -386,16 +392,16 @@ pub fn sx126x_set_sleep(warm_start: bool) -> Buffer {
 
 /// A whole WriteRegister transaction: the opcode, the address, and the values.
 #[napi(js_name = "sx126xWriteRegister")]
-pub fn sx126x_write_register(address: u16, values: Buffer) -> Buffer {
-    let mut bytes = command::write_register(address).as_bytes().to_vec();
+pub fn sx126x_write_register(address: checked::u16, values: Buffer) -> Buffer {
+    let mut bytes = command::write_register(address.get()).as_bytes().to_vec();
     bytes.extend_from_slice(values.as_ref());
     Buffer::from(bytes)
 }
 
 /// A whole WriteBuffer transaction: the opcode, the offset, and the payload.
 #[napi(js_name = "sx126xWriteBuffer")]
-pub fn sx126x_write_buffer(offset: u8, payload: Buffer) -> Buffer {
-    let mut bytes = command::write_buffer(offset).as_bytes().to_vec();
+pub fn sx126x_write_buffer(offset: checked::u8, payload: Buffer) -> Buffer {
+    let mut bytes = command::write_buffer(offset.get()).as_bytes().to_vec();
     bytes.extend_from_slice(payload.as_ref());
     Buffer::from(bytes)
 }
@@ -438,20 +444,26 @@ pub fn sx126x_get_device_errors() -> Sx126xQuery {
 
 /// ReadRegister for a run of consecutive registers.
 #[napi(js_name = "sx126xReadRegister")]
-pub fn sx126x_read_register(address: u16, length: u8) -> Sx126xQuery {
-    query_of(command::read_register(address, usize::from(length)))
+pub fn sx126x_read_register(address: checked::u16, length: checked::u8) -> Sx126xQuery {
+    query_of(command::read_register(
+        address.get(),
+        usize::from(length.get()),
+    ))
 }
 
 /// ReadBuffer for a run of the data buffer.
 #[napi(js_name = "sx126xReadBuffer")]
-pub fn sx126x_read_buffer(offset: u8, length: u8) -> Sx126xQuery {
-    query_of(command::read_buffer(offset, usize::from(length)))
+pub fn sx126x_read_buffer(offset: checked::u8, length: checked::u8) -> Sx126xQuery {
+    query_of(command::read_buffer(
+        offset.get(),
+        usize::from(length.get()),
+    ))
 }
 
 /// Decodes a status byte.
 #[napi(js_name = "sx126xStatus")]
-pub fn sx126x_status(byte: u8) -> Sx126xStatus {
-    let status = Status::from_byte(byte);
+pub fn sx126x_status(byte: checked::u8) -> Sx126xStatus {
+    let status = Status::from_byte(byte.get());
     Sx126xStatus {
         chip_mode: chip_mode(status.chip_mode),
         command_status: command_status(status.command_status),
@@ -504,8 +516,8 @@ pub fn sx126x_rx_buffer_status(answer: Buffer) -> napi::Result<Sx126xRxBufferSta
 
 /// Decodes a GetRssiInst answer, in dBm.
 #[napi(js_name = "sx126xRssiInstDbm")]
-pub fn sx126x_rssi_inst_dbm(byte: u8) -> f64 {
-    db(rssi_inst_dbm(byte))
+pub fn sx126x_rssi_inst_dbm(byte: checked::u8) -> f64 {
+    db(rssi_inst_dbm(byte.get()))
 }
 
 /// The silence a radio owes after its transmissions under a duty-cycle limit.
@@ -520,9 +532,9 @@ impl RadioDutyCycle {
     ///
     /// `10` is 1%; `0` forbids transmitting and `1000` or more imposes no silence.
     #[napi(constructor)]
-    pub fn new(permille: u32) -> Self {
+    pub fn new(permille: checked::u32) -> Self {
         Self {
-            inner: DutyCycle::new(permille),
+            inner: DutyCycle::new(permille.get()),
         }
     }
 
@@ -542,35 +554,42 @@ impl RadioDutyCycle {
     /// How long the radio must still stay silent, in microseconds, or `null` when the
     /// limit forbids transmitting.
     #[napi]
-    pub fn wait_us(&self, now_us: f64) -> Option<f64> {
-        never(self.inner.wait_us(micros(now_us)))
+    pub fn wait_us(&self, now_us: f64) -> napi::Result<Option<f64>> {
+        Ok(never(self.inner.wait_us(micros(now_us)?)))
     }
 
     /// Whether a transmission may start at a time in microseconds on the caller's clock.
     #[napi]
-    pub fn ready(&self, now_us: f64) -> bool {
-        self.inner.ready(micros(now_us))
+    pub fn ready(&self, now_us: f64) -> napi::Result<bool> {
+        Ok(self.inner.ready(micros(now_us)?))
     }
 
     /// Records a transmission and the silence it owes, returning its airtime in
     /// microseconds.
     #[napi]
-    pub fn transmitted(&mut self, started_us: f64, link: LoraLink, payload_length: u32) -> f64 {
-        self.inner.transmitted(
-            micros(started_us),
+    pub fn transmitted(
+        &mut self,
+        started_us: f64,
+        link: LoraLink,
+        payload_length: checked::u32,
+    ) -> napi::Result<f64> {
+        Ok(self.inner.transmitted(
+            micros(started_us)?,
             &settings(&link),
-            payload_length as usize,
-        ) as f64
+            payload_length.get() as usize,
+        ) as f64)
     }
 }
 
-/// Turns a JavaScript number of microseconds into a count, treating anything below zero
-/// or not a number as zero.
-fn micros(value: f64) -> u64 {
-    if value.is_finite() && value > 0.0 {
-        value as u64
+/// Turns a JavaScript number of microseconds into a count, dropping a fraction of a
+/// microsecond and refusing a time below zero or not finite.
+fn micros(value: f64) -> napi::Result<u64> {
+    if value.is_finite() && value >= 0.0 {
+        Ok(value as u64)
     } else {
-        0
+        Err(napi::Error::from_reason(format!(
+            "a time must be a number of microseconds from 0 up, not {value}"
+        )))
     }
 }
 
@@ -619,11 +638,11 @@ fn chip_amplifier(amplifier: Sx126xAmplifier) -> PowerAmplifier {
 /// Flattens power settings into the object JavaScript sees.
 fn power_of(power: TxPower) -> Sx126xTxPower {
     Sx126xTxPower {
-        pa_duty_cycle: power.pa.duty_cycle,
-        hp_max: power.pa.hp_max,
-        device_sel: power.pa.device,
-        pa_lut: power.pa.lut,
-        setting_dbm: i32::from(power.setting_dbm),
+        pa_duty_cycle: power.pa.duty_cycle.into(),
+        hp_max: power.pa.hp_max.into(),
+        device_sel: power.pa.device.into(),
+        pa_lut: power.pa.lut.into(),
+        setting_dbm: i32::from(power.setting_dbm).into(),
     }
 }
 
@@ -631,12 +650,12 @@ fn power_of(power: TxPower) -> Sx126xTxPower {
 fn tx_power(power: &Sx126xTxPower) -> TxPower {
     TxPower {
         pa: PaConfig {
-            duty_cycle: power.pa_duty_cycle,
-            hp_max: power.hp_max,
-            device: power.device_sel,
-            lut: power.pa_lut,
+            duty_cycle: power.pa_duty_cycle.get(),
+            hp_max: power.hp_max.get(),
+            device: power.device_sel.get(),
+            lut: power.pa_lut.get(),
         },
-        setting_dbm: dbm(power.setting_dbm),
+        setting_dbm: dbm(power.setting_dbm.get()),
     }
 }
 
@@ -891,26 +910,26 @@ pub fn sx127x_irq_flags() -> HashMap<String, u32> {
 
 /// The 24-bit RegFrf word an SX127x takes for a frequency in hertz.
 #[napi(js_name = "sx127xFrequencyWord")]
-pub fn sx127x_frequency_word(frequency_hz: u32) -> u32 {
-    sx127x_config::frequency_word(frequency_hz)
+pub fn sx127x_frequency_word(frequency_hz: checked::u32) -> u32 {
+    sx127x_config::frequency_word(frequency_hz.get())
 }
 
 /// The frequency in hertz an SX127x RegFrf word selects.
 #[napi(js_name = "sx127xFrequencyFromWord")]
-pub fn sx127x_frequency_from_word(word: u32) -> u32 {
-    sx127x_config::frequency_from_word(word)
+pub fn sx127x_frequency_from_word(word: checked::u32) -> u32 {
+    sx127x_config::frequency_from_word(word.get())
 }
 
 /// The SX127x address byte that reads a register.
 #[napi(js_name = "sx127xReadAddress")]
-pub fn sx127x_read_address(address: u32) -> u32 {
-    u32::from(sx127x_register::read_address(address as u8))
+pub fn sx127x_read_address(address: checked::u32) -> u32 {
+    u32::from(sx127x_register::read_address(address.get() as u8))
 }
 
 /// The SX127x address byte that writes a register.
 #[napi(js_name = "sx127xWriteAddress")]
-pub fn sx127x_write_address(address: u32) -> u32 {
-    u32::from(sx127x_register::write_address(address as u8))
+pub fn sx127x_write_address(address: checked::u32) -> u32 {
+    u32::from(sx127x_register::write_address(address.get() as u8))
 }
 
 /// The RegOpMode value for a LoRa operating mode.
@@ -927,8 +946,8 @@ pub fn sx127x_fsk_op_mode(mode: Sx127xMode) -> u32 {
 
 /// The operating mode a RegOpMode value holds.
 #[napi(js_name = "sx127xModeFromOpMode")]
-pub fn sx127x_mode_from_op_mode(op_mode: u32) -> Sx127xMode {
-    match Sx127xModeCode::from_op_mode(op_mode as u8) {
+pub fn sx127x_mode_from_op_mode(op_mode: checked::u32) -> Sx127xMode {
+    match Sx127xModeCode::from_op_mode(op_mode.get() as u8) {
         Sx127xModeCode::Sleep => Sx127xMode::Sleep,
         Sx127xModeCode::Standby => Sx127xMode::Standby,
         Sx127xModeCode::FsTx => Sx127xMode::FsTx,
@@ -947,16 +966,16 @@ pub fn sx127x_mode_from_op_mode(op_mode: u32) -> Sx127xMode {
 #[napi(js_name = "sx127xModem")]
 pub fn sx127x_modem(
     link: LoraLink,
-    frequency_hz: u32,
-    symbol_timeout: u32,
+    frequency_hz: checked::u32,
+    symbol_timeout: checked::u32,
 ) -> napi::Result<Sx127xModem> {
     let modulation = Sx127xModulation::from_link(&settings(&link)).map_err(modulation_error)?;
-    if !modulation.bandwidth.in_band(frequency_hz) {
+    if !modulation.bandwidth.in_band(frequency_hz.get()) {
         return Err(modulation_error(ModulationError::Bandwidth(
-            link.bandwidth_hz,
+            link.bandwidth_hz.get(),
         )));
     }
-    let symbols = symbol_timeout.min(u32::from(u16::MAX)) as u16;
+    let symbols = symbol_timeout.get().min(u32::from(u16::MAX)) as u16;
     Ok(Sx127xModem {
         modem_config_1: u32::from(modulation.modem_config_1()),
         modem_config_2: u32::from(modulation.modem_config_2(symbols)),
@@ -968,17 +987,20 @@ pub fn sx127x_modem(
 
 /// The SX127x single reception timeout for a duration in microseconds, in the link's symbols.
 #[napi(js_name = "sx127xSymbolTimeout")]
-pub fn sx127x_symbol_timeout(link: LoraLink, timeout_us: f64) -> u32 {
-    u32::from(sx127x_config::symbol_timeout(
+pub fn sx127x_symbol_timeout(link: LoraLink, timeout_us: f64) -> napi::Result<u32> {
+    Ok(u32::from(sx127x_config::symbol_timeout(
         &settings(&link),
-        micros(timeout_us),
-    ))
+        micros(timeout_us)?,
+    )))
 }
 
 /// The SX127x amplifier settings for an output power on an amplifier output.
 #[napi(js_name = "sx127xTxPower")]
-pub fn sx127x_tx_power(output: Sx127xPaOutput, output_dbm: i32) -> Sx127xTxPower {
-    sx127x_power(Sx127xPower::for_output(pa_output(output), dbm(output_dbm)))
+pub fn sx127x_tx_power(output: Sx127xPaOutput, output_dbm: checked::i32) -> Sx127xTxPower {
+    sx127x_power(Sx127xPower::for_output(
+        pa_output(output),
+        dbm(output_dbm.get()),
+    ))
 }
 
 /// The SX127x amplifier settings that keep a link's EIRP at or under a ceiling in dBm.
@@ -997,9 +1019,9 @@ pub fn sx127x_tx_power_under_ceiling(
 
 /// RegOcp for a current limit in milliamps.
 #[napi(js_name = "sx127xOcpRegister")]
-pub fn sx127x_ocp_register(milliamps: u32) -> u32 {
+pub fn sx127x_ocp_register(milliamps: checked::u32) -> u32 {
     u32::from(sx127x_config::ocp_register(
-        milliamps.min(u32::from(u16::MAX)) as u16,
+        milliamps.get().min(u32::from(u16::MAX)) as u16,
     ))
 }
 
@@ -1021,10 +1043,10 @@ pub fn sx127x_invert_iq_2(inverted: bool) -> u32 {
 #[napi(js_name = "sx127xHighBwOptimize")]
 pub fn sx127x_high_bw_optimize(
     link: LoraLink,
-    frequency_hz: u32,
+    frequency_hz: checked::u32,
 ) -> napi::Result<Sx127xHighBwOptimize> {
     let (optimize_1, optimize_2) =
-        sx127x_config::high_bw_optimize(sx127x_bandwidth(&link)?, frequency_hz);
+        sx127x_config::high_bw_optimize(sx127x_bandwidth(&link)?, frequency_hz.get());
     Ok(Sx127xHighBwOptimize {
         optimize_1: u32::from(optimize_1),
         optimize_2: optimize_2.map(u32::from),
@@ -1046,14 +1068,17 @@ pub fn sx127x_spurious_reception(link: LoraLink) -> napi::Result<Sx127xSpuriousR
 
 /// RegImageCal with a calibration started and the automatic recalibration off.
 #[napi(js_name = "sx127xImageCalStart")]
-pub fn sx127x_image_cal_start(current: u32) -> u32 {
-    u32::from(sx127x_config::image_cal_start(current as u8))
+pub fn sx127x_image_cal_start(current: checked::u32) -> u32 {
+    u32::from(sx127x_config::image_cal_start(current.get() as u8))
 }
 
 /// RegDetectOptimize with AutomaticIFOn set or clear.
 #[napi(js_name = "sx127xAutomaticIf")]
-pub fn sx127x_automatic_if(current: u32, automatic_if: bool) -> u32 {
-    u32::from(sx127x_config::automatic_if(current as u8, automatic_if))
+pub fn sx127x_automatic_if(current: checked::u32, automatic_if: bool) -> u32 {
+    u32::from(sx127x_config::automatic_if(
+        current.get() as u8,
+        automatic_if,
+    ))
 }
 
 /// Decodes RegPktSnrValue and RegPktRssiValue, read together, for a packet heard at a
@@ -1061,9 +1086,12 @@ pub fn sx127x_automatic_if(current: u32, automatic_if: bool) -> u32 {
 ///
 /// Throws when the answer is not two bytes.
 #[napi(js_name = "sx127xPacketStatus")]
-pub fn sx127x_packet_status(answer: Buffer, frequency_hz: u32) -> napi::Result<Sx127xPacketStatus> {
+pub fn sx127x_packet_status(
+    answer: Buffer,
+    frequency_hz: checked::u32,
+) -> napi::Result<Sx127xPacketStatus> {
     let bytes = exactly::<2>(&answer, "RegPktSnrValue and RegPktRssiValue")?;
-    let status = DecodedPacketStatus::from_bytes(bytes, Port::for_frequency(frequency_hz));
+    let status = DecodedPacketStatus::from_bytes(bytes, Port::for_frequency(frequency_hz.get()));
     Ok(Sx127xPacketStatus {
         rssi_dbm: db(status.rssi_dbm),
         snr_db: db(status.snr_db),
@@ -1073,17 +1101,17 @@ pub fn sx127x_packet_status(answer: Buffer, frequency_hz: u32) -> napi::Result<S
 
 /// Decodes RegRssiValue for a receiver tuned to a carrier, in dBm.
 #[napi(js_name = "sx127xRssiDbm")]
-pub fn sx127x_rssi_dbm(byte: u32, frequency_hz: u32) -> f64 {
+pub fn sx127x_rssi_dbm(byte: checked::u32, frequency_hz: checked::u32) -> f64 {
     db(decoded_rssi_dbm(
-        byte as u8,
-        Port::for_frequency(frequency_hz),
+        byte.get() as u8,
+        Port::for_frequency(frequency_hz.get()),
     ))
 }
 
 /// Decodes RegModemStat.
 #[napi(js_name = "sx127xModemStatus")]
-pub fn sx127x_modem_status(byte: u32) -> Sx127xModemStatus {
-    let status = DecodedModemStatus::from_byte(byte as u8);
+pub fn sx127x_modem_status(byte: checked::u32) -> Sx127xModemStatus {
+    let status = DecodedModemStatus::from_byte(byte.get() as u8);
     Sx127xModemStatus {
         coding_rate_denominator: status.coding_rate_denominator.map(u32::from),
         clear: status.clear,
@@ -1128,7 +1156,7 @@ fn sx127x_power(power: Sx127xPower) -> Sx127xTxPower {
 
 /// Finds a link's SX127x bandwidth.
 fn sx127x_bandwidth(link: &LoraLink) -> napi::Result<Sx127xBandwidth> {
-    Sx127xBandwidth::from_hz(link.bandwidth_hz).ok_or_else(|| {
+    Sx127xBandwidth::from_hz(link.bandwidth_hz.get()).ok_or_else(|| {
         napi::Error::from_reason(format!(
             "the SX127x has no {} Hz LoRa bandwidth",
             link.bandwidth_hz

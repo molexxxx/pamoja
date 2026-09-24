@@ -16,6 +16,7 @@
 //! definition the way the specification does, and a [`Dialect`] carries the
 //! results, taking precedence over the built-in registry.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_mavlink::dialect::{crc_extra as common_crc_extra, RawMessage};
@@ -58,16 +59,20 @@ pub enum MavlinkVersion {
 #[napi(object)]
 pub struct MavlinkHeader {
     /// The sending system's id.
-    pub system_id: u8,
+    pub system_id: checked::u8,
     /// The sending component's id.
-    pub component_id: u8,
+    pub component_id: checked::u8,
     /// The sender's sequence number, which wraps at 256.
-    pub sequence: u8,
+    pub sequence: checked::u8,
 }
 
 impl From<MavlinkHeader> for Header {
     fn from(header: MavlinkHeader) -> Self {
-        Header::new(header.system_id, header.component_id, header.sequence)
+        Header::new(
+            header.system_id.get(),
+            header.component_id.get(),
+            header.sequence.get(),
+        )
     }
 }
 
@@ -79,7 +84,7 @@ pub struct MavlinkField {
     /// The field's name as the dialect writes it, such as `custom_mode`.
     pub field_name: String,
     /// The element count for an array field; omit or pass `0` for a scalar.
-    pub array_len: Option<u8>,
+    pub array_len: Option<checked::u8>,
 }
 
 /// Turns a MAVLink error into the exception a caller sees.
@@ -117,7 +122,7 @@ pub fn mavlink_message_crc_extra(name: String, fields: Vec<MavlinkField>) -> u8 
             (
                 field.type_name.as_str(),
                 field.field_name.as_str(),
-                field.array_len.unwrap_or(0),
+                field.array_len.get().unwrap_or(0),
             )
         })
         .collect();
@@ -127,14 +132,14 @@ pub fn mavlink_message_crc_extra(name: String, fields: Vec<MavlinkField>) -> u8 
 /// Returns the `CRC_EXTRA` the common dialect publishes for a message id, or
 /// null for an id outside it, which is what a `Dialect` is for.
 #[napi]
-pub fn mavlink_known_crc_extra(msgid: u32) -> Option<u8> {
-    common_crc_extra(msgid)
+pub fn mavlink_known_crc_extra(msgid: checked::u32) -> Option<u8> {
+    common_crc_extra(msgid.get())
 }
 
 /// Converts Unix time into the timestamp MAVLink signing counts in.
 #[napi]
-pub fn mavlink_timestamp_from_unix_micros(unix_micros: f64) -> f64 {
-    signing::timestamp_from_unix_micros(unix_micros as u64) as f64
+pub fn mavlink_timestamp_from_unix_micros(unix_micros: f64) -> Result<f64> {
+    Ok(signing::timestamp_from_unix_micros(checked::whole(unix_micros)?) as f64)
 }
 
 /// The `CRC_EXTRA` seeds of a dialect beyond the common one.
@@ -167,10 +172,10 @@ impl Dialect {
 
     /// Adds or replaces the seed for a message id.
     #[napi]
-    pub fn add(&mut self, msgid: u32, crc_extra: u8) {
-        match self.seeds.iter_mut().find(|(id, _)| *id == msgid) {
-            Some(entry) => entry.1 = crc_extra,
-            None => self.seeds.push((msgid, crc_extra)),
+    pub fn add(&mut self, msgid: checked::u32, crc_extra: checked::u8) {
+        match self.seeds.iter_mut().find(|(id, _)| *id == msgid.get()) {
+            Some(entry) => entry.1 = crc_extra.get(),
+            None => self.seeds.push((msgid.get(), crc_extra.get())),
         }
     }
 
@@ -179,17 +184,22 @@ impl Dialect {
     /// This is the whole path for a vendor dialect: describe the message once,
     /// and every frame carrying it checks from then on.
     #[napi]
-    pub fn add_message(&mut self, msgid: u32, name: String, fields: Vec<MavlinkField>) -> u8 {
+    pub fn add_message(
+        &mut self,
+        msgid: checked::u32,
+        name: String,
+        fields: Vec<MavlinkField>,
+    ) -> u8 {
         let crc_extra = mavlink_message_crc_extra(name, fields);
-        self.add(msgid, crc_extra);
+        self.add(msgid, crc_extra.into());
         crc_extra
     }
 
     /// Returns the seed this dialect resolves a message id to, or null if
     /// neither it nor the common dialect knows the id.
     #[napi]
-    pub fn crc_extra(&self, msgid: u32) -> Option<u8> {
-        self.resolve(msgid)
+    pub fn crc_extra(&self, msgid: checked::u32) -> Option<u8> {
+        self.resolve(msgid.get())
     }
 }
 
@@ -233,11 +243,11 @@ impl MavlinkFrame {
     #[napi(factory)]
     pub fn encode_v2(
         header: MavlinkHeader,
-        msgid: u32,
+        msgid: checked::u32,
         payload: Buffer,
-        crc_extra: u8,
+        crc_extra: checked::u8,
     ) -> Result<Self> {
-        CoreFrame::encode_v2(header.into(), msgid, &payload, crc_extra)
+        CoreFrame::encode_v2(header.into(), msgid.get(), &payload, crc_extra.get())
             .map(|inner| Self { inner })
             .map_err(error_of)
     }
@@ -248,11 +258,11 @@ impl MavlinkFrame {
     #[napi(factory)]
     pub fn encode_v1(
         header: MavlinkHeader,
-        msgid: u32,
+        msgid: checked::u32,
         payload: Buffer,
-        crc_extra: u8,
+        crc_extra: checked::u8,
     ) -> Result<Self> {
-        CoreFrame::encode_v1(header.into(), msgid, &payload, crc_extra)
+        CoreFrame::encode_v1(header.into(), msgid.get(), &payload, crc_extra.get())
             .map(|inner| Self { inner })
             .map_err(error_of)
     }
@@ -262,8 +272,8 @@ impl MavlinkFrame {
     /// Throws if the bytes are not a whole frame or the checksum does not match,
     /// which is what rejects a frame mangled in transit.
     #[napi(factory)]
-    pub fn parse(bytes: Buffer, crc_extra: u8) -> Result<Self> {
-        CoreFrame::parse(&bytes, crc_extra)
+    pub fn parse(bytes: Buffer, crc_extra: checked::u8) -> Result<Self> {
+        CoreFrame::parse(&bytes, crc_extra.get())
             .map(|inner| Self { inner })
             .map_err(error_of)
     }
@@ -284,10 +294,15 @@ impl MavlinkFrame {
     /// The escape hatch a private dialect needs: supply the id, the payload, and
     /// the seed, and the frame is built and checked like any other.
     #[napi(factory)]
-    pub fn raw(header: MavlinkHeader, msgid: u32, crc_extra: u8, payload: Buffer) -> Result<Self> {
+    pub fn raw(
+        header: MavlinkHeader,
+        msgid: checked::u32,
+        crc_extra: checked::u8,
+        payload: Buffer,
+    ) -> Result<Self> {
         RawMessage {
-            msgid,
-            crc_extra,
+            msgid: msgid.get(),
+            crc_extra: crc_extra.get(),
             payload: &payload,
         }
         .to_frame(header.into())
@@ -308,9 +323,9 @@ impl MavlinkFrame {
     #[napi(getter)]
     pub fn header(&self) -> MavlinkHeader {
         MavlinkHeader {
-            system_id: self.inner.system_id(),
-            component_id: self.inner.component_id(),
-            sequence: self.inner.sequence(),
+            system_id: self.inner.system_id().into(),
+            component_id: self.inner.component_id().into(),
+            sequence: self.inner.sequence().into(),
         }
     }
 
@@ -437,7 +452,7 @@ impl MavlinkSigner {
     /// The link id separates two links from one system, so traffic on one does
     /// not look like a replay of the other.
     #[napi(constructor)]
-    pub fn new(key: Buffer, link_id: u8, timestamp: f64) -> Result<Self> {
+    pub fn new(key: Buffer, link_id: checked::u8, timestamp: f64) -> Result<Self> {
         let key: [u8; signing::KEY_LEN] = key.as_ref().try_into().map_err(|_| {
             Error::new(
                 Status::InvalidArg,
@@ -445,7 +460,7 @@ impl MavlinkSigner {
             )
         })?;
         Ok(Self {
-            inner: CoreSigner::new(key, link_id, timestamp as u64),
+            inner: CoreSigner::new(key, link_id.get(), checked::whole(timestamp)?),
         })
     }
 
@@ -457,12 +472,12 @@ impl MavlinkSigner {
     pub fn sign(
         &mut self,
         header: MavlinkHeader,
-        msgid: u32,
+        msgid: checked::u32,
         payload: Buffer,
-        crc_extra: u8,
+        crc_extra: checked::u8,
     ) -> Result<MavlinkFrame> {
         self.inner
-            .sign(header.into(), msgid, &payload, crc_extra)
+            .sign(header.into(), msgid.get(), &payload, crc_extra.get())
             .map(|inner| MavlinkFrame { inner })
             .map_err(error_of)
     }
@@ -501,10 +516,12 @@ impl MavlinkVerifier {
     /// A wider window tolerates a noisier link; a narrower one narrows the
     /// chance of a replay landing inside it.
     #[napi]
-    pub fn set_window(&mut self, window: f64) {
+    pub fn set_window(&mut self, window: f64) -> Result<()> {
+        let window = checked::whole(window)?;
         if let Some(verifier) = self.inner.take() {
-            self.inner = Some(verifier.with_window(window as u64));
+            self.inner = Some(verifier.with_window(window));
         }
+        Ok(())
     }
 
     /// Checks a frame's signature and its place in the timestamp sequence.

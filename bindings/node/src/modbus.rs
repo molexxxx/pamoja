@@ -14,6 +14,7 @@
 //! port. A transaction resolves with an outcome the facade turns into values or a thrown
 //! `ModbusClientError`, so a program can tell a device's exception from a timeout.
 
+use crate::checked;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -48,68 +49,90 @@ pub fn modbus_crc16(bytes: Buffer) -> u16 {
 
 /// Builds a read-coils request frame (function `0x01`).
 #[napi]
-pub fn modbus_read_coils(address: u8, start: u16, count: u16) -> Buffer {
-    Pdu::read_coils(start, count)
-        .to_adu(address)
+pub fn modbus_read_coils(address: checked::u8, start: checked::u16, count: checked::u16) -> Buffer {
+    Pdu::read_coils(start.get(), count.get())
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
 
 /// Builds a read-discrete-inputs request frame (function `0x02`).
 #[napi]
-pub fn modbus_read_discrete_inputs(address: u8, start: u16, count: u16) -> Buffer {
-    Pdu::read_discrete_inputs(start, count)
-        .to_adu(address)
+pub fn modbus_read_discrete_inputs(
+    address: checked::u8,
+    start: checked::u16,
+    count: checked::u16,
+) -> Buffer {
+    Pdu::read_discrete_inputs(start.get(), count.get())
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
 
 /// Builds a read-holding-registers request frame (function `0x03`).
 #[napi]
-pub fn modbus_read_holding_registers(address: u8, start: u16, count: u16) -> Buffer {
-    Pdu::read_holding_registers(start, count)
-        .to_adu(address)
+pub fn modbus_read_holding_registers(
+    address: checked::u8,
+    start: checked::u16,
+    count: checked::u16,
+) -> Buffer {
+    Pdu::read_holding_registers(start.get(), count.get())
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
 
 /// Builds the reply a device sends to a read-holding-registers request.
 #[napi]
-pub fn modbus_read_holding_registers_reply(address: u8, values: Vec<u16>) -> napi::Result<Buffer> {
-    let pdu = Pdu::read_holding_registers_reply(&values).map_err(to_napi)?;
-    Ok(pdu.to_adu(address).as_bytes().into())
+pub fn modbus_read_holding_registers_reply(
+    address: checked::u8,
+    values: Vec<checked::u16>,
+) -> napi::Result<Buffer> {
+    let pdu = Pdu::read_holding_registers_reply(&checked::all(values)).map_err(to_napi)?;
+    Ok(pdu.to_adu(address.get()).as_bytes().into())
 }
 
 /// Builds the reply a device sends to a read-input-registers request.
 #[napi]
-pub fn modbus_read_input_registers_reply(address: u8, values: Vec<u16>) -> napi::Result<Buffer> {
-    let pdu = Pdu::read_input_registers_reply(&values).map_err(to_napi)?;
-    Ok(pdu.to_adu(address).as_bytes().into())
+pub fn modbus_read_input_registers_reply(
+    address: checked::u8,
+    values: Vec<checked::u16>,
+) -> napi::Result<Buffer> {
+    let pdu = Pdu::read_input_registers_reply(&checked::all(values)).map_err(to_napi)?;
+    Ok(pdu.to_adu(address.get()).as_bytes().into())
 }
 
 /// Builds a read-input-registers request frame (function `0x04`).
 #[napi]
-pub fn modbus_read_input_registers(address: u8, start: u16, count: u16) -> Buffer {
-    Pdu::read_input_registers(start, count)
-        .to_adu(address)
+pub fn modbus_read_input_registers(
+    address: checked::u8,
+    start: checked::u16,
+    count: checked::u16,
+) -> Buffer {
+    Pdu::read_input_registers(start.get(), count.get())
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
 
 /// Builds a write-single-coil request frame (function `0x05`).
 #[napi]
-pub fn modbus_write_single_coil(address: u8, coil: u16, on: bool) -> Buffer {
-    Pdu::write_single_coil(coil, on)
-        .to_adu(address)
+pub fn modbus_write_single_coil(address: checked::u8, coil: checked::u16, on: bool) -> Buffer {
+    Pdu::write_single_coil(coil.get(), on)
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
 
 /// Builds a write-single-register request frame (function `0x06`).
 #[napi]
-pub fn modbus_write_single_register(address: u8, register: u16, value: u16) -> Buffer {
-    Pdu::write_single_register(register, value)
-        .to_adu(address)
+pub fn modbus_write_single_register(
+    address: checked::u8,
+    register: checked::u16,
+    value: checked::u16,
+) -> Buffer {
+    Pdu::write_single_register(register.get(), value.get())
+        .to_adu(address.get())
         .as_bytes()
         .into()
 }
@@ -117,24 +140,24 @@ pub fn modbus_write_single_register(address: u8, register: u16, value: u16) -> B
 /// Builds a write-multiple-registers request frame (function `0x10`).
 #[napi]
 pub fn modbus_write_multiple_registers(
-    address: u8,
-    start: u16,
-    values: Vec<u16>,
+    address: checked::u8,
+    start: checked::u16,
+    values: Vec<checked::u16>,
 ) -> napi::Result<Buffer> {
-    Pdu::write_multiple_registers(start, &values)
-        .map(|pdu| pdu.to_adu(address).as_bytes().into())
+    Pdu::write_multiple_registers(start.get(), &checked::all(values))
+        .map(|pdu| pdu.to_adu(address.get()).as_bytes().into())
         .map_err(to_napi)
 }
 
 /// Builds a write-multiple-coils request frame (function `0x0F`).
 #[napi]
 pub fn modbus_write_multiple_coils(
-    address: u8,
-    start: u16,
+    address: checked::u8,
+    start: checked::u16,
     values: Vec<bool>,
 ) -> napi::Result<Buffer> {
-    Pdu::write_multiple_coils(start, &values)
-        .map(|pdu| pdu.to_adu(address).as_bytes().into())
+    Pdu::write_multiple_coils(start.get(), &values)
+        .map(|pdu| pdu.to_adu(address.get()).as_bytes().into())
         .map_err(to_napi)
 }
 
@@ -142,9 +165,13 @@ pub fn modbus_write_multiple_coils(
 ///
 /// This is the escape hatch for the function codes the SDK does not name.
 #[napi]
-pub fn modbus_raw(address: u8, function_code: u8, data: Buffer) -> napi::Result<Buffer> {
-    Pdu::raw(function_code, data.as_ref())
-        .map(|pdu| pdu.to_adu(address).as_bytes().into())
+pub fn modbus_raw(
+    address: checked::u8,
+    function_code: checked::u8,
+    data: Buffer,
+) -> napi::Result<Buffer> {
+    Pdu::raw(function_code.get(), data.as_ref())
+        .map(|pdu| pdu.to_adu(address.get()).as_bytes().into())
         .map_err(to_napi)
 }
 
@@ -171,9 +198,9 @@ pub fn modbus_registers(pdu: Buffer) -> napi::Result<Vec<u16>> {
 
 /// Reads `count` coils or discrete inputs out of a read-bits response PDU.
 #[napi]
-pub fn modbus_coils(pdu: Buffer, count: u16) -> napi::Result<Vec<bool>> {
+pub fn modbus_coils(pdu: Buffer, count: checked::u16) -> napi::Result<Vec<bool>> {
     Response::new(pdu.as_ref())
-        .coils(count)
+        .coils(count.get())
         .map(Iterator::collect)
         .map_err(to_napi)
 }
@@ -204,8 +231,8 @@ impl ModbusServer {
     /// A device at a unit address, 1 to 247, with every table empty. Throws for 0, the
     /// broadcast address, and for 248 to 255, which the specification reserves.
     #[napi(constructor)]
-    pub fn new(unit: u8) -> napi::Result<Self> {
-        Server::new(unit)
+    pub fn new(unit: checked::u8) -> napi::Result<Self> {
+        Server::new(unit.get())
             .map(|server| ModbusServer {
                 inner: Arc::new(Mutex::new(server)),
             })
@@ -226,50 +253,50 @@ impl ModbusServer {
 
     /// Sets coils from an address on, adding any the device did not have.
     #[napi]
-    pub fn set_coils(&self, start: u16, values: Vec<bool>) {
-        lock(&self.inner).set_coils(start, &values);
+    pub fn set_coils(&self, start: checked::u16, values: Vec<bool>) {
+        lock(&self.inner).set_coils(start.get(), &values);
     }
 
     /// Sets discrete inputs from an address on, adding any the device did not have.
     #[napi]
-    pub fn set_discrete_inputs(&self, start: u16, values: Vec<bool>) {
-        lock(&self.inner).set_discrete_inputs(start, &values);
+    pub fn set_discrete_inputs(&self, start: checked::u16, values: Vec<bool>) {
+        lock(&self.inner).set_discrete_inputs(start.get(), &values);
     }
 
     /// Sets holding registers from an address on, adding any the device did not have.
     #[napi]
-    pub fn set_holding_registers(&self, start: u16, values: Vec<u16>) {
-        lock(&self.inner).set_holding_registers(start, &values);
+    pub fn set_holding_registers(&self, start: checked::u16, values: Vec<checked::u16>) {
+        lock(&self.inner).set_holding_registers(start.get(), &checked::all(values));
     }
 
     /// Sets input registers from an address on, adding any the device did not have.
     #[napi]
-    pub fn set_input_registers(&self, start: u16, values: Vec<u16>) {
-        lock(&self.inner).set_input_registers(start, &values);
+    pub fn set_input_registers(&self, start: checked::u16, values: Vec<checked::u16>) {
+        lock(&self.inner).set_input_registers(start.get(), &checked::all(values));
     }
 
     /// A coil's state, or `null` when the device has no coil there.
     #[napi]
-    pub fn coil(&self, address: u16) -> Option<bool> {
-        lock(&self.inner).coil(address)
+    pub fn coil(&self, address: checked::u16) -> Option<bool> {
+        lock(&self.inner).coil(address.get())
     }
 
     /// A discrete input's state, or `null` when the device has no input there.
     #[napi]
-    pub fn discrete_input(&self, address: u16) -> Option<bool> {
-        lock(&self.inner).discrete_input(address)
+    pub fn discrete_input(&self, address: checked::u16) -> Option<bool> {
+        lock(&self.inner).discrete_input(address.get())
     }
 
     /// A holding register's value, or `null` when the device has no register there.
     #[napi]
-    pub fn holding_register(&self, address: u16) -> Option<u16> {
-        lock(&self.inner).holding_register(address)
+    pub fn holding_register(&self, address: checked::u16) -> Option<u16> {
+        lock(&self.inner).holding_register(address.get())
     }
 
     /// An input register's value, or `null` when the device has no register there.
     #[napi]
-    pub fn input_register(&self, address: u16) -> Option<u16> {
-        lock(&self.inner).input_register(address)
+    pub fn input_register(&self, address: checked::u16) -> Option<u16> {
+        lock(&self.inner).input_register(address.get())
     }
 
     /// Answers one RTU frame, as the device on the line does, or returns `null` when it stays
@@ -458,12 +485,14 @@ impl ModbusClient {
     #[napi]
     pub async fn read_coils(
         &self,
-        unit: u8,
-        start: u16,
-        quantity: u16,
+        unit: checked::u8,
+        start: checked::u16,
+        quantity: checked::u16,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
-            client.read_coils(unit, start, quantity).map(Values::Bits)
+        transact(&self.inner, unit.get(), move |client| {
+            client
+                .read_coils(unit.get(), start.get(), quantity.get())
+                .map(Values::Bits)
         })
         .await
     }
@@ -472,13 +501,13 @@ impl ModbusClient {
     #[napi]
     pub async fn read_discrete_inputs(
         &self,
-        unit: u8,
-        start: u16,
-        quantity: u16,
+        unit: checked::u8,
+        start: checked::u16,
+        quantity: checked::u16,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .read_discrete_inputs(unit, start, quantity)
+                .read_discrete_inputs(unit.get(), start.get(), quantity.get())
                 .map(Values::Bits)
         })
         .await
@@ -488,13 +517,13 @@ impl ModbusClient {
     #[napi]
     pub async fn read_holding_registers(
         &self,
-        unit: u8,
-        start: u16,
-        quantity: u16,
+        unit: checked::u8,
+        start: checked::u16,
+        quantity: checked::u16,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .read_holding_registers(unit, start, quantity)
+                .read_holding_registers(unit.get(), start.get(), quantity.get())
                 .map(Values::Registers)
         })
         .await
@@ -504,13 +533,13 @@ impl ModbusClient {
     #[napi]
     pub async fn read_input_registers(
         &self,
-        unit: u8,
-        start: u16,
-        quantity: u16,
+        unit: checked::u8,
+        start: checked::u16,
+        quantity: checked::u16,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .read_input_registers(unit, start, quantity)
+                .read_input_registers(unit.get(), start.get(), quantity.get())
                 .map(Values::Registers)
         })
         .await
@@ -520,13 +549,13 @@ impl ModbusClient {
     #[napi]
     pub async fn write_single_coil(
         &self,
-        unit: u8,
-        address: u16,
+        unit: checked::u8,
+        address: checked::u16,
         on: bool,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .write_single_coil(unit, address, on)
+                .write_single_coil(unit.get(), address.get(), on)
                 .map(|()| Values::None)
         })
         .await
@@ -536,13 +565,13 @@ impl ModbusClient {
     #[napi]
     pub async fn write_single_register(
         &self,
-        unit: u8,
-        address: u16,
-        value: u16,
+        unit: checked::u8,
+        address: checked::u16,
+        value: checked::u16,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .write_single_register(unit, address, value)
+                .write_single_register(unit.get(), address.get(), value.get())
                 .map(|()| Values::None)
         })
         .await
@@ -552,13 +581,13 @@ impl ModbusClient {
     #[napi]
     pub async fn write_multiple_coils(
         &self,
-        unit: u8,
-        start: u16,
+        unit: checked::u8,
+        start: checked::u16,
         values: Vec<bool>,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .write_multiple_coils(unit, start, &values)
+                .write_multiple_coils(unit.get(), start.get(), &values)
                 .map(|()| Values::None)
         })
         .await
@@ -569,13 +598,13 @@ impl ModbusClient {
     #[napi]
     pub async fn write_multiple_registers(
         &self,
-        unit: u8,
-        start: u16,
-        values: Vec<u16>,
+        unit: checked::u8,
+        start: checked::u16,
+        values: Vec<checked::u16>,
     ) -> napi::Result<ModbusOutcome> {
-        transact(&self.inner, unit, move |client| {
+        transact(&self.inner, unit.get(), move |client| {
             client
-                .write_multiple_registers(unit, start, &values)
+                .write_multiple_registers(unit.get(), start.get(), &checked::all(values))
                 .map(|()| Values::None)
         })
         .await

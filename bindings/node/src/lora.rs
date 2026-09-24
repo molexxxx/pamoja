@@ -11,6 +11,7 @@
 //! The link budget crosses as plain numbers of decibels, resolved to the hundredth of
 //! a decibel the Rust crate holds.
 
+use crate::checked::{self, OptionalWhole};
 use napi_derive::napi;
 use pamoja_lora::budget::{self, Decibels, Fcc15247, LinkBudget};
 use pamoja_lora::LinkSettings;
@@ -19,13 +20,13 @@ use pamoja_lora::LinkSettings;
 #[napi(object)]
 pub struct LoraLink {
     /// The spreading factor, 5 (fastest) to 12 (longest range).
-    pub spreading_factor: u8,
+    pub spreading_factor: checked::u8,
     /// The channel bandwidth in hertz, such as `125000`.
-    pub bandwidth_hz: u32,
+    pub bandwidth_hz: checked::u32,
     /// The coding-rate denominator, 5 to 8, for 4/5 to 4/8.
-    pub coding_rate_denominator: u8,
+    pub coding_rate_denominator: checked::u8,
     /// The preamble length in symbols; the LoRa default is 8.
-    pub preamble_symbols: u16,
+    pub preamble_symbols: checked::u16,
     /// Whether the frame carries an explicit header.
     pub explicit_header: bool,
     /// Whether the frame carries a CRC.
@@ -37,13 +38,13 @@ pub struct LoraLink {
 /// The defaults are coding rate 4/5, an eight-symbol preamble, an explicit header,
 /// and CRC on, which is a typical uplink. The spreading factor is clamped to 5-12.
 #[napi]
-pub fn lora_link_default(spreading_factor: u8, bandwidth_hz: u32) -> LoraLink {
-    let settings = LinkSettings::new(spreading_factor, bandwidth_hz);
+pub fn lora_link_default(spreading_factor: checked::u8, bandwidth_hz: checked::u32) -> LoraLink {
+    let settings = LinkSettings::new(spreading_factor.get(), bandwidth_hz.get());
     LoraLink {
-        spreading_factor: settings.spreading_factor(),
-        bandwidth_hz: settings.bandwidth_hz(),
-        coding_rate_denominator: 5,
-        preamble_symbols: 8,
+        spreading_factor: settings.spreading_factor().into(),
+        bandwidth_hz: settings.bandwidth_hz().into(),
+        coding_rate_denominator: 5.into(),
+        preamble_symbols: 8.into(),
         explicit_header: true,
         crc: true,
     }
@@ -70,8 +71,8 @@ pub fn lora_low_data_rate_optimization(link: LoraLink) -> bool {
 /// This is the channel occupancy a transmission costs, which sets both the
 /// duty-cycle budget and most of the energy the transmission spends.
 #[napi]
-pub fn lora_airtime_us(link: LoraLink, payload_len: u32) -> f64 {
-    settings(&link).airtime_us(payload_len as usize) as f64
+pub fn lora_airtime_us(link: LoraLink, payload_len: checked::u32) -> f64 {
+    settings(&link).airtime_us(payload_len.get() as usize) as f64
 }
 
 /// Returns the minimum silence after a transmission to honor a duty-cycle limit.
@@ -83,13 +84,16 @@ pub fn lora_airtime_us(link: LoraLink, payload_len: u32) -> f64 {
 #[napi]
 pub fn lora_min_off_time_us(
     link: LoraLink,
-    payload_len: u32,
-    duty_cycle_permille: u32,
+    payload_len: checked::u32,
+    duty_cycle_permille: checked::u32,
 ) -> Option<f64> {
-    if duty_cycle_permille == 0 {
+    if duty_cycle_permille.get() == 0 {
         return None;
     }
-    Some(settings(&link).min_off_time_us(payload_len as usize, duty_cycle_permille) as f64)
+    Some(
+        settings(&link).min_off_time_us(payload_len.get() as usize, duty_cycle_permille.get())
+            as f64,
+    )
 }
 
 /// Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
@@ -97,17 +101,21 @@ pub fn lora_min_off_time_us(
 /// A transmission really costs its airtime plus the silence the limit forces after it. A
 /// limit of `0` forbids transmitting, which comes back as `0`.
 #[napi]
-pub fn lora_messages_per_hour(link: LoraLink, payload_len: u32, duty_cycle_permille: u32) -> f64 {
-    settings(&link).messages_per_hour(payload_len as usize, duty_cycle_permille) as f64
+pub fn lora_messages_per_hour(
+    link: LoraLink,
+    payload_len: checked::u32,
+    duty_cycle_permille: checked::u32,
+) -> f64 {
+    settings(&link).messages_per_hour(payload_len.get() as usize, duty_cycle_permille.get()) as f64
 }
 
 /// Describes link settings the way JavaScript holds them.
 pub(crate) fn lora_link_of(settings: LinkSettings) -> LoraLink {
     LoraLink {
-        spreading_factor: settings.spreading_factor(),
-        bandwidth_hz: settings.bandwidth_hz(),
-        coding_rate_denominator: settings.coding_rate_denominator(),
-        preamble_symbols: settings.preamble_symbols(),
+        spreading_factor: settings.spreading_factor().into(),
+        bandwidth_hz: settings.bandwidth_hz().into(),
+        coding_rate_denominator: settings.coding_rate_denominator().into(),
+        preamble_symbols: settings.preamble_symbols().into(),
         explicit_header: settings.explicit_header(),
         crc: settings.crc(),
     }
@@ -115,9 +123,9 @@ pub(crate) fn lora_link_of(settings: LinkSettings) -> LoraLink {
 
 /// Rebuilds the Rust link settings, clamping every value to its LoRa range.
 pub(crate) fn settings(link: &LoraLink) -> LinkSettings {
-    let mut settings = LinkSettings::new(link.spreading_factor, link.bandwidth_hz)
-        .with_coding_rate(link.coding_rate_denominator)
-        .with_preamble(link.preamble_symbols);
+    let mut settings = LinkSettings::new(link.spreading_factor.get(), link.bandwidth_hz.get())
+        .with_coding_rate(link.coding_rate_denominator.get())
+        .with_preamble(link.preamble_symbols.get());
     if !link.explicit_header {
         settings = settings.implicit_header();
     }
@@ -200,26 +208,33 @@ pub fn lora_max_transmit_power_dbm(budget: LoraLinkBudget, eirp_ceiling_dbm: f64
 
 /// Returns the thermal noise power in a channel, in dBm.
 #[napi]
-pub fn lora_noise_floor_dbm(bandwidth_hz: u32) -> f64 {
-    db(budget::noise_floor_dbm(bandwidth_hz))
+pub fn lora_noise_floor_dbm(bandwidth_hz: checked::u32) -> f64 {
+    db(budget::noise_floor_dbm(bandwidth_hz.get()))
 }
 
 /// Returns the signal-to-noise ratio the LoRa demodulator needs at a spreading factor, in dB.
 #[napi]
-pub fn lora_demodulator_snr_db(spreading_factor: u8) -> f64 {
-    db(budget::demodulator_snr_db(spreading_factor))
+pub fn lora_demodulator_snr_db(spreading_factor: checked::u8) -> f64 {
+    db(budget::demodulator_snr_db(spreading_factor.get()))
 }
 
 /// Returns the free-space basic transmission loss between isotropic antennas, in dB.
 #[napi]
-pub fn lora_free_space_loss_db(distance_m: u32, frequency_hz: u32) -> f64 {
-    db(budget::free_space_loss_db(distance_m, frequency_hz))
+pub fn lora_free_space_loss_db(distance_m: checked::u32, frequency_hz: checked::u32) -> f64 {
+    db(budget::free_space_loss_db(
+        distance_m.get(),
+        frequency_hz.get(),
+    ))
 }
 
 /// Returns the radius of the first Fresnel ellipsoid at a point on a path, in millimeters.
 #[napi]
-pub fn lora_fresnel_radius_mm(near_m: u32, far_m: u32, frequency_hz: u32) -> u32 {
-    budget::fresnel_radius_mm(near_m, far_m, frequency_hz)
+pub fn lora_fresnel_radius_mm(
+    near_m: checked::u32,
+    far_m: checked::u32,
+    frequency_hz: checked::u32,
+) -> u32 {
+    budget::fresnel_radius_mm(near_m.get(), far_m.get(), frequency_hz.get())
 }
 
 /// Returns the most conducted power 47 CFR 15.247 allows a 902-928 MHz transmitter
@@ -231,9 +246,9 @@ pub fn lora_fresnel_radius_mm(near_m: u32, far_m: u32, frequency_hz: u32) -> u32
 #[napi]
 pub fn lora_fcc_max_conducted_dbm(
     antenna_gain_dbi: f64,
-    hopping_channels: Option<u16>,
+    hopping_channels: Option<checked::u16>,
 ) -> Option<f64> {
-    let system = match hopping_channels {
+    let system = match hopping_channels.get() {
         None => Fcc15247::DigitalModulation,
         Some(channels) => Fcc15247::FrequencyHopping { channels },
     };

@@ -9,6 +9,7 @@
 //! a count of microseconds rather than the string the protocol writes, so nothing has to be
 //! formatted by hand.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_gateway::udp::{
@@ -50,13 +51,13 @@ pub enum GatewayCrc {
 #[napi(object, js_name = "GatewayRxpk")]
 pub struct GatewayRxpk {
     /// The carrier it arrived on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The packet itself.
     pub payload: Buffer,
     /// The spreading factor, bandwidth, and coding rate, for a LoRa packet.
     pub link: Option<LoraLink>,
     /// The bitrate in bits per second, for an FSK packet.
-    pub bitrate_bps: Option<u32>,
+    pub bitrate_bps: Option<checked::u32>,
     /// What the CRC said; `Ok` when omitted.
     pub crc: Option<GatewayCrc>,
     /// The received signal strength in dBm.
@@ -64,11 +65,11 @@ pub struct GatewayRxpk {
     /// The signal-to-noise ratio in dB.
     pub snr_db: Option<f64>,
     /// The concentrator channel it arrived on.
-    pub channel: Option<u8>,
+    pub channel: Option<checked::u8>,
     /// The radio chain it arrived on.
-    pub rf_chain: Option<u8>,
+    pub rf_chain: Option<checked::u8>,
     /// The concentrator's own timestamp of the reception, in microseconds.
-    pub timestamp_us: Option<u32>,
+    pub timestamp_us: Option<checked::u32>,
     /// When it arrived, in microseconds since 1970-01-01 UTC.
     pub received_at_us: Option<f64>,
     /// When it arrived on the GPS clock, in milliseconds since 6 January 1980.
@@ -85,48 +86,48 @@ pub struct GatewayStat {
     /// Its longitude in degrees, east positive.
     pub longitude_deg: Option<f64>,
     /// Its altitude in meters.
-    pub altitude_m: Option<i32>,
+    pub altitude_m: Option<checked::i32>,
     /// How many packets its radio received.
-    pub received: u32,
+    pub received: checked::u32,
     /// How many of those had a good CRC.
-    pub received_ok: u32,
+    pub received_ok: checked::u32,
     /// How many it forwarded.
-    pub forwarded: u32,
+    pub forwarded: checked::u32,
     /// What share of its datagrams were acknowledged, as a percentage.
     pub acknowledged_percent: Option<f64>,
     /// How many downlink datagrams it received.
-    pub downlinks: u32,
+    pub downlinks: checked::u32,
     /// How many packets it transmitted.
-    pub transmitted: u32,
+    pub transmitted: checked::u32,
 }
 
 /// A packet the server asks the gateway to transmit.
 #[napi(object, js_name = "GatewayTxpk")]
 pub struct GatewayTxpk {
     /// The carrier to transmit on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The packet itself.
     pub payload: Buffer,
     /// The spreading factor, bandwidth, and coding rate, for a LoRa packet.
     pub link: Option<LoraLink>,
     /// The bitrate in bits per second, for an FSK packet.
-    pub bitrate_bps: Option<u32>,
+    pub bitrate_bps: Option<checked::u32>,
     /// Whether to transmit at once, which ignores the timestamps.
     pub immediate: Option<bool>,
     /// The concentrator timestamp to transmit at, in microseconds.
-    pub timestamp_us: Option<u32>,
+    pub timestamp_us: Option<checked::u32>,
     /// The GPS time to transmit at, in milliseconds since 6 January 1980.
     pub gps_millis: Option<f64>,
     /// The radio chain to transmit from.
-    pub rf_chain: Option<u8>,
+    pub rf_chain: Option<checked::u8>,
     /// The power to transmit at, in dBm; 14 when omitted.
-    pub power_dbm: Option<i32>,
+    pub power_dbm: Option<checked::i32>,
     /// The FSK frequency deviation in hertz.
-    pub frequency_deviation_hz: Option<u32>,
+    pub frequency_deviation_hz: Option<checked::u32>,
     /// Whether to invert the LoRa polarity, as a LoRaWAN downlink is sent.
     pub invert_polarity: Option<bool>,
     /// How long a preamble to send, in symbols.
-    pub preamble_symbols: Option<u16>,
+    pub preamble_symbols: Option<checked::u16>,
     /// Whether to leave the physical CRC off, as LoRaWAN downlinks are.
     pub without_crc: Option<bool>,
 }
@@ -137,7 +138,7 @@ pub struct GatewayPacket {
     /// Which kind of datagram.
     pub kind: GatewayPacketKind,
     /// The token that pairs a datagram with its answer.
-    pub token: u16,
+    pub token: checked::u16,
     /// The gateway's identifier, as sixteen hexadecimal digits, for the kinds that carry one.
     pub gateway: Option<String>,
     /// The packets a PUSH_DATA forwards.
@@ -179,7 +180,7 @@ fn packet_of(packet: GatewayPacket) -> napi::Result<Packet> {
     let token = packet.token;
     Ok(match packet.kind {
         GatewayPacketKind::PushData => Packet::PushData {
-            token,
+            token: token.get(),
             gateway: gateway_of(packet.gateway.as_deref())?,
             uplink: Uplink {
                 packets: packet
@@ -191,20 +192,20 @@ fn packet_of(packet: GatewayPacket) -> napi::Result<Packet> {
                 status: packet.status.map(stat_of),
             },
         },
-        GatewayPacketKind::PushAck => Packet::PushAck { token },
+        GatewayPacketKind::PushAck => Packet::PushAck { token: token.get() },
         GatewayPacketKind::PullData => Packet::PullData {
-            token,
+            token: token.get(),
             gateway: gateway_of(packet.gateway.as_deref())?,
         },
-        GatewayPacketKind::PullAck => Packet::PullAck { token },
+        GatewayPacketKind::PullAck => Packet::PullAck { token: token.get() },
         GatewayPacketKind::PullResp => Packet::PullResp {
-            token,
+            token: token.get(),
             transmit: txpk_of(packet.transmit.ok_or_else(|| {
                 napi::Error::from_reason("a PullResp carries what to transmit in `transmit`")
             })?),
         },
         GatewayPacketKind::TxAck => Packet::TxAck {
-            token,
+            token: token.get(),
             gateway: gateway_of(packet.gateway.as_deref())?,
             status: match packet.tx_status.as_deref() {
                 None => TxStatus::None,
@@ -227,7 +228,7 @@ fn packet_to_js(packet: &Packet) -> GatewayPacket {
     };
     GatewayPacket {
         kind: kind_to_js(packet.kind()),
-        token: packet.token(),
+        token: packet.token().into(),
         gateway: packet.gateway().map(|gateway| gateway.to_hex()),
         packets,
         status,
@@ -290,16 +291,16 @@ pub(crate) fn rxpk_of(heard: GatewayRxpk) -> Rxpk {
             .received_at_us
             .map(|micros| pamoja_gateway::time::compact(micros as u64)),
         gps_millis: heard.gps_millis.map(|millis| millis as u64),
-        timestamp_us: heard.timestamp_us,
-        frequency_hz: heard.frequency_hz,
-        channel: heard.channel.unwrap_or(0),
-        rf_chain: heard.rf_chain.unwrap_or(0),
+        timestamp_us: heard.timestamp_us.get(),
+        frequency_hz: heard.frequency_hz.get(),
+        channel: heard.channel.get().unwrap_or(0),
+        rf_chain: heard.rf_chain.get().unwrap_or(0),
         crc: match heard.crc {
             None | Some(GatewayCrc::Ok) => CrcStatus::Ok,
             Some(GatewayCrc::Failed) => CrcStatus::Failed,
             Some(GatewayCrc::Absent) => CrcStatus::Absent,
         },
-        modulation: modulation_of(heard.link, heard.bitrate_bps),
+        modulation: modulation_of(heard.link, heard.bitrate_bps.get()),
         rssi_dbm: heard.rssi_dbm.map_or(Decibels::ZERO, decibels),
         snr_db: heard.snr_db.map(decibels),
         payload: heard.payload.to_vec(),
@@ -310,10 +311,10 @@ pub(crate) fn rxpk_of(heard: GatewayRxpk) -> Rxpk {
 fn rxpk_to_js(heard: &Rxpk) -> GatewayRxpk {
     let (link, bitrate_bps) = modulation_to_js(heard.modulation);
     GatewayRxpk {
-        frequency_hz: heard.frequency_hz,
+        frequency_hz: heard.frequency_hz.into(),
         payload: Buffer::from(heard.payload.clone()),
         link,
-        bitrate_bps,
+        bitrate_bps: bitrate_bps.map(Into::into),
         crc: Some(match heard.crc {
             CrcStatus::Ok => GatewayCrc::Ok,
             CrcStatus::Failed => GatewayCrc::Failed,
@@ -321,9 +322,9 @@ fn rxpk_to_js(heard: &Rxpk) -> GatewayRxpk {
         }),
         rssi_dbm: Some(db(heard.rssi_dbm)),
         snr_db: heard.snr_db.map(db),
-        channel: Some(heard.channel),
-        rf_chain: Some(heard.rf_chain),
-        timestamp_us: heard.timestamp_us,
+        channel: Some(heard.channel.into()),
+        rf_chain: Some(heard.rf_chain.into()),
+        timestamp_us: heard.timestamp_us.map(Into::into),
         received_at_us: heard
             .received_at
             .as_deref()
@@ -341,13 +342,13 @@ fn stat_of(report: GatewayStat) -> Stat {
             .map(|seconds| pamoja_gateway::time::expanded(seconds as u64)),
         latitude_deg: report.latitude_deg,
         longitude_deg: report.longitude_deg,
-        altitude_m: report.altitude_m,
-        received: report.received,
-        received_ok: report.received_ok,
-        forwarded: report.forwarded,
+        altitude_m: report.altitude_m.get(),
+        received: report.received.get(),
+        received_ok: report.received_ok.get(),
+        forwarded: report.forwarded.get(),
         acknowledged_percent: report.acknowledged_percent.unwrap_or(0.0),
-        downlinks: report.downlinks,
-        transmitted: report.transmitted,
+        downlinks: report.downlinks.get(),
+        transmitted: report.transmitted.get(),
     }
 }
 
@@ -361,13 +362,13 @@ fn stat_to_js(report: &Stat) -> GatewayStat {
             .map(|seconds| seconds as f64),
         latitude_deg: report.latitude_deg,
         longitude_deg: report.longitude_deg,
-        altitude_m: report.altitude_m,
-        received: report.received,
-        received_ok: report.received_ok,
-        forwarded: report.forwarded,
+        altitude_m: report.altitude_m.map(Into::into),
+        received: report.received.into(),
+        received_ok: report.received_ok.into(),
+        forwarded: report.forwarded.into(),
         acknowledged_percent: Some(report.acknowledged_percent),
-        downlinks: report.downlinks,
-        transmitted: report.transmitted,
+        downlinks: report.downlinks.into(),
+        transmitted: report.transmitted.into(),
     }
 }
 
@@ -375,18 +376,19 @@ fn stat_to_js(report: &Stat) -> GatewayStat {
 fn txpk_of(request: GatewayTxpk) -> Txpk {
     Txpk {
         immediate: request.immediate.unwrap_or(request.timestamp_us.is_none()),
-        timestamp_us: request.timestamp_us,
+        timestamp_us: request.timestamp_us.get(),
         gps_millis: request.gps_millis.map(|millis| millis as u64),
-        frequency_hz: request.frequency_hz,
-        rf_chain: request.rf_chain.unwrap_or(0),
+        frequency_hz: request.frequency_hz.get(),
+        rf_chain: request.rf_chain.get().unwrap_or(0),
         power_dbm: request
             .power_dbm
+            .get()
             .unwrap_or(14)
             .clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
-        modulation: modulation_of(request.link, request.bitrate_bps),
-        frequency_deviation_hz: request.frequency_deviation_hz,
+        modulation: modulation_of(request.link, request.bitrate_bps.get()),
+        frequency_deviation_hz: request.frequency_deviation_hz.get(),
         invert_polarity: request.invert_polarity.unwrap_or(false),
-        preamble_symbols: request.preamble_symbols,
+        preamble_symbols: request.preamble_symbols.get(),
         without_crc: request.without_crc.unwrap_or(false),
         payload: request.payload.to_vec(),
     }
@@ -396,18 +398,18 @@ fn txpk_of(request: GatewayTxpk) -> Txpk {
 pub(crate) fn txpk_to_js(request: &Txpk) -> GatewayTxpk {
     let (link, bitrate_bps) = modulation_to_js(request.modulation);
     GatewayTxpk {
-        frequency_hz: request.frequency_hz,
+        frequency_hz: request.frequency_hz.into(),
         payload: Buffer::from(request.payload.clone()),
         link,
-        bitrate_bps,
+        bitrate_bps: bitrate_bps.map(Into::into),
         immediate: Some(request.immediate),
-        timestamp_us: request.timestamp_us,
+        timestamp_us: request.timestamp_us.map(Into::into),
         gps_millis: request.gps_millis.map(|millis| millis as f64),
-        rf_chain: Some(request.rf_chain),
-        power_dbm: Some(i32::from(request.power_dbm)),
-        frequency_deviation_hz: request.frequency_deviation_hz,
+        rf_chain: Some(request.rf_chain.into()),
+        power_dbm: Some(i32::from(request.power_dbm).into()),
+        frequency_deviation_hz: request.frequency_deviation_hz.map(Into::into),
         invert_polarity: Some(request.invert_polarity),
-        preamble_symbols: request.preamble_symbols,
+        preamble_symbols: request.preamble_symbols.map(Into::into),
         without_crc: Some(request.without_crc),
     }
 }

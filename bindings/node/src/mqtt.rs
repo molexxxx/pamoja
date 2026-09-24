@@ -4,6 +4,7 @@
 //! behind an async mutex so the napi-generated async methods own a clonable
 //! handle rather than borrowing the JavaScript object across an `await`.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -48,17 +49,17 @@ pub struct MqttClientOptions {
     /// The broker hostname or IP address.
     pub host: String,
     /// The broker TCP port, conventionally 1883 for plaintext MQTT.
-    pub port: u16,
+    pub port: checked::u16,
     /// Keep-alive interval in seconds. Defaults to 30 when omitted.
-    pub keep_alive_secs: Option<u32>,
+    pub keep_alive_secs: Option<checked::u32>,
     /// Bound on outstanding client requests. Defaults to 64 when omitted.
-    pub capacity: Option<u32>,
+    pub capacity: Option<checked::u32>,
     /// Default quality of service. Defaults to `AtLeastOnce` when omitted.
     pub qos: Option<Qos>,
     /// The largest packet the connection sends or accepts, in bytes. Defaults to 10,240
     /// when omitted. A publish that would be larger is refused and the connection stays
     /// up, but a larger packet arriving from the broker ends the connection.
-    pub max_packet_size: Option<u32>,
+    pub max_packet_size: Option<checked::u32>,
 }
 
 /// A message received from a subscribed topic.
@@ -168,17 +169,17 @@ fn to_napi(err: Error) -> napi::Error {
 /// Shared with the composable transport, so a client and a ladder rung read the
 /// same fields the same way.
 pub(crate) fn settings(options: MqttClientOptions) -> MqttConfig {
-    let mut config = MqttConfig::new(options.client_id, options.host, options.port);
-    if let Some(secs) = options.keep_alive_secs {
+    let mut config = MqttConfig::new(options.client_id, options.host, options.port.get());
+    if let Some(secs) = options.keep_alive_secs.get() {
         config = config.keep_alive(Duration::from_secs(u64::from(secs)));
     }
-    if let Some(capacity) = options.capacity {
+    if let Some(capacity) = options.capacity.get() {
         config = config.capacity(capacity as usize);
     }
     if let Some(qos) = options.qos {
         config = config.qos(qos.into());
     }
-    if let Some(bytes) = options.max_packet_size {
+    if let Some(bytes) = options.max_packet_size.get() {
         config = config.max_packet_size(bytes as usize);
     }
     config

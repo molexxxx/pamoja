@@ -506,8 +506,7 @@ export declare class Debounce {
   /**
    * Creates a debouncer needing `samples` agreeing readings to change state.
    *
-   * `samples` is a whole number from 0 to 65535; anything else is refused rather than
-   * rounded.
+   * `samples` is a whole number from 0 to 65535.
    */
   constructor(samples: number, initial: boolean)
   /** Feeds a raw reading in and returns the settled state. */
@@ -2830,10 +2829,7 @@ export declare class Router {
    *
    * `capacity` is how many routes to make room for, defaulting to
    * [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-   * destination, which is the behavior with no table at all. A number read as an
-   * unsigned integer wraps instead of failing, so -1 would ask for four billion
-   * routes; the capacity is taken as a number and refused unless it is whole and
-   * from zero up.
+   * destination, which is the behavior with no table at all.
    */
   constructor(address: number, capacity?: number | undefined | null)
   /** The address this router answers for. */

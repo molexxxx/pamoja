@@ -7,6 +7,7 @@
 //! not a finite number is ignored by every helper that keeps state, as the Rust crate
 //! documents.
 
+use crate::checked;
 use napi_derive::napi;
 use pamoja_kit::{
     deadband as core_deadband, imu, units, weather, Anomaly as CoreAnomaly, Boundary,
@@ -310,18 +311,12 @@ pub struct Debounce {
 impl Debounce {
     /// Creates a debouncer needing `samples` agreeing readings to change state.
     ///
-    /// `samples` is a whole number from 0 to 65535; anything else is refused rather than
-    /// rounded.
+    /// `samples` is a whole number from 0 to 65535.
     #[napi(constructor)]
-    pub fn new(samples: f64, initial: bool) -> napi::Result<Self> {
-        if samples.fract() != 0.0 || !(0.0..=f64::from(u16::MAX)).contains(&samples) {
-            return Err(napi::Error::from_reason(format!(
-                "samples must be a whole number from 0 to 65535, not {samples}"
-            )));
+    pub fn new(samples: checked::u16, initial: bool) -> Self {
+        Self {
+            inner: CoreDebounce::new(samples.get(), initial),
         }
-        Ok(Self {
-            inner: CoreDebounce::new(samples as u16, initial),
-        })
     }
 
     /// Feeds a raw reading in and returns the settled state.

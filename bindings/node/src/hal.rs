@@ -10,6 +10,7 @@
 //! `WordPart` with registers sixteen bits wide, and `CommandPart` with commands that leave
 //! replies. A bus takes any of them and gives each back as its own class.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::{Buffer, Either3};
 use napi_derive::napi;
 use pamoja_hal::bus::{BusError, BusKind, I2cBus as Bus};
@@ -63,31 +64,31 @@ pub struct I2cPart {
 impl I2cPart {
     /// A part answering at one address, with every register reading zero.
     #[napi(constructor)]
-    pub fn new(address: u8) -> Self {
+    pub fn new(address: checked::u8) -> Self {
         I2cPart {
-            inner: Part::new(address),
+            inner: Part::new(address.get()),
         }
     }
 
     /// Puts bytes in the part from a register on. Past the last register they wrap to the
     /// first.
     #[napi]
-    pub fn load(&mut self, first: u8, bytes: Buffer) {
-        self.inner.load(first, &bytes);
+    pub fn load(&mut self, first: checked::u8, bytes: Buffer) {
+        self.inner.load(first.get(), &bytes);
     }
 
     /// What one register holds now.
     #[napi]
-    pub fn register(&self, register: u8) -> u8 {
-        self.inner.register(register)
+    pub fn register(&self, register: checked::u8) -> u8 {
+        self.inner.register(register.get())
     }
 
     /// What consecutive registers hold, from one register on.
     #[napi]
-    pub fn read(&self, first: u8, length: u32) -> Buffer {
-        let mut at = first;
-        let mut bytes = Vec::with_capacity(length as usize);
-        for _ in 0..length {
+    pub fn read(&self, first: checked::u8, length: checked::u32) -> Buffer {
+        let mut at = first.get();
+        let mut bytes = Vec::with_capacity(length.get() as usize);
+        for _ in 0..length.get() {
             bytes.push(self.inner.register(at));
             at = at.wrapping_add(1);
         }
@@ -123,30 +124,30 @@ pub struct WordPart {
 impl WordPart {
     /// A part answering at one address, with every register reading zero.
     #[napi(constructor)]
-    pub fn new(address: u8) -> Self {
+    pub fn new(address: checked::u8) -> Self {
         WordPart {
-            inner: Words::new(address),
+            inner: Words::new(address.get()),
         }
     }
 
     /// Puts a value in one register, read-only bits included, the way the part itself would.
     #[napi]
-    pub fn set(&mut self, register: u8, value: u16) {
-        self.inner.set(register, value);
+    pub fn set(&mut self, register: checked::u8, value: checked::u16) {
+        self.inner.set(register.get(), value.get());
     }
 
     /// Marks bits of one register as the part's to set: a driver's write leaves them as the
     /// part holds them.
     #[napi(js_name = "readOnly")]
-    pub fn read_only(&mut self, register: u8, mask: u16) {
-        self.inner = self.inner.clone().read_only(register, mask);
+    pub fn read_only(&mut self, register: checked::u8, mask: checked::u16) {
+        self.inner = self.inner.clone().read_only(register.get(), mask.get());
     }
 
     /// What one register holds now, which is what a driver wrote there apart from the
     /// read-only bits.
     #[napi]
-    pub fn word(&self, register: u8) -> u16 {
-        self.inner.word(register)
+    pub fn word(&self, register: checked::u8) -> u16 {
+        self.inner.word(register.get())
     }
 
     /// The address the part answers to.
@@ -178,9 +179,9 @@ impl CommandPart {
     /// A part answering at one address that has been given no replies yet; a command takes
     /// `width` bytes, two unless given.
     #[napi(constructor)]
-    pub fn new(address: u8, width: Option<u32>) -> Self {
+    pub fn new(address: checked::u8, width: Option<checked::u32>) -> Self {
         CommandPart {
-            inner: Commands::new(address, width.unwrap_or(2) as usize),
+            inner: Commands::new(address.get(), width.get().unwrap_or(2) as usize),
         }
     }
 
@@ -223,35 +224,35 @@ pub struct I2cStep {
 impl I2cStep {
     /// The driver writes exactly `bytes` to the address.
     #[napi(factory)]
-    pub fn write(address: u8, bytes: Buffer) -> Self {
+    pub fn write(address: checked::u8, bytes: Buffer) -> Self {
         I2cStep {
-            inner: Step::write(address, bytes.to_vec()),
+            inner: Step::write(address.get(), bytes.to_vec()),
         }
     }
 
     /// The driver reads from the address and receives `reply`, whose length is the length it
     /// must ask for.
     #[napi(factory)]
-    pub fn read(address: u8, reply: Buffer) -> Self {
+    pub fn read(address: checked::u8, reply: Buffer) -> Self {
         I2cStep {
-            inner: Step::read(address, reply.to_vec()),
+            inner: Step::read(address.get(), reply.to_vec()),
         }
     }
 
     /// The driver writes `bytes` and then reads `reply` in one transaction, the shape of a
     /// register read.
     #[napi(factory, js_name = "writeRead")]
-    pub fn write_read(address: u8, bytes: Buffer, reply: Buffer) -> Self {
+    pub fn write_read(address: checked::u8, bytes: Buffer, reply: Buffer) -> Self {
         I2cStep {
-            inner: Step::write_read(address, bytes.to_vec(), reply.to_vec()),
+            inner: Step::write_read(address.get(), bytes.to_vec(), reply.to_vec()),
         }
     }
 
     /// The next transfer to the address fails, the way a missing or busy part does.
     #[napi(factory)]
-    pub fn fault(address: u8, fault: I2cFault) -> Self {
+    pub fn fault(address: checked::u8, fault: I2cFault) -> Self {
         I2cStep {
-            inner: Step::fault(address, fault.into()),
+            inner: Step::fault(address.get(), fault.into()),
         }
     }
 }
@@ -320,27 +321,32 @@ impl I2cBus {
 
     /// Writes bytes to a part in one transaction: usually a register address and its value.
     #[napi]
-    pub fn write(&self, address: u8, bytes: Buffer) -> napi::Result<()> {
+    pub fn write(&self, address: checked::u8, bytes: Buffer) -> napi::Result<()> {
         let mut bus = self.inner.clone();
-        bus.write(address, &bytes).map_err(to_napi)
+        bus.write(address.get(), &bytes).map_err(to_napi)
     }
 
     /// Reads `length` bytes from a part in one transaction.
     #[napi]
-    pub fn read(&self, address: u8, length: u32) -> napi::Result<Buffer> {
+    pub fn read(&self, address: checked::u8, length: checked::u32) -> napi::Result<Buffer> {
         let mut bus = self.inner.clone();
-        let mut bytes = vec![0u8; length as usize];
-        bus.read(address, &mut bytes).map_err(to_napi)?;
+        let mut bytes = vec![0u8; length.get() as usize];
+        bus.read(address.get(), &mut bytes).map_err(to_napi)?;
         Ok(Buffer::from(bytes))
     }
 
     /// Writes bytes and then reads `length` bytes in one transaction, with a repeated start
     /// between them, which is how a register is read.
     #[napi(js_name = "writeRead")]
-    pub fn write_read(&self, address: u8, bytes: Buffer, length: u32) -> napi::Result<Buffer> {
+    pub fn write_read(
+        &self,
+        address: checked::u8,
+        bytes: Buffer,
+        length: checked::u32,
+    ) -> napi::Result<Buffer> {
         let mut bus = self.inner.clone();
-        let mut reply = vec![0u8; length as usize];
-        bus.write_read(address, &bytes, &mut reply)
+        let mut reply = vec![0u8; length.get() as usize];
+        bus.write_read(address.get(), &bytes, &mut reply)
             .map_err(to_napi)?;
         Ok(Buffer::from(reply))
     }
@@ -349,12 +355,14 @@ impl I2cBus {
     /// as the class of part it is, or `null` when the bus is not simulated or no part holds
     /// the address.
     #[napi]
-    pub fn part(&self, address: u8) -> Option<Either3<I2cPart, WordPart, CommandPart>> {
-        self.inner.part::<AnyPart>(address).map(|part| match part {
-            AnyPart::Bytes(inner) => Either3::A(I2cPart { inner }),
-            AnyPart::Words(inner) => Either3::B(WordPart { inner: *inner }),
-            AnyPart::Commands(inner) => Either3::C(CommandPart { inner }),
-        })
+    pub fn part(&self, address: checked::u8) -> Option<Either3<I2cPart, WordPart, CommandPart>> {
+        self.inner
+            .part::<AnyPart>(address.get())
+            .map(|part| match part {
+                AnyPart::Bytes(inner) => Either3::A(I2cPart { inner }),
+                AnyPart::Words(inner) => Either3::B(WordPart { inner: *inner }),
+                AnyPart::Commands(inner) => Either3::C(CommandPart { inner }),
+            })
     }
 
     /// How many transfers have been made on the bus, by the program and every driver on it,

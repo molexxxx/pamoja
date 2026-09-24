@@ -9,6 +9,7 @@
 //! The degraded link lives with the transports, as `Transport.degraded`, because
 //! it wraps a transport rather than standing alone.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::Arc;
 
 use napi_derive::napi;
@@ -38,7 +39,7 @@ impl SimulatedSensor {
         baseline: f64,
         drift_per_read: Option<f64>,
         noise: Option<f64>,
-        seed: Option<u32>,
+        seed: Option<checked::u32>,
     ) -> Self {
         let mut sensor = SimSensor::new(baseline as f32);
         if let Some(drift) = drift_per_read {
@@ -47,7 +48,7 @@ impl SimulatedSensor {
         if let Some(noise) = noise {
             sensor = sensor.with_noise(noise as f32);
         }
-        if let Some(seed) = seed {
+        if let Some(seed) = seed.get() {
             sensor = sensor.with_seed(seed);
         }
         Self {

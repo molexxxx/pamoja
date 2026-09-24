@@ -14,6 +14,7 @@
 //! lesser one, so [`LoraPlanBuilder`] produces a [`LoraChannelPlan`] that answers
 //! every question `LoraChannelPlan.forRegion` does.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_lora::region::{
@@ -223,11 +224,11 @@ pub struct LoraMaskControl {
     /// What the value does.
     pub kind: LoraMaskControlKind,
     /// For `Group`, the group the mask sets.
-    pub group: Option<u8>,
+    pub group: Option<checked::u8>,
     /// For `All`, whether every channel turns on.
     pub on: Option<bool>,
     /// For `All`, the group the mask then sets, if any.
-    pub then_group: Option<u8>,
+    pub then_group: Option<checked::u8>,
 }
 
 impl From<MaskControl> for LoraMaskControl {
@@ -241,14 +242,14 @@ impl From<MaskControl> for LoraMaskControl {
         match control {
             MaskControl::Group(group) => {
                 out.kind = LoraMaskControlKind::Group;
-                out.group = Some(group);
+                out.group = Some(group.into());
             }
             MaskControl::Banks => out.kind = LoraMaskControlKind::Banks,
             MaskControl::PairedBanks => out.kind = LoraMaskControlKind::PairedBanks,
             MaskControl::All { on, then_group } => {
                 out.kind = LoraMaskControlKind::All;
                 out.on = Some(on);
-                out.then_group = then_group;
+                out.then_group = then_group.map(Into::into);
             }
             MaskControl::Reserved => {}
         }
@@ -260,12 +261,14 @@ impl LoraMaskControl {
     /// Converts a control the caller supplied into the Rust type.
     fn to_core(&self) -> Result<MaskControl> {
         Ok(match self.kind {
-            LoraMaskControlKind::Group => MaskControl::Group(self.group.ok_or_else(|| {
-                Error::new(
-                    Status::InvalidArg,
-                    "a Group mask control needs group".to_owned(),
-                )
-            })?),
+            LoraMaskControlKind::Group => {
+                MaskControl::Group(self.group.get().ok_or_else(|| {
+                    Error::new(
+                        Status::InvalidArg,
+                        "a Group mask control needs group".to_owned(),
+                    )
+                })?)
+            }
             LoraMaskControlKind::Banks => MaskControl::Banks,
             LoraMaskControlKind::PairedBanks => MaskControl::PairedBanks,
             LoraMaskControlKind::All => MaskControl::All {
@@ -275,7 +278,7 @@ impl LoraMaskControl {
                         "an All mask control needs on".to_owned(),
                     )
                 })?,
-                then_group: self.then_group,
+                then_group: self.then_group.get(),
             },
             LoraMaskControlKind::Reserved => MaskControl::Reserved,
         })
@@ -355,22 +358,22 @@ pub struct LoraDataRate {
     /// How this rate is carried.
     pub kind: LoraModulation,
     /// The payload bitrate in bits per second.
-    pub bitrate_bps: u32,
+    pub bitrate_bps: checked::u32,
     /// The channel bandwidth in hertz, for a LoRa or LR-FHSS rate.
-    pub bandwidth_hz: Option<u32>,
+    pub bandwidth_hz: Option<checked::u32>,
     /// The spreading factor, for a LoRa rate.
-    pub spreading_factor: Option<u8>,
+    pub spreading_factor: Option<checked::u8>,
     /// The coding-rate numerator, for an LR-FHSS rate.
-    pub coding_rate_numerator: Option<u8>,
+    pub coding_rate_numerator: Option<checked::u8>,
     /// The coding-rate denominator, for an LR-FHSS rate.
-    pub coding_rate_denominator: Option<u8>,
+    pub coding_rate_denominator: Option<checked::u8>,
 }
 
 impl From<CoreDataRate> for LoraDataRate {
     fn from(rate: CoreDataRate) -> Self {
         let mut out = Self {
             kind: LoraModulation::Fsk,
-            bitrate_bps: rate.bitrate_bps,
+            bitrate_bps: rate.bitrate_bps.into(),
             bandwidth_hz: None,
             spreading_factor: None,
             coding_rate_numerator: None,
@@ -382,8 +385,8 @@ impl From<CoreDataRate> for LoraDataRate {
                 bandwidth_hz,
             } => {
                 out.kind = LoraModulation::Lora;
-                out.spreading_factor = Some(spreading_factor);
-                out.bandwidth_hz = Some(bandwidth_hz);
+                out.spreading_factor = Some(spreading_factor.into());
+                out.bandwidth_hz = Some(bandwidth_hz.into());
             }
             Modulation::Fsk { .. } => {}
             Modulation::LrFhss {
@@ -392,9 +395,9 @@ impl From<CoreDataRate> for LoraDataRate {
                 bandwidth_hz,
             } => {
                 out.kind = LoraModulation::LrFhss;
-                out.coding_rate_numerator = Some(coding_rate_numerator);
-                out.coding_rate_denominator = Some(coding_rate_denominator);
-                out.bandwidth_hz = Some(bandwidth_hz);
+                out.coding_rate_numerator = Some(coding_rate_numerator.into());
+                out.coding_rate_denominator = Some(coding_rate_denominator.into());
+                out.bandwidth_hz = Some(bandwidth_hz.into());
             }
         }
         out
@@ -422,18 +425,25 @@ impl LoraDataRate {
         Ok(match self.kind {
             LoraModulation::Lora => Some(CoreDataRate::lora(
                 self.spreading_factor
+                    .get()
                     .ok_or_else(|| missing("spreadingFactor"))?,
-                self.bandwidth_hz.ok_or_else(|| missing("bandwidthHz"))?,
-                self.bitrate_bps,
+                self.bandwidth_hz
+                    .get()
+                    .ok_or_else(|| missing("bandwidthHz"))?,
+                self.bitrate_bps.get(),
             )),
-            LoraModulation::Fsk => Some(CoreDataRate::fsk(self.bitrate_bps)),
+            LoraModulation::Fsk => Some(CoreDataRate::fsk(self.bitrate_bps.get())),
             LoraModulation::LrFhss => Some(CoreDataRate::lr_fhss(
                 self.coding_rate_numerator
+                    .get()
                     .ok_or_else(|| missing("codingRateNumerator"))?,
                 self.coding_rate_denominator
+                    .get()
                     .ok_or_else(|| missing("codingRateDenominator"))?,
-                self.bandwidth_hz.ok_or_else(|| missing("bandwidthHz"))?,
-                self.bitrate_bps,
+                self.bandwidth_hz
+                    .get()
+                    .ok_or_else(|| missing("bandwidthHz"))?,
+                self.bitrate_bps.get(),
             )),
             LoraModulation::Reserved => None,
         })
@@ -444,60 +454,60 @@ impl LoraDataRate {
 #[napi(object)]
 pub struct LoraMaxPayload {
     /// The largest MAC payload, frame options included, in bytes.
-    pub mac_payload: u16,
+    pub mac_payload: checked::u16,
     /// The largest application payload, in bytes.
-    pub application: u16,
+    pub application: checked::u16,
 }
 
 /// A run of evenly spaced channels.
 #[napi(object)]
 pub struct LoraChannelBlock {
     /// The first channel's center frequency in hertz.
-    pub start_hz: u32,
+    pub start_hz: checked::u32,
     /// The spacing between channels in hertz.
-    pub step_hz: u32,
+    pub step_hz: checked::u32,
     /// How many channels the block holds.
-    pub count: u16,
+    pub count: checked::u16,
     /// The slowest data rate the block allows.
-    pub min_data_rate: u8,
+    pub min_data_rate: checked::u8,
     /// The fastest data rate the block allows.
-    pub max_data_rate: u8,
+    pub max_data_rate: checked::u8,
 }
 
 /// A default channel of a LoRaWAN relay, TS011-1.0.1.
 #[napi(object)]
 pub struct LoraRelayChannel {
     /// Where an end device sends its wake-on-radio frame, in hertz.
-    pub wor_frequency_hz: u32,
+    pub wor_frequency_hz: checked::u32,
     /// Where the relay acknowledges it, in hertz.
-    pub ack_frequency_hz: u32,
+    pub ack_frequency_hz: checked::u32,
     /// The data rate of both, numbered as the plan's downlink data rates.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
 }
 
 /// A slice of a band with its own transmit limits.
 #[napi(object)]
 pub struct LoraSubBand {
     /// The first frequency in the sub-band, in hertz.
-    pub start_hz: u32,
+    pub start_hz: checked::u32,
     /// The last frequency in the sub-band, in hertz.
-    pub end_hz: u32,
+    pub end_hz: checked::u32,
     /// The share of time a transmitter may hold the channel, in parts per
     /// thousand, so `10` is one percent and `1000` is unrestricted.
-    pub duty_cycle_permille: u32,
+    pub duty_cycle_permille: checked::u32,
     /// The power ceiling in dBm EIRP.
-    pub max_eirp_dbm: i8,
+    pub max_eirp_dbm: checked::i8,
 }
 
 /// The Class B beacon settings of a plan.
 #[napi(object)]
 pub struct LoraBeacon {
     /// The frequency the beacon is broadcast on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The default ping-slot frequency, in hertz.
-    pub ping_slot_frequency_hz: u32,
+    pub ping_slot_frequency_hz: checked::u32,
     /// The data rate the beacon is broadcast at.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
 }
 
 /// Where the second receive window listens.
@@ -643,10 +653,10 @@ impl LoraChannelPlan {
 
     /// Returns what a `ChMaskCntl` value does, or null past 7.
     #[napi]
-    pub fn mask_control(&self, value: u8) -> Option<LoraMaskControl> {
+    pub fn mask_control(&self, value: checked::u8) -> Option<LoraMaskControl> {
         let control = self
             .inner
-            .with_plan(|plan| plan.mask_controls.get(usize::from(value)).copied())?;
+            .with_plan(|plan| plan.mask_controls.get(usize::from(value.get())).copied())?;
         Some(control.into())
     }
 
@@ -655,22 +665,26 @@ impl LoraChannelPlan {
     /// On a plan with no numbered downlink channels that is the uplink's own frequency;
     /// otherwise it is the downlink channel the uplink channel maps to.
     #[napi(js_name = "rx1FrequencyHz")]
-    pub fn rx1_frequency_hz(&self, uplink_channel: u16, uplink_hz: u32) -> Option<u32> {
+    pub fn rx1_frequency_hz(
+        &self,
+        uplink_channel: checked::u16,
+        uplink_hz: checked::u32,
+    ) -> Option<u32> {
         self.inner
-            .with_plan(|plan| plan.rx1_frequency_hz(uplink_channel, uplink_hz))
+            .with_plan(|plan| plan.rx1_frequency_hz(uplink_channel.get(), uplink_hz.get()))
     }
 
     /// Returns the frequency of a numbered downlink channel, or null past the last.
     #[napi]
-    pub fn downlink_channel_frequency_hz(&self, channel: u16) -> Option<u32> {
+    pub fn downlink_channel_frequency_hz(&self, channel: checked::u16) -> Option<u32> {
         self.inner
-            .with_plan(|plan| plan.downlink_channel_frequency_hz(channel))
+            .with_plan(|plan| plan.downlink_channel_frequency_hz(channel.get()))
     }
 
     /// Returns one run of join channels that selects a plan, or null past the end.
     #[napi]
-    pub fn join_plan(&self, index: u16) -> Option<LoraJoinPlan> {
-        let run = self.join_plans().get(usize::from(index))?;
+    pub fn join_plan(&self, index: checked::u16) -> Option<LoraJoinPlan> {
+        let run = self.join_plans().get(usize::from(index.get()))?;
         Some(LoraJoinPlan {
             channels: block_out(&run.channels),
             accept_start_hz: run.accept_start_hz,
@@ -684,8 +698,8 @@ impl LoraChannelPlan {
     /// Returns the run of join channels a join channel belongs to, and where the accept
     /// and the second receive window fall for it, or null if no run holds it.
     #[napi]
-    pub fn join_plan_for_channel(&self, join_channel: u16) -> Option<LoraJoinPlanPlace> {
-        let mut remaining = join_channel;
+    pub fn join_plan_for_channel(&self, join_channel: checked::u16) -> Option<LoraJoinPlanPlace> {
+        let mut remaining = join_channel.get();
         for (index, run) in self.join_plans().iter().enumerate() {
             if remaining < run.channels.count {
                 return Some(LoraJoinPlanPlace {
@@ -712,9 +726,9 @@ impl LoraChannelPlan {
             default_channel_block_count: plan.default_channels.len() as u16,
             sub_band_count: plan.sub_bands.len() as u16,
             beacon: LoraBeacon {
-                frequency_hz: plan.beacon.frequency_hz,
-                ping_slot_frequency_hz: plan.beacon.ping_slot_frequency_hz,
-                data_rate: plan.beacon.data_rate,
+                frequency_hz: plan.beacon.frequency_hz.into(),
+                ping_slot_frequency_hz: plan.beacon.ping_slot_frequency_hz.into(),
+                data_rate: plan.beacon.data_rate.into(),
             },
             rx2: LoraRx2 {
                 frequency_hz: plan.rx2_frequency_hz,
@@ -742,18 +756,22 @@ impl LoraChannelPlan {
     /// A number the region reserves is a data rate of kind `Reserved`, which is
     /// different from a number the plan never defines.
     #[napi]
-    pub fn data_rate(&self, direction: LoraDirection, data_rate: u8) -> Option<LoraDataRate> {
+    pub fn data_rate(
+        &self,
+        direction: LoraDirection,
+        data_rate: checked::u8,
+    ) -> Option<LoraDataRate> {
         self.inner.with_plan(|plan| {
             let table = match direction {
                 LoraDirection::Uplink => plan.uplink_data_rates,
                 LoraDirection::Downlink => plan.downlink_data_rates,
             };
-            let slot = *table.get(usize::from(data_rate))?;
+            let slot = *table.get(usize::from(data_rate.get()))?;
             Some(match slot {
                 Some(rate) => LoraDataRate::from(rate),
                 None => LoraDataRate {
                     kind: LoraModulation::Reserved,
-                    bitrate_bps: 0,
+                    bitrate_bps: 0.into(),
                     bandwidth_hz: None,
                     spreading_factor: None,
                     coding_rate_numerator: None,
@@ -766,14 +784,14 @@ impl LoraChannelPlan {
     /// Returns the radio settings an uplink data rate selects, ready to hand to
     /// `loraAirtimeUs`, or null if the number is reserved or not carried by LoRa.
     #[napi]
-    pub fn link_settings(&self, data_rate: u8) -> Option<LoraLink> {
+    pub fn link_settings(&self, data_rate: checked::u8) -> Option<LoraLink> {
         self.inner.with_plan(|plan| {
-            let settings = plan.link_settings(data_rate)?;
+            let settings = plan.link_settings(data_rate.get())?;
             Some(LoraLink {
-                spreading_factor: settings.spreading_factor(),
-                bandwidth_hz: settings.bandwidth_hz(),
-                coding_rate_denominator: 5,
-                preamble_symbols: 8,
+                spreading_factor: settings.spreading_factor().into(),
+                bandwidth_hz: settings.bandwidth_hz().into(),
+                coding_rate_denominator: 5.into(),
+                preamble_symbols: 8.into(),
                 explicit_header: true,
                 crc: true,
             })
@@ -788,20 +806,24 @@ impl LoraChannelPlan {
     #[napi]
     pub fn max_payload(
         &self,
-        data_rate: u8,
+        data_rate: checked::u8,
         table: Option<LoraPayloadTable>,
     ) -> Option<LoraMaxPayload> {
         self.inner.with_plan(|plan| {
             let payload = match table.unwrap_or(LoraPayloadTable::UplinkDirect) {
-                LoraPayloadTable::UplinkRepeater => plan.max_payload(data_rate, true),
-                LoraPayloadTable::UplinkDirect => plan.max_payload(data_rate, false),
-                LoraPayloadTable::DownlinkRepeater => plan.downlink_max_payload(data_rate, true),
-                LoraPayloadTable::DownlinkDirect => plan.downlink_max_payload(data_rate, false),
-                LoraPayloadTable::DwellLimited => plan.max_payload_dwell_limited(data_rate),
+                LoraPayloadTable::UplinkRepeater => plan.max_payload(data_rate.get(), true),
+                LoraPayloadTable::UplinkDirect => plan.max_payload(data_rate.get(), false),
+                LoraPayloadTable::DownlinkRepeater => {
+                    plan.downlink_max_payload(data_rate.get(), true)
+                }
+                LoraPayloadTable::DownlinkDirect => {
+                    plan.downlink_max_payload(data_rate.get(), false)
+                }
+                LoraPayloadTable::DwellLimited => plan.max_payload_dwell_limited(data_rate.get()),
             }?;
             Some(LoraMaxPayload {
-                mac_payload: payload.mac_payload,
-                application: payload.application,
+                mac_payload: payload.mac_payload.into(),
+                application: payload.application.into(),
             })
         })
     }
@@ -813,24 +835,25 @@ impl LoraChannelPlan {
     /// This reports the limit; it does not impose it. Pair it with
     /// `loraMinOffTimeUs` to turn the limit into the silence a frame costs.
     #[napi]
-    pub fn duty_cycle_permille(&self, frequency_hz: u32) -> Option<u32> {
+    pub fn duty_cycle_permille(&self, frequency_hz: checked::u32) -> Option<u32> {
         self.inner
-            .with_plan(|plan| plan.duty_cycle_permille(frequency_hz))
+            .with_plan(|plan| plan.duty_cycle_permille(frequency_hz.get()))
     }
 
     /// Returns the power ceiling that applies at a frequency, in dBm EIRP,
     /// falling back to the plan's default where no sub-band says otherwise.
     #[napi]
-    pub fn max_eirp_dbm(&self, frequency_hz: u32) -> i8 {
-        self.inner.with_plan(|plan| plan.max_eirp_dbm(frequency_hz))
+    pub fn max_eirp_dbm(&self, frequency_hz: checked::u32) -> i8 {
+        self.inner
+            .with_plan(|plan| plan.max_eirp_dbm(frequency_hz.get()))
     }
 
     /// Returns the radiated power a transmit-power index selects, in dBm, or null
     /// if the index is past the highest the plan defines.
     #[napi]
-    pub fn tx_power_dbm(&self, index: u8, max_eirp_dbm: i8) -> Option<i8> {
+    pub fn tx_power_dbm(&self, index: checked::u8, max_eirp_dbm: checked::i8) -> Option<i8> {
         self.inner
-            .with_plan(|plan| plan.tx_power_dbm(index, max_eirp_dbm))
+            .with_plan(|plan| plan.tx_power_dbm(index.get(), max_eirp_dbm.get()))
     }
 
     /// Returns the downlink data rate the first receive window listens at, or
@@ -838,15 +861,15 @@ impl LoraChannelPlan {
     #[napi]
     pub fn rx1_data_rate(
         &self,
-        uplink_data_rate: u8,
-        offset: u8,
+        uplink_data_rate: checked::u8,
+        offset: checked::u8,
         dwell_limited: Option<bool>,
     ) -> Option<u8> {
         self.inner.with_plan(|plan| {
             if dwell_limited.unwrap_or(false) {
-                plan.rx1_data_rate_dwell_limited(uplink_data_rate, offset)
+                plan.rx1_data_rate_dwell_limited(uplink_data_rate.get(), offset.get())
             } else {
-                plan.rx1_data_rate(uplink_data_rate, offset)
+                plan.rx1_data_rate(uplink_data_rate.get(), offset.get())
             }
         })
     }
@@ -867,29 +890,33 @@ impl LoraChannelPlan {
     /// A device that has lost the network steps down this chain, trading airtime
     /// for range until it is heard again.
     #[napi]
-    pub fn next_backoff_data_rate(&self, data_rate: u8) -> Option<u8> {
+    pub fn next_backoff_data_rate(&self, data_rate: checked::u8) -> Option<u8> {
         self.inner
-            .with_plan(|plan| plan.next_backoff_data_rate(data_rate))
+            .with_plan(|plan| plan.next_backoff_data_rate(data_rate.get()))
     }
 
     /// Returns the center frequency of one of the plan's default channels, or
     /// null past the last one the plan starts a device with.
     #[napi]
-    pub fn channel_frequency_hz(&self, channel: u16) -> Option<u32> {
+    pub fn channel_frequency_hz(&self, channel: checked::u16) -> Option<u32> {
         self.inner
-            .with_plan(|plan| plan.channel_frequency_hz(channel))
+            .with_plan(|plan| plan.channel_frequency_hz(channel.get()))
     }
 
     /// Returns one of the plan's channel blocks, or null past the end.
     #[napi]
-    pub fn channel_block(&self, which: LoraChannelSet, index: u16) -> Option<LoraChannelBlock> {
+    pub fn channel_block(
+        &self,
+        which: LoraChannelSet,
+        index: checked::u16,
+    ) -> Option<LoraChannelBlock> {
         self.inner.with_plan(|plan| {
             let blocks = match which {
                 LoraChannelSet::Join => plan.join_channels,
                 LoraChannelSet::Default => plan.default_channels,
                 LoraChannelSet::Downlink => plan.downlink_channels,
             };
-            blocks.get(usize::from(index)).map(block_out)
+            blocks.get(usize::from(index.get())).map(block_out)
         })
     }
 
@@ -901,9 +928,9 @@ impl LoraChannelPlan {
             plan.relay_channels
                 .iter()
                 .map(|channel| LoraRelayChannel {
-                    wor_frequency_hz: channel.wor_frequency_hz,
-                    ack_frequency_hz: channel.ack_frequency_hz,
-                    data_rate: channel.data_rate,
+                    wor_frequency_hz: channel.wor_frequency_hz.into(),
+                    ack_frequency_hz: channel.ack_frequency_hz.into(),
+                    data_rate: channel.data_rate.into(),
                 })
                 .collect()
         })
@@ -911,14 +938,14 @@ impl LoraChannelPlan {
 
     /// Returns one of the plan's sub-bands, or null past the end.
     #[napi]
-    pub fn sub_band(&self, index: u16) -> Option<LoraSubBand> {
+    pub fn sub_band(&self, index: checked::u16) -> Option<LoraSubBand> {
         self.inner.with_plan(|plan| {
-            let band = plan.sub_bands.get(usize::from(index))?;
+            let band = plan.sub_bands.get(usize::from(index.get()))?;
             Some(LoraSubBand {
-                start_hz: band.start_hz,
-                end_hz: band.end_hz,
-                duty_cycle_permille: band.duty_cycle_permille,
-                max_eirp_dbm: band.max_eirp_dbm,
+                start_hz: band.start_hz.into(),
+                end_hz: band.end_hz.into(),
+                duty_cycle_permille: band.duty_cycle_permille.into(),
+                max_eirp_dbm: band.max_eirp_dbm.into(),
             })
         })
     }
@@ -927,11 +954,11 @@ impl LoraChannelPlan {
 /// Converts a channel block into the shape that crosses to JavaScript.
 fn block_out(block: &CoreBlock) -> LoraChannelBlock {
     LoraChannelBlock {
-        start_hz: block.start_hz,
-        step_hz: block.step_hz,
-        count: block.count,
-        min_data_rate: block.min_data_rate,
-        max_data_rate: block.max_data_rate,
+        start_hz: block.start_hz.into(),
+        step_hz: block.step_hz.into(),
+        count: block.count.into(),
+        min_data_rate: block.min_data_rate.into(),
+        max_data_rate: block.max_data_rate.into(),
     }
 }
 
@@ -998,7 +1025,7 @@ impl LoraPlanBuilder {
         table: LoraPayloadTable,
         payload: Option<LoraMaxPayload>,
     ) -> Result<()> {
-        let entry = payload.map(|p| CoreMaxPayload::new(p.mac_payload, p.application));
+        let entry = payload.map(|p| CoreMaxPayload::new(p.mac_payload.get(), p.application.get()));
         self.update(|builder| builder.max_payload(table.into(), entry))
     }
 
@@ -1006,11 +1033,11 @@ impl LoraPlanBuilder {
     #[napi]
     pub fn channel_block(&mut self, which: LoraChannelSet, block: LoraChannelBlock) -> Result<()> {
         let entry = CoreBlock::new(
-            block.start_hz,
-            block.step_hz,
-            block.count,
-            block.min_data_rate,
-            block.max_data_rate,
+            block.start_hz.get(),
+            block.step_hz.get(),
+            block.count.get(),
+            block.min_data_rate.get(),
+            block.max_data_rate.get(),
         );
         self.update(|builder| match which {
             LoraChannelSet::Join => builder.join_channel(entry),
@@ -1077,12 +1104,12 @@ impl LoraPlanBuilder {
     pub fn power_reference(
         &mut self,
         reference: LoraPowerReference,
-        gain_allowance_db: Option<u8>,
+        gain_allowance_db: Option<checked::u8>,
     ) -> Result<()> {
         let reference = match reference {
             LoraPowerReference::Eirp => PowerReference::Eirp,
             LoraPowerReference::Conducted => PowerReference::Conducted {
-                gain_allowance_db: gain_allowance_db.unwrap_or(0),
+                gain_allowance_db: gain_allowance_db.get().unwrap_or(0),
             },
         };
         self.update(|builder| builder.power_reference(reference))
@@ -1095,10 +1122,10 @@ impl LoraPlanBuilder {
     #[napi]
     pub fn sub_band(&mut self, band: LoraSubBand) -> Result<()> {
         let entry = CoreSubBand::new(
-            band.start_hz,
-            band.end_hz,
-            band.duty_cycle_permille,
-            band.max_eirp_dbm,
+            band.start_hz.get(),
+            band.end_hz.get(),
+            band.duty_cycle_permille.get(),
+            band.max_eirp_dbm.get(),
         );
         self.update(|builder| builder.sub_band(entry))
     }
@@ -1109,9 +1136,9 @@ impl LoraPlanBuilder {
     #[napi]
     pub fn relay_channel(&mut self, channel: LoraRelayChannel) -> Result<()> {
         let entry = CoreRelayChannel::new(
-            channel.wor_frequency_hz,
-            channel.ack_frequency_hz,
-            channel.data_rate,
+            channel.wor_frequency_hz.get(),
+            channel.ack_frequency_hz.get(),
+            channel.data_rate.get(),
         );
         self.update(|builder| builder.relay_channel(entry))
     }
@@ -1120,12 +1147,16 @@ impl LoraPlanBuilder {
     ///
     /// Every row must be as wide as the plan's highest RX1 offset allows.
     #[napi]
-    pub fn rx1_row(&mut self, offsets: Vec<u8>, dwell_limited: Option<bool>) -> Result<()> {
+    pub fn rx1_row(
+        &mut self,
+        offsets: Vec<checked::u8>,
+        dwell_limited: Option<bool>,
+    ) -> Result<()> {
         self.update(|builder| {
             if dwell_limited.unwrap_or(false) {
-                builder.rx1_row_dwell_limited(&offsets)
+                builder.rx1_row_dwell_limited(&checked::all(offsets))
             } else {
-                builder.rx1_row(&offsets)
+                builder.rx1_row(&checked::all(offsets))
             }
         })
     }
@@ -1135,14 +1166,21 @@ impl LoraPlanBuilder {
     /// Pass no data rate at the slowest, which has nothing below it. A chain left
     /// empty steps down one data rate at a time.
     #[napi]
-    pub fn backoff(&mut self, lower: Option<u8>) -> Result<()> {
-        self.update(|builder| builder.backoff(lower))
+    pub fn backoff(&mut self, lower: Option<checked::u8>) -> Result<()> {
+        self.update(|builder| builder.backoff(lower.get()))
     }
 
     /// Sets the transmit-power ladder.
     #[napi]
-    pub fn power(&mut self, default_max_eirp_dbm: i8, step_db: u8, max_index: u8) -> Result<()> {
-        self.update(|builder| builder.power(default_max_eirp_dbm, step_db, max_index))
+    pub fn power(
+        &mut self,
+        default_max_eirp_dbm: checked::i8,
+        step_db: checked::u8,
+        max_index: checked::u8,
+    ) -> Result<()> {
+        self.update(|builder| {
+            builder.power(default_max_eirp_dbm.get(), step_db.get(), max_index.get())
+        })
     }
 
     /// Sets the receive windows.
@@ -1151,20 +1189,26 @@ impl LoraPlanBuilder {
     #[napi]
     pub fn rx(
         &mut self,
-        rx2_frequency_hz: u32,
-        rx2_data_rate: u8,
-        max_rx1_offset: u8,
+        rx2_frequency_hz: checked::u32,
+        rx2_data_rate: checked::u8,
+        max_rx1_offset: checked::u8,
     ) -> Result<()> {
-        self.update(|builder| builder.rx(rx2_frequency_hz, rx2_data_rate, max_rx1_offset))
+        self.update(|builder| {
+            builder.rx(
+                rx2_frequency_hz.get(),
+                rx2_data_rate.get(),
+                max_rx1_offset.get(),
+            )
+        })
     }
 
     /// Sets the Class B beacon and whether the plan limits dwell time.
     #[napi]
     pub fn beacon(&mut self, beacon: LoraBeacon, has_dwell_time_limit: Option<bool>) -> Result<()> {
         let entry = CoreBeacon {
-            data_rate: beacon.data_rate,
-            frequency_hz: beacon.frequency_hz,
-            ping_slot_frequency_hz: beacon.ping_slot_frequency_hz,
+            data_rate: beacon.data_rate.get(),
+            frequency_hz: beacon.frequency_hz.get(),
+            ping_slot_frequency_hz: beacon.ping_slot_frequency_hz.get(),
         };
         self.update(|builder| {
             builder

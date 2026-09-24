@@ -10,6 +10,7 @@
 //! not handle comes back as `null` rather than as an error, so one link's traffic can be
 //! routed through several machines in turn.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_mavlink::dialect::{
@@ -97,9 +98,17 @@ impl MissionReceiver {
     /// @param missionType - The `MAV_MISSION_TYPE` to transfer; defaults to the main
     ///   mission.
     #[napi(constructor)]
-    pub fn new(target_system: u8, target_component: u8, mission_type: Option<u8>) -> Self {
+    pub fn new(
+        target_system: checked::u8,
+        target_component: checked::u8,
+        mission_type: Option<checked::u8>,
+    ) -> Self {
         Self {
-            inner: CoreReceiver::new(target_system, target_component, mission_type.unwrap_or(0)),
+            inner: CoreReceiver::new(
+                target_system.get(),
+                target_component.get(),
+                mission_type.get().unwrap_or(0),
+            ),
         }
     }
 
@@ -219,12 +228,16 @@ impl MissionSender {
     /// @param missionType - The `MAV_MISSION_TYPE` of the plan; defaults to the main
     ///   mission.
     #[napi(constructor)]
-    pub fn new(target_system: u8, target_component: u8, mission_type: Option<u8>) -> Self {
+    pub fn new(
+        target_system: checked::u8,
+        target_component: checked::u8,
+        mission_type: Option<checked::u8>,
+    ) -> Self {
         Self {
             items: Vec::new(),
-            target_system,
-            target_component,
-            mission_type: mission_type.unwrap_or(0),
+            target_system: target_system.get(),
+            target_component: target_component.get(),
+            mission_type: mission_type.get().unwrap_or(0),
         }
     }
 
@@ -319,9 +332,9 @@ impl CommandProtocol {
     /// @param maxRetries - How many times the command may be resent after a timeout before
     ///   the caller gives up; defaults to `MAVLINK_MAX_RETRIES`.
     #[napi(constructor)]
-    pub fn new(command: u16, max_retries: Option<u8>) -> Self {
+    pub fn new(command: checked::u16, max_retries: Option<checked::u8>) -> Self {
         Self {
-            inner: CoreCommand::new(command, max_retries.unwrap_or(MAX_RETRIES)),
+            inner: CoreCommand::new(command.get(), max_retries.get().unwrap_or(MAX_RETRIES)),
         }
     }
 
@@ -376,24 +389,24 @@ impl CommandProtocol {
 /// @param flags - A bitwise-or of the `MAVLINK_TYPEMASK_*` flags; fields left out are ignored.
 /// @returns The mask, as the `type_mask` field of a setpoint carries it.
 #[napi]
-pub fn mavlink_offboard_type_mask(flags: u32) -> u16 {
+pub fn mavlink_offboard_type_mask(flags: checked::u32) -> u16 {
     let mut mask = TypeMask::ignore_all();
-    if flags & MAVLINK_TYPEMASK_POSITION != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_POSITION != 0 {
         mask = mask.use_position();
     }
-    if flags & MAVLINK_TYPEMASK_VELOCITY != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_VELOCITY != 0 {
         mask = mask.use_velocity();
     }
-    if flags & MAVLINK_TYPEMASK_ACCELERATION != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_ACCELERATION != 0 {
         mask = mask.use_acceleration();
     }
-    if flags & MAVLINK_TYPEMASK_YAW != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_YAW != 0 {
         mask = mask.use_yaw();
     }
-    if flags & MAVLINK_TYPEMASK_YAW_RATE != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_YAW_RATE != 0 {
         mask = mask.use_yaw_rate();
     }
-    if flags & MAVLINK_TYPEMASK_FORCE != 0 {
+    if flags.get() & MAVLINK_TYPEMASK_FORCE != 0 {
         mask = mask.force();
     }
     mask.bits()
@@ -414,19 +427,19 @@ pub fn mavlink_offboard_type_mask(flags: u32) -> u16 {
 #[allow(clippy::too_many_arguments)]
 pub fn mavlink_offboard_local_position(
     header: MavlinkHeader,
-    time_boot_ms: u32,
-    coordinate_frame: u8,
-    target_system: u8,
-    target_component: u8,
+    time_boot_ms: checked::u32,
+    coordinate_frame: checked::u8,
+    target_system: checked::u8,
+    target_component: checked::u8,
     x: f64,
     y: f64,
     z: f64,
 ) -> Result<MavlinkFrame> {
     let setpoint = SetPositionTargetLocalNed::position(
-        time_boot_ms,
-        coordinate_frame,
-        target_system,
-        target_component,
+        time_boot_ms.get(),
+        coordinate_frame.get(),
+        target_system.get(),
+        target_component.get(),
         x as f32,
         y as f32,
         z as f32,
@@ -451,19 +464,19 @@ pub fn mavlink_offboard_local_position(
 #[allow(clippy::too_many_arguments)]
 pub fn mavlink_offboard_local_velocity(
     header: MavlinkHeader,
-    time_boot_ms: u32,
-    coordinate_frame: u8,
-    target_system: u8,
-    target_component: u8,
+    time_boot_ms: checked::u32,
+    coordinate_frame: checked::u8,
+    target_system: checked::u8,
+    target_component: checked::u8,
     vx: f64,
     vy: f64,
     vz: f64,
 ) -> Result<MavlinkFrame> {
     let setpoint = SetPositionTargetLocalNed::velocity(
-        time_boot_ms,
-        coordinate_frame,
-        target_system,
-        target_component,
+        time_boot_ms.get(),
+        coordinate_frame.get(),
+        target_system.get(),
+        target_component.get(),
         vx as f32,
         vy as f32,
         vz as f32,
@@ -488,21 +501,21 @@ pub fn mavlink_offboard_local_velocity(
 #[allow(clippy::too_many_arguments)]
 pub fn mavlink_offboard_global_position(
     header: MavlinkHeader,
-    time_boot_ms: u32,
-    coordinate_frame: u8,
-    target_system: u8,
-    target_component: u8,
-    lat_int: i32,
-    lon_int: i32,
+    time_boot_ms: checked::u32,
+    coordinate_frame: checked::u8,
+    target_system: checked::u8,
+    target_component: checked::u8,
+    lat_int: checked::i32,
+    lon_int: checked::i32,
     alt: f64,
 ) -> Result<MavlinkFrame> {
     let setpoint = SetPositionTargetGlobalInt::position(
-        time_boot_ms,
-        coordinate_frame,
-        target_system,
-        target_component,
-        lat_int,
-        lon_int,
+        time_boot_ms.get(),
+        coordinate_frame.get(),
+        target_system.get(),
+        target_component.get(),
+        lat_int.get(),
+        lon_int.get(),
         alt as f32,
     );
     encode_message(Header::from(header), &setpoint)

@@ -5,6 +5,7 @@
 //! physical level, and a line opened on a Linux board. The first three are pure
 //! arithmetic over small values; a [`GpioLine`] holds the line until it is closed.
 
+use crate::checked;
 use std::sync::{Mutex, PoisonError};
 
 use napi::bindgen_prelude::Buffer;
@@ -59,8 +60,8 @@ pub struct SpiClock {
 /// frames as two, the reserved `11110` prefix carrying the top two bits and the
 /// read/write bit, then the low eight.
 #[napi(js_name = "i2cAddressFrame")]
-pub fn i2c_address_frame(address: u16, ten_bit: bool, read: bool) -> napi::Result<Buffer> {
-    let address = validate(address, ten_bit)?;
+pub fn i2c_address_frame(address: checked::u16, ten_bit: bool, read: bool) -> napi::Result<Buffer> {
+    let address = validate(address.get(), ten_bit)?;
     let direction = if read {
         Direction::Read
     } else {
@@ -84,28 +85,28 @@ pub const I2C_RESERVED_BELOW: u8 = i2c::RESERVED_BELOW;
 /// UM10204 reserves `0x00..=0x07` and `0x78..=0x7F`, leaving `0x08..=0x77` for
 /// ordinary devices. A 10-bit address is never reserved in this sense.
 #[napi(js_name = "i2cAddressIsReserved")]
-pub fn i2c_address_is_reserved(address: u16, ten_bit: bool) -> napi::Result<bool> {
-    Ok(validate(address, ten_bit)?.is_reserved())
+pub fn i2c_address_is_reserved(address: checked::u16, ten_bit: bool) -> napi::Result<bool> {
+    Ok(validate(address.get(), ten_bit)?.is_reserved())
 }
 
 /// Reports whether an address is the general call address `0x00`, the broadcast
 /// every device on the bus listens to.
 #[napi(js_name = "i2cAddressIsGeneralCall")]
-pub fn i2c_address_is_general_call(address: u16, ten_bit: bool) -> napi::Result<bool> {
-    Ok(validate(address, ten_bit)?.is_general_call())
+pub fn i2c_address_is_general_call(address: checked::u16, ten_bit: bool) -> napi::Result<bool> {
+    Ok(validate(address.get(), ten_bit)?.is_general_call())
 }
 
 /// Returns how many bytes an address frame occupies: one for a 7-bit address, two
 /// for a 10-bit one.
 #[napi(js_name = "i2cAddressFrameLen")]
-pub fn i2c_address_frame_len(address: u16, ten_bit: bool) -> napi::Result<u32> {
-    Ok(validate(address, ten_bit)?.frame_len() as u32)
+pub fn i2c_address_frame_len(address: checked::u16, ten_bit: bool) -> napi::Result<u32> {
+    Ok(validate(address.get(), ten_bit)?.frame_len() as u32)
 }
 
 /// Returns the `(CPOL, CPHA)` pair an SPI mode number names.
 #[napi]
-pub fn spi_mode_clock(mode: u8) -> napi::Result<SpiClock> {
-    let mode = Mode::from_number(mode)
+pub fn spi_mode_clock(mode: checked::u8) -> napi::Result<SpiClock> {
+    let mode = Mode::from_number(mode.get())
         .ok_or_else(|| napi::Error::from_reason("SPI mode must be 0, 1, 2, or 3"))?;
     let (cpol, cpha) = mode.cpol_cpha();
     Ok(SpiClock { cpol, cpha })
@@ -164,18 +165,18 @@ impl GpioLine {
     ///
     /// Throws when the platform is not Linux, or the chip or the line cannot be opened.
     #[napi(factory, js_name = "openOutput")]
-    pub fn open_output(chip: String, line: u32, initial: PinLevel) -> napi::Result<Self> {
-        let opened = linux::output(&chip, line, initial.into());
-        GpioLine::opened(opened, chip, line)
+    pub fn open_output(chip: String, line: checked::u32, initial: PinLevel) -> napi::Result<Self> {
+        let opened = linux::output(&chip, line.get(), initial.into());
+        GpioLine::opened(opened, chip, line.get())
     }
 
     /// Opens a line as an input.
     ///
     /// Throws when the platform is not Linux, or the chip or the line cannot be opened.
     #[napi(factory, js_name = "openInput")]
-    pub fn open_input(chip: String, line: u32) -> napi::Result<Self> {
-        let opened = linux::input(&chip, line);
-        GpioLine::opened(opened, chip, line)
+    pub fn open_input(chip: String, line: checked::u32) -> napi::Result<Self> {
+        let opened = linux::input(&chip, line.get());
+        GpioLine::opened(opened, chip, line.get())
     }
 
     /// The GPIO chip's device file.

@@ -8,6 +8,7 @@
 //! timeout has passed. On anything but the kernel's device nothing waits, and the time a read
 //! would have waited is counted instead.
 
+use crate::checked::{self, OptionalWhole};
 use std::time::Duration;
 
 use napi::bindgen_prelude::{spawn_blocking, Buffer};
@@ -46,16 +47,16 @@ pub enum SerialPortKind {
 #[napi(object)]
 pub struct SerialSettings {
     /// The speed, in bits a second.
-    pub baud: u32,
+    pub baud: checked::u32,
     /// The parity bit, none unless given.
     pub parity: Option<Parity>,
     /// 1 or 2 stop bits, 1 unless given.
-    pub stop_bits: Option<u8>,
+    pub stop_bits: Option<checked::u8>,
 }
 
 impl SerialSettings {
     pub(crate) fn settings(&self) -> napi::Result<Settings> {
-        if self.baud == 0 {
+        if self.baud.get() == 0 {
             return Err(napi::Error::from_reason("the speed must be above zero"));
         }
         let parity = match self.parity {
@@ -63,7 +64,7 @@ impl SerialSettings {
             Some(Parity::Even) => LineParity::Even,
             Some(Parity::Odd) => LineParity::Odd,
         };
-        let stop_bits = match self.stop_bits.unwrap_or(1) {
+        let stop_bits = match self.stop_bits.get().unwrap_or(1) {
             1 => StopBits::One,
             2 => StopBits::Two,
             other => {
@@ -72,7 +73,7 @@ impl SerialSettings {
                 )))
             }
         };
-        Ok(Settings::new(self.baud)
+        Ok(Settings::new(self.baud.get())
             .with_parity(parity)
             .with_stop_bits(stop_bits))
     }
@@ -81,15 +82,15 @@ impl SerialSettings {
 impl From<Settings> for SerialSettings {
     fn from(settings: Settings) -> Self {
         SerialSettings {
-            baud: settings.baud,
+            baud: settings.baud.into(),
             parity: Some(match settings.parity {
                 LineParity::None => Parity::None,
                 LineParity::Even => Parity::Even,
                 LineParity::Odd => Parity::Odd,
             }),
             stop_bits: Some(match settings.stop_bits {
-                StopBits::One => 1,
-                StopBits::Two => 2,
+                StopBits::One => 1.into(),
+                StopBits::Two => 2.into(),
             }),
         }
     }
@@ -187,8 +188,8 @@ impl SerialPort {
     /// Returns how long `bytes` sent back to back take on the wire, in microseconds, rounded
     /// up.
     #[napi(js_name = "transferMicros")]
-    pub fn transfer_micros(settings: SerialSettings, bytes: u32) -> napi::Result<f64> {
-        Ok(settings.settings()?.transfer_micros(bytes as usize) as f64)
+    pub fn transfer_micros(settings: SerialSettings, bytes: checked::u32) -> napi::Result<f64> {
+        Ok(settings.settings()?.transfer_micros(bytes.get() as usize) as f64)
     }
 
     /// Writes settings the way a device's manual does, such as `9600 8E1`.
@@ -230,11 +231,11 @@ impl SerialPort {
     /// Reads up to `max` bytes, waiting up to `timeoutMs` for the first one when nothing has
     /// arrived. Resolves with what arrived, empty when the timeout passed with nothing.
     #[napi]
-    pub async fn read(&self, max: u32, timeout_ms: f64) -> napi::Result<Buffer> {
+    pub async fn read(&self, max: checked::u32, timeout_ms: f64) -> napi::Result<Buffer> {
         let port = self.inner.clone();
         let timeout = millis(timeout_ms)?;
         let bytes = spawn_blocking(move || {
-            let mut buffer = vec![0u8; max as usize];
+            let mut buffer = vec![0u8; max.get() as usize];
             port.read(&mut buffer, timeout).map(|count| {
                 buffer.truncate(count);
                 buffer
