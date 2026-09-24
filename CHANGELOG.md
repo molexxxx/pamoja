@@ -1137,6 +1137,13 @@ released together, so one entry covers all of them.
 - The Python gateway network raises `PamojaError` when it refuses a frame, as every other
   refusal by the core does, where it raised `ValueError`, which stays for an argument of the
   wrong shape.
+- The firmware over the air guide says whether the group key unwrapped and the block's code
+  matched in words, where it printed booleans that read differently in each language. It
+  gains a second part: a device that heard half of a session's first pass and finishes on
+  the coded fragments that follow, and a fragment changed on the way that completes the block
+  and fails its code. The page gains a paragraph for each language, tables of the four
+  packages, the keys, a session's numbers, the block's code and layout, and what the updater
+  refuses, and a section on what goes wrong.
 
 ### Fixed
 
