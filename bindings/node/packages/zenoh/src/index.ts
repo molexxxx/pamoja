@@ -3,7 +3,8 @@
  *
  * A key expression is how a Zenoh network addresses data: a slash-separated
  * path that may carry the `*` and `**` wildcards, so one subscriber names a
- * whole subtree of a fleet rather than each node in it.
+ * whole subtree of a fleet rather than each node in it. A chunk that starts
+ * with `@` is verbatim, and no wildcard selects it.
  *
  * Only the naming rules cross. Running a Zenoh session needs the std-only zenoh
  * stack, which would land in every install, so it stays in the Rust crate.
@@ -13,8 +14,11 @@
 
 import {
   keyexprCanonize,
+  keyexprIncludes,
+  keyexprIntersects,
   keyexprIsCanon,
   keyexprIsValid,
+  keyexprJoin,
   keyexprMatches,
 } from '@pamoja/native'
 
@@ -22,7 +26,10 @@ import {
 export const keyexpr = {
   /** Reports whether a key expression is well formed. */
   isValid: keyexprIsValid,
-  /** Reports whether a key expression is already in its canonical form. */
+  /**
+   * Reports whether a key expression is already in its canonical form, the
+   * only form a Zenoh session accepts.
+   */
   isCanon: keyexprIsCanon,
   /**
    * Rewrites a key expression into its canonical form, or `null` if it is
@@ -33,6 +40,18 @@ export const keyexpr = {
    * `a/**\/b` as different.
    */
   canonize: keyexprCanonize,
-  /** Reports whether a pattern selects a key. */
+  /**
+   * Joins two key expressions with a `/` and canonizes the result, or returns
+   * `null` if either side is empty or the joined expression is malformed.
+   */
+  join: keyexprJoin,
+  /** Reports whether a pattern selects a concrete key. */
   matches: keyexprMatches,
+  /**
+   * Reports whether two key expressions share at least one key, the relation
+   * Zenoh routes by.
+   */
+  intersects: keyexprIntersects,
+  /** Reports whether the first expression selects every key the second one selects. */
+  includes: keyexprIncludes,
 } as const

@@ -4199,6 +4199,16 @@ fn zenoh_vectors_match() {
         );
     }
 
+    for case in vector["joined"].as_array().expect("the joins") {
+        let prefix = case["prefix"].as_str().expect("the prefix");
+        let suffix = case["suffix"].as_str().expect("the suffix");
+        assert_eq!(
+            keyexpr::join(prefix, suffix).as_deref(),
+            case["joined"].as_str(),
+            "`{prefix}` joined with `{suffix}`"
+        );
+    }
+
     for case in vector["matches"].as_array().expect("the matches") {
         let pattern = case["pattern"].as_str().expect("the pattern");
         let key = case["key"].as_str().expect("the key");
@@ -4206,6 +4216,27 @@ fn zenoh_vectors_match() {
             keyexpr::matches(pattern, key),
             case["matches"].as_bool().expect("the verdict"),
             "whether `{pattern}` selects `{key}`"
+        );
+    }
+
+    for case in vector["relations"].as_array().expect("the relations") {
+        let a = case["a"].as_str().expect("one expression");
+        let b = case["b"].as_str().expect("the other expression");
+        let shared = case["intersects"].as_bool().expect("the verdict");
+        assert_eq!(
+            keyexpr::intersects(a, b),
+            shared,
+            "whether `{a}` and `{b}` share a key"
+        );
+        assert_eq!(
+            keyexpr::intersects(b, a),
+            shared,
+            "whether `{b}` and `{a}` share a key"
+        );
+        assert_eq!(
+            keyexpr::includes(a, b),
+            case["includes"].as_bool().expect("the verdict"),
+            "whether `{a}` covers `{b}`"
         );
     }
 }

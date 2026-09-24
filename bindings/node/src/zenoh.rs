@@ -36,11 +36,42 @@ pub fn keyexpr_canonize(key: String) -> Option<String> {
     keyexpr::canonize(&key)
 }
 
-/// Reports whether a pattern selects a key.
+/// Joins two key expressions with a `/` and canonizes the result, or returns
+/// `null` if either side is empty or the joined expression is malformed.
+///
+/// @param prefix - the leading expression.
+/// @param suffix - the expression to place beneath it.
+#[napi]
+pub fn keyexpr_join(prefix: String, suffix: String) -> Option<String> {
+    keyexpr::join(&prefix, &suffix)
+}
+
+/// Reports whether a pattern selects a key. A chunk that starts with `@` is
+/// verbatim, and no wildcard selects it.
 ///
 /// @param pattern - the expression that may carry wildcards.
 /// @param key - the concrete key to test against it.
 #[napi]
 pub fn keyexpr_matches(pattern: String, key: String) -> bool {
     keyexpr::matches(&pattern, &key)
+}
+
+/// Reports whether two key expressions share at least one key, the relation
+/// Zenoh routes by. `false` if either is malformed.
+///
+/// @param a - one expression.
+/// @param b - the other expression.
+#[napi]
+pub fn keyexpr_intersects(a: String, b: String) -> bool {
+    keyexpr::intersects(&a, &b)
+}
+
+/// Reports whether `a` selects every key `b` selects. `false` if either is
+/// malformed.
+///
+/// @param a - the expression that may be the wider one.
+/// @param b - the expression tested for being covered by `a`.
+#[napi]
+pub fn keyexpr_includes(a: String, b: String) -> bool {
+    keyexpr::includes(&a, &b)
 }

@@ -3001,8 +3001,16 @@ def test_zenoh_vectors_match():
     for want in vector["canonized"]:
         assert zenoh.canonize(want["key"]) == want["canonical"]
 
+    for want in vector["joined"]:
+        assert zenoh.join(want["prefix"], want["suffix"]) == want["joined"]
+
     for want in vector["matches"]:
         assert zenoh.matches(want["pattern"], want["key"]) == want["matches"]
+
+    for want in vector["relations"]:
+        assert zenoh.intersects(want["a"], want["b"]) == want["intersects"]
+        assert zenoh.intersects(want["b"], want["a"]) == want["intersects"]
+        assert zenoh.includes(want["a"], want["b"]) == want["includes"]
 
 
 def test_gateway_network_vectors_match():

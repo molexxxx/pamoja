@@ -512,7 +512,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="node-zenoh">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><code class="pkg-import">@pamoja/zenoh</code><p>Zenoh key expressions: validity, canonical form, and wildcard matching</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/zenoh.html">Zenoh keys</a><code class="pkg-import">@pamoja/zenoh</code><p>Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/zenoh</code><button class="copy" type="button" data-copy="npm install @pamoja/zenoh" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

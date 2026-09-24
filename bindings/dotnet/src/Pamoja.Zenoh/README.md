@@ -1,6 +1,6 @@
 # Pamoja.Zenoh
 
-Zenoh key expressions: validity, canonical form, and wildcard matching. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/zenoh.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -25,37 +25,60 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/ZenohGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ZenohGuide.cs):
 
 ```csharp
-// A key expression names a set of keys. `*` stands for exactly one chunk, so this
-// selects the battery of any node, and not a battery nested deeper.
-const string AnyNode = "fleet/*/battery";
-foreach (string key in new[] { "fleet/n7/battery", "fleet/n7/rack/battery" })
+// A key expression names a set of keys. Chunks sit between slashes, `*` stands for
+// exactly one chunk, whatever it holds, and `**` for any number of them, including none.
+static string Selects(string pattern, string key)
 {
-    Console.WriteLine($"{AnyNode} covers {key}: {KeyExpression.Matches(AnyNode, key)}");
+    string verdict = KeyExpression.Matches(pattern, key) ? "covers" : "misses";
+    return $"{verdict,-10}{pattern} {verdict} {key}";
+}
+Console.WriteLine(Selects("farm/*/power", "farm/t7/power"));
+Console.WriteLine(Selects("farm/*/power", "farm/substation/power"));
+Console.WriteLine(
+    $"{Selects("farm/*/power", "farm/row2/t14/power")}, since * is exactly one chunk");
+Console.WriteLine(Selects("farm/**/power", "farm/row2/t14/power"));
+Console.WriteLine(
+    $"{Selects("farm/**/alarm", "farm/alarm")}, where ** is no chunk at all");
+
+// `$*` stands for any run of characters inside one chunk, so it selects on part of a
+// name.
+Console.WriteLine(Selects("farm/t$*/power", "farm/t7/power"));
+Console.WriteLine(Selects("farm/t$*/power", "farm/substation/power"));
+
+// One set of keys has one canonical spelling, and a Zenoh session accepts no other.
+foreach (string written in new[] { "farm/*/**/power", "farm/**/*/power", "farm/**/**/power" })
+{
+    string? canonical = KeyExpression.Canonize(written);
+    if (KeyExpression.IsCanon(written))
+    {
+        Console.WriteLine($"canonical {written}, as written");
+    }
+    else
+    {
+        Console.WriteLine($"rewritten {written} is spelled {canonical}");
+    }
 }
 
-// `**` stands for any number of chunks, including none, which is what a
-// subscription covering a whole subtree wants.
-Console.WriteLine(
-    "fleet/** covers a nested key: "
-    + KeyExpression.Matches("fleet/**", "fleet/n7/rack/battery"));
-Console.WriteLine(
-    "fleet/**/battery covers fleet/battery: "
-    + KeyExpression.Matches("fleet/**/battery", "fleet/battery"));
+// Joining places one expression beneath another, and canonizes the seam between them.
+foreach ((string prefix, string suffix) in new[] { ("farm/t7", "power"), ("farm/**", "*/power") })
+{
+    Console.WriteLine(
+        $"joined    {prefix} and {suffix} make {KeyExpression.Join(prefix, suffix)}");
+}
 
-// Two expressions that select the same keys have one canonical form. Comparing or
-// routing on the written form would treat these as different subscriptions.
-const string Written = "fleet/**/**/battery";
-string? canonical = KeyExpression.Canonize(Written);
-Console.WriteLine(
-    $"{Written} is canonical: {KeyExpression.IsCanon(Written)},"
-    + $" and canonizes to {canonical}");
-
-// A malformed expression is rejected rather than canonized into something
-// plausible.
-const string Malformed = "fleet//battery";
-Console.WriteLine(
-    $"{Malformed} is valid: {KeyExpression.IsValid(Malformed)},"
-    + $" canonizes to {KeyExpression.Canonize(Malformed) ?? "nothing"}");
+// A malformed expression is refused rather than repaired into something plausible.
+foreach ((string written, string why) in new[]
+{
+    ("farm//power", "a chunk is empty"),
+    ("farm/t7*/power", "* stands alone in its chunk, or after $"),
+    ("farm/t7/power?", "? and # are reserved"),
+})
+{
+    if (!KeyExpression.IsValid(written) && KeyExpression.Canonize(written) is null)
+    {
+        Console.WriteLine($"malformed {written}, since {why}");
+    }
+}
 ```
 
 ## The same capability in every language

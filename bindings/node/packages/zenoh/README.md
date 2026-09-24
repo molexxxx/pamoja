@@ -1,6 +1,6 @@
 # @pamoja/zenoh
 
-Zenoh key expressions: validity, canonical form, and wildcard matching. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/zenoh.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -23,32 +23,50 @@ From [`bindings/node/guides/zenoh.ts`](https://github.com/molexxxx/pamoja/blob/m
 ```typescript
 import { keyexpr } from '@pamoja/zenoh'
 
-// A key expression names a set of keys. `*` stands for exactly one chunk, so this selects
-// the battery of any node, and not a battery nested deeper.
-const anyNode = 'fleet/*/battery'
-for (const key of ['fleet/n7/battery', 'fleet/n7/rack/battery']) {
-  console.log(`${anyNode} covers ${key}: ${keyexpr.matches(anyNode, key)}`)
+// A key expression names a set of keys. Chunks sit between slashes, `*` stands for exactly one
+// chunk, whatever it holds, and `**` for any number of them, including none.
+const selects = (pattern: string, key: string): string => {
+  const verdict = keyexpr.matches(pattern, key) ? 'covers' : 'misses'
+  return `${verdict.padEnd(10)}${pattern} ${verdict} ${key}`
+}
+console.log(selects('farm/*/power', 'farm/t7/power'))
+console.log(selects('farm/*/power', 'farm/substation/power'))
+console.log(`${selects('farm/*/power', 'farm/row2/t14/power')}, since * is exactly one chunk`)
+console.log(selects('farm/**/power', 'farm/row2/t14/power'))
+console.log(`${selects('farm/**/alarm', 'farm/alarm')}, where ** is no chunk at all`)
+
+// `$*` stands for any run of characters inside one chunk, so it selects on part of a name.
+console.log(selects('farm/t$*/power', 'farm/t7/power'))
+console.log(selects('farm/t$*/power', 'farm/substation/power'))
+
+// One set of keys has one canonical spelling, and a Zenoh session accepts no other.
+for (const written of ['farm/*/**/power', 'farm/**/*/power', 'farm/**/**/power']) {
+  const canonical = keyexpr.canonize(written)
+  if (keyexpr.isCanon(written)) {
+    console.log(`canonical ${written}, as written`)
+  } else {
+    console.log(`rewritten ${written} is spelled ${canonical}`)
+  }
 }
 
-// `**` stands for any number of chunks, including none, which is what a subscription
-// covering a whole subtree wants.
-console.log(`fleet/** covers a nested key: ${keyexpr.matches('fleet/**', 'fleet/n7/rack/battery')}`)
-console.log(
-  `fleet/**/battery covers fleet/battery: ${keyexpr.matches('fleet/**/battery', 'fleet/battery')}`,
-)
+// Joining places one expression beneath another, and canonizes the seam between them.
+for (const [prefix, suffix] of [
+  ['farm/t7', 'power'],
+  ['farm/**', '*/power'],
+]) {
+  console.log(`joined    ${prefix} and ${suffix} make ${keyexpr.join(prefix, suffix)}`)
+}
 
-// Two expressions that select the same keys have one canonical form. Comparing or routing
-// on the written form would treat these as different subscriptions.
-const written = 'fleet/**/**/battery'
-const canonical = keyexpr.canonize(written)
-console.log(`${written} is canonical: ${keyexpr.isCanon(written)}, and canonizes to ${canonical}`)
-
-// A malformed expression is rejected rather than canonized into something plausible.
-const malformed = 'fleet//battery'
-console.log(
-  `${malformed} is valid: ${keyexpr.isValid(malformed)},` +
-    ` canonizes to ${keyexpr.canonize(malformed)}`,
-)
+// A malformed expression is refused rather than repaired into something plausible.
+for (const [written, why] of [
+  ['farm//power', 'a chunk is empty'],
+  ['farm/t7*/power', '* stands alone in its chunk, or after $'],
+  ['farm/t7/power?', '? and # are reserved'],
+]) {
+  if (!keyexpr.isValid(written) && keyexpr.canonize(written) === null) {
+    console.log(`malformed ${written}, since ${why}`)
+  }
+}
 ```
 
 ## The same capability in every language

@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Zenoh</PackageId>
     <AssemblyName>Pamoja.Zenoh</AssemblyName>
     <RootNamespace>Pamoja.Zenoh</RootNamespace>
-    <Description>Zenoh key expressions: validity, canonical form, and wildcard matching.</Description>
+    <Description>Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys.</Description>
     <PackageTags>pamoja;iot;robotics;zenoh</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/zenoh.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -29052,7 +29052,28 @@ bool pamoja_keyexpr_is_canon(const char *key);
 // call, or null.
 PamojaString *pamoja_keyexpr_canonize(const char *key);
 
+// Joins two key expressions with a `/` and canonizes the result.
+//
+// # Arguments
+//
+// * `prefix` - the leading expression, as null-terminated UTF-8.
+// * `suffix` - the expression to place beneath it, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A string the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if either side is
+// empty or null, or the joined expression is malformed.
+//
+// # Safety
+//
+// Both arguments must be valid null-terminated UTF-8 strings for the duration
+// of the call, or null.
+PamojaString *pamoja_keyexpr_join(const char *prefix, const char *suffix);
+
 // Reports whether a pattern selects a key.
+//
+// A chunk that starts with `@` is verbatim: no wildcard selects it.
 //
 // # Arguments
 //
@@ -29070,6 +29091,46 @@ PamojaString *pamoja_keyexpr_canonize(const char *key);
 // Both arguments must be valid null-terminated UTF-8 strings for the duration
 // of the call, or null.
 bool pamoja_keyexpr_matches(const char *pattern, const char *key);
+
+// Reports whether two key expressions share at least one key.
+//
+// This is the relation Zenoh routes by: a publication on one reaches a
+// subscriber on the other exactly when the two intersect.
+//
+// # Arguments
+//
+// * `a` - one expression, as null-terminated UTF-8.
+// * `b` - the other expression, as null-terminated UTF-8.
+//
+// # Returns
+//
+// `true` when some key is selected by both, or `false` if none is, either
+// expression is malformed, or either argument is null.
+//
+// # Safety
+//
+// Both arguments must be valid null-terminated UTF-8 strings for the duration
+// of the call, or null.
+bool pamoja_keyexpr_intersects(const char *a, const char *b);
+
+// Reports whether one key expression selects every key another one selects.
+//
+// # Arguments
+//
+// * `a` - the expression that may be the wider one, as null-terminated UTF-8.
+// * `b` - the expression tested for being covered by `a`, as null-terminated
+//   UTF-8.
+//
+// # Returns
+//
+// `true` when every key `b` selects is also selected by `a`, or `false` if
+// not, either expression is malformed, or either argument is null.
+//
+// # Safety
+//
+// Both arguments must be valid null-terminated UTF-8 strings for the duration
+// of the call, or null.
+bool pamoja_keyexpr_includes(const char *a, const char *b);
 
 #ifdef __cplusplus
 }  // extern "C"

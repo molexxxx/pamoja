@@ -1168,7 +1168,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(zenoh::keyexpr_is_valid, m)?)?;
         m.add_function(wrap_pyfunction!(zenoh::keyexpr_is_canon, m)?)?;
         m.add_function(wrap_pyfunction!(zenoh::keyexpr_canonize, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_join, m)?)?;
         m.add_function(wrap_pyfunction!(zenoh::keyexpr_matches, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_intersects, m)?)?;
+        m.add_function(wrap_pyfunction!(zenoh::keyexpr_includes, m)?)?;
     }
     Ok(())
 }
