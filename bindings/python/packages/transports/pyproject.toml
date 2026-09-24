@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-transports"
-version = "0.1.18"
+version = "0.2.0"
 description = "Transports and testing: Reaching the network when no single link always works, and testing all of it with nothing plugged in."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,14 +19,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-bus==0.1.18",
-    "pamoja-coap==0.1.18",
-    "pamoja-core==0.1.18",
-    "pamoja-ladder==0.1.18",
-    "pamoja-loopback==0.1.18",
-    "pamoja-mqtt==0.1.18",
-    "pamoja-sim==0.1.18",
-    "pamoja-sync==0.1.18",
+    "pamoja-bus==0.2.0",
+    "pamoja-coap==0.2.0",
+    "pamoja-core==0.2.0",
+    "pamoja-ladder==0.2.0",
+    "pamoja-loopback==0.2.0",
+    "pamoja-mqtt==0.2.0",
+    "pamoja-sim==0.2.0",
+    "pamoja-sync==0.2.0",
 ]
 
 [project.urls]

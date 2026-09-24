@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/codec",
-  "version": "0.1.18",
+  "version": "0.2.0",
   "description": "CBOR, JSON, and raw codecs behind one trait, and batch packing for metered links: delta and varint for integers, and a quantizer for f32 readings.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.18"
+    "@pamoja/native": "0.2.0"
   }
 }

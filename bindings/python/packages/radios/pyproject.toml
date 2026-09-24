@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-radios"
-version = "0.1.18"
+version = "0.2.0"
 description = "The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, a duty-cycle guard, and simulated chips that stand in for a module."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.18",
+    "pamoja-native==0.2.0",
 ]
 
 [project.urls]

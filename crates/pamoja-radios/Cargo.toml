@@ -34,12 +34,12 @@ linux = ["std", "dep:pamoja-hal", "pamoja-hal/linux"]
 sim = ["embedded-hal"]
 
 [dependencies]
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
-pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = true }
+pamoja-lora = { path = "../pamoja-lora", version = "0.2.0", default-features = false }
+pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.2.0", optional = true }
 embedded-hal = { version = "1.0", optional = true }
-pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", default-features = false, optional = true }
-pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
-pamoja-mesh = { path = "../pamoja-mesh", version = "0.1.18", optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.2.0", default-features = false, optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.2.0", default-features = false, optional = true }
+pamoja-mesh = { path = "../pamoja-mesh", version = "0.2.0", optional = true }
 tokio = { version = "1", default-features = false, features = ["time"], optional = true }
 
 [dev-dependencies]

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-profiles"
-version = "0.1.18"
+version = "0.2.0"
 description = "Profiles and robotics: A node written down as a JSON file, rules between nodes as another, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,10 +19,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-kit==0.1.18",
-    "pamoja-profile==0.1.18",
-    "pamoja-ros2==0.1.18",
-    "pamoja-zenoh==0.1.18",
+    "pamoja-kit==0.2.0",
+    "pamoja-profile==0.2.0",
+    "pamoja-ros2==0.2.0",
+    "pamoja-zenoh==0.2.0",
 ]
 
 [project.urls]

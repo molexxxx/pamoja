@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-modbus"
-version = "0.1.18"
+version = "0.2.0"
 description = "Modbus RTU for RS485 field devices: a client that polls them over a serial port with the line's timing, simulated devices that answer as real ones do, and the frames with their CRC-16/MODBUS."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,8 +19,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-hal==0.1.18",
-    "pamoja-native==0.1.18",
+    "pamoja-hal==0.2.0",
+    "pamoja-native==0.2.0",
 ]
 
 [project.urls]

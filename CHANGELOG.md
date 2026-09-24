@@ -7,6 +7,22 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+LoRa from the radio to the network, and a node from a file. `pamoja-radios` drives the
+SX126x and SX127x families on a Linux board or simulated, and the SX1302 and SX1303
+concentrators over SPI and USB, with LoRa link budgets and a page on antennas and power
+limits beside it. `pamoja-gateway` is the other end: the Semtech packet forwarder and
+LoRa Basics Station protocols from both sides, a single-site network side, and a bridge,
+tested against ChirpStack in CI. LoRaWAN gains a Class A end device, the MAC commands and
+ADR, the TS011 relay, and the application layer packages a firmware update rests on.
+Every I2C sensor and actuator driver, one shared I2C bus and serial port, a Modbus
+client, a CAN node, and a CoAP server run in every language. A profile is a versioned
+file with a published schema that runs as a node in every language, arrives signed over
+a link, and runs with no program at all through `pamoja-node` and a wiring file. The
+MQTT client confirms delivery, retains, leaves a will, signs in, and speaks TLS. The
+minor version is for the calls whose signatures changed, listed under Changed.
+
 ### Added
 
 - `pamoja-node`, a stock runner in `pamoja-profile` behind the `runner` feature, runs a

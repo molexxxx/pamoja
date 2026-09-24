@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="97" height="44" viewBox="0 0 97 44" role="img" aria-label="PyPI: v0.1.18">
+<svg xmlns="http://www.w3.org/2000/svg" width="94" height="44" viewBox="0 0 94 44" role="img" aria-label="PyPI: v0.2.0">
   <style>
     .paper { fill: #faf5eb; }
     .rule { stroke: #d4cdc1; }
@@ -22,8 +22,8 @@
     }
   </style>
   <path d="M2.5 9.5h41.5v25h-41.5a2 2 0 0 1 -2 -2v-21a2 2 0 0 1 2 -2z" class="tint"/>
-  <rect x="0.5" y="9.5" width="96" height="25" rx="2" class="rule" fill="none" stroke-width="1"/>
+  <rect x="0.5" y="9.5" width="93" height="25" rx="2" class="rule" fill="none" stroke-width="1"/>
   <path d="M44 9.5v25" class="rule" stroke-width="1"/>
   <text x="9" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.7" class="ink">PYPI</text>
-  <text x="53" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.7" class="accent">v0.1.18</text>
+  <text x="53" y="22" dominant-baseline="central" font-family="Segoe UI, Inter, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.7" class="accent">v0.2.0</text>
 </svg>
