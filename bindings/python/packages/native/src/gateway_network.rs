@@ -22,6 +22,7 @@ use crate::lora::LoraLink;
 use crate::lora_region::ChannelPlan;
 use crate::lorawan::{describe_mac, rebuild_command, LorawanMacCommand};
 use crate::lorawan_relay::channel_out;
+use crate::PamojaError;
 
 /// Where and when a downlink answers an uplink, in the concentrator's own terms.
 #[gen_stub_pyclass]
@@ -243,7 +244,7 @@ impl GatewayNetwork {
         let event = self
             .locked()?
             .uplink(&heard)
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            .map_err(|error| PamojaError::new_err(error.to_string()))?;
         event_to_py(py, event)
     }
 
@@ -264,7 +265,7 @@ impl GatewayNetwork {
         let downlink = self
             .locked()?
             .answer(dev_addr, window, fport, &payload)
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            .map_err(|error| PamojaError::new_err(error.to_string()))?;
         txpk_to_py(py, &downlink)
     }
 
@@ -310,7 +311,7 @@ impl GatewayNetwork {
         let downlink = self
             .locked()?
             .command(dev_addr, window, &built)
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            .map_err(|error| PamojaError::new_err(error.to_string()))?;
         txpk_to_py(py, &downlink)
     }
 
@@ -331,7 +332,7 @@ impl GatewayNetwork {
         self.locked()?
             .trust_command(dev_addr, index, reload_rate, bucket_size)
             .map(describe_mac)
-            .map_err(|error| PyValueError::new_err(error.to_string()))
+            .map_err(|error| PamojaError::new_err(error.to_string()))
     }
 }
 
@@ -340,7 +341,7 @@ impl GatewayNetwork {
     fn locked(&self) -> PyResult<std::sync::MutexGuard<'_, Network>> {
         self.inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the network was left locked by a failed call"))
+            .map_err(|_| PamojaError::new_err("the network was left locked by a failed call"))
     }
 }
 

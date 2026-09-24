@@ -289,7 +289,8 @@ dotnet = [
     "GatewayNetworkWindows", "GatewayNetworkOutcome", "GatewayRx1Channels", "GatewaySlot",
     "GatewayStation", "GatewayStationKind", "GatewayStationLevels", "GatewayStationMessage",
     "GatewayStationRouter", "GatewayStationWindow", "GatewayStationDataRate",
-    "GatewayStationJoinRange", "GatewayStationBroadcast", "GatewayNotice", "GatewayRelayed",
+    "GatewayStationJoinRange", "GatewayStationBroadcast", "GatewayStationXtime",
+    "GatewayNotice", "GatewayRelayed",
 ]
 guide = "guides/gateway.md"
 next = ["lorawan", "mqtt", "telemetry"]

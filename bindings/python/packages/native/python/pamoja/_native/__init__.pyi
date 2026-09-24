@@ -77,6 +77,7 @@ __all__ = [
     "GatewayStationMessage",
     "GatewayStationRouter",
     "GatewayStationWindow",
+    "GatewayStationXtime",
     "GatewayTxpk",
     "Geofence",
     "GpioLine",
@@ -634,6 +635,8 @@ __all__ = [
     "station_router_accepted",
     "station_router_parse",
     "station_router_refused",
+    "station_xtime",
+    "station_xtime_parts",
     "stepper_step_count",
     "stepper_steps_for_degrees",
     "stepper_timing",
@@ -3762,6 +3765,29 @@ class GatewayStationWindow:
         r"""
         Describes a window by its data rate and frequency.
         """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationXtime:
+    r"""
+    A station clock value taken apart.
+    """
+    @property
+    def unit(self) -> builtins.int:
+        r"""
+        The radio unit the time was read on, 0 to 127.
+        """
+    @property
+    def session(self) -> builtins.int:
+        r"""
+        The run of the station the time belongs to.
+        """
+    @property
+    def micros(self) -> builtins.int:
+        r"""
+        The microseconds the run had counted, below 2^48.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
@@ -13906,6 +13932,17 @@ def station_router_parse(text: builtins.str) -> GatewayStationRouter:
 def station_router_refused(router: builtins.str, error: builtins.str) -> builtins.str:
     r"""
     Writes the answer that refuses a station, saying why.
+    """
+
+def station_xtime(unit: builtins.int, session: builtins.int, micros: builtins.int) -> builtins.int:
+    r"""
+    Builds a station clock value from the radio it was read on, the run of the station, and
+    the microseconds that run had counted.
+    """
+
+def station_xtime_parts(xtime: builtins.int) -> GatewayStationXtime:
+    r"""
+    Takes a station clock value apart into its radio unit, run, and microseconds.
     """
 
 def stepper_step_count(drive: builtins.str) -> builtins.int:

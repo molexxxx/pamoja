@@ -20,7 +20,7 @@
 use std::os::raw::c_char;
 use std::ptr;
 
-use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router};
+use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router, Xtime};
 use pamoja_gateway::udp::Eui;
 
 use crate::{read_bytes, set_last_error, PamojaBuffer, PamojaStatus};
@@ -166,6 +166,18 @@ pub struct PamojaGatewayStationBroadcast {
     pub rctx: i64,
     /// Whether it names a radio.
     pub has_rctx: bool,
+}
+
+/// A station clock value taken apart.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct PamojaGatewayStationXtime {
+    /// The radio unit the time was read on, 0 to 127.
+    pub unit: u8,
+    /// The run of the station the time belongs to.
+    pub session: u8,
+    /// The microseconds the run had counted, below 2^48.
+    pub micros: u64,
 }
 
 /// The identities a discovery answer names.
@@ -1266,6 +1278,81 @@ pub unsafe extern "C" fn pamoja_gateway_station_router_identities(
     }
 }
 
+/// Builds a station clock value from the radio it was read on, the run of the station, and
+/// the microseconds that run had counted.
+///
+/// # Arguments
+///
+/// * `unit` - the radio unit, 0 to 127.
+/// * `session` - the run of the station, which the reference station never leaves at 0.
+/// * `micros` - the microseconds the run had counted.
+/// * `out_value` - receives the value a message carries as its `xtime`.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] when the unit is
+/// past 127 or the microseconds do not fit 48 bits.
+///
+/// # Safety
+///
+/// `out_value` must point to writable storage.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gateway_station_xtime(
+    unit: u8,
+    session: u8,
+    micros: u64,
+    out_value: *mut i64,
+) -> PamojaStatus {
+    if out_value.is_null() {
+        set_last_error("out_value must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    match Xtime::new(unit, session, micros) {
+        Some(clock) => {
+            *out_value = clock.value();
+            PamojaStatus::Ok
+        }
+        None => {
+            set_last_error(format!(
+                "a station clock takes a unit up to 127 and 48 bits of microseconds, not unit {unit} and {micros} us"
+            ));
+            PamojaStatus::InvalidArgument
+        }
+    }
+}
+
+/// Takes a station clock value apart into its radio unit, run, and microseconds.
+///
+/// # Arguments
+///
+/// * `value` - the `xtime` a message carried.
+/// * `out_parts` - receives the parts.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] once written.
+///
+/// # Safety
+///
+/// `out_parts` must point to writable storage.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_gateway_station_xtime_parts(
+    value: i64,
+    out_parts: *mut PamojaGatewayStationXtime,
+) -> PamojaStatus {
+    if out_parts.is_null() {
+        set_last_error("out_parts must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let clock = Xtime::of(value);
+    *out_parts = PamojaGatewayStationXtime {
+        unit: clock.unit,
+        session: clock.session,
+        micros: clock.micros,
+    };
+    PamojaStatus::Ok
+}
+
 /// Writes an identifier in the ID6 form the protocol prefers.
 ///
 /// # Arguments
@@ -1965,6 +2052,41 @@ mod tests {
 
             assert!(pamoja_gateway_station_message_new(&blank(42)).is_null());
             assert!(pamoja_gateway_station_message_new(ptr::null()).is_null());
+        }
+    }
+
+    #[test]
+    fn a_station_clock_is_built_and_taken_apart() {
+        unsafe {
+            let mut value = 0i64;
+            assert_eq!(
+                pamoja_gateway_station_xtime(0, 0xa5, 3_512_348_611, &mut value),
+                PamojaStatus::Ok
+            );
+            assert_eq!(value, (0xa5_i64 << 48) | 3_512_348_611);
+
+            let mut parts = PamojaGatewayStationXtime {
+                unit: 9,
+                session: 0,
+                micros: 0,
+            };
+            assert_eq!(
+                pamoja_gateway_station_xtime_parts(value, &mut parts),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                (parts.unit, parts.session, parts.micros),
+                (0, 0xa5, 3_512_348_611)
+            );
+
+            assert_eq!(
+                pamoja_gateway_station_xtime(128, 1, 0, &mut value),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(
+                pamoja_gateway_station_xtime(0, 1, 1 << 48, &mut value),
+                PamojaStatus::InvalidArgument
+            );
         }
     }
 

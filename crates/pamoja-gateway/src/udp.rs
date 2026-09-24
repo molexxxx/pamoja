@@ -54,6 +54,10 @@ pub use payload::{CrcStatus, Modulation, Rxpk, Stat, TxStatus, Txpk, Uplink};
 /// The protocol version every datagram starts with.
 pub const PROTOCOL_VERSION: u8 = 2;
 
+/// The UDP port a packet forwarder sends to by convention, which the protocol itself does
+/// not fix.
+pub const DEFAULT_PORT: u16 = 1700;
+
 /// The bytes before a datagram's payload: the version, the token, and the identifier.
 pub const HEADER_LEN: usize = 4;
 

@@ -36,6 +36,7 @@ export type {
   GatewayStationMessage as StationMessage,
   GatewayStationRouter as StationRouter,
   GatewayStationWindow as StationWindow,
+  GatewayStationXtime as StationXtime,
   GatewayTxpk as Txpk,
 } from '@pamoja/native'
 
@@ -116,6 +117,19 @@ export {
   stationRouterRefused,
   /** Reads the answer a discovery endpoint gives: where to connect, or why not. */
   stationRouterParse,
+  /**
+   * Builds a station clock value from the radio it was read on, the run of the station, and
+   * the microseconds that run had counted.
+   *
+   * @example
+   * ```ts
+   * const heardAt = stationXtime(0, 1, 3_512_348_611)
+   * stationXtimeParts(heardAt).micros // 3512348611
+   * ```
+   */
+  stationXtime,
+  /** Takes a station clock value apart into its radio unit, run, and microseconds. */
+  stationXtimeParts,
   /** Writes an identifier in the ID6 form the protocol prefers, such as `1:203:405:607`. */
   stationId6,
   /** Reads an identifier written in any form the protocol accepts. */

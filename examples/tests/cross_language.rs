@@ -4575,7 +4575,7 @@ fn mavlink_protocol_vectors_match() {
 /// kind of message reads back the values beside it and writes back unchanged.
 #[test]
 fn station_vectors_match() {
-    use pamoja_gateway::station::{Discovery, Message, Router};
+    use pamoja_gateway::station::{Discovery, Message, Router, Xtime};
     use pamoja_gateway::udp::Eui;
 
     let text = |value: &Value| value.as_str().expect("text").to_owned();
@@ -4598,6 +4598,16 @@ fn station_vectors_match() {
         Router::refused(router, text(&case["refusal"]["error"])).to_json(),
         text(&case["refusal"]["json"])
     );
+
+    let clock = &case["clock"];
+    let parts = Xtime::new(
+        clock["unit"].as_u64().expect("a unit") as u8,
+        clock["session"].as_u64().expect("a session") as u8,
+        clock["micros"].as_u64().expect("microseconds"),
+    )
+    .expect("in range");
+    assert_eq!(parts.value().to_string(), text(&clock["value"]));
+    assert_eq!(Xtime::of(parts.value()), parts);
 
     for wanted in case["messages"].as_array().expect("a list") {
         let written = text(&wanted["json"]);

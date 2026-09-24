@@ -109,6 +109,23 @@ public struct PamojaGatewayStationBroadcast
 }
 
 /// <summary>
+/// A station clock value taken apart, mirroring <c>PamojaGatewayStationXtime</c> in
+/// <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaGatewayStationXtime
+{
+    /// <summary>The radio unit the time was read on, 0 to 127.</summary>
+    public byte Unit;
+
+    /// <summary>The run of the station the time belongs to.</summary>
+    public byte Session;
+
+    /// <summary>The microseconds the run had counted, below 2^48.</summary>
+    public ulong Micros;
+}
+
+/// <summary>
 /// The identities a discovery answer names, mirroring <c>PamojaGatewayStationRouterIds</c> in
 /// <c>pamoja.h</c>.
 /// </summary>

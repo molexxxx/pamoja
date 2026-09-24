@@ -8048,6 +8048,23 @@ static void ConformStation(JsonElement vector)
         GatewayStation.RouterParse(refusal.GetProperty("json").GetString()!).Error == why,
         "the refusal read back");
 
+    // A station clock value is built from its parts and taken apart again, to the microsecond.
+    JsonElement clock = vector.GetProperty("clock");
+    long built = GatewayStation.Xtime(
+        clock.GetProperty("unit").GetByte(),
+        clock.GetProperty("session").GetByte(),
+        clock.GetProperty("micros").GetInt64());
+    Assert(
+        built == long.Parse(clock.GetProperty("value").GetString()!, System.Globalization.CultureInfo.InvariantCulture),
+        "the clock value");
+    Assert(
+        GatewayStation.XtimeParts(built) == new GatewayStationXtime(
+            clock.GetProperty("unit").GetByte(),
+            clock.GetProperty("session").GetByte(),
+            clock.GetProperty("micros").GetInt64()),
+        "the clock taken apart");
+    Catch<ArgumentOutOfRangeException>(() => GatewayStation.Xtime(128, 1, 0));
+
     // A join request the radio heard, split into the fields the protocol names.
     JsonElement wanted = vector.GetProperty("join");
     GatewayStationMessage join = GatewayStation.Heard(
@@ -8102,8 +8119,8 @@ static void ConformStation(JsonElement vector)
 
         if (entry.TryGetProperty("xtime", out JsonElement xtime))
         {
-            long clock = message.Levels?.Xtime ?? message.Xtime ?? 0;
-            Assert(clock == long.Parse(xtime.GetString()!, System.Globalization.CultureInfo.InvariantCulture), $"the {kind} clock to the microsecond");
+            long stamped = message.Levels?.Xtime ?? message.Xtime ?? 0;
+            Assert(stamped == long.Parse(xtime.GetString()!, System.Globalization.CultureInfo.InvariantCulture), $"the {kind} clock to the microsecond");
         }
 
         if (entry.TryGetProperty("dataRates", out JsonElement rates))

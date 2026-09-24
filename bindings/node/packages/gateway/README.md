@@ -22,70 +22,111 @@ From [`bindings/node/guides/gateway.ts`](https://github.com/molexxxx/pamoja/blob
 
 ```typescript
 import { PacketKind, TxStatus, acknowledgment, encode, parse } from '@pamoja/gateway'
-import { version } from '@pamoja/core'
 import { link } from '@pamoja/lora'
+import { session } from '@pamoja/lorawan'
 
-// A gateway on a Raspberry Pi, whose identifier is written from its network interface.
-const gateway = 'b827ebfffe010203'
-const dr5 = link(7, 125_000)
+function aGatewayAndItsServerTradeDatagrams() {
+  // A gateway on a Raspberry Pi, whose identifier is written from its network interface.
+  const gateway = 'b827ebfffe010203'
 
-// It heard a packet on 868.1 MHz, and forwards it with the levels it was heard at and the
-// concentrator's own timestamp of the reception.
-const heard = {
-  frequencyHz: 868_100_000,
-  payload: Buffer.from('TEST_PACKET_1234'),
-  link: dr5,
-  rssiDbm: -35,
-  snrDb: 5.1,
-  timestampUs: 3_512_348_611,
+  // Every few seconds it sends a PULL_DATA, which holds a path open through whatever
+  // translates its address, so the server has somewhere to send a downlink. The server
+  // answers each one, and a gateway that stops hearing answers knows the path is gone.
+  const pull = encode({ kind: PacketKind.PullData, token: 0x7a01, gateway })
+  const held = acknowledgment(parse(pull))!
+  console.log(
+    `pull      ${pull.length} bytes out and ${encode(held).length} back hold the downlink path open`,
+  )
+
+  // A node sends a reading, and the gateway hears it on 868.1 MHz at SF9, near the edge of
+  // its range. It forwards the frame as it arrived, with the levels, the concentrator's own
+  // timestamp, and its counts since the last report. It holds no key and reads none of it.
+  const node = session(0x26010001, Buffer.alloc(16, 0x44), Buffer.alloc(16, 0x55))
+  const frame = node.encodeUplink(7, 2, Buffer.from('21.5'))
+  const heard = {
+    frequencyHz: 868_100_000,
+    payload: frame,
+    link: link(9, 125_000),
+    rssiDbm: -97,
+    snrDb: -3.2,
+    timestampUs: 3_512_348_611,
+  }
+  const counts = {
+    received: 2,
+    receivedOk: 1,
+    forwarded: 1,
+    acknowledgedPercent: 100,
+    downlinks: 0,
+    transmitted: 0,
+  }
+  const datagram = encode({
+    kind: PacketKind.PushData,
+    token: 0x1234,
+    gateway,
+    packets: [heard],
+    status: counts,
+  })
+  console.log(
+    `push      a reading and the gateway's counts, ${datagram.length} bytes, ` +
+      `token ${(0x1234).toString(16).padStart(4, '0')}`,
+  )
+
+  // The server reads it. The frequency is in hertz, the datarate identifier is the link
+  // settings, and the payload is bytes, so nothing is decoded by hand.
+  const forwarded = parse(datagram)
+  const received = forwarded.packets![0]
+  console.log(
+    `heard     ${received.frequencyHz} Hz at SF${received.link!.spreadingFactor}, ` +
+      `${received.link!.bandwidthHz / 1000} kHz, ${received.rssiDbm!.toFixed(0)} dBm, ` +
+      `SNR ${received.snrDb!.toFixed(1)} dB, CRC ${received.crc!.toLowerCase()}, ` +
+      `${received.payload.length} bytes`,
+  )
+  const report = forwarded.status!
+  console.log(
+    `counts    ${report.received} received, ${report.receivedOk} with a good CRC, ` +
+      `${report.forwarded} forwarded, ${report.acknowledgedPercent!.toFixed(1)}% acknowledged`,
+  )
+
+  // It is acknowledged at once, by token, before anything in it is read.
+  const ack = acknowledgment(parse(datagram))!
+  console.log(
+    `ack       token ${ack.token.toString(16).padStart(4, '0')} acknowledged in ` +
+      `${encode(ack).length} bytes`,
+  )
+
+  // An answer goes back in a PULL_RESP, timed in the concentrator's own microseconds for
+  // the device's first receive window, a second after the uplink ended, with the inverted
+  // polarity a LoRaWAN device listens for.
+  const answer = node.encodeDownlink(0, 2, Buffer.from('ok'))
+  const pullResp = encode({
+    kind: PacketKind.PullResp,
+    token: 0x00ab,
+    transmit: {
+      frequencyHz: 868_100_000,
+      payload: answer,
+      link: link(9, 125_000),
+      timestampUs: 3_513_348_611,
+      powerDbm: 14,
+      invertPolarity: true,
+    },
+  })
+  const transmit = parse(pullResp).transmit!
+  const iq = transmit.invertPolarity ? 'IQ inverted' : 'IQ upright'
+  console.log(
+    `downlink  at ${transmit.timestampUs} us on ${transmit.frequencyHz} Hz, ` +
+      `${transmit.powerDbm} dBm, ${iq}`,
+  )
+
+  // The gateway answers each PULL_RESP with a TX_ACK saying what became of it: scheduled,
+  // or refused with a reason, such as a window that had already passed.
+  for (const said of [TxStatus.None, TxStatus.TooLate]) {
+    const reported = encode({ kind: PacketKind.TxAck, token: 0x00ab, gateway, txStatus: said })
+    const status = parse(reported).txStatus!
+    const meaning = status === TxStatus.None ? "it goes out in the device's window" : 'it was not sent'
+    console.log(`txack     ${status}: ${meaning}`)
+  }
+  return { held, frame, received, ack, transmit }
 }
-const datagram = encode({ kind: PacketKind.PushData, token: 0x1234, gateway, packets: [heard] })
-console.log(`push      ${datagram.length} bytes, token ${(0x1234).toString(16)}`)
-
-// The server reads it. Nothing about the packet has to be decoded by hand: the frequency is
-// in hertz, the datarate identifier is the link settings, and the payload is bytes.
-const received = parse(datagram).packets![0]
-console.log(
-  `heard     ${received.frequencyHz} Hz at SF${received.link!.spreadingFactor}, ` +
-    `${received.link!.bandwidthHz / 1000} kHz, ${received.rssiDbm} dBm, ` +
-    `SNR ${received.snrDb} dB, ${received.payload.length} bytes`,
-)
-
-// Every uplink is acknowledged at once, by token, before anything is processed.
-const ack = acknowledgment(parse(datagram))!
-console.log(`ack       ${encode(ack).length} bytes`)
-
-// Later the server sends one back, at the concentrator timestamp that hits the device's
-// receive window, with the inverted polarity a LoRaWAN device listens for.
-const downlink = encode({
-  kind: PacketKind.PullResp,
-  token: 0x00ab,
-  transmit: {
-    frequencyHz: 869_525_000,
-    payload: Buffer.from('downlink'),
-    link: dr5,
-    timestampUs: 3_513_348_611,
-    powerDbm: 27,
-    invertPolarity: true,
-    withoutCrc: true,
-  },
-})
-const transmit = parse(downlink).transmit!
-console.log(
-  `downlink  ${transmit.frequencyHz} Hz at ${transmit.powerDbm} dBm, ` +
-    `inverted IQ ${transmit.invertPolarity}`,
-)
-
-// The gateway answers with what became of it. A packet already scheduled in that window is
-// refused rather than dropped silently.
-const refused = encode({
-  kind: PacketKind.TxAck,
-  token: 0x00ab,
-  gateway,
-  txStatus: TxStatus.CollisionPacket,
-})
-const status = parse(refused).txStatus!
-console.log(`txack     ${status}, scheduled ${status === TxStatus.None}`)
 ```
 
 ## The same capability in every language

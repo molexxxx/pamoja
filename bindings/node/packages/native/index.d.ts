@@ -5024,6 +5024,16 @@ export interface GatewayStationWindow {
   frequencyHz: number
 }
 
+/** A station clock value taken apart. */
+export interface GatewayStationXtime {
+  /** The radio unit the time was read on, 0 to 127. */
+  unit: number
+  /** The run of the station the time belongs to. */
+  session: number
+  /** The microseconds the run had counted, below 2^48. */
+  micros: number
+}
+
 /** A packet the server asks the gateway to transmit. */
 export interface GatewayTxpk {
   /** The carrier to transmit on, in hertz. */
@@ -8991,6 +9001,15 @@ export declare function stationRouterParse(text: string): GatewayStationRouter
 
 /** Writes the answer that refuses a station, saying why. */
 export declare function stationRouterRefused(router: string, error: string): string
+
+/**
+ * Builds a station clock value from the radio it was read on, the run of the station, and
+ * the microseconds that run had counted.
+ */
+export declare function stationXtime(unit: number, session: number, micros: number): bigint
+
+/** Takes a station clock value apart into its radio unit, run, and microseconds. */
+export declare function stationXtimeParts(xtime: bigint): GatewayStationXtime
 
 /** Which way to step a motor. */
 export declare const enum StepDirection {

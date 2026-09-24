@@ -21,7 +21,7 @@ use pamoja_gateway::daemon::check::{self, Queue, When};
 use pamoja_gateway::daemon::config::{ListenBeforeTalk, Sx1261Radio};
 use pamoja_gateway::daemon::scan::{self, Sweep};
 use pamoja_gateway::daemon::{forward, image, walk, Bus, Config, Upstream};
-use pamoja_gateway::station::{Levels, Message, Station};
+use pamoja_gateway::station::{Levels, Message, Station, Xtime};
 use pamoja_gateway::udp::{CrcStatus, Packet as Datagram, Stat, TxStatus, Uplink};
 use pamoja_lora::LinkSettings;
 use pamoja_radios::linux::{self, Wiring};
@@ -782,8 +782,12 @@ impl Clock {
     /// an `xtime` echoed back by the server still resolves to this one.
     fn at(&self, widened: u32, session: u8) -> i64 {
         let micros = (self.epochs << 32) | u64::from(widened);
-        let tagged = (u64::from(session) << 48) | (micros & 0xffff_ffff_ffff);
-        tagged as i64
+        Xtime {
+            unit: 0,
+            session,
+            micros,
+        }
+        .value()
     }
 }
 
