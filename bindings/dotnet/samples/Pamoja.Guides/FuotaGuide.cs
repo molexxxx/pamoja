@@ -49,9 +49,10 @@ public static class FuotaGuide
         byte[] keKey = LorawanPackages.McKeKey(LorawanPackages.McRootKey(deviceRootKey));
         byte[] wrapped = LorawanPackages.WrapMcKey(keKey, groupKey);
         byte[] unwrapped = LorawanPackages.McKey(keKey, wrapped);
-        Console.WriteLine(
-            $"group     0x{groupAddr:X8} keyed by a wrapped key the device unwraps: " +
-            $"{unwrapped.SequenceEqual(groupKey)}");
+        string keyed = unwrapped.SequenceEqual(groupKey)
+            ? "keyed by the key the server wrapped and the device unwrapped"
+            : "with a key the device could not unwrap";
+        Console.WriteLine($"group     0x{groupAddr:x8}, {keyed}");
         byte[] payloadKey = LorawanPackages.McAppSKey(groupKey, groupAddr);
 
         // The server cuts the block into fragments and sends more than there are, so a device
@@ -92,17 +93,26 @@ public static class FuotaGuide
         Console.WriteLine(
             $"received  {sent} fragments, {coded} of them coded, and the block is whole");
 
-        // What the device built is checked against the code the session setup carried, taken
-        // over the block a piece at a time so the image is never held twice.
+        // What the device built is checked against the code the server took over the block
+        // with this device's own key, and sent in the session setup. It is taken a piece at a
+        // time, so the image is never held twice.
         byte[] blockKey = LorawanPackages.DataBlockIntKey(deviceRootKey);
         byte[] descriptor = Encoding.ASCII.GetBytes(Update.BlockDescriptor);
-        using var expected = new LorawanBlockMic(blockKey, 1, 0, descriptor, (uint)block.Length);
-        expected.Update(block);
+        byte[] expected;
+        using (var taking = new LorawanBlockMic(blockKey, 1, 0, descriptor, (uint)block.Length))
+        {
+            taking.Update(block);
+            expected = taking.Finish();
+        }
+
         byte[] built = receiver.Block().AsSpan(0, block.Length).ToArray();
-        using var taken = new LorawanBlockMic(blockKey, 1, 0, descriptor, (uint)block.Length);
-        taken.Update(built);
-        bool intact = taken.Finish().SequenceEqual(expected.Finish());
-        Console.WriteLine($"checked   the block the device built is the one the server sent: {intact}");
+        using var check = new LorawanBlockMic(blockKey, 1, 0, descriptor, (uint)block.Length);
+        check.Update(built);
+        bool intact = check.Finish().SequenceEqual(expected);
+        string verdict = intact
+            ? "carries the code the server took over it"
+            : "does not carry the code the server took over it";
+        Console.WriteLine($"checked   the block the device built {verdict}");
 
         // Only now does the update itself get a say. The header says where the manifest ends;
         // everything after that is the manifest's decision, exactly as for a wired update.
@@ -132,5 +142,57 @@ public static class FuotaGuide
         Expect(slot == 1, "the release lands in the spare slot");
         Expect(carriedImage.SequenceEqual(image), "and it is the image the publisher signed");
         Expect(payloadKey.Length == 16, "the group has a payload key");
+
+        // ANCHOR: losses
+        // A device further out hears every other fragment of the session's first pass, eight
+        // uncoded and four coded. It solves for what it can and says how many it still lacks,
+        // so the server keeps sending coded fragments until it has none left to ask for.
+        using var far = new LorawanDefragmenter(session.NbFrag, fragSize, 8);
+        ushort firstPass = (ushort)(session.NbFrag + (session.NbFrag / 2));
+        for (ushort n = 1; n <= firstPass; n += 2)
+        {
+            far.Fragment(n, LorawanPackages.FragFragment(block, fragSize, n));
+        }
+
+        Console.WriteLine(
+            $"short     heard {far.Received} of {firstPass} fragments, and {far.Missing} are still missing");
+        int more = 0;
+        for (ushort n = (ushort)(firstPass + 1); ; n++)
+        {
+            more++;
+            if (far.Fragment(n, LorawanPackages.FragFragment(block, fragSize, n)))
+            {
+                break;
+            }
+        }
+
+        Console.WriteLine($"more      {more} more coded fragments finish the block");
+
+        // A fragment changed on the way, by a fault or by another member of the group, who
+        // holds the same group key, still completes the block. The code the server took with
+        // this device's own key is what catches it, so the updater never sees the block.
+        using var odd = new LorawanDefragmenter(session.NbFrag, fragSize, 8);
+        for (ushort n = 1; n <= session.NbFrag; n++)
+        {
+            byte[] piece = LorawanPackages.FragFragment(block, fragSize, n);
+            if (n == 3)
+            {
+                piece[0] ^= 0x01;
+            }
+
+            odd.Fragment(n, piece);
+        }
+
+        using var taken = new LorawanBlockMic(blockKey, 1, 0, descriptor, (uint)block.Length);
+        taken.Update(odd.Block().AsSpan(0, block.Length));
+        bool caught = !taken.Finish().SequenceEqual(expected);
+        if (odd.Done && caught)
+        {
+            Console.WriteLine("tampered  the block completes, its code does not match, and nothing is staged");
+        }
+        // ANCHOR_END: losses
+
+        Expect(caught, "a changed fragment is caught by the block's code");
+        Expect(far.Missing == 0, "the far device finished");
     }
 }
