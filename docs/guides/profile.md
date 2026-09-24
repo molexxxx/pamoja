@@ -1,44 +1,44 @@
 # Device profiles
 
-Most deployed nodes are one of a handful of shapes. Something is held near a
-setpoint. Something is watched as it falls toward empty. Something is watched for
-a change too fast to be real. A profile is that shape written down: what the node
-publishes on, which policy it applies to each reading, and how often it samples as
-its battery drains.
+A profile is a node written down as a file: what it reads, where it reports, how it
+decides each reading, how often it samples as its battery drains, and how a dashboard
+draws it. Retuning a deadband across a hundred nodes is then a file that ships, not a
+firmware build, and the device and the dashboard read the same file.
 
-Writing it down as data rather than as code is what makes a fleet manageable. A
-profile loads from and saves to JSON, so retuning a deadband across a hundred
-nodes is a file that ships, not a firmware build. The same manifest also carries
-what a dashboard needs to draw the node, so the device and the screen agree
-without a second source.
+## Data and code
 
-A node runs the profile: it takes a reading, lets the profile's policy decide what
-the output should do and whether the reading crossed a line worth raising, switches
-the output, and publishes the reading, then waits as long as the battery allows. The
-decisions are compiled into the library; the file only tunes them. A control kind
-the library never shipped is decided by code the program registers under the kind's
-name, so a manifest for it reads exactly like one for a setpoint. A manifest is
-checked as it loads, so a value no node could run, or a misspelled field, is refused
-with the reason rather than running quietly wrong.
+A profile carries no code. It picks code that already exists and tunes it:
+
+| Part of a node | Where it lives |
+| --- | --- |
+| The target, deadband, alert range, and sampling intervals | the profile |
+| Which policy decides each reading | the profile, as its control `kind` |
+| The policies `setpoint`, `level`, `surge`, and `monitor` | compiled into the library |
+| A policy the library does not ship | your program, registered under the kind's name |
+| The probe, the output, and the link | your program, or a [wiring file](../run.md) for the stock runner |
+
+That split is what makes a profile safe to share and to fetch. The worst a file can do
+is set a number, and every file is checked as it loads: a value no node could run, or
+a field the format does not have, is refused with the reason.
+
+## Where a profile comes from
+
+- **A file on disk.** The example below loads `profiles/brooder-heater.json` from the
+  [catalog](../profiles.md).
+- **A link.** A gateway publishes a profile on an MQTT topic, or serves it as the body
+  of an HTTP response. It signs what it sends, and the node checks the signature before
+  it reads a byte, as the fourth part of the example shows.
+- **The stock runner.** [`pamoja-node`](../run.md) reads a profile and a site's wiring
+  file and runs the node, with no program to write.
 
 ## What the example does
 
-It loads `profiles/brooder-heater.json`, the brooder profile the catalog ships, and
-runs it as a node over a morning of five brooder temperatures: a list stands in for
-the probe, a variable for the heat lamp, and an in-process broker for the link, with
-a dashboard listening on it. It prints what the lamp does at each reading and what
-the dashboard heard, asks the node how long it would wait at three charges, and
-prints how the file says a dashboard draws the node.
-
-The second part runs the other two built-in policies on the profiles the library
-ships: a well whose level falls toward dry, and a river that rises too fast. The
-third names a control kind of the program's own in the same file, and registers the
-code that decides it. The fourth is what goes wrong: a probe that fails, a
-controller built again for each reading, two manifests no node could run and one
-with a misspelled field, and a custom kind with no code registered for it.
-
-The five readings sit around the 32 C target: the lamp switches on at 31.5 C or
-below and off at 32.5 C or above, and between the two it stays as it was.
+It runs the brooder profile as a node over a morning of five temperatures around its
+32 C target, where the lamp switches on at 31.5 C or below and off at 32.5 C or above.
+A list stands in for the probe, a variable for the heat lamp, and an in-process broker
+for the link, with a dashboard listening. Then it runs the other built-in policies on a
+well and a river, a control kind of the program's own, a profile that arrives signed
+over a link, and what goes wrong.
 
 It proves:
 
@@ -55,6 +55,8 @@ It proves:
 - A kind the library never shipped runs the program's own code once it is
   registered under the kind's name, reading its parameters from the file and
   raising a condition of its own.
+- A profile the gateway signed arrives over a link and loads, and one signed by any
+  other key is refused before it is read.
 - A reading that is not a number raises `InvalidReading` and the lamp holds, and a
   controller built again for each reading forgets the lamp was on.
 - A manifest with a hysteresis of zero, or intervals that shorten as the battery
@@ -288,6 +290,50 @@ println!(
 ```
 <!-- end -->
 
+A profile that arrives over a link, continuing from above:
+
+<!-- snippet: examples/guides/profile.rs#network -->
+From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/profile.rs):
+
+```rust
+use pamoja_security::DeviceIdentity;
+
+// A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+// publishes to, or as the body of an HTTP response. The gateway signs what it sends and
+// each node holds only the gateway's public key, so a profile is checked before it is
+// read, and one from anywhere else never runs.
+let gateway = DeviceIdentity::from_seed(&[7u8; 32]);
+let trusted = gateway.public();
+let broker = LoopbackBroker::new();
+let mut uplink = LoopbackTransport::new(broker.clone());
+let mut downlink = LoopbackTransport::new(broker);
+uplink.connect().await?;
+downlink.connect().await?;
+let fleet = "fleet/brooders/profile";
+downlink.subscribe(fleet).await?;
+
+uplink
+    .send(fleet, &gateway.sign_message(text.as_bytes()))
+    .await?;
+let message = downlink.recv().await?.expect("a profile");
+let signed = trusted.verify_message(&message.payload)?;
+let delivered = Profile::from_json(std::str::from_utf8(signed)?)?;
+println!(
+    "network   {} arrived on {fleet}, signed by the gateway, and loads",
+    delivered.name
+);
+
+let stranger = DeviceIdentity::from_seed(&[9u8; 32]);
+uplink
+    .send(fleet, &stranger.sign_message(text.as_bytes()))
+    .await?;
+let message = downlink.recv().await?.expect("a profile");
+if trusted.verify_message(&message.payload).is_err() {
+    println!("network   one signed by any other key is refused before it is read");
+}
+```
+<!-- end -->
+
 What goes wrong, continuing from above:
 
 <!-- snippet: examples/guides/profile.rs#wrong -->
@@ -517,6 +563,44 @@ async function custom(): Promise<void> {
 ```
 <!-- end -->
 
+A profile that arrives over a link, continuing from above:
+
+<!-- snippet: bindings/node/guides/profile.ts#network -->
+From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
+
+```typescript
+import { DeviceIdentity, verifyMessage } from '@pamoja/security'
+
+async function network(): Promise<Profile> {
+  // A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+  // publishes to, or as the body of an HTTP response. The gateway signs what it sends and each
+  // node holds only the gateway's public key, so a profile is checked before it is read, and
+  // one from anywhere else never runs.
+  const gateway = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
+  const trusted = gateway.publicKey()
+  const broker = new LoopbackBroker()
+  const uplink = broker.link()
+  const downlink = broker.link()
+  await uplink.connect()
+  await downlink.connect()
+  const fleet = 'fleet/brooders/profile'
+  await downlink.subscribe(fleet)
+
+  await uplink.send(fleet, gateway.signMessage(text))
+  const signed = verifyMessage(trusted, (await downlink.recv())!.payload)
+  const delivered = Profile.fromJson(signed!.toString('utf8'))
+  console.log(`network   ${delivered.name} arrived on ${fleet}, signed by the gateway, and loads`)
+
+  const stranger = DeviceIdentity.fromSeed(Buffer.alloc(32, 9))
+  await uplink.send(fleet, stranger.signMessage(text))
+  if (verifyMessage(trusted, (await downlink.recv())!.payload) === null) {
+    console.log('network   one signed by any other key is refused before it is read')
+  }
+  return delivered
+}
+```
+<!-- end -->
+
 What goes wrong, continuing from above:
 
 <!-- snippet: bindings/node/guides/profile.ts#wrong -->
@@ -728,6 +812,46 @@ async def custom() -> None:
 
 
 asyncio.run(custom())
+```
+<!-- end -->
+
+A profile that arrives over a link, continuing from above:
+
+<!-- snippet: bindings/python/guides/profile.py#network -->
+From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py):
+
+```python
+from pamoja.security import DeviceIdentity, verify_message
+
+
+async def network() -> Profile:
+    # A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+    # publishes to, or as the body of an HTTP response. The gateway signs what it sends and
+    # each node holds only the gateway's public key, so a profile is checked before it is
+    # read, and one from anywhere else never runs.
+    gateway = DeviceIdentity.from_seed(bytes([7]) * 32)
+    trusted = gateway.public_key
+    broker = LoopbackBroker()
+    uplink = broker.link()
+    downlink = broker.link()
+    await uplink.connect()
+    await downlink.connect()
+    fleet = "fleet/brooders/profile"
+    await downlink.subscribe(fleet)
+
+    await uplink.send(fleet, gateway.sign_message(text.encode("utf-8")))
+    signed = verify_message(trusted, (await downlink.recv()).payload)
+    delivered = Profile.from_json(signed.decode("utf-8"))
+    print(f"network   {delivered.name} arrived on {fleet}, signed by the gateway, and loads")
+
+    stranger = DeviceIdentity.from_seed(bytes([9]) * 32)
+    await uplink.send(fleet, stranger.sign_message(text.encode("utf-8")))
+    if verify_message(trusted, (await downlink.recv()).payload) is None:
+        print("network   one signed by any other key is refused before it is read")
+    return delivered
+
+
+delivered = asyncio.run(network())
 ```
 <!-- end -->
 
@@ -945,6 +1069,51 @@ private static async Task CustomAsync(string text)
     Tick tick = await node.TickAsync();
     string alert = tick.Reaction.Alert?.Code ?? tick.Reaction.Alert?.Kind.ToString() ?? "none";
     Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}lamp {(lamp ? "on" : "off")}, alert {alert}"));
+}
+```
+<!-- end -->
+
+A profile that arrives over a link, continuing from above:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs#network -->
+From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs):
+
+```csharp
+private static async Task<Profile> NetworkAsync(string text)
+{
+    // A profile can arrive over a link as well as from a disk: on an MQTT topic the
+    // gateway publishes to, or as the body of an HTTP response. The gateway signs what it
+    // sends and each node holds only the gateway's public key, so a profile is checked
+    // before it is read, and one from anywhere else never runs.
+    byte[] seed = new byte[DeviceIdentity.KeyLength];
+    Array.Fill(seed, (byte)7);
+    using var gateway = new DeviceIdentity(seed);
+    byte[] trusted = gateway.PublicKey;
+    using var broker = new LoopbackBroker();
+    using var uplink = broker.Link();
+    using var downlink = broker.Link();
+    await uplink.ConnectAsync();
+    await downlink.ConnectAsync();
+    const string fleet = "fleet/brooders/profile";
+    await downlink.SubscribeAsync(fleet);
+
+    byte[] manifest = Encoding.UTF8.GetBytes(text);
+    await uplink.SendAsync(fleet, gateway.SignMessage(manifest));
+    TransportMessage? message = await downlink.ReceiveAsync(TimeSpan.FromSeconds(5));
+    byte[]? signed = DeviceIdentity.VerifyMessage(trusted, message!.Payload);
+    var delivered = Profile.FromJson(Encoding.UTF8.GetString(signed!));
+    Console.WriteLine($"network   {delivered.Name} arrived on {fleet}, signed by the gateway, and loads");
+
+    Array.Fill(seed, (byte)9);
+    using var stranger = new DeviceIdentity(seed);
+    await uplink.SendAsync(fleet, stranger.SignMessage(manifest));
+    message = await downlink.ReceiveAsync(TimeSpan.FromSeconds(5));
+    if (DeviceIdentity.VerifyMessage(trusted, message!.Payload) is null)
+    {
+        Console.WriteLine("network   one signed by any other key is refused before it is read");
+    }
+
+    return delivered;
 }
 ```
 <!-- end -->

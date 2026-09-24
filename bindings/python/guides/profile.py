@@ -136,6 +136,42 @@ async def custom() -> None:
 asyncio.run(custom())
 # ANCHOR_END: custom
 
+# ANCHOR: network
+from pamoja.security import DeviceIdentity, verify_message
+
+
+async def network() -> Profile:
+    # A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+    # publishes to, or as the body of an HTTP response. The gateway signs what it sends and
+    # each node holds only the gateway's public key, so a profile is checked before it is
+    # read, and one from anywhere else never runs.
+    gateway = DeviceIdentity.from_seed(bytes([7]) * 32)
+    trusted = gateway.public_key
+    broker = LoopbackBroker()
+    uplink = broker.link()
+    downlink = broker.link()
+    await uplink.connect()
+    await downlink.connect()
+    fleet = "fleet/brooders/profile"
+    await downlink.subscribe(fleet)
+
+    await uplink.send(fleet, gateway.sign_message(text.encode("utf-8")))
+    signed = verify_message(trusted, (await downlink.recv()).payload)
+    delivered = Profile.from_json(signed.decode("utf-8"))
+    print(f"network   {delivered.name} arrived on {fleet}, signed by the gateway, and loads")
+
+    stranger = DeviceIdentity.from_seed(bytes([9]) * 32)
+    await uplink.send(fleet, stranger.sign_message(text.encode("utf-8")))
+    if verify_message(trusted, (await downlink.recv()).payload) is None:
+        print("network   one signed by any other key is refused before it is read")
+    return delivered
+
+
+delivered = asyncio.run(network())
+# ANCHOR_END: network
+
+assert delivered.to_json() == profile.to_json()
+
 # ANCHOR: wrong
 from pamoja.core import PamojaError
 

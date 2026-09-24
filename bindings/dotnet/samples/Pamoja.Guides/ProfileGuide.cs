@@ -1,7 +1,10 @@
+using System.Text;
+
 using Pamoja;
 using Pamoja.Core;
 using Pamoja.Loopback;
 using Pamoja.Profile;
+using Pamoja.Security;
 
 using static System.FormattableString;
 using static Guides.Guide;
@@ -88,6 +91,11 @@ public static class ProfileGuide
         Expect(lamp, "the morning ends with the lamp on");
         Kinds();
         await CustomAsync(text);
+        using (Profile delivered = await NetworkAsync(text))
+        {
+            Expect(delivered.ToJson() == profile.ToJson(), "the signed profile is the one sent");
+        }
+
         Wrong(text, profile);
     }
 
@@ -164,6 +172,45 @@ public static class ProfileGuide
         Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}lamp {(lamp ? "on" : "off")}, alert {alert}"));
     }
     // ANCHOR_END: custom
+
+    // ANCHOR: network
+    private static async Task<Profile> NetworkAsync(string text)
+    {
+        // A profile can arrive over a link as well as from a disk: on an MQTT topic the
+        // gateway publishes to, or as the body of an HTTP response. The gateway signs what it
+        // sends and each node holds only the gateway's public key, so a profile is checked
+        // before it is read, and one from anywhere else never runs.
+        byte[] seed = new byte[DeviceIdentity.KeyLength];
+        Array.Fill(seed, (byte)7);
+        using var gateway = new DeviceIdentity(seed);
+        byte[] trusted = gateway.PublicKey;
+        using var broker = new LoopbackBroker();
+        using var uplink = broker.Link();
+        using var downlink = broker.Link();
+        await uplink.ConnectAsync();
+        await downlink.ConnectAsync();
+        const string fleet = "fleet/brooders/profile";
+        await downlink.SubscribeAsync(fleet);
+
+        byte[] manifest = Encoding.UTF8.GetBytes(text);
+        await uplink.SendAsync(fleet, gateway.SignMessage(manifest));
+        TransportMessage? message = await downlink.ReceiveAsync(TimeSpan.FromSeconds(5));
+        byte[]? signed = DeviceIdentity.VerifyMessage(trusted, message!.Payload);
+        var delivered = Profile.FromJson(Encoding.UTF8.GetString(signed!));
+        Console.WriteLine($"network   {delivered.Name} arrived on {fleet}, signed by the gateway, and loads");
+
+        Array.Fill(seed, (byte)9);
+        using var stranger = new DeviceIdentity(seed);
+        await uplink.SendAsync(fleet, stranger.SignMessage(manifest));
+        message = await downlink.ReceiveAsync(TimeSpan.FromSeconds(5));
+        if (DeviceIdentity.VerifyMessage(trusted, message!.Payload) is null)
+        {
+            Console.WriteLine("network   one signed by any other key is refused before it is read");
+        }
+
+        return delivered;
+    }
+    // ANCHOR_END: network
 
     private static void Wrong(string text, Profile profile)
     {

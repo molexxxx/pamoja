@@ -359,51 +359,101 @@ else
 
 </details>
 
-## A node, end to end
+## A node from a file
 
-A reading on its own is the start. What a deployment needs is the loop around it:
-read a sensor, decide, drive something, report, and wait the right amount of time
-before the next sample. A **profile** writes the decide and wait parts of that loop
-down as a JSON file rather than code:
+A field node reads a probe, decides, switches something, reports, and sleeps until
+the next sample. In pamoja the deciding and the sleeping are a **profile**, a JSON
+file anyone can read, tune, and share. This one keeps a brooder of chicks warm:
 
 ```json
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "brooder-heater",
+  "reads": { "quantity": "temperature", "unit": "celsius" },
   "topic": "poultry/brooder/temperature",
-  "control": { "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": 4.0 },
-  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+  "control": {
+    "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+    "cooling": false, "safe_band": 4.0
+  },
+  "power": {
+    "active_secs": 120, "saver_secs": 600, "critical_secs": 1800,
+    "saver_below": 0.5, "critical_below": 0.2, "hysteresis": 0.05
+  }
 }
 ```
 
-The manifest holds the target, the deadband, the alert range, and how often to
-sample as the battery drains, so changing any of them is an edit rather than a
-build. The shipped [`brooder-heater.json`](profiles/brooder-heater.json) also says
-how it should be drawn, which is what lets a dashboard render a node it has never
-seen, in the reader's language. A `Node` loads the file and runs the whole loop
-around a sensor, an output, and a link, in all four languages, and `pamoja-node`
-runs it from a site's wiring file with no program at all.
+The lamp goes on below 31.5 C and off above 32.5 C, an alert fires beyond 4 C either
+way, and the node samples every 2 minutes, every 10 below half charge, and every 30
+below a fifth. The whole of
+[`profiles/brooder-heater.json`](profiles/brooder-heater.json) also says how a
+dashboard draws it; an editor checks it against the schema as it is typed.
 
-Each part has a guide of its own:
+**With no program at all**, `pamoja-node` runs it from a wiring file that says where
+this coop's parts are:
 
-| Part | What it does |
-| --- | --- |
-| [Profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | loads a manifest from a file and runs it as a node, in all four languages |
-| [Running a profile](https://pamoja.molex.cloud/docs/run.html) | `pamoja-node` runs a profile on a site's part, relay line, and broker, named in a wiring file |
-| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | a file an engine runs off a link, turning one node's reading into an action on another node |
-| [The transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | tries each link in turn and keeps what none of them would take |
-| [The dashboard](https://pamoja.molex.cloud/dashboard/) | a gateway serves the fleet on the local network, with no internet and no app |
+```json
+{
+  "site": "coop-2",
+  "profile": "brooder-heater.json",
+  "sensor": { "part": "bme280", "bus": "/dev/i2c-1" },
+  "output": { "gpio": "/dev/gpiochip0", "line": 17, "active_low": true },
+  "link": { "mqtt": "localhost" }
+}
+```
 
-Two programs put the whole thing together, and both run with nothing plugged in.
-[`brooder_node`](examples/brooder_node.rs) runs one shed through a cold night: a
-probe, a heat lamp on an active-low relay, a radio that comes and goes so the cold
-hours are held and sent later in order, and a vent fan driven by a rule. [`fleet`](crates/pamoja-dashboard/examples/fleet.rs) is the other shape, every
-shipped profile stood up side by side on one console.
+```text
+$ pamoja-node coop-2.json --check
+coop-2 runs brooder-heater: temperature in celsius from a bme280 at 0x76 on /dev/i2c-1, the output on /dev/gpiochip0 line 17, reporting on poultry/brooder/temperature over mqtt localhost:1883
+```
 
-On real hardware the same code runs with two lines changed, the ones that open the
-bus and take the pin. The [Raspberry Pi](https://pamoja.molex.cloud/docs/boards/raspberry-pi.html)
-and [ESP32](https://pamoja.molex.cloud/docs/boards/esp32.html) pages carry those
-programs, along with what a GPIO pin can actually drive and which pins are safe to
-use.
+Every coop runs the same profile with a wiring file of its own.
+[Running a profile](https://pamoja.molex.cloud/docs/run.html) lists the parts it
+reads, tries it with nothing wired, and starts it at boot.
+
+**In a program of your own**, for a node that needs a second probe, a display, or a
+policy the library does not ship, the file loads the same way. This is the whole node
+on a Raspberry Pi, and nothing in it repeats a number from the profile:
+
+<!-- snippet: examples/boards/raspberry-pi/src/bin/node.rs#example -->
+From [`examples/boards/raspberry-pi/src/bin/node.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/boards/raspberry-pi/src/bin/node.rs):
+
+```rust
+use pamoja_codec::JsonCodec;
+use pamoja_core::{Sensor, Transport};
+use pamoja_gpio::{pin::Polarity, switch::Switch};
+use pamoja_hal::{digital::PinState, linux};
+use pamoja_mqtt::{MqttConfig, MqttTransport};
+use pamoja_profile::{Node, Profile};
+use pamoja_sensors::bme280::{Bme280, Measurement, I2C_ADDRESS_PRIMARY};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let profile = Profile::from_json(&std::fs::read_to_string("brooder-heater.json")?)?;
+
+    let bus = linux::i2c("/dev/i2c-1")?;
+    let mut bme280 = Bme280::i2c(bus, I2C_ADDRESS_PRIMARY, linux::delay());
+    bme280.init()?;
+    let probe = bme280.map(|measurement: Measurement| measurement.celsius());
+
+    let relay = linux::output("/dev/gpiochip0", 17, "brooder", PinState::High)?;
+    let lamp = Switch::new(relay, Polarity::ActiveLow);
+
+    let mut broker = MqttTransport::new(MqttConfig::new("coop-2", "localhost", 1883));
+    broker.connect().await?;
+
+    // On mains the charge is full; a node on a panel reads its charge controller here.
+    let mut node = Node::new(profile, probe, lamp, broker, JsonCodec)?;
+    node.run(|| (1.0, true), tokio::time::sleep).await?;
+    Ok(())
+}
+```
+<!-- end -->
+
+`Node` runs the same way in TypeScript, Python, and C#, as the
+[profiles guide](https://pamoja.molex.cloud/docs/guides/profile.html) shows, and a
+[rule file](https://pamoja.molex.cloud/docs/guides/rules.html) turns one node's
+reading into an action on another. The [profile catalog](https://pamoja.molex.cloud/docs/profiles.html)
+holds the profiles that ship, from a well's level to a river that rises too fast.
 
 ## What it covers
 
