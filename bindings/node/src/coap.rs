@@ -5,6 +5,7 @@
 //! a handful of bytes, and a node can fire a reading and forget it rather than
 //! holding a session open.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,7 +36,7 @@ pub struct CoapClientOptions {
     /// The peer hostname or IP address.
     pub host: String,
     /// The peer UDP port, conventionally 5683 for plaintext CoAP.
-    pub port: u16,
+    pub port: checked::u16,
     /// The local address to bind. Defaults to an ephemeral port when omitted.
     pub bind: Option<String>,
     /// Whether requests are acknowledged and retried. Defaults to confirmable.
@@ -43,9 +44,9 @@ pub struct CoapClientOptions {
     /// How long to wait for the first acknowledgment, in milliseconds, two seconds when
     /// omitted. Each wait after it doubles, and RFC 7252 forbids a first wait shorter
     /// than two seconds on a network without congestion control.
-    pub ack_timeout_ms: Option<u32>,
+    pub ack_timeout_ms: Option<checked::u32>,
     /// How many times to retransmit an unacknowledged request.
-    pub max_retransmits: Option<u32>,
+    pub max_retransmits: Option<checked::u32>,
 }
 
 /// A CoAP endpoint.
@@ -227,7 +228,7 @@ impl CoapServer {
 /// Shared with the composable transport, so an endpoint and a ladder rung read
 /// the same fields the same way.
 pub(crate) fn settings(options: CoapClientOptions) -> CoapConfig {
-    let mut config = CoapConfig::new(options.host, options.port);
+    let mut config = CoapConfig::new(options.host, options.port.get());
     if let Some(bind) = options.bind {
         config = config.bind(bind);
     }
@@ -235,11 +236,11 @@ pub(crate) fn settings(options: CoapClientOptions) -> CoapConfig {
         Some(Reliability::NonConfirmable) => CoreReliability::NonConfirmable,
         _ => CoreReliability::Confirmable,
     });
-    if let Some(millis) = options.ack_timeout_ms {
+    if let Some(millis) = options.ack_timeout_ms.get() {
         config = config.ack_timeout(Duration::from_millis(u64::from(millis)));
     }
     if let Some(count) = options.max_retransmits {
-        config = config.max_retransmits(count);
+        config = config.max_retransmits(count.get());
     }
     config
 }

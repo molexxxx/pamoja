@@ -8,6 +8,7 @@
 //! measurement, so each is a class. Everything else is a plain function over the
 //! bytes or the register value a caller already holds.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_sensors::{
@@ -51,13 +52,13 @@ pub struct Ads1115Config {
     /// Whether writing this starts a single conversion.
     pub start_conversion: bool,
     /// The input multiplexer code, `0..=7`.
-    pub mux: u8,
+    pub mux: checked::u8,
     /// The gain code, `0..=7`, which sets the full-scale range.
-    pub pga: u8,
+    pub pga: checked::u8,
     /// Whether to convert once per request and power down, rather than continuously.
     pub single_shot: bool,
     /// The data rate code, `0..=7`.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
     /// Whether to use the window comparator rather than the traditional one.
     pub window_comparator: bool,
     /// Whether the ALERT/RDY pin is active high.
@@ -65,7 +66,7 @@ pub struct Ads1115Config {
     /// Whether the comparator latches until the conversion is read.
     pub comparator_latching: bool,
     /// The comparator queue code, `0..=3`, where `3` disables the comparator.
-    pub comparator_queue: u8,
+    pub comparator_queue: checked::u8,
 }
 
 /// A BME280's factory calibration, read once and reused for every measurement.
@@ -117,34 +118,34 @@ impl Bme280Calibration {
 #[napi(object)]
 pub struct Bme280CtrlMeas {
     /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
-    pub temperature: u8,
+    pub temperature: checked::u8,
     /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
-    pub pressure: u8,
+    pub pressure: checked::u8,
     /// The power mode code: `0` sleep, `1` forced, `3` normal.
-    pub mode: u8,
+    pub mode: checked::u8,
 }
 
 /// A BME280 `config` register, field by field.
 #[napi(object)]
 pub struct Bme280Config {
     /// The normal-mode standby code, `0..=7`.
-    pub standby: u8,
+    pub standby: checked::u8,
     /// The IIR filter code, `0..=4`, where `0` is off.
-    pub filter: u8,
+    pub filter: checked::u8,
     /// Whether the 3-wire SPI interface is enabled.
     pub spi3wire: bool,
 }
 
 /// Reports whether a BME280 status byte says a conversion is running.
 #[napi]
-pub fn bme280_measuring(status: u8) -> bool {
-    bme280::measuring(status)
+pub fn bme280_measuring(status: checked::u8) -> bool {
+    bme280::measuring(status.get())
 }
 
 /// Reports whether a BME280 status byte says the calibration image is loading.
 #[napi]
-pub fn bme280_image_updating(status: u8) -> bool {
-    bme280::image_updating(status)
+pub fn bme280_image_updating(status: checked::u8) -> bool {
+    bme280::image_updating(status.get())
 }
 
 /// Packs a BME280 `ctrl_meas` register value.
@@ -155,23 +156,23 @@ pub fn bme280_ctrl_meas_bits(config: Bme280CtrlMeas) -> u8 {
 
 /// Parses a BME280 `ctrl_meas` register value.
 #[napi]
-pub fn bme280_ctrl_meas_from_bits(bits: u8) -> Bme280CtrlMeas {
-    bme280::CtrlMeas::from_bits(bits).into()
+pub fn bme280_ctrl_meas_from_bits(bits: checked::u8) -> Bme280CtrlMeas {
+    bme280::CtrlMeas::from_bits(bits.get()).into()
 }
 
 /// Packs a BME280 `ctrl_hum` register value from a humidity oversampling code.
 #[napi]
-pub fn bme280_ctrl_hum_bits(humidity: u8) -> u8 {
+pub fn bme280_ctrl_hum_bits(humidity: checked::u8) -> u8 {
     bme280::CtrlHum {
-        humidity: bme280::Oversampling::from_code(humidity),
+        humidity: bme280::Oversampling::from_code(humidity.get()),
     }
     .bits()
 }
 
 /// Parses a BME280 `ctrl_hum` register value into its humidity oversampling code.
 #[napi]
-pub fn bme280_ctrl_hum_from_bits(bits: u8) -> u8 {
-    bme280::CtrlHum::from_bits(bits).humidity.code()
+pub fn bme280_ctrl_hum_from_bits(bits: checked::u8) -> u8 {
+    bme280::CtrlHum::from_bits(bits.get()).humidity.code()
 }
 
 /// Packs a BME280 `config` register value.
@@ -182,45 +183,53 @@ pub fn bme280_config_bits(config: Bme280Config) -> u8 {
 
 /// Parses a BME280 `config` register value.
 #[napi]
-pub fn bme280_config_from_bits(bits: u8) -> Bme280Config {
-    bme280::Config::from_bits(bits).into()
+pub fn bme280_config_from_bits(bits: checked::u8) -> Bme280Config {
+    bme280::Config::from_bits(bits.get()).into()
 }
 
 /// Returns how many samples a BME280 oversampling code averages, or 0 when it skips.
 #[napi]
-pub fn bme280_oversampling_factor(code: u8) -> u8 {
-    bme280::Oversampling::from_code(code).factor()
+pub fn bme280_oversampling_factor(code: checked::u8) -> u8 {
+    bme280::Oversampling::from_code(code.get()).factor()
 }
 
 /// Returns the normal-mode standby period a BME280 code selects, in microseconds.
 #[napi]
-pub fn bme280_standby_micros(code: u8) -> u32 {
-    bme280::Standby::from_code(code).microseconds()
+pub fn bme280_standby_micros(code: checked::u8) -> u32 {
+    bme280::Standby::from_code(code.get()).microseconds()
 }
 
 /// Returns the IIR filter coefficient a BME280 code selects, or 0 when it is off.
 #[napi]
-pub fn bme280_filter_coefficient(code: u8) -> u8 {
-    bme280::Filter::from_code(code).coefficient()
+pub fn bme280_filter_coefficient(code: checked::u8) -> u8 {
+    bme280::Filter::from_code(code.get()).coefficient()
 }
 
 /// Returns the longest one BME280 measurement can take, in microseconds.
 #[napi]
-pub fn bme280_max_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+pub fn bme280_max_measurement_micros(
+    temperature: checked::u8,
+    pressure: checked::u8,
+    humidity: checked::u8,
+) -> u32 {
     bme280::max_measurement_micros(
-        bme280::Oversampling::from_code(temperature),
-        bme280::Oversampling::from_code(pressure),
-        bme280::Oversampling::from_code(humidity),
+        bme280::Oversampling::from_code(temperature.get()),
+        bme280::Oversampling::from_code(pressure.get()),
+        bme280::Oversampling::from_code(humidity.get()),
     )
 }
 
 /// Returns the typical time one BME280 measurement takes, in microseconds.
 #[napi]
-pub fn bme280_typical_measurement_micros(temperature: u8, pressure: u8, humidity: u8) -> u32 {
+pub fn bme280_typical_measurement_micros(
+    temperature: checked::u8,
+    pressure: checked::u8,
+    humidity: checked::u8,
+) -> u32 {
     bme280::typical_measurement_micros(
-        bme280::Oversampling::from_code(temperature),
-        bme280::Oversampling::from_code(pressure),
-        bme280::Oversampling::from_code(humidity),
+        bme280::Oversampling::from_code(temperature.get()),
+        bme280::Oversampling::from_code(pressure.get()),
+        bme280::Oversampling::from_code(humidity.get()),
     )
 }
 
@@ -260,13 +269,13 @@ pub fn ds18b20_w1_slave_text(scratchpad: Buffer) -> napi::Result<String> {
 #[napi(js_name = "ds18b20BuildScratchpad")]
 pub fn ds18b20_build_scratchpad(
     celsius: f64,
-    bits: u8,
-    alarm_high: i8,
-    alarm_low: i8,
+    bits: checked::u8,
+    alarm_high: checked::i8,
+    alarm_low: checked::i8,
 ) -> napi::Result<Buffer> {
-    let resolution = resolution(bits)?;
+    let resolution = resolution(bits.get())?;
     let raw = ds18b20::temperature_from_celsius(celsius as f32, resolution);
-    let scratchpad = ds18b20::Scratchpad::new(raw, resolution, alarm_high, alarm_low);
+    let scratchpad = ds18b20::Scratchpad::new(raw, resolution, alarm_high.get(), alarm_low.get());
     Ok(Buffer::from(scratchpad.to_bytes().to_vec()))
 }
 
@@ -278,110 +287,116 @@ pub fn ds18b20_crc8(data: Buffer) -> u8 {
 
 /// Converts a raw DS18B20 temperature register to micro-degrees Celsius.
 #[napi(js_name = "ds18b20MicroCelsius")]
-pub fn ds18b20_micro_celsius(raw: i16) -> i32 {
-    ds18b20::temperature_to_micro_celsius(raw)
+pub fn ds18b20_micro_celsius(raw: checked::i16) -> i32 {
+    ds18b20::temperature_to_micro_celsius(raw.get())
 }
 
 /// Converts a raw DS18B20 temperature register to degrees Celsius.
 #[napi(js_name = "ds18b20Celsius")]
-pub fn ds18b20_celsius(raw: i16) -> f64 {
-    f64::from(ds18b20::temperature_to_celsius(raw))
+pub fn ds18b20_celsius(raw: checked::i16) -> f64 {
+    f64::from(ds18b20::temperature_to_celsius(raw.get()))
 }
 
 /// Returns the configuration byte that selects a DS18B20 resolution.
 #[napi(js_name = "ds18b20ConfigByte")]
-pub fn ds18b20_config_byte(bits: u8) -> napi::Result<u8> {
-    Ok(resolution(bits)?.config_byte())
+pub fn ds18b20_config_byte(bits: checked::u8) -> napi::Result<u8> {
+    Ok(resolution(bits.get())?.config_byte())
 }
 
 /// Returns the resolution a DS18B20 configuration byte selects, in bits.
 #[napi(js_name = "ds18b20ResolutionBits")]
-pub fn ds18b20_resolution_bits(config_byte: u8) -> u8 {
-    ds18b20::Resolution::from_config_byte(config_byte).bits()
+pub fn ds18b20_resolution_bits(config_byte: checked::u8) -> u8 {
+    ds18b20::Resolution::from_config_byte(config_byte.get()).bits()
 }
 
 /// Returns the temperature step a DS18B20 resolution resolves, in micro-degrees.
 #[napi(js_name = "ds18b20StepMicroCelsius")]
-pub fn ds18b20_step_micro_celsius(bits: u8) -> napi::Result<u32> {
-    Ok(resolution(bits)?.step_micro_celsius())
+pub fn ds18b20_step_micro_celsius(bits: checked::u8) -> napi::Result<u32> {
+    Ok(resolution(bits.get())?.step_micro_celsius())
 }
 
 /// Returns how long a DS18B20 conversion may take at a resolution, in microseconds.
 #[napi(js_name = "ds18b20MaxConversionMicros")]
-pub fn ds18b20_max_conversion_micros(bits: u8) -> napi::Result<u32> {
-    Ok(resolution(bits)?.max_conversion_micros())
+pub fn ds18b20_max_conversion_micros(bits: checked::u8) -> napi::Result<u32> {
+    Ok(resolution(bits.get())?.max_conversion_micros())
 }
 
 /// Computes the INA219 calibration register for a shunt and current resolution.
 #[napi]
-pub fn ina219_calibration(current_lsb_microamps: u32, shunt_milliohms: u32) -> u16 {
-    ina219::calibration(current_lsb_microamps, shunt_milliohms)
+pub fn ina219_calibration(
+    current_lsb_microamps: checked::u32,
+    shunt_milliohms: checked::u32,
+) -> u16 {
+    ina219::calibration(current_lsb_microamps.get(), shunt_milliohms.get())
 }
 
 /// Returns the smallest current resolution that still covers an expected maximum.
 #[napi]
-pub fn ina219_minimum_current_lsb_microamps(max_expected_microamps: u32) -> u32 {
-    ina219::minimum_current_lsb_microamps(max_expected_microamps)
+pub fn ina219_minimum_current_lsb_microamps(max_expected_microamps: checked::u32) -> u32 {
+    ina219::minimum_current_lsb_microamps(max_expected_microamps.get())
 }
 
 /// Builds the INA219 shunt-voltage register a monitor reports for a shunt voltage.
 #[napi]
-pub fn ina219_shunt_register(microvolts: i32) -> i16 {
-    ina219::shunt_register(microvolts)
+pub fn ina219_shunt_register(microvolts: checked::i32) -> i16 {
+    ina219::shunt_register(microvolts.get())
 }
 
 /// Builds the INA219 bus-voltage register a monitor reports for a bus voltage.
 #[napi]
-pub fn ina219_bus_register(millivolts: u32) -> u16 {
-    ina219::bus_register(millivolts)
+pub fn ina219_bus_register(millivolts: checked::u32) -> u16 {
+    ina219::bus_register(millivolts.get())
 }
 
 /// Builds the INA219 current register a monitor reports for a current.
 #[napi]
-pub fn ina219_current_register(microamps: i32, current_lsb_microamps: u32) -> i16 {
-    ina219::current_register(microamps, current_lsb_microamps)
+pub fn ina219_current_register(
+    microamps: checked::i32,
+    current_lsb_microamps: checked::u32,
+) -> i16 {
+    ina219::current_register(microamps.get(), current_lsb_microamps.get())
 }
 
 /// Builds the INA219 power register a monitor reports for a power.
 #[napi]
-pub fn ina219_power_register(microwatts: u32, current_lsb_microamps: u32) -> u16 {
-    ina219::power_register(microwatts, current_lsb_microamps)
+pub fn ina219_power_register(microwatts: checked::u32, current_lsb_microamps: checked::u32) -> u16 {
+    ina219::power_register(microwatts.get(), current_lsb_microamps.get())
 }
 
 /// Converts a raw INA219 shunt-voltage register to microvolts.
 #[napi]
-pub fn ina219_shunt_microvolts(raw: i16) -> i32 {
-    ina219::shunt_microvolts(raw)
+pub fn ina219_shunt_microvolts(raw: checked::i16) -> i32 {
+    ina219::shunt_microvolts(raw.get())
 }
 
 /// Converts a raw INA219 bus-voltage register to millivolts.
 #[napi]
-pub fn ina219_bus_millivolts(raw: u16) -> u32 {
-    ina219::bus_millivolts(raw)
+pub fn ina219_bus_millivolts(raw: checked::u16) -> u32 {
+    ina219::bus_millivolts(raw.get())
 }
 
 /// Reports whether an INA219 bus-voltage register says a conversion is ready.
 #[napi]
-pub fn ina219_conversion_ready(raw: u16) -> bool {
-    ina219::conversion_ready(raw)
+pub fn ina219_conversion_ready(raw: checked::u16) -> bool {
+    ina219::conversion_ready(raw.get())
 }
 
 /// Reports whether an INA219 bus-voltage register flags a math overflow.
 #[napi]
-pub fn ina219_math_overflow(raw: u16) -> bool {
-    ina219::math_overflow(raw)
+pub fn ina219_math_overflow(raw: checked::u16) -> bool {
+    ina219::math_overflow(raw.get())
 }
 
 /// Converts a raw INA219 current register to microamps.
 #[napi]
-pub fn ina219_current_microamps(raw: i16, current_lsb_microamps: u32) -> i32 {
-    ina219::current_microamps(raw, current_lsb_microamps)
+pub fn ina219_current_microamps(raw: checked::i16, current_lsb_microamps: checked::u32) -> i32 {
+    ina219::current_microamps(raw.get(), current_lsb_microamps.get())
 }
 
 /// Converts a raw INA219 power register to microwatts.
 #[napi]
-pub fn ina219_power_microwatts(raw: u16, current_lsb_microamps: u32) -> u32 {
-    ina219::power_microwatts(raw, current_lsb_microamps)
+pub fn ina219_power_microwatts(raw: checked::u16, current_lsb_microamps: checked::u32) -> u32 {
+    ina219::power_microwatts(raw.get(), current_lsb_microamps.get())
 }
 
 /// Assembles the 16-bit ADS1115 configuration register value.
@@ -392,39 +407,42 @@ pub fn ads1115_config_bits(config: Ads1115Config) -> u16 {
 
 /// Parses a 16-bit ADS1115 configuration register value.
 #[napi]
-pub fn ads1115_config_from_bits(bits: u16) -> Ads1115Config {
-    ads1115::Config::from_bits(bits).into()
+pub fn ads1115_config_from_bits(bits: checked::u16) -> Ads1115Config {
+    ads1115::Config::from_bits(bits.get()).into()
 }
 
 /// Returns the full-scale range an ADS1115 gain code selects, in microvolts.
 #[napi]
-pub fn ads1115_full_scale_microvolts(pga: u8) -> u32 {
-    ads1115::Pga::from_code(pga).full_scale_microvolts()
+pub fn ads1115_full_scale_microvolts(pga: checked::u8) -> u32 {
+    ads1115::Pga::from_code(pga.get()).full_scale_microvolts()
 }
 
 /// Returns the sample rate an ADS1115 data-rate code selects.
 #[napi]
-pub fn ads1115_samples_per_second(data_rate: u8) -> u16 {
-    ads1115::DataRate::from_code(data_rate).samples_per_second()
+pub fn ads1115_samples_per_second(data_rate: checked::u8) -> u16 {
+    ads1115::DataRate::from_code(data_rate.get()).samples_per_second()
 }
 
 /// Converts a raw ADS1115 conversion result to nanovolts.
 #[napi]
-pub fn ads1115_to_nanovolts(pga: u8, raw: i16) -> i64 {
-    ads1115::to_nanovolts(ads1115::Pga::from_code(pga), raw)
+pub fn ads1115_to_nanovolts(pga: checked::u8, raw: checked::i16) -> i64 {
+    ads1115::to_nanovolts(ads1115::Pga::from_code(pga.get()), raw.get())
 }
 
 /// Converts a raw ADS1115 conversion result to volts.
 #[napi]
-pub fn ads1115_to_volts(pga: u8, raw: i16) -> f64 {
-    f64::from(ads1115::to_volts(ads1115::Pga::from_code(pga), raw))
+pub fn ads1115_to_volts(pga: checked::u8, raw: checked::i16) -> f64 {
+    f64::from(ads1115::to_volts(
+        ads1115::Pga::from_code(pga.get()),
+        raw.get(),
+    ))
 }
 
 /// Returns how long an ADS1115 conversion takes at a data-rate code, in microseconds: one
 /// period of the rate plus the datasheet's ten percent rate variation.
 #[napi(js_name = "ads1115ConversionMicros")]
-pub fn ads1115_conversion_micros(data_rate: u8) -> u32 {
-    ads1115::conversion_micros(ads1115::DataRate::from_code(data_rate))
+pub fn ads1115_conversion_micros(data_rate: checked::u8) -> u32 {
+    ads1115::conversion_micros(ads1115::DataRate::from_code(data_rate.get()))
 }
 
 /// An INA219 configuration register, field by field, each setting as the code the datasheet
@@ -434,23 +452,26 @@ pub struct Ina219Configuration {
     /// Whether writing the register resets the part.
     pub reset: bool,
     /// The bus-voltage range code: `0` for 16 V, `1` for 32 V.
-    pub bus_range: u8,
+    pub bus_range: checked::u8,
     /// The shunt gain code, `0..=3`, for ranges of 40, 80, 160, and 320 mV.
-    pub gain: u8,
+    pub gain: checked::u8,
     /// The bus converter code, `0..=15`: a resolution below `8`, a sample count averaged at
     /// 12 bits from `9` up.
-    pub bus_adc: u8,
+    pub bus_adc: checked::u8,
     /// The shunt converter code, as `busAdc`.
-    pub shunt_adc: u8,
+    pub shunt_adc: checked::u8,
     /// The operating-mode code, `0..=7`.
-    pub mode: u8,
+    pub mode: checked::u8,
 }
 
 /// Returns the I2C address an INA219's A1 and A0 pin codes select, from Table 1 of its
 /// datasheet: `0` for GND, `1` for VS+, `2` for SDA, `3` for SCL.
 #[napi(js_name = "ina219Address")]
-pub fn ina219_address(a1: u8, a0: u8) -> napi::Result<u8> {
-    Ok(ina219::address(address_pin(a1)?, address_pin(a0)?))
+pub fn ina219_address(a1: checked::u8, a0: checked::u8) -> napi::Result<u8> {
+    Ok(ina219::address(
+        address_pin(a1.get())?,
+        address_pin(a0.get())?,
+    ))
 }
 
 /// Assembles the 16-bit INA219 configuration register value.
@@ -461,8 +482,8 @@ pub fn ina219_config_bits(config: Ina219Configuration) -> u16 {
 
 /// Parses a 16-bit INA219 configuration register value.
 #[napi(js_name = "ina219ConfigFromBits")]
-pub fn ina219_config_from_bits(bits: u16) -> Ina219Configuration {
-    ina219::Configuration::from_bits(bits).into()
+pub fn ina219_config_from_bits(bits: checked::u16) -> Ina219Configuration {
+    ina219::Configuration::from_bits(bits.get()).into()
 }
 
 /// Returns how long one INA219 conversion cycle takes, in microseconds: the shunt and bus
@@ -474,15 +495,15 @@ pub fn ina219_conversion_micros(config: Ina219Configuration) -> u32 {
 
 /// Returns how long one INA219 conversion takes at a converter code, in microseconds.
 #[napi(js_name = "ina219AdcConversionMicros")]
-pub fn ina219_adc_conversion_micros(code: u8) -> u32 {
-    ina219::Adc::from_code(code).conversion_micros()
+pub fn ina219_adc_conversion_micros(code: checked::u8) -> u32 {
+    ina219::Adc::from_code(code.get()).conversion_micros()
 }
 
 /// Returns the shunt-voltage range an INA219 gain code selects, in millivolts either side of
 /// zero.
 #[napi(js_name = "ina219GainRangeMillivolts")]
-pub fn ina219_gain_range_millivolts(code: u8) -> u16 {
-    ina219::Gain::from_code(code).range_millivolts()
+pub fn ina219_gain_range_millivolts(code: checked::u8) -> u16 {
+    ina219::Gain::from_code(code.get()).range_millivolts()
 }
 
 /// A BMP280's per-chip trimming coefficients, as they sit in its registers.
@@ -542,20 +563,20 @@ pub struct Bmp280Measurement {
 #[napi(object)]
 pub struct Bmp280CtrlMeas {
     /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
-    pub temperature: u8,
+    pub temperature: checked::u8,
     /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
-    pub pressure: u8,
+    pub pressure: checked::u8,
     /// The power mode code: `0` sleep, `1` forced, `3` normal.
-    pub mode: u8,
+    pub mode: checked::u8,
 }
 
 /// A BMP280 `config` register, field by field.
 #[napi(object)]
 pub struct Bmp280Config {
     /// The normal-mode standby code, `0..=7`.
-    pub standby: u8,
+    pub standby: checked::u8,
     /// The IIR filter code, `0..=7`.
-    pub filter: u8,
+    pub filter: checked::u8,
     /// Whether the 3-wire SPI interface is enabled.
     pub spi3wire: bool,
 }
@@ -618,9 +639,9 @@ pub fn bmp280_parse_measurement(data: Buffer) -> napi::Result<Bmp280Measurement>
 
 /// Reports whether a raw pressure code says the channel's oversampling is off.
 #[napi]
-pub fn bmp280_pressure_skipped(pressure: u32) -> bool {
+pub fn bmp280_pressure_skipped(pressure: checked::u32) -> bool {
     bmp280::Measurement {
-        pressure,
+        pressure: pressure.get(),
         temperature: 0,
     }
     .pressure_skipped()
@@ -628,34 +649,34 @@ pub fn bmp280_pressure_skipped(pressure: u32) -> bool {
 
 /// Reports whether a raw temperature code says the channel's oversampling is off.
 #[napi]
-pub fn bmp280_temperature_skipped(temperature: u32) -> bool {
+pub fn bmp280_temperature_skipped(temperature: checked::u32) -> bool {
     bmp280::Measurement {
         pressure: 0,
-        temperature,
+        temperature: temperature.get(),
     }
     .temperature_skipped()
 }
 
 /// Builds the six data bytes a BMP280 holding these codes would return.
 #[napi]
-pub fn bmp280_measurement_bytes(pressure: u32, temperature: u32) -> Buffer {
+pub fn bmp280_measurement_bytes(pressure: checked::u32, temperature: checked::u32) -> Buffer {
     let measurement = bmp280::Measurement {
-        pressure,
-        temperature,
+        pressure: pressure.get(),
+        temperature: temperature.get(),
     };
     Buffer::from(measurement.to_bytes().to_vec())
 }
 
 /// Reports whether a BMP280 status byte says a conversion is running.
 #[napi]
-pub fn bmp280_measuring(status: u8) -> bool {
-    bmp280::measuring(status)
+pub fn bmp280_measuring(status: checked::u8) -> bool {
+    bmp280::measuring(status.get())
 }
 
 /// Reports whether a BMP280 status byte says the calibration image is loading.
 #[napi]
-pub fn bmp280_image_updating(status: u8) -> bool {
-    bmp280::image_updating(status)
+pub fn bmp280_image_updating(status: checked::u8) -> bool {
+    bmp280::image_updating(status.get())
 }
 
 /// Packs a BMP280 `ctrl_meas` register value.
@@ -666,8 +687,8 @@ pub fn bmp280_ctrl_meas_bits(config: Bmp280CtrlMeas) -> u8 {
 
 /// Parses a BMP280 `ctrl_meas` register value.
 #[napi]
-pub fn bmp280_ctrl_meas_from_bits(bits: u8) -> Bmp280CtrlMeas {
-    bmp280::CtrlMeas::from_bits(bits).into()
+pub fn bmp280_ctrl_meas_from_bits(bits: checked::u8) -> Bmp280CtrlMeas {
+    bmp280::CtrlMeas::from_bits(bits.get()).into()
 }
 
 /// Packs a BMP280 `config` register value.
@@ -678,20 +699,20 @@ pub fn bmp280_config_bits(config: Bmp280Config) -> u8 {
 
 /// Parses a BMP280 `config` register value.
 #[napi]
-pub fn bmp280_config_from_bits(bits: u8) -> Bmp280Config {
-    bmp280::Config::from_bits(bits).into()
+pub fn bmp280_config_from_bits(bits: checked::u8) -> Bmp280Config {
+    bmp280::Config::from_bits(bits.get()).into()
 }
 
 /// Returns how many samples a BMP280 oversampling code averages.
 #[napi]
-pub fn bmp280_oversampling_factor(code: u8) -> u8 {
-    bmp280::Oversampling::from_code(code).factor()
+pub fn bmp280_oversampling_factor(code: checked::u8) -> u8 {
+    bmp280::Oversampling::from_code(code.get()).factor()
 }
 
 /// Returns the normal-mode standby period a BMP280 code selects, in microseconds.
 #[napi]
-pub fn bmp280_standby_micros(code: u8) -> u32 {
-    bmp280::Standby::from_code(code).microseconds()
+pub fn bmp280_standby_micros(code: checked::u8) -> u32 {
+    bmp280::Standby::from_code(code.get()).microseconds()
 }
 
 /// How hard an SHT3x works at one measurement, trading noise against time and power.
@@ -780,8 +801,8 @@ pub fn sht3x_word(frame: Buffer) -> napi::Result<u16> {
 
 /// Builds the three bytes an SHT3x sends for a word: the word then its CRC.
 #[napi(js_name = "sht3xWordBytes")]
-pub fn sht3x_word_bytes(value: u16) -> Buffer {
-    Buffer::from(sht3x::word_bytes(value).to_vec())
+pub fn sht3x_word_bytes(value: checked::u16) -> Buffer {
+    Buffer::from(sht3x::word_bytes(value.get()).to_vec())
 }
 
 /// Parses and CRC-checks a six-byte SHT3x measurement frame.
@@ -796,54 +817,57 @@ pub fn sht3x_parse_measurement(frame: Buffer) -> napi::Result<Sht3xMeasurement> 
 
 /// Builds the six bytes an SHT3x sends for a pair of raw words.
 #[napi(js_name = "sht3xMeasurementBytes")]
-pub fn sht3x_measurement_bytes(temperature_raw: u16, humidity_raw: u16) -> Buffer {
+pub fn sht3x_measurement_bytes(
+    temperature_raw: checked::u16,
+    humidity_raw: checked::u16,
+) -> Buffer {
     let measurement = sht3x::Measurement {
-        temperature_raw,
-        humidity_raw,
+        temperature_raw: temperature_raw.get(),
+        humidity_raw: humidity_raw.get(),
     };
     Buffer::from(measurement.to_bytes().to_vec())
 }
 
 /// Converts a raw SHT3x temperature word to milli-degrees Celsius.
 #[napi(js_name = "sht3xMilliCelsius")]
-pub fn sht3x_milli_celsius(raw: u16) -> i32 {
-    sht3x::milli_celsius(raw)
+pub fn sht3x_milli_celsius(raw: checked::u16) -> i32 {
+    sht3x::milli_celsius(raw.get())
 }
 
 /// Converts a raw SHT3x temperature word to degrees Celsius.
 #[napi(js_name = "sht3xCelsius")]
-pub fn sht3x_celsius(raw: u16) -> f64 {
-    f64::from(sht3x::celsius(raw))
+pub fn sht3x_celsius(raw: checked::u16) -> f64 {
+    f64::from(sht3x::celsius(raw.get()))
 }
 
 /// Converts a raw SHT3x temperature word to milli-degrees Fahrenheit.
 #[napi(js_name = "sht3xMilliFahrenheit")]
-pub fn sht3x_milli_fahrenheit(raw: u16) -> i32 {
-    sht3x::milli_fahrenheit(raw)
+pub fn sht3x_milli_fahrenheit(raw: checked::u16) -> i32 {
+    sht3x::milli_fahrenheit(raw.get())
 }
 
 /// Converts a raw SHT3x temperature word to degrees Fahrenheit.
 #[napi(js_name = "sht3xFahrenheit")]
-pub fn sht3x_fahrenheit(raw: u16) -> f64 {
-    f64::from(sht3x::fahrenheit(raw))
+pub fn sht3x_fahrenheit(raw: checked::u16) -> f64 {
+    f64::from(sht3x::fahrenheit(raw.get()))
 }
 
 /// Converts a raw SHT3x humidity word to milli-percent.
 #[napi(js_name = "sht3xMilliPercent")]
-pub fn sht3x_milli_percent(raw: u16) -> u32 {
-    sht3x::milli_percent(raw)
+pub fn sht3x_milli_percent(raw: checked::u16) -> u32 {
+    sht3x::milli_percent(raw.get())
 }
 
 /// Converts a raw SHT3x humidity word to a relative humidity percentage.
 #[napi(js_name = "sht3xRelativeHumidity")]
-pub fn sht3x_relative_humidity(raw: u16) -> f64 {
-    f64::from(sht3x::relative_humidity(raw))
+pub fn sht3x_relative_humidity(raw: checked::u16) -> f64 {
+    f64::from(sht3x::relative_humidity(raw.get()))
 }
 
 /// Builds the SHT3x temperature word that decodes to a temperature.
 #[napi(js_name = "sht3xTemperatureRawFromMilliCelsius")]
-pub fn sht3x_temperature_raw_from_milli_celsius(milli_celsius: i32) -> u16 {
-    sht3x::temperature_raw_from_milli_celsius(milli_celsius)
+pub fn sht3x_temperature_raw_from_milli_celsius(milli_celsius: checked::i32) -> u16 {
+    sht3x::temperature_raw_from_milli_celsius(milli_celsius.get())
 }
 
 /// Builds the SHT3x temperature word that decodes to a temperature in Celsius.
@@ -854,14 +878,14 @@ pub fn sht3x_temperature_raw_from_celsius(celsius: f64) -> u16 {
 
 /// Builds the SHT3x temperature word that decodes to a temperature in Fahrenheit.
 #[napi(js_name = "sht3xTemperatureRawFromMilliFahrenheit")]
-pub fn sht3x_temperature_raw_from_milli_fahrenheit(milli_fahrenheit: i32) -> u16 {
-    sht3x::temperature_raw_from_milli_fahrenheit(milli_fahrenheit)
+pub fn sht3x_temperature_raw_from_milli_fahrenheit(milli_fahrenheit: checked::i32) -> u16 {
+    sht3x::temperature_raw_from_milli_fahrenheit(milli_fahrenheit.get())
 }
 
 /// Builds the SHT3x humidity word that decodes to a relative humidity.
 #[napi(js_name = "sht3xHumidityRawFromMilliPercent")]
-pub fn sht3x_humidity_raw_from_milli_percent(milli_percent: u32) -> u16 {
-    sht3x::humidity_raw_from_milli_percent(milli_percent)
+pub fn sht3x_humidity_raw_from_milli_percent(milli_percent: checked::u32) -> u16 {
+    sht3x::humidity_raw_from_milli_percent(milli_percent.get())
 }
 
 /// Builds the SHT3x humidity word that decodes to a relative humidity percentage.
@@ -882,14 +906,14 @@ pub fn sht3x_parse_status(frame: Buffer) -> napi::Result<Sht3xStatus> {
 
 /// Splits an SHT3x status word into its flags.
 #[napi(js_name = "sht3xStatusFromBits")]
-pub fn sht3x_status_from_bits(bits: u16) -> Sht3xStatus {
-    sht3x::Status::from_bits(bits).into()
+pub fn sht3x_status_from_bits(bits: checked::u16) -> Sht3xStatus {
+    sht3x::Status::from_bits(bits.get()).into()
 }
 
 /// Builds the three bytes an SHT3x sends for a status word, CRC last.
 #[napi(js_name = "sht3xStatusBytes")]
-pub fn sht3x_status_bytes(bits: u16) -> Buffer {
-    Buffer::from(sht3x::Status::from_bits(bits).to_bytes().to_vec())
+pub fn sht3x_status_bytes(bits: checked::u16) -> Buffer {
+    Buffer::from(sht3x::Status::from_bits(bits.get()).to_bytes().to_vec())
 }
 
 /// Returns the SHT3x single-shot command for a repeatability and clock mode.
@@ -959,32 +983,32 @@ pub fn scd4x_word(frame: Buffer) -> napi::Result<u16> {
 
 /// Builds the three bytes an SCD4x sends for a word: the word then its CRC.
 #[napi(js_name = "scd4xWordFrame")]
-pub fn scd4x_word_frame(value: u16) -> Buffer {
-    Buffer::from(scd4x::word_frame(value).to_vec())
+pub fn scd4x_word_frame(value: checked::u16) -> Buffer {
+    Buffer::from(scd4x::word_frame(value.get()).to_vec())
 }
 
 /// Builds the two bytes that send a bare SCD4x command.
 #[napi(js_name = "scd4xCommandFrame")]
-pub fn scd4x_command_frame(command: u16) -> Buffer {
-    Buffer::from(scd4x::command_frame(command).to_vec())
+pub fn scd4x_command_frame(command: checked::u16) -> Buffer {
+    Buffer::from(scd4x::command_frame(command.get()).to_vec())
 }
 
 /// Builds the five bytes that send an SCD4x command with an argument.
 #[napi(js_name = "scd4xWriteFrame")]
-pub fn scd4x_write_frame(command: u16, value: u16) -> Buffer {
-    Buffer::from(scd4x::write_frame(command, value).to_vec())
+pub fn scd4x_write_frame(command: checked::u16, value: checked::u16) -> Buffer {
+    Buffer::from(scd4x::write_frame(command.get(), value.get()).to_vec())
 }
 
 /// Returns how long an SCD4x command may take, in milliseconds.
 #[napi(js_name = "scd4xMaxDurationMs")]
-pub fn scd4x_max_duration_ms(command: u16) -> Option<u16> {
-    scd4x::max_duration_ms(command)
+pub fn scd4x_max_duration_ms(command: checked::u16) -> Option<u16> {
+    scd4x::max_duration_ms(command.get())
 }
 
 /// Reports whether an SCD4x accepts a command while it is measuring.
 #[napi(js_name = "scd4xAllowedDuringMeasurement")]
-pub fn scd4x_allowed_during_measurement(command: u16) -> bool {
-    scd4x::allowed_during_measurement(command)
+pub fn scd4x_allowed_during_measurement(command: checked::u16) -> bool {
+    scd4x::allowed_during_measurement(command.get())
 }
 
 /// Parses and CRC-checks a nine-byte SCD4x measurement frame.
@@ -1000,106 +1024,115 @@ pub fn scd4x_parse_measurement(frame: Buffer) -> napi::Result<Scd4xMeasurement> 
 /// Builds the SCD4x measurement a sensor reporting these physical values would send.
 #[napi(js_name = "scd4xMeasurementFromPhysical")]
 pub fn scd4x_measurement_from_physical(
-    co2_ppm: u16,
-    milli_celsius: i32,
-    humidity_milli_percent: u32,
+    co2_ppm: checked::u16,
+    milli_celsius: checked::i32,
+    humidity_milli_percent: checked::u32,
 ) -> Scd4xMeasurement {
-    scd4x::Measurement::from_physical(co2_ppm, milli_celsius, humidity_milli_percent).into()
+    scd4x::Measurement::from_physical(
+        co2_ppm.get(),
+        milli_celsius.get(),
+        humidity_milli_percent.get(),
+    )
+    .into()
 }
 
 /// Builds the nine bytes an SCD4x sends for a set of raw words.
 #[napi(js_name = "scd4xMeasurementBytes")]
-pub fn scd4x_measurement_bytes(co2_ppm: u16, temperature_raw: u16, humidity_raw: u16) -> Buffer {
+pub fn scd4x_measurement_bytes(
+    co2_ppm: checked::u16,
+    temperature_raw: checked::u16,
+    humidity_raw: checked::u16,
+) -> Buffer {
     let measurement = scd4x::Measurement {
-        co2_ppm,
-        temperature_raw,
-        humidity_raw,
+        co2_ppm: co2_ppm.get(),
+        temperature_raw: temperature_raw.get(),
+        humidity_raw: humidity_raw.get(),
     };
     Buffer::from(measurement.to_bytes().to_vec())
 }
 
 /// Converts a raw SCD4x temperature word to milli-degrees Celsius.
 #[napi(js_name = "scd4xMilliCelsius")]
-pub fn scd4x_milli_celsius(raw: u16) -> i32 {
-    scd4x::milli_celsius(raw)
+pub fn scd4x_milli_celsius(raw: checked::u16) -> i32 {
+    scd4x::milli_celsius(raw.get())
 }
 
 /// Converts a raw SCD4x temperature word to degrees Celsius.
 #[napi(js_name = "scd4xCelsius")]
-pub fn scd4x_celsius(raw: u16) -> f64 {
-    f64::from(scd4x::celsius(raw))
+pub fn scd4x_celsius(raw: checked::u16) -> f64 {
+    f64::from(scd4x::celsius(raw.get()))
 }
 
 /// Builds the SCD4x temperature word that decodes to a temperature.
 #[napi(js_name = "scd4xTemperatureRaw")]
-pub fn scd4x_temperature_raw(milli_celsius: i32) -> u16 {
-    scd4x::temperature_raw(milli_celsius)
+pub fn scd4x_temperature_raw(milli_celsius: checked::i32) -> u16 {
+    scd4x::temperature_raw(milli_celsius.get())
 }
 
 /// Converts a raw SCD4x humidity word to milli-percent.
 #[napi(js_name = "scd4xHumidityMilliPercent")]
-pub fn scd4x_humidity_milli_percent(raw: u16) -> u32 {
-    scd4x::humidity_milli_percent(raw)
+pub fn scd4x_humidity_milli_percent(raw: checked::u16) -> u32 {
+    scd4x::humidity_milli_percent(raw.get())
 }
 
 /// Converts a raw SCD4x humidity word to a relative humidity percentage.
 #[napi(js_name = "scd4xRelativeHumidityPercent")]
-pub fn scd4x_relative_humidity_percent(raw: u16) -> f64 {
-    f64::from(scd4x::relative_humidity_percent(raw))
+pub fn scd4x_relative_humidity_percent(raw: checked::u16) -> f64 {
+    f64::from(scd4x::relative_humidity_percent(raw.get()))
 }
 
 /// Builds the SCD4x humidity word that decodes to a relative humidity.
 #[napi(js_name = "scd4xHumidityRaw")]
-pub fn scd4x_humidity_raw(milli_percent: u32) -> u16 {
-    scd4x::humidity_raw(milli_percent)
+pub fn scd4x_humidity_raw(milli_percent: checked::u32) -> u16 {
+    scd4x::humidity_raw(milli_percent.get())
 }
 
 /// Reports whether an SCD4x data-ready word says a measurement is waiting.
 #[napi(js_name = "scd4xDataReady")]
-pub fn scd4x_data_ready(word: u16) -> bool {
-    scd4x::data_ready(word)
+pub fn scd4x_data_ready(word: checked::u16) -> bool {
+    scd4x::data_ready(word.get())
 }
 
 /// Builds the SCD4x word that programs a temperature offset.
 #[napi(js_name = "scd4xTemperatureOffsetWord")]
-pub fn scd4x_temperature_offset_word(milli_celsius: u32) -> u16 {
-    scd4x::temperature_offset_word(milli_celsius)
+pub fn scd4x_temperature_offset_word(milli_celsius: checked::u32) -> u16 {
+    scd4x::temperature_offset_word(milli_celsius.get())
 }
 
 /// Converts an SCD4x temperature-offset word back to milli-degrees Celsius.
 #[napi(js_name = "scd4xTemperatureOffsetMilliCelsius")]
-pub fn scd4x_temperature_offset_milli_celsius(word: u16) -> u32 {
-    scd4x::temperature_offset_milli_celsius(word)
+pub fn scd4x_temperature_offset_milli_celsius(word: checked::u16) -> u32 {
+    scd4x::temperature_offset_milli_celsius(word.get())
 }
 
 /// Builds the SCD4x word that programs an ambient pressure.
 #[napi(js_name = "scd4xAmbientPressureWord")]
-pub fn scd4x_ambient_pressure_word(pascals: u32) -> u16 {
-    scd4x::ambient_pressure_word(pascals)
+pub fn scd4x_ambient_pressure_word(pascals: checked::u32) -> u16 {
+    scd4x::ambient_pressure_word(pascals.get())
 }
 
 /// Converts an SCD4x ambient-pressure word back to pascals.
 #[napi(js_name = "scd4xAmbientPressurePascals")]
-pub fn scd4x_ambient_pressure_pascals(word: u16) -> u32 {
-    scd4x::ambient_pressure_pascals(word)
+pub fn scd4x_ambient_pressure_pascals(word: checked::u16) -> u32 {
+    scd4x::ambient_pressure_pascals(word.get())
 }
 
 /// Reads the correction an SCD4x reports after a forced recalibration.
 #[napi(js_name = "scd4xForcedRecalibrationCorrectionPpm")]
-pub fn scd4x_forced_recalibration_correction_ppm(word: u16) -> Option<i32> {
-    scd4x::forced_recalibration_correction_ppm(word)
+pub fn scd4x_forced_recalibration_correction_ppm(word: checked::u16) -> Option<i32> {
+    scd4x::forced_recalibration_correction_ppm(word.get())
 }
 
 /// Builds the word an SCD4x returns for a forced-recalibration outcome.
 #[napi(js_name = "scd4xForcedRecalibrationWord")]
-pub fn scd4x_forced_recalibration_word(correction_ppm: Option<i32>) -> u16 {
-    scd4x::forced_recalibration_word(correction_ppm)
+pub fn scd4x_forced_recalibration_word(correction_ppm: Option<checked::i32>) -> u16 {
+    scd4x::forced_recalibration_word(correction_ppm.get())
 }
 
 /// Reports whether an SCD4x word says automatic self-calibration is on.
 #[napi(js_name = "scd4xAutomaticSelfCalibrationEnabled")]
-pub fn scd4x_automatic_self_calibration_enabled(word: u16) -> bool {
-    scd4x::automatic_self_calibration_enabled(word)
+pub fn scd4x_automatic_self_calibration_enabled(word: checked::u16) -> bool {
+    scd4x::automatic_self_calibration_enabled(word.get())
 }
 
 /// Builds the SCD4x word that turns automatic self-calibration on or off.
@@ -1110,8 +1143,8 @@ pub fn scd4x_automatic_self_calibration_word(enabled: bool) -> u16 {
 
 /// Reports whether an SCD4x self-test word says the part passed.
 #[napi(js_name = "scd4xSelfTestPassed")]
-pub fn scd4x_self_test_passed(word: u16) -> bool {
-    scd4x::self_test_passed(word)
+pub fn scd4x_self_test_passed(word: checked::u16) -> bool {
+    scd4x::self_test_passed(word.get())
 }
 
 /// Reads a CRC-checked nine-byte SCD4x serial-number frame.
@@ -1128,8 +1161,8 @@ pub fn scd4x_serial_number(frame: Buffer) -> napi::Result<i64> {
 
 /// Builds the nine bytes an SCD4x sends for a serial number.
 #[napi(js_name = "scd4xSerialNumberFrame")]
-pub fn scd4x_serial_number_frame(serial: i64) -> Buffer {
-    Buffer::from(scd4x::serial_number_frame(serial as u64).to_vec())
+pub fn scd4x_serial_number_frame(serial: checked::i64) -> Buffer {
+    Buffer::from(scd4x::serial_number_frame(serial.get() as u64).to_vec())
 }
 
 /// A TMP117 configuration register, field by field.
@@ -1144,11 +1177,11 @@ pub struct Tmp117Configuration {
     /// Whether an EEPROM write is still in progress.
     pub eeprom_busy: bool,
     /// The conversion-mode code: `0` continuous, `1` shutdown, `3` one-shot.
-    pub mode: u8,
+    pub mode: checked::u8,
     /// The conversion-cycle code, `0..=7`.
-    pub cycle: u8,
+    pub cycle: checked::u8,
     /// The averaging code, `0..=3`.
-    pub averaging: u8,
+    pub averaging: checked::u8,
     /// Whether the limits act as a therm hysteresis band rather than as alerts.
     pub therm_mode: bool,
     /// Whether the ALERT pin is active high.
@@ -1161,26 +1194,26 @@ pub struct Tmp117Configuration {
 
 /// Converts a raw TMP117 temperature register to nano-degrees Celsius.
 #[napi]
-pub fn tmp117_nano_celsius(raw: i16) -> i64 {
-    tmp117::nano_celsius(raw)
+pub fn tmp117_nano_celsius(raw: checked::i16) -> i64 {
+    tmp117::nano_celsius(raw.get())
 }
 
 /// Converts a raw TMP117 temperature register to micro-degrees Celsius.
 #[napi]
-pub fn tmp117_micro_celsius(raw: i16) -> i32 {
-    tmp117::micro_celsius(raw)
+pub fn tmp117_micro_celsius(raw: checked::i16) -> i32 {
+    tmp117::micro_celsius(raw.get())
 }
 
 /// Converts a raw TMP117 temperature register to degrees Celsius.
 #[napi]
-pub fn tmp117_celsius(raw: i16) -> f64 {
-    f64::from(tmp117::celsius(raw))
+pub fn tmp117_celsius(raw: checked::i16) -> f64 {
+    f64::from(tmp117::celsius(raw.get()))
 }
 
 /// Builds the TMP117 temperature register that decodes to a temperature.
 #[napi]
-pub fn tmp117_raw_from_micro_celsius(micro_celsius: i32) -> i16 {
-    tmp117::raw_from_micro_celsius(micro_celsius)
+pub fn tmp117_raw_from_micro_celsius(micro_celsius: checked::i32) -> i16 {
+    tmp117::raw_from_micro_celsius(micro_celsius.get())
 }
 
 /// Builds the TMP117 temperature register that decodes to a temperature in Celsius.
@@ -1191,8 +1224,8 @@ pub fn tmp117_raw_from_celsius(celsius: f64) -> i16 {
 
 /// Builds the two bytes a TMP117 sends for a temperature register.
 #[napi]
-pub fn tmp117_temperature_bytes(raw: i16) -> Buffer {
-    Buffer::from(tmp117::temperature_bytes(raw).to_vec())
+pub fn tmp117_temperature_bytes(raw: checked::i16) -> Buffer {
+    Buffer::from(tmp117::temperature_bytes(raw.get()).to_vec())
 }
 
 /// Reads the two bytes a TMP117 sends for a temperature register.
@@ -1207,44 +1240,44 @@ pub fn tmp117_temperature_from_bytes(bytes: Buffer) -> napi::Result<i16> {
 
 /// Reads the device identifier out of a TMP117 device-ID register.
 #[napi]
-pub fn tmp117_device_id(raw: u16) -> u16 {
-    tmp117::device_id(raw)
+pub fn tmp117_device_id(raw: checked::u16) -> u16 {
+    tmp117::device_id(raw.get())
 }
 
 /// Reads the die revision out of a TMP117 device-ID register.
 #[napi]
-pub fn tmp117_revision(raw: u16) -> u8 {
-    tmp117::revision(raw)
+pub fn tmp117_revision(raw: checked::u16) -> u8 {
+    tmp117::revision(raw.get())
 }
 
 /// Reports whether a TMP117 configuration register flags a high alert.
 #[napi]
-pub fn tmp117_high_alert(config: u16) -> bool {
-    tmp117::high_alert(config)
+pub fn tmp117_high_alert(config: checked::u16) -> bool {
+    tmp117::high_alert(config.get())
 }
 
 /// Reports whether a TMP117 configuration register flags a low alert.
 #[napi]
-pub fn tmp117_low_alert(config: u16) -> bool {
-    tmp117::low_alert(config)
+pub fn tmp117_low_alert(config: checked::u16) -> bool {
+    tmp117::low_alert(config.get())
 }
 
 /// Reports whether a TMP117 configuration register says a result is ready.
 #[napi]
-pub fn tmp117_data_ready(config: u16) -> bool {
-    tmp117::data_ready(config)
+pub fn tmp117_data_ready(config: checked::u16) -> bool {
+    tmp117::data_ready(config.get())
 }
 
 /// Reports whether a TMP117 configuration register says an EEPROM write is running.
 #[napi]
-pub fn tmp117_eeprom_busy(config: u16) -> bool {
-    tmp117::eeprom_busy(config)
+pub fn tmp117_eeprom_busy(config: checked::u16) -> bool {
+    tmp117::eeprom_busy(config.get())
 }
 
 /// Reports whether a TMP117 EEPROM unlock register says a write is running.
 #[napi]
-pub fn tmp117_eeprom_unlock_busy(unlock: u16) -> bool {
-    tmp117::eeprom_unlock_busy(unlock)
+pub fn tmp117_eeprom_unlock_busy(unlock: checked::u16) -> bool {
+    tmp117::eeprom_unlock_busy(unlock.get())
 }
 
 /// Assembles the 16-bit TMP117 configuration register value.
@@ -1255,32 +1288,33 @@ pub fn tmp117_config_bits(config: Tmp117Configuration) -> u16 {
 
 /// Parses a 16-bit TMP117 configuration register value.
 #[napi]
-pub fn tmp117_config_from_bits(bits: u16) -> Tmp117Configuration {
-    tmp117::Configuration::from_bits(bits).into()
+pub fn tmp117_config_from_bits(bits: checked::u16) -> Tmp117Configuration {
+    tmp117::Configuration::from_bits(bits.get()).into()
 }
 
 /// Returns how many conversions a TMP117 averaging code folds into one result.
 #[napi]
-pub fn tmp117_averaging_conversions(code: u8) -> u8 {
-    tmp117::Averaging::from_code(code).conversions()
+pub fn tmp117_averaging_conversions(code: checked::u8) -> u8 {
+    tmp117::Averaging::from_code(code.get()).conversions()
 }
 
 /// Returns how long a TMP117 averaging code takes to convert, in microseconds.
 #[napi]
-pub fn tmp117_averaging_micros(code: u8) -> u32 {
-    tmp117::Averaging::from_code(code).conversion_micros()
+pub fn tmp117_averaging_micros(code: checked::u8) -> u32 {
+    tmp117::Averaging::from_code(code.get()).conversion_micros()
 }
 
 /// Returns the nominal cycle a TMP117 conversion-cycle code selects, in microseconds.
 #[napi]
-pub fn tmp117_cycle_nominal_micros(code: u8) -> u32 {
-    tmp117::ConversionCycle::from_code(code).nominal_micros()
+pub fn tmp117_cycle_nominal_micros(code: checked::u8) -> u32 {
+    tmp117::ConversionCycle::from_code(code.get()).nominal_micros()
 }
 
 /// Returns the TMP117 result-update interval for a cycle and averaging code.
 #[napi]
-pub fn tmp117_cycle_micros(cycle: u8, averaging: u8) -> u32 {
-    tmp117::ConversionCycle::from_code(cycle).cycle_micros(tmp117::Averaging::from_code(averaging))
+pub fn tmp117_cycle_micros(cycle: checked::u8, averaging: checked::u8) -> u32 {
+    tmp117::ConversionCycle::from_code(cycle.get())
+        .cycle_micros(tmp117::Averaging::from_code(averaging.get()))
 }
 
 /// A decoded HDC1080 temperature and humidity pair.
@@ -1312,57 +1346,57 @@ pub struct Hdc1080Configuration {
     /// Whether the supply has dropped below 2.8 V, which the part reports back.
     pub battery_low: bool,
     /// The temperature resolution in bits: 14 or 11.
-    pub temperature_resolution_bits: u8,
+    pub temperature_resolution_bits: checked::u8,
     /// The humidity resolution in bits: 14, 11, or 8.
-    pub humidity_resolution_bits: u8,
+    pub humidity_resolution_bits: checked::u8,
 }
 
 /// Converts a raw HDC1080 temperature register to milli-degrees Celsius.
 #[napi]
-pub fn hdc1080_milli_celsius(raw: u16) -> i32 {
-    hdc1080::milli_celsius(raw)
+pub fn hdc1080_milli_celsius(raw: checked::u16) -> i32 {
+    hdc1080::milli_celsius(raw.get())
 }
 
 /// Converts a raw HDC1080 temperature register to degrees Celsius.
 #[napi]
-pub fn hdc1080_celsius(raw: u16) -> f64 {
-    f64::from(hdc1080::celsius(raw))
+pub fn hdc1080_celsius(raw: checked::u16) -> f64 {
+    f64::from(hdc1080::celsius(raw.get()))
 }
 
 /// Converts a raw HDC1080 humidity register to milli-percent.
 #[napi]
-pub fn hdc1080_milli_percent(raw: u16) -> u32 {
-    hdc1080::milli_percent(raw)
+pub fn hdc1080_milli_percent(raw: checked::u16) -> u32 {
+    hdc1080::milli_percent(raw.get())
 }
 
 /// Converts a raw HDC1080 humidity register to a relative humidity percentage.
 #[napi]
-pub fn hdc1080_relative_humidity(raw: u16) -> f64 {
-    f64::from(hdc1080::relative_humidity(raw))
+pub fn hdc1080_relative_humidity(raw: checked::u16) -> f64 {
+    f64::from(hdc1080::relative_humidity(raw.get()))
 }
 
 /// Builds the HDC1080 temperature register that decodes to a temperature.
 #[napi]
-pub fn hdc1080_temperature_register(milli_celsius: i32) -> u16 {
-    hdc1080::temperature_register(milli_celsius)
+pub fn hdc1080_temperature_register(milli_celsius: checked::i32) -> u16 {
+    hdc1080::temperature_register(milli_celsius.get())
 }
 
 /// Builds the HDC1080 humidity register that decodes to a relative humidity.
 #[napi]
-pub fn hdc1080_humidity_register(milli_percent: u32) -> u16 {
-    hdc1080::humidity_register(milli_percent)
+pub fn hdc1080_humidity_register(milli_percent: checked::u32) -> u16 {
+    hdc1080::humidity_register(milli_percent.get())
 }
 
 /// Joins the three HDC1080 serial-ID registers into the 40-bit serial number.
 #[napi]
-pub fn hdc1080_serial_id(high: u16, mid: u16, low: u16) -> i64 {
-    hdc1080::serial_id(high, mid, low) as i64
+pub fn hdc1080_serial_id(high: checked::u16, mid: checked::u16, low: checked::u16) -> i64 {
+    hdc1080::serial_id(high.get(), mid.get(), low.get()) as i64
 }
 
 /// Splits a serial number back into the three HDC1080 serial-ID registers.
 #[napi]
-pub fn hdc1080_serial_id_registers(serial: i64) -> Vec<u16> {
-    hdc1080::serial_id_registers(serial as u64).to_vec()
+pub fn hdc1080_serial_id_registers(serial: checked::i64) -> Vec<u16> {
+    hdc1080::serial_id_registers(serial.get() as u64).to_vec()
 }
 
 /// Parses the four bytes an HDC1080 sequential read returns.
@@ -1378,26 +1412,31 @@ pub fn hdc1080_parse_measurement(bytes: Buffer) -> napi::Result<Hdc1080Measureme
 /// Builds the HDC1080 measurement a sensor reporting these physical values would send.
 #[napi]
 pub fn hdc1080_measurement_from_physical(
-    milli_celsius: i32,
-    milli_percent: u32,
+    milli_celsius: checked::i32,
+    milli_percent: checked::u32,
 ) -> Hdc1080Measurement {
-    hdc1080::Measurement::from_physical(milli_celsius, milli_percent).into()
+    hdc1080::Measurement::from_physical(milli_celsius.get(), milli_percent.get()).into()
 }
 
 /// Builds the four bytes an HDC1080 sends for a pair of raw registers.
 #[napi]
-pub fn hdc1080_measurement_bytes(temperature_raw: u16, humidity_raw: u16) -> Buffer {
+pub fn hdc1080_measurement_bytes(
+    temperature_raw: checked::u16,
+    humidity_raw: checked::u16,
+) -> Buffer {
     let measurement = hdc1080::Measurement {
-        temperature: temperature_raw,
-        humidity: humidity_raw,
+        temperature: temperature_raw.get(),
+        humidity: humidity_raw.get(),
     };
     Buffer::from(measurement.to_bytes().to_vec())
 }
 
 /// Parses an HDC1080 configuration register value.
 #[napi]
-pub fn hdc1080_configuration_from_register(raw: u16) -> napi::Result<Hdc1080Configuration> {
-    Ok(hdc1080::Configuration::from_register(raw)
+pub fn hdc1080_configuration_from_register(
+    raw: checked::u16,
+) -> napi::Result<Hdc1080Configuration> {
+    Ok(hdc1080::Configuration::from_register(raw.get())
         .map_err(to_napi)?
         .into())
 }
@@ -1416,25 +1455,25 @@ pub fn hdc1080_conversion_time_micros(config: Hdc1080Configuration) -> napi::Res
 
 /// Returns how long an HDC1080 temperature conversion takes, in microseconds.
 #[napi]
-pub fn hdc1080_temperature_conversion_micros(bits: u8) -> napi::Result<u32> {
-    Ok(temperature_resolution(bits)?.conversion_time_micros())
+pub fn hdc1080_temperature_conversion_micros(bits: checked::u8) -> napi::Result<u32> {
+    Ok(temperature_resolution(bits.get())?.conversion_time_micros())
 }
 
 /// Returns how long an HDC1080 humidity conversion takes, in microseconds.
 #[napi]
-pub fn hdc1080_humidity_conversion_micros(bits: u8) -> napi::Result<u32> {
-    Ok(humidity_resolution(bits)?.conversion_time_micros())
+pub fn hdc1080_humidity_conversion_micros(bits: checked::u8) -> napi::Result<u32> {
+    Ok(humidity_resolution(bits.get())?.conversion_time_micros())
 }
 
 /// An OPT3001 configuration register, field by field.
 #[napi(object)]
 pub struct Opt3001Configuration {
     /// The full-scale range number, `0..=11`, or `12` to set the range automatically.
-    pub range_number: u8,
+    pub range_number: checked::u8,
     /// Whether a conversion takes 800 ms rather than 100 ms.
     pub long_conversion: bool,
     /// The mode code: `0` shutdown, `1` single shot, `2` continuous.
-    pub mode: u8,
+    pub mode: checked::u8,
     /// Whether the last result overflowed its range.
     pub overflow: bool,
     /// Whether a conversion has completed since the register was last read.
@@ -1450,37 +1489,37 @@ pub struct Opt3001Configuration {
     /// Whether the limit registers carry a mantissa alone, without an exponent.
     pub mask_exponent: bool,
     /// The fault-count code, `0..=3`, for one, two, four, or eight faults.
-    pub fault_count: u8,
+    pub fault_count: checked::u8,
 }
 
 /// Returns the illuminance one count carries at an OPT3001 exponent.
 #[napi]
-pub fn opt3001_lsb_milli_lux(exponent: u8) -> Option<u32> {
-    opt3001::lsb_milli_lux(exponent)
+pub fn opt3001_lsb_milli_lux(exponent: checked::u8) -> Option<u32> {
+    opt3001::lsb_milli_lux(exponent.get())
 }
 
 /// Returns the full scale an OPT3001 range number covers, in milli-lux.
 #[napi]
-pub fn opt3001_full_scale_milli_lux(range_number: u8) -> Option<u32> {
-    opt3001::full_scale_milli_lux(range_number)
+pub fn opt3001_full_scale_milli_lux(range_number: checked::u8) -> Option<u32> {
+    opt3001::full_scale_milli_lux(range_number.get())
 }
 
 /// Converts a raw OPT3001 result register to milli-lux.
 #[napi]
-pub fn opt3001_milli_lux(raw: u16) -> u32 {
-    opt3001::milli_lux(raw)
+pub fn opt3001_milli_lux(raw: checked::u16) -> u32 {
+    opt3001::milli_lux(raw.get())
 }
 
 /// Converts a raw OPT3001 result register to lux.
 #[napi]
-pub fn opt3001_lux(raw: u16) -> f64 {
-    f64::from(opt3001::lux(raw))
+pub fn opt3001_lux(raw: checked::u16) -> f64 {
+    f64::from(opt3001::lux(raw.get()))
 }
 
 /// Builds the OPT3001 result register that decodes to an illuminance.
 #[napi]
-pub fn opt3001_raw_from_milli_lux(milli_lux: u32) -> u16 {
-    opt3001::raw_from_milli_lux(milli_lux)
+pub fn opt3001_raw_from_milli_lux(milli_lux: checked::u32) -> u16 {
+    opt3001::raw_from_milli_lux(milli_lux.get())
 }
 
 /// Reads the two bytes an OPT3001 sends for a register.
@@ -1495,8 +1534,8 @@ pub fn opt3001_word_from_bytes(bytes: Buffer) -> napi::Result<u16> {
 
 /// Builds the two bytes an OPT3001 sends for a register.
 #[napi]
-pub fn opt3001_word_to_bytes(word: u16) -> Buffer {
-    Buffer::from(opt3001::word_to_bytes(word).to_vec())
+pub fn opt3001_word_to_bytes(word: checked::u16) -> Buffer {
+    Buffer::from(opt3001::word_to_bytes(word.get()).to_vec())
 }
 
 /// Assembles the 16-bit OPT3001 configuration register value.
@@ -1507,8 +1546,8 @@ pub fn opt3001_config_bits(config: Opt3001Configuration) -> u16 {
 
 /// Parses a 16-bit OPT3001 configuration register value.
 #[napi]
-pub fn opt3001_config_from_bits(bits: u16) -> Opt3001Configuration {
-    opt3001::Configuration::from_bits(bits).into()
+pub fn opt3001_config_from_bits(bits: checked::u16) -> Opt3001Configuration {
+    opt3001::Configuration::from_bits(bits.get()).into()
 }
 
 /// Returns the conversion time an OPT3001 setting selects, in milliseconds.
@@ -1519,14 +1558,14 @@ pub fn opt3001_conversion_millis(long_conversion: bool) -> u16 {
 
 /// Returns how many consecutive faults an OPT3001 fault-count code requires.
 #[napi]
-pub fn opt3001_fault_count(code: u8) -> u8 {
-    opt3001::FaultCount::from_code(code).count()
+pub fn opt3001_fault_count(code: checked::u8) -> u8 {
+    opt3001::FaultCount::from_code(code.get()).count()
 }
 
 /// Reports whether an OPT3001 range number sets the full scale automatically.
 #[napi]
-pub fn opt3001_is_automatic_range(range_number: u8) -> bool {
-    range_number == opt3001::RANGE_AUTOMATIC
+pub fn opt3001_is_automatic_range(range_number: checked::u8) -> bool {
+    range_number.get() == opt3001::RANGE_AUTOMATIC
 }
 
 /// The limit comparison an INA226 alert pin responds to.
@@ -1550,13 +1589,13 @@ pub struct Ina226Configuration {
     /// Whether writing this resets the part.
     pub reset: bool,
     /// The averaging code, `0..=7`, from 1 to 1024 samples.
-    pub averaging: u8,
+    pub averaging: checked::u8,
     /// The bus-voltage conversion-time code, `0..=7`.
-    pub bus_conversion_time: u8,
+    pub bus_conversion_time: checked::u8,
     /// The shunt-voltage conversion-time code, `0..=7`.
-    pub shunt_conversion_time: u8,
+    pub shunt_conversion_time: checked::u8,
     /// The operating-mode code, `0..=7`.
-    pub mode: u8,
+    pub mode: checked::u8,
 }
 
 /// An INA226 Mask/Enable register, field by field.
@@ -1597,44 +1636,47 @@ pub struct Ina226DieId {
 
 /// Returns the I2C address an INA226's A1 and A0 pin codes select.
 #[napi]
-pub fn ina226_address(a1: u8, a0: u8) -> napi::Result<u8> {
-    Ok(ina226::address(address_pin(a1)?, address_pin(a0)?))
+pub fn ina226_address(a1: checked::u8, a0: checked::u8) -> napi::Result<u8> {
+    Ok(ina226::address(
+        address_pin(a1.get())?,
+        address_pin(a0.get())?,
+    ))
 }
 
 /// Returns how many samples an INA226 averaging code folds into one result.
 #[napi]
-pub fn ina226_averaging_samples(code: u8) -> u16 {
-    averaging(code).samples()
+pub fn ina226_averaging_samples(code: checked::u8) -> u16 {
+    averaging(code.get()).samples()
 }
 
 /// Returns the conversion time an INA226 code selects, in microseconds.
 #[napi]
-pub fn ina226_conversion_micros(code: u8) -> u32 {
-    conversion_micros(code).microseconds()
+pub fn ina226_conversion_micros(code: checked::u8) -> u32 {
+    conversion_micros(code.get()).microseconds()
 }
 
 /// Reports whether an INA226 mode code converts the shunt voltage.
 #[napi]
-pub fn ina226_measures_shunt(code: u8) -> bool {
-    mode(code).measures_shunt()
+pub fn ina226_measures_shunt(code: checked::u8) -> bool {
+    mode(code.get()).measures_shunt()
 }
 
 /// Reports whether an INA226 mode code converts the bus voltage.
 #[napi]
-pub fn ina226_measures_bus(code: u8) -> bool {
-    mode(code).measures_bus()
+pub fn ina226_measures_bus(code: checked::u8) -> bool {
+    mode(code.get()).measures_bus()
 }
 
 /// Reports whether an INA226 mode code keeps converting after the first result.
 #[napi]
-pub fn ina226_is_continuous(code: u8) -> bool {
-    mode(code).is_continuous()
+pub fn ina226_is_continuous(code: checked::u8) -> bool {
+    mode(code.get()).is_continuous()
 }
 
 /// Parses an INA226 configuration register value.
 #[napi]
-pub fn ina226_config_from_register(raw: u16) -> Ina226Configuration {
-    ina226::Configuration::from_register(raw).into()
+pub fn ina226_config_from_register(raw: checked::u16) -> Ina226Configuration {
+    ina226::Configuration::from_register(raw.get()).into()
 }
 
 /// Assembles an INA226 configuration register value.
@@ -1651,8 +1693,8 @@ pub fn ina226_update_micros(config: Ina226Configuration) -> u32 {
 
 /// Parses an INA226 Mask/Enable register value.
 #[napi]
-pub fn ina226_mask_enable_from_register(raw: u16) -> Ina226MaskEnable {
-    ina226::MaskEnable::from_register(raw).into()
+pub fn ina226_mask_enable_from_register(raw: checked::u16) -> Ina226MaskEnable {
+    ina226::MaskEnable::from_register(raw.get()).into()
 }
 
 /// Assembles an INA226 Mask/Enable register value.
@@ -1671,112 +1713,127 @@ pub fn ina226_active_alert_function(mask: Ina226MaskEnable) -> Option<Ina226Aler
 
 /// Splits an INA226 die-ID register into its device and revision fields.
 #[napi]
-pub fn ina226_die_id(raw: u16) -> Ina226DieId {
-    ina226::DieId::from_register(raw).into()
+pub fn ina226_die_id(raw: checked::u16) -> Ina226DieId {
+    ina226::DieId::from_register(raw.get()).into()
 }
 
 /// Checks that a pair of identification registers belongs to an INA226.
 #[napi]
-pub fn ina226_identify(manufacturer_id: u16, die_id: u16) -> napi::Result<Ina226DieId> {
-    Ok(ina226::identify(manufacturer_id, die_id)
+pub fn ina226_identify(
+    manufacturer_id: checked::u16,
+    die_id: checked::u16,
+) -> napi::Result<Ina226DieId> {
+    Ok(ina226::identify(manufacturer_id.get(), die_id.get())
         .map_err(to_napi)?
         .into())
 }
 
 /// Computes the INA226 calibration register for a shunt and current resolution.
 #[napi]
-pub fn ina226_calibration(current_lsb_microamps: u32, shunt_milliohms: u32) -> u16 {
-    ina226::calibration(current_lsb_microamps, shunt_milliohms)
+pub fn ina226_calibration(
+    current_lsb_microamps: checked::u32,
+    shunt_milliohms: checked::u32,
+) -> u16 {
+    ina226::calibration(current_lsb_microamps.get(), shunt_milliohms.get())
 }
 
 /// Returns the smallest current resolution that still covers an expected maximum.
 #[napi]
-pub fn ina226_minimum_current_lsb_microamps(max_expected_microamps: u32) -> u32 {
-    ina226::minimum_current_lsb_microamps(max_expected_microamps)
+pub fn ina226_minimum_current_lsb_microamps(max_expected_microamps: checked::u32) -> u32 {
+    ina226::minimum_current_lsb_microamps(max_expected_microamps.get())
 }
 
 /// Converts a raw INA226 shunt-voltage register to nanovolts.
 #[napi]
-pub fn ina226_shunt_nanovolts(raw: i16) -> i32 {
-    ina226::shunt_nanovolts(raw)
+pub fn ina226_shunt_nanovolts(raw: checked::i16) -> i32 {
+    ina226::shunt_nanovolts(raw.get())
 }
 
 /// Converts a raw INA226 shunt-voltage register to millivolts.
 #[napi]
-pub fn ina226_shunt_millivolts(raw: i16) -> f64 {
-    f64::from(ina226::shunt_millivolts_f32(raw))
+pub fn ina226_shunt_millivolts(raw: checked::i16) -> f64 {
+    f64::from(ina226::shunt_millivolts_f32(raw.get()))
 }
 
 /// Converts a raw INA226 bus-voltage register to microvolts.
 #[napi]
-pub fn ina226_bus_microvolts(raw: u16) -> u32 {
-    ina226::bus_microvolts(raw)
+pub fn ina226_bus_microvolts(raw: checked::u16) -> u32 {
+    ina226::bus_microvolts(raw.get())
 }
 
 /// Converts a raw INA226 bus-voltage register to volts.
 #[napi]
-pub fn ina226_bus_volts(raw: u16) -> f64 {
-    f64::from(ina226::bus_volts_f32(raw))
+pub fn ina226_bus_volts(raw: checked::u16) -> f64 {
+    f64::from(ina226::bus_volts_f32(raw.get()))
 }
 
 /// Converts a raw INA226 current register to microamps.
 #[napi]
-pub fn ina226_current_microamps(raw: i16, current_lsb_microamps: u32) -> i32 {
-    ina226::current_microamps(raw, current_lsb_microamps)
+pub fn ina226_current_microamps(raw: checked::i16, current_lsb_microamps: checked::u32) -> i32 {
+    ina226::current_microamps(raw.get(), current_lsb_microamps.get())
 }
 
 /// Converts a raw INA226 current register to amps.
 #[napi]
-pub fn ina226_current_amps(raw: i16, current_lsb_microamps: u32) -> f64 {
-    f64::from(ina226::current_amps_f32(raw, current_lsb_microamps))
+pub fn ina226_current_amps(raw: checked::i16, current_lsb_microamps: checked::u32) -> f64 {
+    f64::from(ina226::current_amps_f32(
+        raw.get(),
+        current_lsb_microamps.get(),
+    ))
 }
 
 /// Converts a raw INA226 power register to microwatts.
 #[napi]
-pub fn ina226_power_microwatts(raw: u16, current_lsb_microamps: u32) -> u32 {
-    ina226::power_microwatts(raw, current_lsb_microamps)
+pub fn ina226_power_microwatts(raw: checked::u16, current_lsb_microamps: checked::u32) -> u32 {
+    ina226::power_microwatts(raw.get(), current_lsb_microamps.get())
 }
 
 /// Converts a raw INA226 power register to watts.
 #[napi]
-pub fn ina226_power_watts(raw: u16, current_lsb_microamps: u32) -> f64 {
-    f64::from(ina226::power_watts_f32(raw, current_lsb_microamps))
+pub fn ina226_power_watts(raw: checked::u16, current_lsb_microamps: checked::u32) -> f64 {
+    f64::from(ina226::power_watts_f32(
+        raw.get(),
+        current_lsb_microamps.get(),
+    ))
 }
 
 /// Builds the INA226 shunt-voltage register a monitor reports for a shunt voltage.
 #[napi]
-pub fn ina226_shunt_register(nanovolts: i32) -> i16 {
-    ina226::shunt_register(nanovolts)
+pub fn ina226_shunt_register(nanovolts: checked::i32) -> i16 {
+    ina226::shunt_register(nanovolts.get())
 }
 
 /// Builds the INA226 bus-voltage register a monitor reports for a bus voltage.
 #[napi]
-pub fn ina226_bus_register(microvolts: u32) -> u16 {
-    ina226::bus_register(microvolts)
+pub fn ina226_bus_register(microvolts: checked::u32) -> u16 {
+    ina226::bus_register(microvolts.get())
 }
 
 /// Builds the INA226 current register a monitor reports for a current.
 #[napi]
-pub fn ina226_current_register(microamps: i32, current_lsb_microamps: u32) -> i16 {
-    ina226::current_register(microamps, current_lsb_microamps)
+pub fn ina226_current_register(
+    microamps: checked::i32,
+    current_lsb_microamps: checked::u32,
+) -> i16 {
+    ina226::current_register(microamps.get(), current_lsb_microamps.get())
 }
 
 /// Builds the INA226 power register a monitor reports for a power.
 #[napi]
-pub fn ina226_power_register(microwatts: u32, current_lsb_microamps: u32) -> u16 {
-    ina226::power_register(microwatts, current_lsb_microamps)
+pub fn ina226_power_register(microwatts: checked::u32, current_lsb_microamps: checked::u32) -> u16 {
+    ina226::power_register(microwatts.get(), current_lsb_microamps.get())
 }
 
 /// Computes the INA226 current register the chip derives from a shunt reading.
 #[napi]
-pub fn ina226_current_register_from_shunt(shunt: i16, calibration: u16) -> i16 {
-    ina226::current_register_from_shunt(shunt, calibration)
+pub fn ina226_current_register_from_shunt(shunt: checked::i16, calibration: checked::u16) -> i16 {
+    ina226::current_register_from_shunt(shunt.get(), calibration.get())
 }
 
 /// Computes the INA226 power register the chip derives from a current reading.
 #[napi]
-pub fn ina226_power_register_from_current(current: i16, bus: u16) -> u16 {
-    ina226::power_register_from_current(current, bus)
+pub fn ina226_power_register_from_current(current: checked::i16, bus: checked::u16) -> u16 {
+    ina226::power_register_from_current(current.get(), bus.get())
 }
 
 impl From<ds18b20::Scratchpad> for Ds18b20Reading {
@@ -1796,11 +1853,11 @@ impl From<Ina219Configuration> for ina219::Configuration {
     fn from(value: Ina219Configuration) -> Self {
         ina219::Configuration {
             reset: value.reset,
-            bus_range: ina219::BusRange::from_code(value.bus_range),
-            gain: ina219::Gain::from_code(value.gain),
-            bus_adc: ina219::Adc::from_code(value.bus_adc),
-            shunt_adc: ina219::Adc::from_code(value.shunt_adc),
-            mode: ina219::Mode::from_code(value.mode),
+            bus_range: ina219::BusRange::from_code(value.bus_range.get()),
+            gain: ina219::Gain::from_code(value.gain.get()),
+            bus_adc: ina219::Adc::from_code(value.bus_adc.get()),
+            shunt_adc: ina219::Adc::from_code(value.shunt_adc.get()),
+            mode: ina219::Mode::from_code(value.mode.get()),
         }
     }
 }
@@ -1809,11 +1866,11 @@ impl From<ina219::Configuration> for Ina219Configuration {
     fn from(value: ina219::Configuration) -> Self {
         Ina219Configuration {
             reset: value.reset,
-            bus_range: value.bus_range.code(),
-            gain: value.gain.code(),
-            bus_adc: value.bus_adc.code(),
-            shunt_adc: value.shunt_adc.code(),
-            mode: value.mode.code(),
+            bus_range: value.bus_range.code().into(),
+            gain: value.gain.code().into(),
+            bus_adc: value.bus_adc.code().into(),
+            shunt_adc: value.shunt_adc.code().into(),
+            mode: value.mode.code().into(),
         }
     }
 }
@@ -1822,14 +1879,14 @@ impl From<Ads1115Config> for ads1115::Config {
     fn from(value: Ads1115Config) -> Self {
         ads1115::Config {
             start_conversion: value.start_conversion,
-            mux: ads1115::Mux::from_code(value.mux),
-            pga: ads1115::Pga::from_code(value.pga),
+            mux: ads1115::Mux::from_code(value.mux.get()),
+            pga: ads1115::Pga::from_code(value.pga.get()),
             mode: if value.single_shot {
                 ads1115::Mode::SingleShot
             } else {
                 ads1115::Mode::Continuous
             },
-            data_rate: ads1115::DataRate::from_code(value.data_rate),
+            data_rate: ads1115::DataRate::from_code(value.data_rate.get()),
             comparator_mode: if value.window_comparator {
                 ads1115::ComparatorMode::Window
             } else {
@@ -1845,7 +1902,7 @@ impl From<Ads1115Config> for ads1115::Config {
             } else {
                 ads1115::ComparatorLatch::NonLatching
             },
-            comparator_queue: ads1115::ComparatorQueue::from_code(value.comparator_queue),
+            comparator_queue: ads1115::ComparatorQueue::from_code(value.comparator_queue.get()),
         }
     }
 }
@@ -1854,10 +1911,10 @@ impl From<ads1115::Config> for Ads1115Config {
     fn from(value: ads1115::Config) -> Self {
         Ads1115Config {
             start_conversion: value.start_conversion,
-            mux: value.mux.code(),
-            pga: value.pga.code(),
+            mux: value.mux.code().into(),
+            pga: value.pga.code().into(),
             single_shot: matches!(value.mode, ads1115::Mode::SingleShot),
-            data_rate: value.data_rate.code(),
+            data_rate: value.data_rate.code().into(),
             window_comparator: matches!(value.comparator_mode, ads1115::ComparatorMode::Window),
             comparator_active_high: matches!(
                 value.comparator_polarity,
@@ -1867,7 +1924,7 @@ impl From<ads1115::Config> for Ads1115Config {
                 value.comparator_latch,
                 ads1115::ComparatorLatch::Latching
             ),
-            comparator_queue: value.comparator_queue.code(),
+            comparator_queue: value.comparator_queue.code().into(),
         }
     }
 }
@@ -1915,9 +1972,9 @@ impl From<bmp280::Measurement> for Bmp280Measurement {
 impl From<Bme280CtrlMeas> for bme280::CtrlMeas {
     fn from(value: Bme280CtrlMeas) -> Self {
         bme280::CtrlMeas {
-            temperature: bme280::Oversampling::from_code(value.temperature),
-            pressure: bme280::Oversampling::from_code(value.pressure),
-            mode: bme280::Mode::from_code(value.mode),
+            temperature: bme280::Oversampling::from_code(value.temperature.get()),
+            pressure: bme280::Oversampling::from_code(value.pressure.get()),
+            mode: bme280::Mode::from_code(value.mode.get()),
         }
     }
 }
@@ -1925,9 +1982,9 @@ impl From<Bme280CtrlMeas> for bme280::CtrlMeas {
 impl From<bme280::CtrlMeas> for Bme280CtrlMeas {
     fn from(value: bme280::CtrlMeas) -> Self {
         Bme280CtrlMeas {
-            temperature: value.temperature.code(),
-            pressure: value.pressure.code(),
-            mode: value.mode.code(),
+            temperature: value.temperature.code().into(),
+            pressure: value.pressure.code().into(),
+            mode: value.mode.code().into(),
         }
     }
 }
@@ -1935,8 +1992,8 @@ impl From<bme280::CtrlMeas> for Bme280CtrlMeas {
 impl From<Bme280Config> for bme280::Config {
     fn from(value: Bme280Config) -> Self {
         bme280::Config {
-            standby: bme280::Standby::from_code(value.standby),
-            filter: bme280::Filter::from_code(value.filter),
+            standby: bme280::Standby::from_code(value.standby.get()),
+            filter: bme280::Filter::from_code(value.filter.get()),
             spi_3wire: value.spi3wire,
         }
     }
@@ -1945,8 +2002,8 @@ impl From<Bme280Config> for bme280::Config {
 impl From<bme280::Config> for Bme280Config {
     fn from(value: bme280::Config) -> Self {
         Bme280Config {
-            standby: value.standby.code(),
-            filter: value.filter.code(),
+            standby: value.standby.code().into(),
+            filter: value.filter.code().into(),
             spi3wire: value.spi_3wire,
         }
     }
@@ -1955,9 +2012,9 @@ impl From<bme280::Config> for Bme280Config {
 impl From<Bmp280CtrlMeas> for bmp280::CtrlMeas {
     fn from(value: Bmp280CtrlMeas) -> Self {
         bmp280::CtrlMeas {
-            temperature: bmp280::Oversampling::from_code(value.temperature),
-            pressure: bmp280::Oversampling::from_code(value.pressure),
-            mode: bmp280::Mode::from_code(value.mode),
+            temperature: bmp280::Oversampling::from_code(value.temperature.get()),
+            pressure: bmp280::Oversampling::from_code(value.pressure.get()),
+            mode: bmp280::Mode::from_code(value.mode.get()),
         }
     }
 }
@@ -1965,9 +2022,9 @@ impl From<Bmp280CtrlMeas> for bmp280::CtrlMeas {
 impl From<bmp280::CtrlMeas> for Bmp280CtrlMeas {
     fn from(value: bmp280::CtrlMeas) -> Self {
         Bmp280CtrlMeas {
-            temperature: value.temperature.code(),
-            pressure: value.pressure.code(),
-            mode: value.mode.code(),
+            temperature: value.temperature.code().into(),
+            pressure: value.pressure.code().into(),
+            mode: value.mode.code().into(),
         }
     }
 }
@@ -1975,8 +2032,8 @@ impl From<bmp280::CtrlMeas> for Bmp280CtrlMeas {
 impl From<Bmp280Config> for bmp280::Config {
     fn from(value: Bmp280Config) -> Self {
         bmp280::Config {
-            standby: bmp280::Standby::from_code(value.standby),
-            filter: value.filter,
+            standby: bmp280::Standby::from_code(value.standby.get()),
+            filter: value.filter.get(),
             spi_3wire: value.spi3wire,
         }
     }
@@ -1985,8 +2042,8 @@ impl From<Bmp280Config> for bmp280::Config {
 impl From<bmp280::Config> for Bmp280Config {
     fn from(value: bmp280::Config) -> Self {
         Bmp280Config {
-            standby: value.standby.code(),
-            filter: value.filter,
+            standby: value.standby.code().into(),
+            filter: value.filter.into(),
             spi3wire: value.spi_3wire,
         }
     }
@@ -2065,9 +2122,9 @@ impl From<Tmp117Configuration> for tmp117::Configuration {
             low_alert: value.low_alert,
             data_ready: value.data_ready,
             eeprom_busy: value.eeprom_busy,
-            mode: tmp117::ConversionMode::from_code(value.mode),
-            cycle: tmp117::ConversionCycle::from_code(value.cycle),
-            averaging: tmp117::Averaging::from_code(value.averaging),
+            mode: tmp117::ConversionMode::from_code(value.mode.get()),
+            cycle: tmp117::ConversionCycle::from_code(value.cycle.get()),
+            averaging: tmp117::Averaging::from_code(value.averaging.get()),
             alert_mode: if value.therm_mode {
                 tmp117::AlertMode::Therm
             } else {
@@ -2095,9 +2152,9 @@ impl From<tmp117::Configuration> for Tmp117Configuration {
             low_alert: value.low_alert,
             data_ready: value.data_ready,
             eeprom_busy: value.eeprom_busy,
-            mode: value.mode.code(),
-            cycle: value.cycle.code(),
-            averaging: value.averaging.code(),
+            mode: value.mode.code().into(),
+            cycle: value.cycle.code().into(),
+            averaging: value.averaging.code().into(),
             therm_mode: matches!(value.alert_mode, tmp117::AlertMode::Therm),
             alert_active_high: matches!(value.alert_polarity, tmp117::AlertPolarity::ActiveHigh),
             alert_pin_data_ready: matches!(value.alert_pin, tmp117::AlertPin::DataReady),
@@ -2130,13 +2187,13 @@ impl From<hdc1080::Configuration> for Hdc1080Configuration {
             ),
             battery_low: value.battery_low,
             temperature_resolution_bits: match value.temperature_resolution {
-                hdc1080::TemperatureResolution::Bits14 => 14,
-                hdc1080::TemperatureResolution::Bits11 => 11,
+                hdc1080::TemperatureResolution::Bits14 => 14.into(),
+                hdc1080::TemperatureResolution::Bits11 => 11.into(),
             },
             humidity_resolution_bits: match value.humidity_resolution {
-                hdc1080::HumidityResolution::Bits14 => 14,
-                hdc1080::HumidityResolution::Bits11 => 11,
-                hdc1080::HumidityResolution::Bits8 => 8,
+                hdc1080::HumidityResolution::Bits14 => 14.into(),
+                hdc1080::HumidityResolution::Bits11 => 11.into(),
+                hdc1080::HumidityResolution::Bits8 => 8.into(),
             },
         }
     }
@@ -2155,8 +2212,10 @@ impl TryFrom<Hdc1080Configuration> for hdc1080::Configuration {
                 hdc1080::AcquisitionMode::Single
             },
             battery_low: value.battery_low,
-            temperature_resolution: temperature_resolution(value.temperature_resolution_bits)?,
-            humidity_resolution: humidity_resolution(value.humidity_resolution_bits)?,
+            temperature_resolution: temperature_resolution(
+                value.temperature_resolution_bits.get(),
+            )?,
+            humidity_resolution: humidity_resolution(value.humidity_resolution_bits.get())?,
         })
     }
 }
@@ -2164,9 +2223,9 @@ impl TryFrom<Hdc1080Configuration> for hdc1080::Configuration {
 impl From<Opt3001Configuration> for opt3001::Configuration {
     fn from(value: Opt3001Configuration) -> Self {
         opt3001::Configuration {
-            range_number: value.range_number,
+            range_number: value.range_number.get(),
             conversion_time: conversion_time(value.long_conversion),
-            mode: opt3001::Mode::from_code(value.mode),
+            mode: opt3001::Mode::from_code(value.mode.get()),
             overflow: value.overflow,
             conversion_ready: value.conversion_ready,
             flag_high: value.flag_high,
@@ -2182,7 +2241,7 @@ impl From<Opt3001Configuration> for opt3001::Configuration {
                 opt3001::Polarity::ActiveLow
             },
             mask_exponent: value.mask_exponent,
-            fault_count: opt3001::FaultCount::from_code(value.fault_count),
+            fault_count: opt3001::FaultCount::from_code(value.fault_count.get()),
         }
     }
 }
@@ -2190,9 +2249,9 @@ impl From<Opt3001Configuration> for opt3001::Configuration {
 impl From<opt3001::Configuration> for Opt3001Configuration {
     fn from(value: opt3001::Configuration) -> Self {
         Opt3001Configuration {
-            range_number: value.range_number,
+            range_number: value.range_number.into(),
             long_conversion: matches!(value.conversion_time, opt3001::ConversionTime::Ms800),
-            mode: value.mode.code(),
+            mode: value.mode.code().into(),
             overflow: value.overflow,
             conversion_ready: value.conversion_ready,
             flag_high: value.flag_high,
@@ -2200,7 +2259,7 @@ impl From<opt3001::Configuration> for Opt3001Configuration {
             latched_window: matches!(value.latch, opt3001::Latch::LatchedWindow),
             active_high: matches!(value.polarity, opt3001::Polarity::ActiveHigh),
             mask_exponent: value.mask_exponent,
-            fault_count: value.fault_count.code(),
+            fault_count: value.fault_count.code().into(),
         }
     }
 }
@@ -2209,10 +2268,10 @@ impl From<Ina226Configuration> for ina226::Configuration {
     fn from(value: Ina226Configuration) -> Self {
         ina226::Configuration {
             reset: value.reset,
-            averaging: averaging(value.averaging),
-            bus_conversion_time: conversion_micros(value.bus_conversion_time),
-            shunt_conversion_time: conversion_micros(value.shunt_conversion_time),
-            mode: mode(value.mode),
+            averaging: averaging(value.averaging.get()),
+            bus_conversion_time: conversion_micros(value.bus_conversion_time.get()),
+            shunt_conversion_time: conversion_micros(value.shunt_conversion_time.get()),
+            mode: mode(value.mode.get()),
         }
     }
 }
@@ -2221,10 +2280,10 @@ impl From<ina226::Configuration> for Ina226Configuration {
     fn from(value: ina226::Configuration) -> Self {
         Ina226Configuration {
             reset: value.reset,
-            averaging: value.averaging as u8,
-            bus_conversion_time: value.bus_conversion_time as u8,
-            shunt_conversion_time: value.shunt_conversion_time as u8,
-            mode: value.mode as u8,
+            averaging: (value.averaging as u8).into(),
+            bus_conversion_time: (value.bus_conversion_time as u8).into(),
+            shunt_conversion_time: (value.shunt_conversion_time as u8).into(),
+            mode: (value.mode as u8).into(),
         }
     }
 }

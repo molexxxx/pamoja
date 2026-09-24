@@ -8,6 +8,7 @@
 //! a buffer ready to write. A stepper carries its position across calls, so it is
 //! a class.
 
+use crate::checked;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_actuators::{pca9685, stepper};
@@ -55,32 +56,38 @@ pub const STEPPER_DEFAULT_PULSE_MICROS: u32 = stepper::DEFAULT_PULSE_MICROS;
 
 /// Returns the first of a PCA9685 channel's four consecutive registers.
 #[napi]
-pub fn pca9685_channel_register(channel: u8) -> napi::Result<u8> {
-    if channel >= pca9685::CHANNELS {
+pub fn pca9685_channel_register(channel: checked::u8) -> napi::Result<u8> {
+    if channel.get() >= pca9685::CHANNELS {
         return Err(napi::Error::from_reason(format!(
             "channel must be below {}",
             pca9685::CHANNELS
         )));
     }
-    Ok(pca9685::channel_register(channel))
+    Ok(pca9685::channel_register(channel.get()))
 }
 
 /// Returns the prescale value that sets a PCA9685 update rate.
 #[napi]
-pub fn pca9685_prescale_for_frequency(update_rate_hz: u32, osc_hz: u32) -> u8 {
-    pca9685::prescale_for_frequency(update_rate_hz, osc_hz)
+pub fn pca9685_prescale_for_frequency(update_rate_hz: checked::u32, osc_hz: checked::u32) -> u8 {
+    pca9685::prescale_for_frequency(update_rate_hz.get(), osc_hz.get())
 }
 
 /// Returns the update rate a PCA9685 prescale value produces, in hertz.
 #[napi]
-pub fn pca9685_frequency_for_prescale(prescale: u8, osc_hz: u32) -> f64 {
-    f64::from(pca9685::frequency_for_prescale(prescale, osc_hz))
+pub fn pca9685_frequency_for_prescale(prescale: checked::u8, osc_hz: checked::u32) -> f64 {
+    f64::from(pca9685::frequency_for_prescale(
+        prescale.get(),
+        osc_hz.get(),
+    ))
 }
 
 /// Builds a channel's four register bytes from explicit on and off counts.
 #[napi]
-pub fn pwm_from_counts(on: u16, off: u16) -> Buffer {
-    pca9685::Pwm::from_counts(on, off).bytes().to_vec().into()
+pub fn pwm_from_counts(on: checked::u16, off: checked::u16) -> Buffer {
+    pca9685::Pwm::from_counts(on.get(), off.get())
+        .bytes()
+        .to_vec()
+        .into()
 }
 
 /// Builds a channel's register bytes with no phase delay: on at 0, off at `off`.
@@ -88,16 +95,16 @@ pub fn pwm_from_counts(on: u16, off: u16) -> Buffer {
 /// The datasheet rules out the same count in on and off, so 0 is the full-off setting
 /// and 4096 or more the full-on one.
 #[napi]
-pub fn pwm_duty(off: u16) -> Buffer {
-    pca9685::Pwm::duty(off).bytes().to_vec().into()
+pub fn pwm_duty(off: checked::u16) -> Buffer {
+    pca9685::Pwm::duty(off.get()).bytes().to_vec().into()
 }
 
 /// Builds the register bytes that drive a hobby servo to a given pulse width.
 ///
 /// Typical travel is about 1000 to 2000 microseconds at a 50 Hz update rate.
 #[napi]
-pub fn pwm_servo(pulse_micros: u32, update_rate_hz: u32) -> Buffer {
-    pca9685::Pwm::servo(pulse_micros, update_rate_hz)
+pub fn pwm_servo(pulse_micros: checked::u32, update_rate_hz: checked::u32) -> Buffer {
+    pca9685::Pwm::servo(pulse_micros.get(), update_rate_hz.get())
         .bytes()
         .to_vec()
         .into()
@@ -146,8 +153,8 @@ pub fn stepper_step_count(drive: StepDrive) -> u32 {
 
 /// Returns how many steps a rotation of `degrees` takes on a given motor.
 #[napi]
-pub fn stepper_steps_for_degrees(degrees: f64, steps_per_revolution: u32) -> i32 {
-    stepper::steps_for_degrees(degrees as f32, steps_per_revolution)
+pub fn stepper_steps_for_degrees(degrees: f64, steps_per_revolution: checked::u32) -> i32 {
+    stepper::steps_for_degrees(degrees as f32, steps_per_revolution.get())
 }
 
 /// A stepper motor's place in its drive sequence, and how far it has turned.

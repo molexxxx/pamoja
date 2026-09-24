@@ -8,6 +8,7 @@
 //! does cross is the whole of the decision logic, which is the part that has to
 //! be right.
 
+use crate::checked;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_update::{
@@ -63,7 +64,7 @@ pub enum BootAction {
 #[napi(object)]
 pub struct Manifest {
     /// Which iteration of the manifest format this is.
-    pub structure_version: u8,
+    pub structure_version: checked::u8,
     /// Rises with every release, which is what stops an older image being
     /// replayed at a device.
     pub sequence: f64,
@@ -72,13 +73,13 @@ pub struct Manifest {
     /// Which kind of device it is for, as 16 bytes.
     pub class_id: Buffer,
     /// How the payload is encoded, currently only `UPDATE_FORMAT_RAW`.
-    pub format: u8,
+    pub format: checked::u8,
     /// Which slot the payload belongs in.
-    pub storage: u8,
+    pub storage: checked::u8,
     /// The SHA-256 of the payload, which every other guarantee rests on.
     pub digest: Buffer,
     /// The payload length in bytes, known before a single byte is accepted.
-    pub size: u32,
+    pub size: checked::u32,
     /// When this release stops being offered, in seconds since the Unix epoch,
     /// or `0` to never expire.
     pub expires: f64,
@@ -335,8 +336,8 @@ impl Updater {
         vendor_id: Buffer,
         class_id: Buffer,
         anchor_public_key: Buffer,
-        slot_count: u8,
-        slot_capacity: u32,
+        slot_count: checked::u8,
+        slot_capacity: checked::u32,
     ) -> napi::Result<Self> {
         let device = Device {
             vendor_id: fixed::<ID_LEN>(vendor_id.as_ref(), "vendorId")?,
@@ -344,7 +345,10 @@ impl Updater {
             anchor: public(anchor_public_key.as_ref())?,
         };
         Ok(Self {
-            inner: CoreUpdater::new(device, MemoryStore::new(slot_count, slot_capacity)),
+            inner: CoreUpdater::new(
+                device,
+                MemoryStore::new(slot_count.get(), slot_capacity.get()),
+            ),
             staging: None,
         })
     }
@@ -357,10 +361,10 @@ impl Updater {
 
     /// Reads what the device believes about one slot.
     #[napi]
-    pub fn slot_record(&self, slot: u8) -> napi::Result<SlotRecord> {
+    pub fn slot_record(&self, slot: checked::u8) -> napi::Result<SlotRecord> {
         self.inner
             .store()
-            .record(slot)
+            .record(slot.get())
             .map(|record| SlotRecord {
                 state: slot_state(record.state),
                 sequence: record.sequence as f64,
@@ -385,9 +389,9 @@ impl Updater {
     /// This is how a device that shipped with firmware says what it is running,
     /// so the rollback rule has something to compare against.
     #[napi]
-    pub fn provision(&mut self, slot: u8, sequence: f64) -> napi::Result<()> {
+    pub fn provision(&mut self, slot: checked::u8, sequence: f64) -> napi::Result<()> {
         let sequence = whole(sequence, "sequence", "a whole number")?;
-        self.inner.provision(slot, sequence).map_err(refusal)
+        self.inner.provision(slot.get(), sequence).map_err(refusal)
     }
 
     /// Adopts a delegation, so releases signed by the key it names are accepted.
@@ -538,18 +542,18 @@ fn public(bytes: &[u8]) -> napi::Result<pamoja_security::PublicIdentity> {
 
 /// Rebuilds the core manifest from what crossed from JavaScript.
 fn core_manifest(manifest: &Manifest) -> napi::Result<CoreManifest> {
-    if manifest.format != UPDATE_FORMAT_RAW {
+    if manifest.format != UPDATE_FORMAT_RAW.into() {
         return Err(refusal(Refusal::UnsupportedVersion));
     }
     Ok(CoreManifest {
-        structure_version: manifest.structure_version,
+        structure_version: manifest.structure_version.get(),
         sequence: manifest.sequence as u64,
         vendor_id: fixed::<ID_LEN>(manifest.vendor_id.as_ref(), "vendorId")?,
         class_id: fixed::<ID_LEN>(manifest.class_id.as_ref(), "classId")?,
         format: PayloadFormat::Raw,
-        storage: manifest.storage,
+        storage: manifest.storage.get(),
         digest: fixed::<DIGEST_LEN>(manifest.digest.as_ref(), "digest")?,
-        size: manifest.size,
+        size: manifest.size.get(),
         expires: manifest.expires as u64,
     })
 }
@@ -557,14 +561,14 @@ fn core_manifest(manifest: &Manifest) -> napi::Result<CoreManifest> {
 /// Maps a core manifest onto the value that crosses to JavaScript.
 fn js_manifest(manifest: &CoreManifest) -> Manifest {
     Manifest {
-        structure_version: manifest.structure_version,
+        structure_version: manifest.structure_version.into(),
         sequence: manifest.sequence as f64,
         vendor_id: manifest.vendor_id.to_vec().into(),
         class_id: manifest.class_id.to_vec().into(),
-        format: manifest.format as u8,
-        storage: manifest.storage,
+        format: (manifest.format as u8).into(),
+        storage: manifest.storage.into(),
         digest: manifest.digest.to_vec().into(),
-        size: manifest.size,
+        size: manifest.size.into(),
         expires: manifest.expires as f64,
     }
 }

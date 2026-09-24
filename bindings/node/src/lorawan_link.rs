@@ -4,6 +4,7 @@
 //! parameters recommend, the back-off that hands back what adaptive data rate tuned away
 //! once the network falls silent, and the channel list a join accept can carry.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_lorawan::adr::{Backoff, Standing};
@@ -101,12 +102,16 @@ impl LorawanBackoff {
     /// `limit` and `delay` default to the 64 and 32 RP002-1.0.5 recommends for every
     /// region. A delay of zero is taken as one.
     #[napi(constructor)]
-    pub fn new(version: LorawanVersion, limit: Option<u32>, delay: Option<u32>) -> Self {
+    pub fn new(
+        version: LorawanVersion,
+        limit: Option<checked::u32>,
+        delay: Option<checked::u32>,
+    ) -> Self {
         Self {
             inner: Backoff::new(
                 version.core(),
-                limit.unwrap_or(defaults::ADR_ACK_LIMIT),
-                delay.unwrap_or(defaults::ADR_ACK_DELAY),
+                limit.get().unwrap_or(defaults::ADR_ACK_LIMIT),
+                delay.get().unwrap_or(defaults::ADR_ACK_DELAY),
             ),
         }
     }
@@ -186,7 +191,8 @@ impl LorawanCfList {
     /// Throws if there are not five, or a frequency is not a whole number of hundreds
     /// of hertz from 100 MHz to just under 1.678 GHz.
     #[napi(factory)]
-    pub fn from_frequencies(frequencies_hz: Vec<u32>) -> napi::Result<Self> {
+    pub fn from_frequencies(frequencies_hz: Vec<checked::u32>) -> napi::Result<Self> {
+        let frequencies_hz = checked::all(frequencies_hz);
         let slots = <[u32; 5]>::try_from(frequencies_hz.as_slice()).map_err(|_| {
             napi::Error::from_reason(format!(
                 "a channel list takes 5 frequencies, not {}",
@@ -206,7 +212,8 @@ impl LorawanCfList {
     /// Builds a type 1 list from six mask groups, where bit n of group g enables channel
     /// g * 16 + n.
     #[napi(factory)]
-    pub fn from_channel_masks(masks: Vec<u32>) -> napi::Result<Self> {
+    pub fn from_channel_masks(masks: Vec<checked::u32>) -> napi::Result<Self> {
+        let masks = checked::all(masks);
         if masks.len() != 6 {
             return Err(napi::Error::from_reason(format!(
                 "a channel list takes 6 mask groups, not {}",
@@ -274,8 +281,8 @@ impl LorawanCfList {
     /// Whether a type 1 list enables a channel, or `null` for a list of any other type
     /// or a channel past the 96 the groups cover.
     #[napi]
-    pub fn enables(&self, channel: u32) -> Option<bool> {
-        self.inner.enables(u8::try_from(channel).ok()?)
+    pub fn enables(&self, channel: checked::u32) -> Option<bool> {
+        self.inner.enables(u8::try_from(channel.get()).ok()?)
     }
 
     /// The channels a type 1 list enables, lowest first, which is empty for a list of

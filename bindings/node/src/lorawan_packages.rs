@@ -7,6 +7,7 @@
 //! fragmentation session being put back together, and the code taken over a block as it
 //! arrives.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::{Buffer, Error, Result, Status};
 use napi_derive::napi;
 
@@ -125,16 +126,16 @@ pub fn lorawan_wrap_mc_key(mc_ke_key: Buffer, mc_key: Buffer) -> Result<Buffer> 
 
 /// Derives the key that reads a multicast group's payloads, section 4.3.
 #[napi]
-pub fn lorawan_mc_app_s_key(mc_key: Buffer, mc_addr: u32) -> Result<Buffer> {
+pub fn lorawan_mc_app_s_key(mc_key: Buffer, mc_addr: checked::u32) -> Result<Buffer> {
     let group = key(&mc_key, "mcKey")?;
-    Ok(mc_app_s_key(&group, mc_addr).to_vec().into())
+    Ok(mc_app_s_key(&group, mc_addr.get()).to_vec().into())
 }
 
 /// Derives the key that verifies a multicast group's frames, section 4.3.
 #[napi]
-pub fn lorawan_mc_nwk_s_key(mc_key: Buffer, mc_addr: u32) -> Result<Buffer> {
+pub fn lorawan_mc_nwk_s_key(mc_key: Buffer, mc_addr: checked::u32) -> Result<Buffer> {
     let group = key(&mc_key, "mcKey")?;
-    Ok(mc_nwk_s_key(&group, mc_addr).to_vec().into())
+    Ok(mc_nwk_s_key(&group, mc_addr.get()).to_vec().into())
 }
 
 /// Derives the key that signs a data block, TS004-2.0.0 section 3.3.
@@ -146,8 +147,8 @@ pub fn lorawan_data_block_int_key(root_key: Buffer) -> Result<Buffer> {
 
 /// Steps the pseudo-random sequence the parity matrix is drawn from, appendix A.1.
 #[napi]
-pub fn lorawan_frag_prbs23(x: u32) -> u32 {
-    prbs23(x)
+pub fn lorawan_frag_prbs23(x: checked::u32) -> u32 {
+    prbs23(x.get())
 }
 
 /// Lists the uncoded fragments a coded one is made of, appendix A.1.
@@ -155,16 +156,16 @@ pub fn lorawan_frag_prbs23(x: u32) -> u32 {
 /// `coded` counts from one past the uncoded fragments: a session's fragment `nbFrag + 1` is
 /// coded fragment 1.
 #[napi]
-pub fn lorawan_frag_parity_line(coded: u16, nb_frag: u16) -> Result<Vec<u16>> {
-    if nb_frag == 0 || nb_frag > MAX_FRAGMENTS {
+pub fn lorawan_frag_parity_line(coded: checked::u16, nb_frag: checked::u16) -> Result<Vec<u16>> {
+    if nb_frag.get() == 0 || nb_frag.get() > MAX_FRAGMENTS {
         return Err(Error::new(
             Status::InvalidArg,
             "a session carries 1 to 16383 fragments",
         ));
     }
-    let mut line = vec![0u8; usize::from(nb_frag).div_ceil(8)];
-    parity_line(coded, nb_frag, &mut line);
-    Ok((0..nb_frag)
+    let mut line = vec![0u8; usize::from(nb_frag.get()).div_ceil(8)];
+    parity_line(coded.get(), nb_frag.get(), &mut line);
+    Ok((0..nb_frag.get())
         .filter(|at| line[usize::from(*at) / 8] & (1 << (at % 8)) != 0)
         .collect())
 }
@@ -180,9 +181,12 @@ pub struct LorawanFragSession {
 
 /// Says how many fragments a block takes, and how much padding the last one needs.
 #[napi]
-pub fn lorawan_frag_session(block_len: u32, frag_size: u8) -> Result<LorawanFragSession> {
-    let block = vec![0u8; block_len as usize];
-    let sender = Fragmenter::new(&block, frag_size)
+pub fn lorawan_frag_session(
+    block_len: checked::u32,
+    frag_size: checked::u8,
+) -> Result<LorawanFragSession> {
+    let block = vec![0u8; block_len.get() as usize];
+    let sender = Fragmenter::new(&block, frag_size.get())
         .map_err(|error| Error::new(Status::InvalidArg, error.to_string()))?;
     Ok(LorawanFragSession {
         nb_frag: sender.nb_frag(),
@@ -195,12 +199,16 @@ pub fn lorawan_frag_session(block_len: u32, frag_size: u8) -> Result<LorawanFrag
 /// Up to `nbFrag` the fragment is a piece of the block; past that it is a coded fragment,
 /// the exclusive-or of a pseudo-random half of the pieces.
 #[napi]
-pub fn lorawan_frag_fragment(block: Buffer, frag_size: u8, n: u16) -> Result<Buffer> {
-    let sender = Fragmenter::new(block.as_ref(), frag_size)
+pub fn lorawan_frag_fragment(
+    block: Buffer,
+    frag_size: checked::u8,
+    n: checked::u16,
+) -> Result<Buffer> {
+    let sender = Fragmenter::new(block.as_ref(), frag_size.get())
         .map_err(|error| Error::new(Status::InvalidArg, error.to_string()))?;
-    let mut out = vec![0u8; usize::from(frag_size)];
+    let mut out = vec![0u8; usize::from(frag_size.get())];
     sender
-        .fragment(n, &mut out)
+        .fragment(n.get(), &mut out)
         .map_err(|error| Error::new(Status::InvalidArg, error.to_string()))?;
     Ok(out.into())
 }
@@ -227,18 +235,23 @@ impl LorawanDefragmenter {
     /// `maxLost` is the most uncoded fragments to be able to solve for, which decides how
     /// much working memory the session takes.
     #[napi(constructor)]
-    pub fn new(nb_frag: u16, frag_size: u8, max_lost: u16) -> Result<LorawanDefragmenter> {
-        if nb_frag == 0 || nb_frag > MAX_FRAGMENTS || frag_size == 0 {
+    pub fn new(
+        nb_frag: checked::u16,
+        frag_size: checked::u8,
+        max_lost: checked::u16,
+    ) -> Result<LorawanDefragmenter> {
+        let nb_frag = nb_frag.get();
+        if nb_frag == 0 || nb_frag > MAX_FRAGMENTS || frag_size.get() == 0 {
             return Err(Error::new(
                 Status::InvalidArg,
                 "the session is not one this build runs",
             ));
         }
         Ok(LorawanDefragmenter {
-            block: vec![0u8; usize::from(nb_frag) * usize::from(frag_size)],
-            matrix: vec![0u8; Defragmenter::matrix_len(nb_frag, max_lost.min(nb_frag))],
+            block: vec![0u8; usize::from(nb_frag) * usize::from(frag_size.get())],
+            matrix: vec![0u8; Defragmenter::matrix_len(nb_frag, max_lost.get().min(nb_frag))],
             nb_frag,
-            frag_size,
+            frag_size: frag_size.get(),
             progress: Progress::default(),
             missing: nb_frag,
         })
@@ -248,7 +261,7 @@ impl LorawanDefragmenter {
     ///
     /// Returns `true` once the block is whole.
     #[napi]
-    pub fn fragment(&mut self, n: u16, data: Buffer) -> Result<bool> {
+    pub fn fragment(&mut self, n: checked::u16, data: Buffer) -> Result<bool> {
         let mut session = Defragmenter::resumed(
             self.nb_frag,
             self.frag_size,
@@ -257,7 +270,7 @@ impl LorawanDefragmenter {
             self.progress,
         )
         .map_err(|error| Error::new(Status::InvalidArg, error.to_string()))?;
-        let outcome = session.fragment(n, data.as_ref());
+        let outcome = session.fragment(n.get(), data.as_ref());
         self.progress = session.progress();
         self.missing = session.missing();
         outcome.map_err(|error| Error::new(Status::GenericFailure, error.to_string()))
@@ -308,10 +321,10 @@ impl LorawanBlockMic {
     #[napi(constructor)]
     pub fn new(
         data_block_int_key: Buffer,
-        session_cnt: u16,
-        frag_index: u8,
+        session_cnt: checked::u16,
+        frag_index: checked::u8,
         descriptor: Buffer,
-        block_len: u32,
+        block_len: checked::u32,
     ) -> Result<LorawanBlockMic> {
         let key = key(&data_block_int_key, "dataBlockIntKey")?;
         let descriptor = <[u8; 4]>::try_from(descriptor.as_ref()).map_err(|_| {
@@ -322,10 +335,10 @@ impl LorawanBlockMic {
         })?;
         Ok(LorawanBlockMic {
             key,
-            session_cnt,
-            frag_index,
+            session_cnt: session_cnt.get(),
+            frag_index: frag_index.get(),
             descriptor,
-            block_len,
+            block_len: block_len.get(),
             pieces: Vec::new(),
         })
     }
@@ -389,11 +402,15 @@ impl LorawanClockSync {
 
     /// Builds the request that asks a server for a correction, section 3.2.
     #[napi]
-    pub fn request(&mut self, device_time: u32, ans_required: Option<bool>) -> Result<Buffer> {
+    pub fn request(
+        &mut self,
+        device_time: checked::u32,
+        ans_required: Option<bool>,
+    ) -> Result<Buffer> {
         let mut out = [0u8; 8];
         let len = self
             .inner
-            .app_time_req(device_time, ans_required.unwrap_or(false), &mut out)
+            .app_time_req(device_time.get(), ans_required.unwrap_or(false), &mut out)
             .map_err(|error| Error::new(Status::GenericFailure, error.to_string()))?;
         Ok(out[..len].to_vec().into())
     }
@@ -415,11 +432,11 @@ impl LorawanClockSync {
 
     /// Writes the answer the device owes, or an empty buffer when it owes none.
     #[napi]
-    pub fn answer(&mut self, device_time: u32) -> Result<Buffer> {
+    pub fn answer(&mut self, device_time: checked::u32) -> Result<Buffer> {
         let mut out = [0u8; 8];
         let len = self
             .inner
-            .answer(device_time, &mut out)
+            .answer(device_time.get(), &mut out)
             .map_err(|error| Error::new(Status::GenericFailure, error.to_string()))?;
         Ok(out[..len].to_vec().into())
     }
@@ -453,18 +470,18 @@ pub struct LorawanFirmware {
 impl LorawanFirmware {
     /// Starts the package, reporting the versions the device was built with.
     #[napi(constructor)]
-    pub fn new(firmware: u32, hardware: u32) -> LorawanFirmware {
+    pub fn new(firmware: checked::u32, hardware: checked::u32) -> LorawanFirmware {
         LorawanFirmware {
-            inner: FirmwareManager::new(firmware, hardware),
+            inner: FirmwareManager::new(firmware.get(), hardware.get()),
         }
     }
 
     /// Says what firmware upgrade image the device is holding.
     #[napi]
-    pub fn set_image(&mut self, status: LorawanImageStatus, version: Option<u32>) {
+    pub fn set_image(&mut self, status: LorawanImageStatus, version: Option<checked::u32>) {
         self.inner.set_image(match status {
             LorawanImageStatus::None => None,
-            LorawanImageStatus::Valid => Some(Image::valid(version.unwrap_or(0))),
+            LorawanImageStatus::Valid => Some(Image::valid(version.get().unwrap_or(0))),
             other => Some(Image::refused(image_in(&other))),
         });
     }
@@ -474,11 +491,11 @@ impl LorawanFirmware {
     /// `nowS` is what the device believes the time is, in seconds since the GPS epoch; a
     /// device that does not know refuses a reboot set for a moment in time.
     #[napi]
-    pub fn heard(&mut self, payload: Buffer, now_s: Option<u32>) -> Result<Buffer> {
+    pub fn heard(&mut self, payload: Buffer, now_s: Option<checked::u32>) -> Result<Buffer> {
         let mut out = [0u8; 64];
         let len = self
             .inner
-            .heard_at(payload.as_ref(), now_s, &mut out)
+            .heard_at(payload.as_ref(), now_s.get(), &mut out)
             .map_err(|error| Error::new(Status::GenericFailure, error.to_string()))?;
         Ok(out[..len].to_vec().into())
     }
@@ -534,71 +551,71 @@ impl LorawanFirmware {
 #[napi(object)]
 pub struct LorawanPackageCommand {
     /// Which package this command belongs to, as its port.
-    pub port: u8,
+    pub port: checked::u8,
     /// Which command this is, as a name.
     pub kind: String,
     /// Which way it travels.
     pub uplink: bool,
     /// The package identifier a version answer carries.
-    pub package: Option<u8>,
+    pub package: Option<checked::u8>,
     /// The package version it implements.
-    pub version: Option<u8>,
+    pub version: Option<checked::u8>,
     /// A device's own clock, in seconds since the GPS epoch.
-    pub device_time: Option<u32>,
+    pub device_time: Option<checked::u32>,
     /// The seconds to add to a device's clock.
-    pub time_correction: Option<i32>,
+    pub time_correction: Option<checked::i32>,
     /// The token that pairs a clock answer with its request.
-    pub token: Option<u8>,
+    pub token: Option<checked::u8>,
     /// Whether a clock request must be answered.
     pub ans_required: Option<bool>,
     /// The coded period between clock requests.
-    pub period: Option<u8>,
+    pub period: Option<checked::u8>,
     /// Whether a device manages its own clock periodicity.
     pub not_supported: Option<bool>,
     /// How many requests a resynchronization command asks for.
-    pub transmissions: Option<u8>,
+    pub transmissions: Option<checked::u8>,
     /// The firmware a device reports running.
-    pub firmware: Option<u32>,
+    pub firmware: Option<checked::u32>,
     /// The hardware it runs on.
-    pub hardware: Option<u32>,
+    pub hardware: Option<checked::u32>,
     /// The moment or the delay a reboot is set for.
-    pub reboot: Option<u32>,
+    pub reboot: Option<checked::u32>,
     /// What a device makes of the upgrade image it holds.
     pub image_status: Option<LorawanImageStatus>,
     /// The version it would run once that image is installed.
-    pub next_version: Option<u32>,
+    pub next_version: Option<checked::u32>,
     /// The version a delete command names.
-    pub delete_version: Option<u32>,
+    pub delete_version: Option<checked::u32>,
     /// Whether a device holds no valid image.
     pub no_valid_image: Option<bool>,
     /// Whether the version named is not the one held.
     pub invalid_version: Option<bool>,
     /// Which fragmentation session, 0 to 3.
-    pub frag_index: Option<u8>,
+    pub frag_index: Option<checked::u8>,
     /// Which multicast groups may feed it, a bit for each.
-    pub mc_group_bit_mask: Option<u8>,
+    pub mc_group_bit_mask: Option<checked::u8>,
     /// How many uncoded fragments a block was cut into.
-    pub nb_frag: Option<u16>,
+    pub nb_frag: Option<checked::u16>,
     /// How many bytes each fragment carries.
-    pub frag_size: Option<u8>,
+    pub frag_size: Option<checked::u8>,
     /// Whether a device reports the block once it has it.
     pub ack_reception: Option<bool>,
     /// Which fragmentation algorithm to run.
-    pub frag_algo: Option<u8>,
+    pub frag_algo: Option<checked::u8>,
     /// The coded spread of the delay before a device answers.
-    pub block_ack_delay: Option<u8>,
+    pub block_ack_delay: Option<checked::u8>,
     /// How many bytes of padding the last fragment carries.
-    pub padding: Option<u8>,
+    pub padding: Option<checked::u8>,
     /// The four bytes a server describes a block with.
     pub descriptor: Option<Buffer>,
     /// The session counter, which must rise for each new block.
-    pub session_cnt: Option<u16>,
+    pub session_cnt: Option<checked::u16>,
     /// The code over the block a device checks once it has it all.
     pub mic: Option<Buffer>,
     /// How many fragments arrived, coded, uncoded and repeated.
-    pub received: Option<u16>,
+    pub received: Option<checked::u16>,
     /// How many uncoded fragments are still missing.
-    pub missing: Option<u8>,
+    pub missing: Option<checked::u8>,
     /// Whether the block's code did not check out.
     pub mic_error: Option<bool>,
     /// Whether a session ran out of memory to defragment with.
@@ -616,37 +633,37 @@ pub struct LorawanPackageCommand {
     /// Whether every device answers a status request.
     pub all_participants: Option<bool>,
     /// Which fragment of a session a data fragment carries, counting from one.
-    pub fragment_n: Option<u16>,
+    pub fragment_n: Option<checked::u16>,
     /// The bytes a data fragment carries.
     pub data: Option<Buffer>,
     /// Which multicast group, 0 to 3.
-    pub mc_group_id: Option<u8>,
+    pub mc_group_id: Option<checked::u8>,
     /// The address a group answers to.
-    pub mc_addr: Option<u32>,
+    pub mc_addr: Option<checked::u32>,
     /// A group's key, wrapped under the device's key encryption key.
     pub mc_key_encrypted: Option<Buffer>,
     /// The first frame counter a device accepts from a group.
-    pub min_mc_fcnt: Option<u32>,
+    pub min_mc_fcnt: Option<checked::u32>,
     /// The last one, which ends the group's life.
-    pub max_mc_fcnt: Option<u32>,
+    pub max_mc_fcnt: Option<checked::u32>,
     /// Which groups a status request or answer covers, a bit for each.
-    pub group_mask: Option<u8>,
+    pub group_mask: Option<checked::u8>,
     /// How many groups a device holds in all.
-    pub nb_total_groups: Option<u8>,
+    pub nb_total_groups: Option<checked::u8>,
     /// Whether a device holds no group by the identifier named.
     pub id_error: Option<bool>,
     /// When a multicast window opens, in seconds since the GPS epoch.
-    pub session_time: Option<u32>,
+    pub session_time: Option<checked::u32>,
     /// How long it lasts at most, coded.
-    pub time_out: Option<u8>,
+    pub time_out: Option<checked::u8>,
     /// How often a device opens a ping slot inside a Class B window.
-    pub periodicity: Option<u8>,
+    pub periodicity: Option<checked::u8>,
     /// Where a group listens, in hertz.
-    pub dl_frequency_hz: Option<u32>,
+    pub dl_frequency_hz: Option<checked::u32>,
     /// The data rate it listens at.
-    pub data_rate: Option<u8>,
+    pub data_rate: Option<checked::u8>,
     /// How many seconds until a window opens.
-    pub time_to_start: Option<u32>,
+    pub time_to_start: Option<checked::u32>,
     /// Whether the data rate named is not one the device has.
     pub dr_error: Option<bool>,
     /// Whether the frequency named is not one it can use.
@@ -659,7 +676,7 @@ impl LorawanPackageCommand {
     /// An empty command of one package, which the readers below fill in.
     fn empty(port: u8, kind: &str, uplink: bool) -> LorawanPackageCommand {
         LorawanPackageCommand {
-            port,
+            port: port.into(),
             kind: kind.to_owned(),
             uplink,
             package: None,
@@ -730,7 +747,7 @@ impl LorawanPackageCommand {
 /// TS004-2.0.0 section 3 asks, and its bytes come back on `data`.
 #[napi]
 pub fn lorawan_package_parse(
-    port: u8,
+    port: checked::u8,
     uplink: bool,
     payload: Buffer,
 ) -> Result<LorawanPackageCommand> {
@@ -742,7 +759,7 @@ pub fn lorawan_package_parse(
     let bytes = payload.as_ref();
     let refused =
         |error: pamoja_lorawan::LorawanError| Error::new(Status::GenericFailure, error.to_string());
-    match port {
+    match port.get() {
         CLOCK_PORT => ClockCommand::parse(direction, bytes)
             .map(|(command, _)| clock_out(command))
             .map_err(refused),
@@ -765,7 +782,7 @@ pub fn lorawan_package_parse(
 /// Reads every command in one message, stopping at an identifier the package does not define.
 #[napi]
 pub fn lorawan_package_parse_all(
-    port: u8,
+    port: checked::u8,
     uplink: bool,
     payload: Buffer,
 ) -> Result<Vec<LorawanPackageCommand>> {
@@ -778,7 +795,7 @@ pub fn lorawan_package_parse_all(
     let mut at = 0;
     let mut read = Vec::new();
     while at < bytes.len() {
-        let taken = match port {
+        let taken = match port.get() {
             CLOCK_PORT => ClockCommand::parse(direction, &bytes[at..]).map(|(command, taken)| {
                 read.push(clock_out(command));
                 taken
@@ -836,7 +853,7 @@ pub fn lorawan_package_encode(command: LorawanPackageCommand) -> Result<Buffer> 
             ),
         )
     };
-    let written = match command.port {
+    let written = match command.port.get() {
         CLOCK_PORT => clock_in(&command)?.ok_or_else(unknown)?.encode(&mut out),
         FIRMWARE_PORT => firmware_in(&command)?.ok_or_else(unknown)?.encode(&mut out),
         FRAGMENT_PORT => {
@@ -913,35 +930,35 @@ fn clock_out(command: ClockCommand) -> LorawanPackageCommand {
     };
     match command {
         ClockCommand::PackageVersionAns(version) => {
-            flat.package = Some(version.package);
-            flat.version = Some(version.version);
+            flat.package = Some(version.package.into());
+            flat.version = Some(version.version.into());
         }
         ClockCommand::AppTimeReq {
             device_time,
             ans_required,
             token,
         } => {
-            flat.device_time = Some(device_time);
+            flat.device_time = Some(device_time.into());
             flat.ans_required = Some(ans_required);
-            flat.token = Some(token);
+            flat.token = Some(token.into());
         }
         ClockCommand::AppTimeAns {
             time_correction,
             token,
         } => {
-            flat.time_correction = Some(time_correction);
-            flat.token = Some(token);
+            flat.time_correction = Some(time_correction.into());
+            flat.token = Some(token.into());
         }
-        ClockCommand::DeviceAppTimePeriodicityReq { period } => flat.period = Some(period),
+        ClockCommand::DeviceAppTimePeriodicityReq { period } => flat.period = Some(period.into()),
         ClockCommand::DeviceAppTimePeriodicityAns {
             not_supported,
             device_time,
         } => {
             flat.not_supported = Some(not_supported);
-            flat.device_time = Some(device_time);
+            flat.device_time = Some(device_time.into());
         }
         ClockCommand::ForceDeviceResyncCmd { transmissions } => {
-            flat.transmissions = Some(transmissions);
+            flat.transmissions = Some(transmissions.into());
         }
         ClockCommand::PackageVersionReq => {}
     }
@@ -953,27 +970,27 @@ fn clock_in(flat: &LorawanPackageCommand) -> Result<Option<ClockCommand>> {
     Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => ClockCommand::PackageVersionReq,
         "packageVersionAns" => ClockCommand::PackageVersionAns(PackageVersion {
-            package: need(flat.package, &flat.kind, "package")?,
-            version: need(flat.version, &flat.kind, "version")?,
+            package: need(flat.package.get(), &flat.kind, "package")?,
+            version: need(flat.version.get(), &flat.kind, "version")?,
         }),
         "appTimeReq" => ClockCommand::AppTimeReq {
-            device_time: need(flat.device_time, &flat.kind, "deviceTime")?,
+            device_time: need(flat.device_time.get(), &flat.kind, "deviceTime")?,
             ans_required: flat.ans_required.unwrap_or(false),
-            token: flat.token.unwrap_or(0),
+            token: flat.token.get().unwrap_or(0),
         },
         "appTimeAns" => ClockCommand::AppTimeAns {
-            time_correction: need(flat.time_correction, &flat.kind, "timeCorrection")?,
-            token: flat.token.unwrap_or(0),
+            time_correction: need(flat.time_correction.get(), &flat.kind, "timeCorrection")?,
+            token: flat.token.get().unwrap_or(0),
         },
         "deviceAppTimePeriodicityReq" => ClockCommand::DeviceAppTimePeriodicityReq {
-            period: need(flat.period, &flat.kind, "period")?,
+            period: need(flat.period.get(), &flat.kind, "period")?,
         },
         "deviceAppTimePeriodicityAns" => ClockCommand::DeviceAppTimePeriodicityAns {
             not_supported: flat.not_supported.unwrap_or(false),
-            device_time: need(flat.device_time, &flat.kind, "deviceTime")?,
+            device_time: need(flat.device_time.get(), &flat.kind, "deviceTime")?,
         },
         "forceDeviceResyncCmd" => ClockCommand::ForceDeviceResyncCmd {
-            transmissions: need(flat.transmissions, &flat.kind, "transmissions")?,
+            transmissions: need(flat.transmissions.get(), &flat.kind, "transmissions")?,
         },
         _ => return Ok(None),
     }))
@@ -999,25 +1016,31 @@ fn firmware_out(command: FirmwareCommand) -> LorawanPackageCommand {
     let mut flat = LorawanPackageCommand::empty(FIRMWARE_PORT, name, uplink);
     match command {
         FirmwareCommand::PackageVersionAns(version) => {
-            flat.package = Some(version.package);
-            flat.version = Some(version.version);
+            flat.package = Some(version.package.into());
+            flat.version = Some(version.version.into());
         }
         FirmwareCommand::DevVersionAns { firmware, hardware } => {
-            flat.firmware = Some(firmware);
-            flat.hardware = Some(hardware);
+            flat.firmware = Some(firmware.into());
+            flat.hardware = Some(hardware.into());
         }
         FirmwareCommand::DevRebootTimeReq { reboot_time }
-        | FirmwareCommand::DevRebootTimeAns { reboot_time } => flat.reboot = Some(reboot_time),
+        | FirmwareCommand::DevRebootTimeAns { reboot_time } => {
+            flat.reboot = Some(reboot_time.into())
+        }
         FirmwareCommand::DevRebootCountdownReq { countdown }
-        | FirmwareCommand::DevRebootCountdownAns { countdown } => flat.reboot = Some(countdown),
+        | FirmwareCommand::DevRebootCountdownAns { countdown } => {
+            flat.reboot = Some(countdown.into())
+        }
         FirmwareCommand::DevUpgradeImageAns {
             status,
             next_version,
         } => {
             flat.image_status = Some(image_out(status));
-            flat.next_version = next_version;
+            flat.next_version = next_version.map(Into::into);
         }
-        FirmwareCommand::DevDeleteImageReq { version } => flat.delete_version = Some(version),
+        FirmwareCommand::DevDeleteImageReq { version } => {
+            flat.delete_version = Some(version.into())
+        }
         FirmwareCommand::DevDeleteImageAns(status) => {
             flat.no_valid_image = Some(status.no_valid_image);
             flat.invalid_version = Some(status.invalid_version);
@@ -1034,33 +1057,33 @@ fn firmware_in(flat: &LorawanPackageCommand) -> Result<Option<FirmwareCommand>> 
     Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => FirmwareCommand::PackageVersionReq,
         "packageVersionAns" => FirmwareCommand::PackageVersionAns(PackageVersion {
-            package: need(flat.package, &flat.kind, "package")?,
-            version: need(flat.version, &flat.kind, "version")?,
+            package: need(flat.package.get(), &flat.kind, "package")?,
+            version: need(flat.version.get(), &flat.kind, "version")?,
         }),
         "devVersionReq" => FirmwareCommand::DevVersionReq,
         "devVersionAns" => FirmwareCommand::DevVersionAns {
-            firmware: need(flat.firmware, &flat.kind, "firmware")?,
-            hardware: need(flat.hardware, &flat.kind, "hardware")?,
+            firmware: need(flat.firmware.get(), &flat.kind, "firmware")?,
+            hardware: need(flat.hardware.get(), &flat.kind, "hardware")?,
         },
         "devRebootTimeReq" => FirmwareCommand::DevRebootTimeReq {
-            reboot_time: need(flat.reboot, &flat.kind, "reboot")?,
+            reboot_time: need(flat.reboot.get(), &flat.kind, "reboot")?,
         },
         "devRebootTimeAns" => FirmwareCommand::DevRebootTimeAns {
-            reboot_time: need(flat.reboot, &flat.kind, "reboot")?,
+            reboot_time: need(flat.reboot.get(), &flat.kind, "reboot")?,
         },
         "devRebootCountdownReq" => FirmwareCommand::DevRebootCountdownReq {
-            countdown: need(flat.reboot, &flat.kind, "reboot")?,
+            countdown: need(flat.reboot.get(), &flat.kind, "reboot")?,
         },
         "devRebootCountdownAns" => FirmwareCommand::DevRebootCountdownAns {
-            countdown: need(flat.reboot, &flat.kind, "reboot")?,
+            countdown: need(flat.reboot.get(), &flat.kind, "reboot")?,
         },
         "devUpgradeImageReq" => FirmwareCommand::DevUpgradeImageReq,
         "devUpgradeImageAns" => FirmwareCommand::DevUpgradeImageAns {
             status: image_in(need(flat.image_status.as_ref(), &flat.kind, "imageStatus")?),
-            next_version: flat.next_version,
+            next_version: flat.next_version.get(),
         },
         "devDeleteImageReq" => FirmwareCommand::DevDeleteImageReq {
-            version: need(flat.delete_version, &flat.kind, "deleteVersion")?,
+            version: need(flat.delete_version.get(), &flat.kind, "deleteVersion")?,
         },
         "devDeleteImageAns" => FirmwareCommand::DevDeleteImageAns(DeleteStatus {
             no_valid_image: flat.no_valid_image.unwrap_or(false),
@@ -1089,14 +1112,14 @@ fn frag_out(command: FragCommand<'_>) -> LorawanPackageCommand {
     let mut flat = LorawanPackageCommand::empty(FRAGMENT_PORT, name, uplink);
     match command {
         FragCommand::PackageVersionAns(version) => {
-            flat.package = Some(version.package);
-            flat.version = Some(version.version);
+            flat.package = Some(version.package.into());
+            flat.version = Some(version.version.into());
         }
         FragCommand::FragSessionStatusReq {
             frag_index,
             all_participants,
         } => {
-            flat.frag_index = Some(frag_index);
+            flat.frag_index = Some(frag_index.into());
             flat.all_participants = Some(all_participants);
         }
         FragCommand::FragSessionStatusAns {
@@ -1107,9 +1130,9 @@ fn frag_out(command: FragCommand<'_>) -> LorawanPackageCommand {
             memory_error,
             no_session,
         } => {
-            flat.frag_index = Some(frag_index);
-            flat.received = Some(received);
-            flat.missing = Some(missing);
+            flat.frag_index = Some(frag_index.into());
+            flat.received = Some(received.into());
+            flat.missing = Some(missing.into());
             flat.mic_error = Some(mic_error);
             flat.memory_error = Some(memory_error);
             flat.no_session = Some(no_session);
@@ -1127,51 +1150,53 @@ fn frag_out(command: FragCommand<'_>) -> LorawanPackageCommand {
             session_cnt,
             mic,
         } => {
-            flat.frag_index = Some(frag_index);
-            flat.mc_group_bit_mask = Some(mc_group_bit_mask);
-            flat.nb_frag = Some(nb_frag);
-            flat.frag_size = Some(frag_size);
+            flat.frag_index = Some(frag_index.into());
+            flat.mc_group_bit_mask = Some(mc_group_bit_mask.into());
+            flat.nb_frag = Some(nb_frag.into());
+            flat.frag_size = Some(frag_size.into());
             flat.ack_reception = Some(ack_reception);
-            flat.frag_algo = Some(frag_algo);
-            flat.block_ack_delay = Some(block_ack_delay);
-            flat.padding = Some(padding);
+            flat.frag_algo = Some(frag_algo.into());
+            flat.block_ack_delay = Some(block_ack_delay.into());
+            flat.padding = Some(padding.into());
             flat.descriptor = Some(descriptor.to_vec().into());
-            flat.session_cnt = Some(session_cnt);
+            flat.session_cnt = Some(session_cnt.into());
             flat.mic = Some(mic.to_vec().into());
         }
         FragCommand::FragSessionSetupAns(status) => {
-            flat.frag_index = Some(status.frag_index);
+            flat.frag_index = Some(status.frag_index.into());
             flat.unsupported_algorithm = Some(status.unsupported_algorithm);
             flat.memory_error = Some(status.not_enough_memory);
             flat.unsupported_index = Some(status.unsupported_index);
             flat.wrong_descriptor = Some(status.wrong_descriptor);
             flat.session_replay = Some(status.session_replay);
         }
-        FragCommand::FragSessionDeleteReq { frag_index } => flat.frag_index = Some(frag_index),
+        FragCommand::FragSessionDeleteReq { frag_index } => {
+            flat.frag_index = Some(frag_index.into())
+        }
         FragCommand::FragSessionDeleteAns {
             frag_index,
             no_session,
         } => {
-            flat.frag_index = Some(frag_index);
+            flat.frag_index = Some(frag_index.into());
             flat.no_session = Some(no_session);
         }
         FragCommand::FragDataBlockReceivedReq {
             frag_index,
             mic_error,
         } => {
-            flat.frag_index = Some(frag_index);
+            flat.frag_index = Some(frag_index.into());
             flat.mic_error = Some(mic_error);
         }
         FragCommand::FragDataBlockReceivedAns { frag_index } => {
-            flat.frag_index = Some(frag_index);
+            flat.frag_index = Some(frag_index.into());
         }
         FragCommand::DataFragment {
             frag_index,
             n,
             data,
         } => {
-            flat.frag_index = Some(frag_index);
-            flat.fragment_n = Some(n);
+            flat.frag_index = Some(frag_index.into());
+            flat.fragment_n = Some(n.into());
             flat.data = Some(data.to_vec().into());
         }
         FragCommand::PackageVersionReq => {}
@@ -1184,32 +1209,32 @@ fn frag_in<'a>(flat: &LorawanPackageCommand, data: &'a [u8]) -> Result<Option<Fr
     Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => FragCommand::PackageVersionReq,
         "packageVersionAns" => FragCommand::PackageVersionAns(PackageVersion {
-            package: need(flat.package, &flat.kind, "package")?,
-            version: need(flat.version, &flat.kind, "version")?,
+            package: need(flat.package.get(), &flat.kind, "package")?,
+            version: need(flat.version.get(), &flat.kind, "version")?,
         }),
         "fragSessionStatusReq" => FragCommand::FragSessionStatusReq {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
             all_participants: flat.all_participants.unwrap_or(false),
         },
         "fragSessionStatusAns" => FragCommand::FragSessionStatusAns {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
-            received: need(flat.received, &flat.kind, "received")?,
-            missing: flat.missing.unwrap_or(0),
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
+            received: need(flat.received.get(), &flat.kind, "received")?,
+            missing: flat.missing.get().unwrap_or(0),
             mic_error: flat.mic_error.unwrap_or(false),
             memory_error: flat.memory_error.unwrap_or(false),
             no_session: flat.no_session.unwrap_or(false),
         },
         "fragSessionSetupReq" => FragCommand::FragSessionSetupReq {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
-            mc_group_bit_mask: flat.mc_group_bit_mask.unwrap_or(0),
-            nb_frag: need(flat.nb_frag, &flat.kind, "nbFrag")?,
-            frag_size: need(flat.frag_size, &flat.kind, "fragSize")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
+            mc_group_bit_mask: flat.mc_group_bit_mask.get().unwrap_or(0),
+            nb_frag: need(flat.nb_frag.get(), &flat.kind, "nbFrag")?,
+            frag_size: need(flat.frag_size.get(), &flat.kind, "fragSize")?,
             ack_reception: flat.ack_reception.unwrap_or(false),
-            frag_algo: flat.frag_algo.unwrap_or(0),
-            block_ack_delay: flat.block_ack_delay.unwrap_or(0),
-            padding: flat.padding.unwrap_or(0),
+            frag_algo: flat.frag_algo.get().unwrap_or(0),
+            block_ack_delay: flat.block_ack_delay.get().unwrap_or(0),
+            padding: flat.padding.get().unwrap_or(0),
             descriptor: four(&flat.descriptor, &flat.kind, "descriptor")?,
-            session_cnt: flat.session_cnt.unwrap_or(0),
+            session_cnt: flat.session_cnt.get().unwrap_or(0),
             mic: four(&flat.mic, &flat.kind, "mic")?,
         },
         "fragSessionSetupAns" => FragCommand::FragSessionSetupAns(SetupStatus {
@@ -1218,25 +1243,25 @@ fn frag_in<'a>(flat: &LorawanPackageCommand, data: &'a [u8]) -> Result<Option<Fr
             unsupported_index: flat.unsupported_index.unwrap_or(false),
             wrong_descriptor: flat.wrong_descriptor.unwrap_or(false),
             session_replay: flat.session_replay.unwrap_or(false),
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
         }),
         "fragSessionDeleteReq" => FragCommand::FragSessionDeleteReq {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
         },
         "fragSessionDeleteAns" => FragCommand::FragSessionDeleteAns {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
             no_session: flat.no_session.unwrap_or(false),
         },
         "fragDataBlockReceivedReq" => FragCommand::FragDataBlockReceivedReq {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
             mic_error: flat.mic_error.unwrap_or(false),
         },
         "fragDataBlockReceivedAns" => FragCommand::FragDataBlockReceivedAns {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
         },
         "dataFragment" => FragCommand::DataFragment {
-            frag_index: need(flat.frag_index, &flat.kind, "fragIndex")?,
-            n: need(flat.fragment_n, &flat.kind, "fragmentN")?,
+            frag_index: need(flat.frag_index.get(), &flat.kind, "fragIndex")?,
+            n: need(flat.fragment_n.get(), &flat.kind, "fragmentN")?,
             data,
         },
         _ => return Ok(None),
@@ -1264,23 +1289,25 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
     let mut flat = LorawanPackageCommand::empty(MULTICAST_PORT, name, uplink);
     match command {
         McCommand::PackageVersionAns(version) => {
-            flat.package = Some(version.package);
-            flat.version = Some(version.version);
+            flat.package = Some(version.package.into());
+            flat.version = Some(version.version.into());
         }
-        McCommand::McGroupStatusReq { req_group_mask } => flat.group_mask = Some(req_group_mask),
+        McCommand::McGroupStatusReq { req_group_mask } => {
+            flat.group_mask = Some(req_group_mask.into())
+        }
         McCommand::McGroupStatusAns {
             ans_group_mask,
             nb_total_groups,
         } => {
-            flat.group_mask = Some(ans_group_mask);
-            flat.nb_total_groups = Some(nb_total_groups);
+            flat.group_mask = Some(ans_group_mask.into());
+            flat.nb_total_groups = Some(nb_total_groups.into());
         }
         McCommand::McGroupStatusItem {
             mc_group_id,
             mc_addr,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
-            flat.mc_addr = Some(mc_addr);
+            flat.mc_group_id = Some(mc_group_id.into());
+            flat.mc_addr = Some(mc_addr.into());
         }
         McCommand::McGroupSetupReq {
             mc_group_id,
@@ -1289,25 +1316,25 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
             min_mc_fcnt,
             max_mc_fcnt,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
-            flat.mc_addr = Some(mc_addr);
+            flat.mc_group_id = Some(mc_group_id.into());
+            flat.mc_addr = Some(mc_addr.into());
             flat.mc_key_encrypted = Some(mc_key_encrypted.to_vec().into());
-            flat.min_mc_fcnt = Some(min_mc_fcnt);
-            flat.max_mc_fcnt = Some(max_mc_fcnt);
+            flat.min_mc_fcnt = Some(min_mc_fcnt.into());
+            flat.max_mc_fcnt = Some(max_mc_fcnt.into());
         }
         McCommand::McGroupSetupAns {
             mc_group_id,
             id_error,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
+            flat.mc_group_id = Some(mc_group_id.into());
             flat.id_error = Some(id_error);
         }
-        McCommand::McGroupDeleteReq { mc_group_id } => flat.mc_group_id = Some(mc_group_id),
+        McCommand::McGroupDeleteReq { mc_group_id } => flat.mc_group_id = Some(mc_group_id.into()),
         McCommand::McGroupDeleteAns {
             mc_group_id,
             group_undefined,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
+            flat.mc_group_id = Some(mc_group_id.into());
             flat.no_session = Some(group_undefined);
         }
         McCommand::McClassCSessionReq {
@@ -1317,11 +1344,11 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
             dl_frequency_hz,
             data_rate,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
-            flat.session_time = Some(session_time);
-            flat.time_out = Some(time_out);
-            flat.dl_frequency_hz = Some(dl_frequency_hz);
-            flat.data_rate = Some(data_rate);
+            flat.mc_group_id = Some(mc_group_id.into());
+            flat.session_time = Some(session_time.into());
+            flat.time_out = Some(time_out.into());
+            flat.dl_frequency_hz = Some(dl_frequency_hz.into());
+            flat.data_rate = Some(data_rate.into());
         }
         McCommand::McClassBSessionReq {
             mc_group_id,
@@ -1331,12 +1358,12 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
             dl_frequency_hz,
             data_rate,
         } => {
-            flat.mc_group_id = Some(mc_group_id);
-            flat.session_time = Some(session_time);
-            flat.time_out = Some(time_out);
-            flat.periodicity = Some(periodicity);
-            flat.dl_frequency_hz = Some(dl_frequency_hz);
-            flat.data_rate = Some(data_rate);
+            flat.mc_group_id = Some(mc_group_id.into());
+            flat.session_time = Some(session_time.into());
+            flat.time_out = Some(time_out.into());
+            flat.periodicity = Some(periodicity.into());
+            flat.dl_frequency_hz = Some(dl_frequency_hz.into());
+            flat.data_rate = Some(data_rate.into());
         }
         McCommand::McClassCSessionAns {
             status,
@@ -1346,12 +1373,12 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
             status,
             time_to_start,
         } => {
-            flat.mc_group_id = Some(status.mc_group_id);
+            flat.mc_group_id = Some(status.mc_group_id.into());
             flat.dr_error = Some(status.dr_error);
             flat.freq_error = Some(status.freq_error);
             flat.no_session = Some(status.group_undefined);
             flat.start_missed = Some(status.start_missed);
-            flat.time_to_start = time_to_start;
+            flat.time_to_start = time_to_start.map(Into::into);
         }
         McCommand::PackageVersionReq => {}
     }
@@ -1361,7 +1388,7 @@ fn mc_out(command: McCommand) -> LorawanPackageCommand {
 /// Reads a multicast setup command out of the record JavaScript holds.
 fn mc_in(flat: &LorawanPackageCommand) -> Result<Option<McCommand>> {
     let status = SessionStatus {
-        mc_group_id: flat.mc_group_id.unwrap_or(0),
+        mc_group_id: flat.mc_group_id.get().unwrap_or(0),
         dr_error: flat.dr_error.unwrap_or(false),
         freq_error: flat.freq_error.unwrap_or(false),
         group_undefined: flat.no_session.unwrap_or(false),
@@ -1370,60 +1397,60 @@ fn mc_in(flat: &LorawanPackageCommand) -> Result<Option<McCommand>> {
     Ok(Some(match flat.kind.as_str() {
         "packageVersionReq" => McCommand::PackageVersionReq,
         "packageVersionAns" => McCommand::PackageVersionAns(PackageVersion {
-            package: need(flat.package, &flat.kind, "package")?,
-            version: need(flat.version, &flat.kind, "version")?,
+            package: need(flat.package.get(), &flat.kind, "package")?,
+            version: need(flat.version.get(), &flat.kind, "version")?,
         }),
         "mcGroupStatusReq" => McCommand::McGroupStatusReq {
-            req_group_mask: need(flat.group_mask, &flat.kind, "groupMask")?,
+            req_group_mask: need(flat.group_mask.get(), &flat.kind, "groupMask")?,
         },
         "mcGroupStatusAns" => McCommand::McGroupStatusAns {
-            ans_group_mask: need(flat.group_mask, &flat.kind, "groupMask")?,
-            nb_total_groups: flat.nb_total_groups.unwrap_or(0),
+            ans_group_mask: need(flat.group_mask.get(), &flat.kind, "groupMask")?,
+            nb_total_groups: flat.nb_total_groups.get().unwrap_or(0),
         },
         "mcGroupStatusItem" => McCommand::McGroupStatusItem {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
-            mc_addr: need(flat.mc_addr, &flat.kind, "mcAddr")?,
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
+            mc_addr: need(flat.mc_addr.get(), &flat.kind, "mcAddr")?,
         },
         "mcGroupSetupReq" => McCommand::McGroupSetupReq {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
-            mc_addr: need(flat.mc_addr, &flat.kind, "mcAddr")?,
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
+            mc_addr: need(flat.mc_addr.get(), &flat.kind, "mcAddr")?,
             mc_key_encrypted: sixteen(&flat.mc_key_encrypted, &flat.kind, "mcKeyEncrypted")?,
-            min_mc_fcnt: flat.min_mc_fcnt.unwrap_or(0),
-            max_mc_fcnt: flat.max_mc_fcnt.unwrap_or(0),
+            min_mc_fcnt: flat.min_mc_fcnt.get().unwrap_or(0),
+            max_mc_fcnt: flat.max_mc_fcnt.get().unwrap_or(0),
         },
         "mcGroupSetupAns" => McCommand::McGroupSetupAns {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
             id_error: flat.id_error.unwrap_or(false),
         },
         "mcGroupDeleteReq" => McCommand::McGroupDeleteReq {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
         },
         "mcGroupDeleteAns" => McCommand::McGroupDeleteAns {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
             group_undefined: flat.no_session.unwrap_or(false),
         },
         "mcClassCSessionReq" => McCommand::McClassCSessionReq {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
-            session_time: need(flat.session_time, &flat.kind, "sessionTime")?,
-            time_out: flat.time_out.unwrap_or(0),
-            dl_frequency_hz: need(flat.dl_frequency_hz, &flat.kind, "dlFrequencyHz")?,
-            data_rate: flat.data_rate.unwrap_or(0),
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
+            session_time: need(flat.session_time.get(), &flat.kind, "sessionTime")?,
+            time_out: flat.time_out.get().unwrap_or(0),
+            dl_frequency_hz: need(flat.dl_frequency_hz.get(), &flat.kind, "dlFrequencyHz")?,
+            data_rate: flat.data_rate.get().unwrap_or(0),
         },
         "mcClassCSessionAns" => McCommand::McClassCSessionAns {
             status,
-            time_to_start: flat.time_to_start,
+            time_to_start: flat.time_to_start.get(),
         },
         "mcClassBSessionReq" => McCommand::McClassBSessionReq {
-            mc_group_id: need(flat.mc_group_id, &flat.kind, "mcGroupId")?,
-            session_time: need(flat.session_time, &flat.kind, "sessionTime")?,
-            time_out: flat.time_out.unwrap_or(0),
-            periodicity: flat.periodicity.unwrap_or(0),
-            dl_frequency_hz: need(flat.dl_frequency_hz, &flat.kind, "dlFrequencyHz")?,
-            data_rate: flat.data_rate.unwrap_or(0),
+            mc_group_id: need(flat.mc_group_id.get(), &flat.kind, "mcGroupId")?,
+            session_time: need(flat.session_time.get(), &flat.kind, "sessionTime")?,
+            time_out: flat.time_out.get().unwrap_or(0),
+            periodicity: flat.periodicity.get().unwrap_or(0),
+            dl_frequency_hz: need(flat.dl_frequency_hz.get(), &flat.kind, "dlFrequencyHz")?,
+            data_rate: flat.data_rate.get().unwrap_or(0),
         },
         "mcClassBSessionAns" => McCommand::McClassBSessionAns {
             status,
-            time_to_start: flat.time_to_start,
+            time_to_start: flat.time_to_start.get(),
         },
         _ => return Ok(None),
     }))

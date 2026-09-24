@@ -7,6 +7,7 @@
 //! there, keeping its datasheet's rules, so what a driver wrote reads back off a simulated
 //! bus.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use napi::bindgen_prelude::{spawn_blocking, Buffer};
@@ -84,9 +85,9 @@ pub const PCA9685_PRE_SCALE_MIN: u8 = pca9685::PRE_SCALE_MIN;
 #[napi(object)]
 pub struct Pca9685Settings {
     /// The PWM frequency every channel shares, in hertz; 50 for hobby servos.
-    pub frequency_hz: Option<u32>,
+    pub frequency_hz: Option<checked::u32>,
     /// The clock the prescaler divides, in hertz, for a board that drives EXTCLK.
-    pub oscillator_hz: Option<u32>,
+    pub oscillator_hz: Option<checked::u32>,
     /// Totem-pole outputs when true, open-drain when false.
     pub totem_pole: Option<bool>,
     /// Invert the output logic, for a board with no external driver.
@@ -106,12 +107,15 @@ impl Pca9685 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// channel is loaded.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Pca9685Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Pca9685Settings>) -> Self {
         let wiring = Outputs::default();
         let (frequency, oscillator, outputs) = match settings {
             Some(settings) => (
-                settings.frequency_hz.unwrap_or(200),
-                settings.oscillator_hz.unwrap_or(pca9685::INTERNAL_OSC_HZ),
+                settings.frequency_hz.get().unwrap_or(200),
+                settings
+                    .oscillator_hz
+                    .get()
+                    .unwrap_or(pca9685::INTERNAL_OSC_HZ),
                 Outputs {
                     totem_pole: settings.totem_pole.unwrap_or(wiring.totem_pole),
                     inverted: settings.inverted.unwrap_or(wiring.inverted),
@@ -122,7 +126,7 @@ impl Pca9685 {
         };
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = pca9685::Pca9685::new(bus, address, delay)
+        let driver = pca9685::Pca9685::new(bus, address.get(), delay)
             .with_frequency(frequency)
             .with_oscillator(oscillator)
             .with_outputs(outputs);
@@ -141,17 +145,20 @@ impl Pca9685 {
     /// Loads one channel with the four register bytes the `pwm` builders make, initializing
     /// the part first if `init` has not run. Rejects a channel past 15.
     #[napi]
-    pub async fn set_channel(&self, channel: u8, pwm: Buffer) -> napi::Result<()> {
+    pub async fn set_channel(&self, channel: checked::u8, pwm: Buffer) -> napi::Result<()> {
         let pwm = pwm_of(&pwm)?;
-        drive(&self.inner, move |driver| driver.set_channel(channel, pwm)).await
+        drive(&self.inner, move |driver| {
+            driver.set_channel(channel.get(), pwm)
+        })
+        .await
     }
 
     /// Reads one channel's four register bytes back from the part, one register a transfer,
     /// so the read works whatever MODE1 holds and changes nothing on the part. Rejects a
     /// channel past 15.
     #[napi]
-    pub async fn channel(&self, channel: u8) -> napi::Result<Buffer> {
-        let pwm = drive(&self.inner, move |driver| driver.channel(channel)).await?;
+    pub async fn channel(&self, channel: checked::u8) -> napi::Result<Buffer> {
+        let pwm = drive(&self.inner, move |driver| driver.channel(channel.get())).await?;
         Ok(pwm.bytes().to_vec().into())
     }
 
@@ -207,9 +214,9 @@ impl Pca9685 {
 /// A simulated PCA9685 as it powers up: asleep at 200 Hz with every output off, keeping its
 /// datasheet's rules for writes, reads, and its register pointer.
 #[napi]
-pub fn pca9685_sim_part(address: u8) -> I2cPart {
+pub fn pca9685_sim_part(address: checked::u8) -> I2cPart {
     I2cPart {
-        inner: pca9685::sim::part(address),
+        inner: pca9685::sim::part(address.get()),
     }
 }
 

@@ -8,6 +8,7 @@
 //! is built, since the Rust crate fixes its size with a const generic that cannot
 //! reach JavaScript.
 
+use crate::checked::{self, OptionalWhole};
 use napi_derive::napi;
 use pamoja_routing::{DynamicRouter, Forward};
 
@@ -68,28 +69,13 @@ impl Router {
     ///
     /// `capacity` is how many routes to make room for, defaulting to
     /// [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-    /// destination, which is the behavior with no table at all. A number read as an
-    /// unsigned integer wraps instead of failing, so -1 would ask for four billion
-    /// routes; the capacity is taken as a number and refused unless it is whole and
-    /// from zero up.
+    /// destination, which is the behavior with no table at all.
     #[napi(constructor)]
-    pub fn new(address: u32, capacity: Option<f64>) -> napi::Result<Self> {
-        let capacity = match capacity {
-            None => ROUTING_DEFAULT_CAPACITY as usize,
-            Some(capacity)
-                if capacity.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&capacity) =>
-            {
-                capacity as usize
-            }
-            Some(capacity) => {
-                return Err(napi::Error::from_reason(format!(
-                    "a capacity must be a whole number from 0 up, not {capacity}"
-                )))
-            }
-        };
-        Ok(Self {
-            inner: DynamicRouter::new(address, capacity),
-        })
+    pub fn new(address: checked::u32, capacity: Option<checked::u32>) -> Self {
+        let capacity = capacity.get().unwrap_or(ROUTING_DEFAULT_CAPACITY);
+        Self {
+            inner: DynamicRouter::new(address.get(), capacity as usize),
+        }
     }
 
     /// The address this router answers for.
@@ -103,26 +89,26 @@ impl Router {
     /// When a packet from `origin` comes in through neighbor `via` at `cost`,
     /// that neighbor is the way back. Returns whether the table changed.
     #[napi]
-    pub fn observe(&mut self, origin: u32, via: u32, cost: u16) -> bool {
-        self.inner.observe(origin, via, cost)
+    pub fn observe(&mut self, origin: checked::u32, via: checked::u32, cost: checked::u16) -> bool {
+        self.inner.observe(origin.get(), via.get(), cost.get())
     }
 
     /// Returns the neighbor to send a packet to on the way to `dst`, or `null`.
     #[napi]
-    pub fn next_hop(&self, dst: u32) -> Option<u32> {
-        self.inner.next_hop(dst)
+    pub fn next_hop(&self, dst: checked::u32) -> Option<u32> {
+        self.inner.next_hop(dst.get())
     }
 
     /// Returns what the known route to `dst` costs, or `null` when none is known.
     #[napi]
-    pub fn cost(&self, dst: u32) -> Option<u16> {
-        self.inner.cost(dst)
+    pub fn cost(&self, dst: checked::u32) -> Option<u16> {
+        self.inner.cost(dst.get())
     }
 
     /// Returns the whole route to `dst`, or `null` when none is known.
     #[napi]
-    pub fn route(&self, dst: u32) -> Option<Route> {
-        self.inner.route(dst).map(Route::from)
+    pub fn route(&self, dst: checked::u32) -> Option<Route> {
+        self.inner.route(dst.get()).map(Route::from)
     }
 
     /// Lists the routes the table holds, each once, in the order the table holds
@@ -134,8 +120,8 @@ impl Router {
 
     /// Decides what to do with a packet bound for `dst`.
     #[napi]
-    pub fn forward(&self, dst: u32) -> ForwardDecision {
-        match self.inner.forward(dst) {
+    pub fn forward(&self, dst: checked::u32) -> ForwardDecision {
+        match self.inner.forward(dst.get()) {
             Forward::Deliver => ForwardDecision {
                 action: ForwardAction::Deliver,
                 next_hop: None,
@@ -153,8 +139,8 @@ impl Router {
 
     /// Forgets the route to `dst`, for example after it stops answering.
     #[napi]
-    pub fn forget(&mut self, dst: u32) {
-        self.inner.forget(dst);
+    pub fn forget(&mut self, dst: checked::u32) {
+        self.inner.forget(dst.get());
     }
 
     /// How many routes the table currently holds.

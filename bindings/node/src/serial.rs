@@ -10,6 +10,7 @@
 //! throw, because the frames around it are still good; it is discarded and
 //! counted, and the count is readable from `discarded`.
 
+use crate::checked;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_serial::{cobs, slip, SerialError};
@@ -79,14 +80,14 @@ pub fn cobs_decode(frame: Buffer) -> napi::Result<Buffer> {
 
 /// Returns the largest SLIP frame a payload of this length can produce.
 #[napi]
-pub fn slip_max_encoded_len(payload_len: u32) -> u32 {
-    slip::max_encoded_len(payload_len as usize) as u32
+pub fn slip_max_encoded_len(payload_len: checked::u32) -> u32 {
+    slip::max_encoded_len(payload_len.get() as usize) as u32
 }
 
 /// Returns the largest COBS frame a payload of this length can produce.
 #[napi]
-pub fn cobs_max_encoded_len(payload_len: u32) -> u32 {
-    cobs::max_encoded_len(payload_len as usize) as u32
+pub fn cobs_max_encoded_len(payload_len: checked::u32) -> u32 {
+    cobs::max_encoded_len(payload_len.get() as usize) as u32
 }
 
 /// Reassembles whole SLIP frames from the chunks a serial port delivers.

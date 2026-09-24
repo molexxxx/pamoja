@@ -9,6 +9,7 @@
 //! decoded one as a plain object carrying its header fields and its recovered
 //! payload.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_lorawan::mac::{MacCommand, MacCommands};
@@ -106,10 +107,10 @@ impl LorawanSession {
     ///
     /// `nwkSKey` authenticates frames and `appSKey` encrypts payloads.
     #[napi(constructor)]
-    pub fn new(dev_addr: u32, nwk_skey: Buffer, app_skey: Buffer) -> napi::Result<Self> {
+    pub fn new(dev_addr: checked::u32, nwk_skey: Buffer, app_skey: Buffer) -> napi::Result<Self> {
         Ok(Self {
             inner: CoreSession::new(
-                dev_addr,
+                dev_addr.get(),
                 key(&nwk_skey, "nwkSKey")?,
                 key(&app_skey, "appSKey")?,
             ),
@@ -143,14 +144,14 @@ impl LorawanSession {
     #[napi]
     pub fn encode_uplink(
         &self,
-        fcnt: u32,
-        fport: u8,
+        fcnt: checked::u32,
+        fport: checked::u8,
         payload: Buffer,
         options: Option<LorawanOptions>,
     ) -> napi::Result<Buffer> {
         let options = options.unwrap_or_else(none);
         let fopts = options.fopts.as_ref().map(Buffer::as_ref).unwrap_or(&[]);
-        let mut uplink = Uplink::new(fcnt, fport, payload.as_ref()).with_fopts(fopts);
+        let mut uplink = Uplink::new(fcnt.get(), fport.get(), payload.as_ref()).with_fopts(fopts);
         if options.confirmed.unwrap_or(false) {
             uplink = uplink.confirmed();
         }
@@ -173,14 +174,15 @@ impl LorawanSession {
     #[napi]
     pub fn encode_downlink(
         &self,
-        fcnt: u32,
-        fport: u8,
+        fcnt: checked::u32,
+        fport: checked::u8,
         payload: Buffer,
         options: Option<LorawanOptions>,
     ) -> napi::Result<Buffer> {
         let options = options.unwrap_or_else(none);
         let fopts = options.fopts.as_ref().map(Buffer::as_ref).unwrap_or(&[]);
-        let mut downlink = Downlink::new(fcnt, fport, payload.as_ref()).with_fopts(fopts);
+        let mut downlink =
+            Downlink::new(fcnt.get(), fport.get(), payload.as_ref()).with_fopts(fopts);
         if options.confirmed.unwrap_or(false) {
             downlink = downlink.confirmed();
         }
@@ -204,9 +206,9 @@ impl LorawanSession {
     /// `fcnt` is the full 32-bit counter expected for this frame; its low 16 bits
     /// must match the counter the frame carries.
     #[napi]
-    pub fn decode(&self, bytes: Buffer, fcnt: u32) -> napi::Result<LorawanRxData> {
+    pub fn decode(&self, bytes: Buffer, fcnt: checked::u32) -> napi::Result<LorawanRxData> {
         self.inner
-            .decode(bytes.as_ref(), fcnt)
+            .decode(bytes.as_ref(), fcnt.get())
             .map(describe)
             .map_err(to_napi)
     }
@@ -243,9 +245,9 @@ impl LorawanDevice {
     /// `devNonce` must never repeat for a device, since the network rejects a
     /// replayed one.
     #[napi]
-    pub fn join_request(&self, dev_nonce: u16) -> Buffer {
+    pub fn join_request(&self, dev_nonce: checked::u16) -> Buffer {
         self.inner
-            .join_request(dev_nonce)
+            .join_request(dev_nonce.get())
             .as_bytes()
             .to_vec()
             .into()
@@ -255,9 +257,13 @@ impl LorawanDevice {
     ///
     /// `devNonce` is the nonce the matching join request carried.
     #[napi]
-    pub fn accept_join(&self, bytes: Buffer, dev_nonce: u16) -> napi::Result<LorawanJoinAccept> {
+    pub fn accept_join(
+        &self,
+        bytes: Buffer,
+        dev_nonce: checked::u16,
+    ) -> napi::Result<LorawanJoinAccept> {
         self.inner
-            .accept_join(bytes.as_ref(), dev_nonce)
+            .accept_join(bytes.as_ref(), dev_nonce.get())
             .map(|accept| LorawanJoinAccept { inner: accept })
             .map_err(to_napi)
     }
@@ -449,15 +455,15 @@ pub struct LorawanJoinRequest {
 #[napi(object)]
 pub struct LorawanGrant {
     /// A nonce this network must not reuse for the device; low 24 bits only.
-    pub app_nonce: u32,
+    pub app_nonce: checked::u32,
     /// The network identifier; low 24 bits only.
-    pub net_id: u32,
+    pub net_id: checked::u32,
     /// The address to assign the device.
-    pub dev_addr: u32,
+    pub dev_addr: checked::u32,
     /// The downlink settings byte, defaulting to 0.
-    pub dl_settings: Option<u8>,
+    pub dl_settings: Option<checked::u8>,
     /// The delay before the first receive window in seconds, defaulting to 0.
-    pub rx_delay: Option<u8>,
+    pub rx_delay: Option<checked::u8>,
     /// The optional 16-byte channel list.
     pub cflist: Option<Buffer>,
 }
@@ -512,11 +518,11 @@ pub fn lorawan_parse_join_request(
 pub fn lorawan_grant_accept(
     grant: LorawanGrant,
     app_key: Buffer,
-    dev_nonce: u16,
+    dev_nonce: checked::u16,
 ) -> napi::Result<Buffer> {
     let app_key = key(&app_key, "appKey")?;
     Ok(granted(grant)?
-        .accept(&app_key, dev_nonce)
+        .accept(&app_key, dev_nonce.get())
         .as_bytes()
         .to_vec()
         .into())
@@ -527,19 +533,23 @@ pub fn lorawan_grant_accept(
 pub fn lorawan_grant_session(
     grant: LorawanGrant,
     app_key: Buffer,
-    dev_nonce: u16,
+    dev_nonce: checked::u16,
 ) -> napi::Result<LorawanSession> {
     let app_key = key(&app_key, "appKey")?;
     Ok(LorawanSession {
-        inner: granted(grant)?.session(&app_key, dev_nonce),
+        inner: granted(grant)?.session(&app_key, dev_nonce.get()),
     })
 }
 
 /// Rebuilds the Rust grant from the object JavaScript supplied.
 fn granted(grant: LorawanGrant) -> napi::Result<JoinGrant> {
-    let mut built = JoinGrant::new(grant.app_nonce, grant.net_id, grant.dev_addr)
-        .with_dl_settings(grant.dl_settings.unwrap_or(0))
-        .with_rx_delay(grant.rx_delay.unwrap_or(0));
+    let mut built = JoinGrant::new(
+        grant.app_nonce.get(),
+        grant.net_id.get(),
+        grant.dev_addr.get(),
+    )
+    .with_dl_settings(grant.dl_settings.get().unwrap_or(0))
+    .with_rx_delay(grant.rx_delay.get().unwrap_or(0));
     if let Some(cflist) = grant.cflist {
         let cflist = <[u8; 16]>::try_from(cflist.as_ref())
             .map_err(|_| napi::Error::from_reason("cflist must be exactly 16 bytes".to_owned()))?;
@@ -558,23 +568,23 @@ pub struct LorawanMacCommand {
     /// Which command this is, as a name.
     pub kind: String,
     /// The identifier it travels under.
-    pub cid: u8,
+    pub cid: checked::u8,
     /// Which way it travels.
     pub direction: LorawanDirection,
     /// How far above the floor a link check arrived, in dB.
-    pub margin: Option<u8>,
+    pub margin: Option<checked::u8>,
     /// How many gateways heard it.
-    pub gateways: Option<u8>,
+    pub gateways: Option<checked::u8>,
     /// The data rate a network asks a device to use.
-    pub data_rate: Option<u8>,
+    pub data_rate: Option<checked::u8>,
     /// The transmit power it may use, as a ceiling.
-    pub tx_power: Option<u8>,
+    pub tx_power: Option<checked::u8>,
     /// Which channels may carry an uplink.
-    pub channel_mask: Option<u16>,
+    pub channel_mask: Option<checked::u16>,
     /// Which block of sixteen channels that mask applies to.
-    pub mask_control: Option<u8>,
+    pub mask_control: Option<checked::u8>,
     /// How many times to send an unconfirmed uplink.
-    pub transmissions: Option<u8>,
+    pub transmissions: Option<checked::u8>,
     /// Whether the power was set.
     pub power_ack: Option<bool>,
     /// Whether the data rate was set.
@@ -582,13 +592,13 @@ pub struct LorawanMacCommand {
     /// Whether the channel mask was usable.
     pub channel_mask_ack: Option<bool>,
     /// The share of the air a device is held to, as one over two to this.
-    pub max_duty_cycle: Option<u8>,
+    pub max_duty_cycle: Option<checked::u8>,
     /// How far the first receive window sits below the uplink rate.
-    pub rx1_offset: Option<u8>,
+    pub rx1_offset: Option<checked::u8>,
     /// The rate of the second receive window.
-    pub rx2_data_rate: Option<u8>,
+    pub rx2_data_rate: Option<checked::u8>,
     /// A frequency in hertz, for the receive window and the channel commands.
-    pub frequency_hz: Option<u32>,
+    pub frequency_hz: Option<checked::u32>,
     /// Whether the window offset was in range.
     pub rx1_offset_ack: Option<bool>,
     /// Whether the window rate was known.
@@ -596,23 +606,23 @@ pub struct LorawanMacCommand {
     /// Whether the frequency was usable.
     pub channel_ack: Option<bool>,
     /// A device battery level: 0 on external power, 255 when it cannot tell.
-    pub battery: Option<u8>,
+    pub battery: Option<checked::u8>,
     /// The signal-to-noise ratio of the last request, in dB.
-    pub snr_margin: Option<i32>,
+    pub snr_margin: Option<checked::i32>,
     /// Which channel a channel command names.
-    pub index: Option<u8>,
+    pub index: Option<checked::u8>,
     /// The fastest rate allowed on it.
-    pub max_data_rate: Option<u8>,
+    pub max_data_rate: Option<checked::u8>,
     /// The slowest rate allowed on it.
-    pub min_data_rate: Option<u8>,
+    pub min_data_rate: Option<checked::u8>,
     /// Whether the device can run that range of rates.
     pub data_rate_range_ok: Option<bool>,
     /// Whether its radio can reach that frequency.
     pub frequency_ok: Option<bool>,
     /// How long a device waits before its first receive window, as the command codes it.
-    pub delay: Option<u8>,
+    pub delay: Option<checked::u8>,
     /// The coded transmit power ceiling a region imposes.
-    pub max_eirp: Option<u8>,
+    pub max_eirp: Option<checked::u8>,
     /// Whether an uplink is held to 400 ms of air time.
     pub uplink_dwell: Option<bool>,
     /// Whether a downlink is.
@@ -620,21 +630,21 @@ pub struct LorawanMacCommand {
     /// Whether the channel already had an uplink frequency to pair a downlink with.
     pub uplink_frequency_exists: Option<bool>,
     /// Seconds since the GPS epoch.
-    pub seconds: Option<u32>,
+    pub seconds: Option<checked::u32>,
     /// The fraction of that second, in steps of one part in 256.
-    pub fraction: Option<u8>,
+    pub fraction: Option<checked::u8>,
     /// Whether a relay runs.
     pub enabled: Option<bool>,
     /// How often a relay scans, as TS011-1.0.1 table 18 codes it.
-    pub cad_periodicity: Option<u8>,
+    pub cad_periodicity: Option<checked::u8>,
     /// Which of the region's relay channels is a relay's default one.
-    pub default_channel_index: Option<u8>,
+    pub default_channel_index: Option<checked::u8>,
     /// Whether a relay configuration sets a second channel, 1 for yes.
-    pub second_channel_index: Option<u8>,
+    pub second_channel_index: Option<checked::u8>,
     /// The second channel's data rate; its frequency is the frequency field.
-    pub second_channel_data_rate: Option<u8>,
+    pub second_channel_data_rate: Option<checked::u8>,
     /// How far above its frequency the second channel is acknowledged, as table 35 codes it.
-    pub second_channel_ack_offset: Option<u8>,
+    pub second_channel_ack_offset: Option<checked::u8>,
     /// Whether the scan period was valid.
     pub cad_periodicity_ack: Option<bool>,
     /// Whether the default channel was valid.
@@ -648,15 +658,15 @@ pub struct LorawanMacCommand {
     /// Whether its frequency was valid.
     pub second_channel_frequency_ack: Option<bool>,
     /// How an end device uses a relay, as TS011-1.0.1 table 40 codes it.
-    pub relay_mode: Option<u8>,
+    pub relay_mode: Option<checked::u8>,
     /// How many unanswered uplinks turn relaying on, as table 41 codes it.
-    pub smart_enable_level: Option<u8>,
+    pub smart_enable_level: Option<checked::u8>,
     /// How many WOR frames without an acknowledgment before an uplink goes anyway.
-    pub back_off: Option<u8>,
+    pub back_off: Option<checked::u8>,
     /// What a join filter rule does, or whether a trusted end device is read or removed.
-    pub action: Option<u8>,
+    pub action: Option<checked::u8>,
     /// How many leading bytes of JoinEUI and DevEUI a join filter rule matches.
-    pub eui_len: Option<u8>,
+    pub eui_len: Option<checked::u8>,
     /// Those bytes, most significant first, with the rest zero.
     pub eui: Option<Buffer>,
     /// Whether a join filter rule was one to create, change or remove.
@@ -666,45 +676,45 @@ pub struct LorawanMacCommand {
     /// Whether its action was valid.
     pub action_ack: Option<bool>,
     /// Tokens a trusted end device earns an hour, 63 for no limit.
-    pub reload_rate: Option<u8>,
+    pub reload_rate: Option<checked::u8>,
     /// Its bucket size multiplier, as TS011-1.0.1 table 55 codes it.
-    pub bucket_size: Option<u8>,
+    pub bucket_size: Option<checked::u8>,
     /// An end device address a relay command names.
-    pub dev_addr: Option<u32>,
+    pub dev_addr: Option<checked::u32>,
     /// A wake-on-radio frame counter.
-    pub wfcnt: Option<u32>,
+    pub wfcnt: Option<checked::u32>,
     /// An end device's root relay session key.
     pub root_wor_s_key: Option<Buffer>,
     /// Whether a trusted list entry was in use.
     pub index_ack: Option<bool>,
     /// What a forwarding limit command does to a relay's token counters, as table 63 codes it.
-    pub reset_limit_counters: Option<u8>,
+    pub reset_limit_counters: Option<checked::u8>,
     /// Join requests a relay forwards an hour, 127 for no limit.
-    pub join_request_reload_rate: Option<u8>,
+    pub join_request_reload_rate: Option<checked::u8>,
     /// New end device notifications a relay sends an hour.
-    pub notify_reload_rate: Option<u8>,
+    pub notify_reload_rate: Option<checked::u8>,
     /// Uplinks a relay forwards an hour across every trusted end device.
-    pub global_uplink_reload_rate: Option<u8>,
+    pub global_uplink_reload_rate: Option<checked::u8>,
     /// Every message a relay sends an hour.
-    pub overall_reload_rate: Option<u8>,
+    pub overall_reload_rate: Option<checked::u8>,
     /// The join request bucket size multiplier.
-    pub join_request_bucket_size: Option<u8>,
+    pub join_request_bucket_size: Option<checked::u8>,
     /// The notification bucket size multiplier.
-    pub notify_bucket_size: Option<u8>,
+    pub notify_bucket_size: Option<checked::u8>,
     /// The global uplink bucket size multiplier.
-    pub global_uplink_bucket_size: Option<u8>,
+    pub global_uplink_bucket_size: Option<checked::u8>,
     /// The overall bucket size multiplier.
-    pub overall_bucket_size: Option<u8>,
+    pub overall_bucket_size: Option<checked::u8>,
     /// The signal strength of a WOR frame a relay could not verify, in dBm.
-    pub rssi_dbm: Option<i32>,
+    pub rssi_dbm: Option<checked::i32>,
     /// Its signal-to-noise ratio, in dB.
-    pub snr_db: Option<i32>,
+    pub snr_db: Option<checked::i32>,
 }
 
 fn blank_command(kind: &str, command: &MacCommand) -> LorawanMacCommand {
     LorawanMacCommand {
         kind: kind.to_owned(),
-        cid: command.cid(),
+        cid: command.cid().into(),
         direction: match command.direction() {
             Direction::Uplink => LorawanDirection::Uplink,
             Direction::Downlink => LorawanDirection::Downlink,
@@ -786,8 +796,8 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         MacCommand::LinkCheckReq => blank_command("linkCheckReq", &command),
         MacCommand::LinkCheckAns { margin, gateways } => {
             let mut out = blank_command("linkCheckAns", &command);
-            out.margin = Some(margin);
-            out.gateways = Some(gateways);
+            out.margin = Some(margin.into());
+            out.gateways = Some(gateways.into());
             out
         }
         MacCommand::LinkAdrReq {
@@ -798,11 +808,11 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             transmissions,
         } => {
             let mut out = blank_command("linkAdrReq", &command);
-            out.data_rate = Some(data_rate);
-            out.tx_power = Some(tx_power);
-            out.channel_mask = Some(channel_mask);
-            out.mask_control = Some(mask_control);
-            out.transmissions = Some(transmissions);
+            out.data_rate = Some(data_rate.into());
+            out.tx_power = Some(tx_power.into());
+            out.channel_mask = Some(channel_mask.into());
+            out.mask_control = Some(mask_control.into());
+            out.transmissions = Some(transmissions.into());
             out
         }
         MacCommand::LinkAdrAns {
@@ -818,7 +828,7 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         }
         MacCommand::DutyCycleReq { max_duty_cycle } => {
             let mut out = blank_command("dutyCycleReq", &command);
-            out.max_duty_cycle = Some(max_duty_cycle);
+            out.max_duty_cycle = Some(max_duty_cycle.into());
             out
         }
         MacCommand::DutyCycleAns => blank_command("dutyCycleAns", &command),
@@ -828,9 +838,9 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             frequency_hz,
         } => {
             let mut out = blank_command("rxParamSetupReq", &command);
-            out.rx1_offset = Some(rx1_offset);
-            out.rx2_data_rate = Some(rx2_data_rate);
-            out.frequency_hz = Some(frequency_hz);
+            out.rx1_offset = Some(rx1_offset.into());
+            out.rx2_data_rate = Some(rx2_data_rate.into());
+            out.frequency_hz = Some(frequency_hz.into());
             out
         }
         MacCommand::RxParamSetupAns {
@@ -847,8 +857,8 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         MacCommand::DevStatusReq => blank_command("devStatusReq", &command),
         MacCommand::DevStatusAns { battery, margin } => {
             let mut out = blank_command("devStatusAns", &command);
-            out.battery = Some(battery);
-            out.snr_margin = Some(i32::from(margin));
+            out.battery = Some(battery.into());
+            out.snr_margin = Some(i32::from(margin).into());
             out
         }
         MacCommand::NewChannelReq {
@@ -858,10 +868,10 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             min_data_rate,
         } => {
             let mut out = blank_command("newChannelReq", &command);
-            out.index = Some(index);
-            out.frequency_hz = Some(frequency_hz);
-            out.max_data_rate = Some(max_data_rate);
-            out.min_data_rate = Some(min_data_rate);
+            out.index = Some(index.into());
+            out.frequency_hz = Some(frequency_hz.into());
+            out.max_data_rate = Some(max_data_rate.into());
+            out.min_data_rate = Some(min_data_rate.into());
             out
         }
         MacCommand::NewChannelAns {
@@ -875,7 +885,7 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         }
         MacCommand::RxTimingSetupReq { delay } => {
             let mut out = blank_command("rxTimingSetupReq", &command);
-            out.delay = Some(delay);
+            out.delay = Some(delay.into());
             out
         }
         MacCommand::RxTimingSetupAns => blank_command("rxTimingSetupAns", &command),
@@ -885,7 +895,7 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             downlink_dwell,
         } => {
             let mut out = blank_command("txParamSetupReq", &command);
-            out.max_eirp = Some(max_eirp);
+            out.max_eirp = Some(max_eirp.into());
             out.uplink_dwell = Some(uplink_dwell);
             out.downlink_dwell = Some(downlink_dwell);
             out
@@ -896,8 +906,8 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             frequency_hz,
         } => {
             let mut out = blank_command("dlChannelReq", &command);
-            out.index = Some(index);
-            out.frequency_hz = Some(frequency_hz);
+            out.index = Some(index.into());
+            out.frequency_hz = Some(frequency_hz.into());
             out
         }
         MacCommand::DlChannelAns {
@@ -912,8 +922,8 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         MacCommand::DeviceTimeReq => blank_command("deviceTimeReq", &command),
         MacCommand::DeviceTimeAns { seconds, fraction } => {
             let mut out = blank_command("deviceTimeAns", &command);
-            out.seconds = Some(seconds);
-            out.fraction = Some(fraction);
+            out.seconds = Some(seconds.into());
+            out.fraction = Some(fraction.into());
             out
         }
         MacCommand::RelayConfReq {
@@ -927,12 +937,12 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
         } => {
             let mut out = blank_command("relayConfReq", &command);
             out.enabled = Some(enabled);
-            out.cad_periodicity = Some(cad_periodicity);
-            out.default_channel_index = Some(default_channel_index);
-            out.second_channel_index = Some(second_channel_index);
-            out.second_channel_data_rate = Some(second_channel_data_rate);
-            out.second_channel_ack_offset = Some(second_channel_ack_offset);
-            out.frequency_hz = Some(second_channel_frequency_hz);
+            out.cad_periodicity = Some(cad_periodicity.into());
+            out.default_channel_index = Some(default_channel_index.into());
+            out.second_channel_index = Some(second_channel_index.into());
+            out.second_channel_data_rate = Some(second_channel_data_rate.into());
+            out.second_channel_ack_offset = Some(second_channel_ack_offset.into());
+            out.frequency_hz = Some(second_channel_frequency_hz.into());
             out
         }
         MacCommand::RelayConfAns {
@@ -962,13 +972,13 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             second_channel_frequency_hz,
         } => {
             let mut out = blank_command("endDeviceConfReq", &command);
-            out.relay_mode = Some(relay_mode);
-            out.smart_enable_level = Some(smart_enable_level);
-            out.back_off = Some(back_off);
-            out.second_channel_index = Some(second_channel_index);
-            out.second_channel_data_rate = Some(second_channel_data_rate);
-            out.second_channel_ack_offset = Some(second_channel_ack_offset);
-            out.frequency_hz = Some(second_channel_frequency_hz);
+            out.relay_mode = Some(relay_mode.into());
+            out.smart_enable_level = Some(smart_enable_level.into());
+            out.back_off = Some(back_off.into());
+            out.second_channel_index = Some(second_channel_index.into());
+            out.second_channel_data_rate = Some(second_channel_data_rate.into());
+            out.second_channel_ack_offset = Some(second_channel_ack_offset.into());
+            out.frequency_hz = Some(second_channel_frequency_hz.into());
             out
         }
         MacCommand::EndDeviceConfAns {
@@ -991,9 +1001,9 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             eui,
         } => {
             let mut out = blank_command("filterListReq", &command);
-            out.index = Some(index);
-            out.action = Some(action);
-            out.eui_len = Some(eui_len);
+            out.index = Some(index.into());
+            out.action = Some(action.into());
+            out.eui_len = Some(eui_len.into());
             out.eui = Some(Buffer::from(eui.to_vec()));
             out
         }
@@ -1017,25 +1027,25 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             root_wor_s_key,
         } => {
             let mut out = blank_command("updateUplinkListReq", &command);
-            out.index = Some(index);
-            out.reload_rate = Some(reload_rate);
-            out.bucket_size = Some(bucket_size);
-            out.dev_addr = Some(dev_addr);
-            out.wfcnt = Some(wfcnt);
+            out.index = Some(index.into());
+            out.reload_rate = Some(reload_rate.into());
+            out.bucket_size = Some(bucket_size.into());
+            out.dev_addr = Some(dev_addr.into());
+            out.wfcnt = Some(wfcnt.into());
             out.root_wor_s_key = Some(Buffer::from(root_wor_s_key.to_vec()));
             out
         }
         MacCommand::UpdateUplinkListAns => blank_command("updateUplinkListAns", &command),
         MacCommand::CtrlUplinkListReq { index, action } => {
             let mut out = blank_command("ctrlUplinkListReq", &command);
-            out.index = Some(index);
-            out.action = Some(action);
+            out.index = Some(index.into());
+            out.action = Some(action.into());
             out
         }
         MacCommand::CtrlUplinkListAns { index_ack, wfcnt } => {
             let mut out = blank_command("ctrlUplinkListAns", &command);
             out.index_ack = Some(index_ack);
-            out.wfcnt = Some(wfcnt);
+            out.wfcnt = Some(wfcnt.into());
             out
         }
         MacCommand::ConfigureFwdLimitReq {
@@ -1050,15 +1060,15 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             overall_bucket_size,
         } => {
             let mut out = blank_command("configureFwdLimitReq", &command);
-            out.reset_limit_counters = Some(reset_limit_counters);
-            out.join_request_reload_rate = Some(join_request_reload_rate);
-            out.notify_reload_rate = Some(notify_reload_rate);
-            out.global_uplink_reload_rate = Some(global_uplink_reload_rate);
-            out.overall_reload_rate = Some(overall_reload_rate);
-            out.join_request_bucket_size = Some(join_request_bucket_size);
-            out.notify_bucket_size = Some(notify_bucket_size);
-            out.global_uplink_bucket_size = Some(global_uplink_bucket_size);
-            out.overall_bucket_size = Some(overall_bucket_size);
+            out.reset_limit_counters = Some(reset_limit_counters.into());
+            out.join_request_reload_rate = Some(join_request_reload_rate.into());
+            out.notify_reload_rate = Some(notify_reload_rate.into());
+            out.global_uplink_reload_rate = Some(global_uplink_reload_rate.into());
+            out.overall_reload_rate = Some(overall_reload_rate.into());
+            out.join_request_bucket_size = Some(join_request_bucket_size.into());
+            out.notify_bucket_size = Some(notify_bucket_size.into());
+            out.global_uplink_bucket_size = Some(global_uplink_bucket_size.into());
+            out.overall_bucket_size = Some(overall_bucket_size.into());
             out
         }
         MacCommand::ConfigureFwdLimitAns => blank_command("configureFwdLimitAns", &command),
@@ -1068,9 +1078,9 @@ pub(crate) fn describe_command(command: MacCommand) -> LorawanMacCommand {
             snr_db,
         } => {
             let mut out = blank_command("notifyNewEndDeviceReq", &command);
-            out.dev_addr = Some(dev_addr);
-            out.rssi_dbm = Some(i32::from(rssi_dbm));
-            out.snr_db = Some(i32::from(snr_db));
+            out.dev_addr = Some(dev_addr.into());
+            out.rssi_dbm = Some(i32::from(rssi_dbm).into());
+            out.snr_db = Some(i32::from(snr_db).into());
             out
         }
     }
@@ -1092,18 +1102,18 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
     let byte = |value: Option<u8>| value.unwrap_or(0);
     let flag = |value: Option<bool>| value.unwrap_or(false);
 
-    let built = match (command.cid, down) {
+    let built = match (command.cid.get(), down) {
         (mac::CID_LINK_CHECK, false) => MacCommand::LinkCheckReq,
         (mac::CID_LINK_CHECK, true) => MacCommand::LinkCheckAns {
-            margin: byte(command.margin),
-            gateways: byte(command.gateways),
+            margin: byte(command.margin.get()),
+            gateways: byte(command.gateways.get()),
         },
         (mac::CID_LINK_ADR, true) => MacCommand::LinkAdrReq {
-            data_rate: byte(command.data_rate),
-            tx_power: byte(command.tx_power),
-            channel_mask: command.channel_mask.unwrap_or(0),
-            mask_control: byte(command.mask_control),
-            transmissions: byte(command.transmissions),
+            data_rate: byte(command.data_rate.get()),
+            tx_power: byte(command.tx_power.get()),
+            channel_mask: command.channel_mask.get().unwrap_or(0),
+            mask_control: byte(command.mask_control.get()),
+            transmissions: byte(command.transmissions.get()),
         },
         (mac::CID_LINK_ADR, false) => MacCommand::LinkAdrAns {
             power_ack: flag(command.power_ack),
@@ -1111,13 +1121,13 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
             channel_mask_ack: flag(command.channel_mask_ack),
         },
         (mac::CID_DUTY_CYCLE, true) => MacCommand::DutyCycleReq {
-            max_duty_cycle: byte(command.max_duty_cycle),
+            max_duty_cycle: byte(command.max_duty_cycle.get()),
         },
         (mac::CID_DUTY_CYCLE, false) => MacCommand::DutyCycleAns,
         (mac::CID_RX_PARAM_SETUP, true) => MacCommand::RxParamSetupReq {
-            rx1_offset: byte(command.rx1_offset),
-            rx2_data_rate: byte(command.rx2_data_rate),
-            frequency_hz: command.frequency_hz.unwrap_or(0),
+            rx1_offset: byte(command.rx1_offset.get()),
+            rx2_data_rate: byte(command.rx2_data_rate.get()),
+            frequency_hz: command.frequency_hz.get().unwrap_or(0),
         },
         (mac::CID_RX_PARAM_SETUP, false) => MacCommand::RxParamSetupAns {
             rx1_offset_ack: flag(command.rx1_offset_ack),
@@ -1126,32 +1136,32 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
         },
         (mac::CID_DEV_STATUS, true) => MacCommand::DevStatusReq,
         (mac::CID_DEV_STATUS, false) => MacCommand::DevStatusAns {
-            battery: byte(command.battery),
-            margin: command.snr_margin.unwrap_or(0) as i8,
+            battery: byte(command.battery.get()),
+            margin: command.snr_margin.get().unwrap_or(0) as i8,
         },
         (mac::CID_NEW_CHANNEL, true) => MacCommand::NewChannelReq {
-            index: byte(command.index),
-            frequency_hz: command.frequency_hz.unwrap_or(0),
-            max_data_rate: byte(command.max_data_rate),
-            min_data_rate: byte(command.min_data_rate),
+            index: byte(command.index.get()),
+            frequency_hz: command.frequency_hz.get().unwrap_or(0),
+            max_data_rate: byte(command.max_data_rate.get()),
+            min_data_rate: byte(command.min_data_rate.get()),
         },
         (mac::CID_NEW_CHANNEL, false) => MacCommand::NewChannelAns {
             data_rate_range_ok: flag(command.data_rate_range_ok),
             frequency_ok: flag(command.frequency_ok),
         },
         (mac::CID_RX_TIMING_SETUP, true) => MacCommand::RxTimingSetupReq {
-            delay: byte(command.delay),
+            delay: byte(command.delay.get()),
         },
         (mac::CID_RX_TIMING_SETUP, false) => MacCommand::RxTimingSetupAns,
         (mac::CID_TX_PARAM_SETUP, true) => MacCommand::TxParamSetupReq {
-            max_eirp: byte(command.max_eirp),
+            max_eirp: byte(command.max_eirp.get()),
             uplink_dwell: flag(command.uplink_dwell),
             downlink_dwell: flag(command.downlink_dwell),
         },
         (mac::CID_TX_PARAM_SETUP, false) => MacCommand::TxParamSetupAns,
         (mac::CID_DL_CHANNEL, true) => MacCommand::DlChannelReq {
-            index: byte(command.index),
-            frequency_hz: command.frequency_hz.unwrap_or(0),
+            index: byte(command.index.get()),
+            frequency_hz: command.frequency_hz.get().unwrap_or(0),
         },
         (mac::CID_DL_CHANNEL, false) => MacCommand::DlChannelAns {
             uplink_frequency_exists: flag(command.uplink_frequency_exists),
@@ -1159,17 +1169,17 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
         },
         (mac::CID_DEVICE_TIME, false) => MacCommand::DeviceTimeReq,
         (mac::CID_DEVICE_TIME, true) => MacCommand::DeviceTimeAns {
-            seconds: command.seconds.unwrap_or(0),
-            fraction: byte(command.fraction),
+            seconds: command.seconds.get().unwrap_or(0),
+            fraction: byte(command.fraction.get()),
         },
         (mac::CID_RELAY_CONF, true) => MacCommand::RelayConfReq {
             enabled: flag(command.enabled),
-            cad_periodicity: byte(command.cad_periodicity),
-            default_channel_index: byte(command.default_channel_index),
-            second_channel_index: byte(command.second_channel_index),
-            second_channel_data_rate: byte(command.second_channel_data_rate),
-            second_channel_ack_offset: byte(command.second_channel_ack_offset),
-            second_channel_frequency_hz: command.frequency_hz.unwrap_or(0),
+            cad_periodicity: byte(command.cad_periodicity.get()),
+            default_channel_index: byte(command.default_channel_index.get()),
+            second_channel_index: byte(command.second_channel_index.get()),
+            second_channel_data_rate: byte(command.second_channel_data_rate.get()),
+            second_channel_ack_offset: byte(command.second_channel_ack_offset.get()),
+            second_channel_frequency_hz: command.frequency_hz.get().unwrap_or(0),
         },
         (mac::CID_RELAY_CONF, false) => MacCommand::RelayConfAns {
             cad_periodicity_ack: flag(command.cad_periodicity_ack),
@@ -1180,13 +1190,13 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
             second_channel_frequency_ack: flag(command.second_channel_frequency_ack),
         },
         (mac::CID_END_DEVICE_CONF, true) => MacCommand::EndDeviceConfReq {
-            relay_mode: byte(command.relay_mode),
-            smart_enable_level: byte(command.smart_enable_level),
-            back_off: byte(command.back_off),
-            second_channel_index: byte(command.second_channel_index),
-            second_channel_data_rate: byte(command.second_channel_data_rate),
-            second_channel_ack_offset: byte(command.second_channel_ack_offset),
-            second_channel_frequency_hz: command.frequency_hz.unwrap_or(0),
+            relay_mode: byte(command.relay_mode.get()),
+            smart_enable_level: byte(command.smart_enable_level.get()),
+            back_off: byte(command.back_off.get()),
+            second_channel_index: byte(command.second_channel_index.get()),
+            second_channel_data_rate: byte(command.second_channel_data_rate.get()),
+            second_channel_ack_offset: byte(command.second_channel_ack_offset.get()),
+            second_channel_frequency_hz: command.frequency_hz.get().unwrap_or(0),
         },
         (mac::CID_END_DEVICE_CONF, false) => MacCommand::EndDeviceConfAns {
             second_channel_ack_offset_ack: flag(command.second_channel_ack_offset_ack),
@@ -1195,9 +1205,9 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
             second_channel_frequency_ack: flag(command.second_channel_frequency_ack),
         },
         (mac::CID_FILTER_LIST, true) => MacCommand::FilterListReq {
-            index: byte(command.index),
-            action: byte(command.action),
-            eui_len: byte(command.eui_len),
+            index: byte(command.index.get()),
+            action: byte(command.action.get()),
+            eui_len: byte(command.eui_len.get()),
             eui: sixteen(command.eui.as_ref(), "eui")?,
         },
         (mac::CID_FILTER_LIST, false) => MacCommand::FilterListAns {
@@ -1206,49 +1216,51 @@ pub(crate) fn rebuild(command: &LorawanMacCommand) -> napi::Result<MacCommand> {
             action_ack: flag(command.action_ack),
         },
         (mac::CID_UPDATE_UPLINK_LIST, true) => MacCommand::UpdateUplinkListReq {
-            index: byte(command.index),
-            reload_rate: byte(command.reload_rate),
-            bucket_size: byte(command.bucket_size),
-            dev_addr: command.dev_addr.unwrap_or(0),
-            wfcnt: command.wfcnt.unwrap_or(0),
+            index: byte(command.index.get()),
+            reload_rate: byte(command.reload_rate.get()),
+            bucket_size: byte(command.bucket_size.get()),
+            dev_addr: command.dev_addr.get().unwrap_or(0),
+            wfcnt: command.wfcnt.get().unwrap_or(0),
             root_wor_s_key: sixteen(command.root_wor_s_key.as_ref(), "rootWorSKey")?,
         },
         (mac::CID_UPDATE_UPLINK_LIST, false) => MacCommand::UpdateUplinkListAns,
         (mac::CID_CTRL_UPLINK_LIST, true) => MacCommand::CtrlUplinkListReq {
-            index: byte(command.index),
-            action: byte(command.action),
+            index: byte(command.index.get()),
+            action: byte(command.action.get()),
         },
         (mac::CID_CTRL_UPLINK_LIST, false) => MacCommand::CtrlUplinkListAns {
             index_ack: flag(command.index_ack),
-            wfcnt: command.wfcnt.unwrap_or(0),
+            wfcnt: command.wfcnt.get().unwrap_or(0),
         },
         (mac::CID_CONFIGURE_FWD_LIMIT, true) => MacCommand::ConfigureFwdLimitReq {
-            reset_limit_counters: byte(command.reset_limit_counters),
-            join_request_reload_rate: byte(command.join_request_reload_rate),
-            notify_reload_rate: byte(command.notify_reload_rate),
-            global_uplink_reload_rate: byte(command.global_uplink_reload_rate),
-            overall_reload_rate: byte(command.overall_reload_rate),
-            join_request_bucket_size: byte(command.join_request_bucket_size),
-            notify_bucket_size: byte(command.notify_bucket_size),
-            global_uplink_bucket_size: byte(command.global_uplink_bucket_size),
-            overall_bucket_size: byte(command.overall_bucket_size),
+            reset_limit_counters: byte(command.reset_limit_counters.get()),
+            join_request_reload_rate: byte(command.join_request_reload_rate.get()),
+            notify_reload_rate: byte(command.notify_reload_rate.get()),
+            global_uplink_reload_rate: byte(command.global_uplink_reload_rate.get()),
+            overall_reload_rate: byte(command.overall_reload_rate.get()),
+            join_request_bucket_size: byte(command.join_request_bucket_size.get()),
+            notify_bucket_size: byte(command.notify_bucket_size.get()),
+            global_uplink_bucket_size: byte(command.global_uplink_bucket_size.get()),
+            overall_bucket_size: byte(command.overall_bucket_size.get()),
         },
         (mac::CID_CONFIGURE_FWD_LIMIT, false) => MacCommand::ConfigureFwdLimitAns,
         (mac::CID_NOTIFY_NEW_END_DEVICE, false) => MacCommand::NotifyNewEndDeviceReq {
-            dev_addr: command.dev_addr.unwrap_or(0),
+            dev_addr: command.dev_addr.get().unwrap_or(0),
             rssi_dbm: command
                 .rssi_dbm
+                .get()
                 .unwrap_or(0)
                 .clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
             snr_db: command
                 .snr_db
+                .get()
                 .unwrap_or(0)
                 .clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8,
         },
         _ => {
             return Err(napi::Error::from_reason(format!(
                 "identifier {:#04x} names no command in that direction",
-                command.cid
+                command.cid.get()
             )))
         }
     };

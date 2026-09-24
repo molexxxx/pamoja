@@ -14,6 +14,7 @@
 //! class with the same calls, while the program says what arrives on the air and reads back
 //! what the chip was tuned to and what it sent.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use napi::bindgen_prelude::{spawn_blocking, Buffer};
@@ -61,11 +62,11 @@ pub struct LoraRadioWiring {
     /// The GPIO chip the lines are on, `/dev/gpiochip0` for a Raspberry Pi's header.
     pub gpio_chip: String,
     /// The line the module's reset pin is on, the BCM GPIO number on a Raspberry Pi.
-    pub reset_line: u32,
+    pub reset_line: checked::u32,
     /// The line an SX126x's BUSY pin is on. The SX127x has no BUSY pin.
-    pub busy_line: Option<u32>,
+    pub busy_line: Option<checked::u32>,
     /// The SPI clock in hertz, 2 MHz when omitted.
-    pub spi_hz: Option<u32>,
+    pub spi_hz: Option<checked::u32>,
 }
 
 /// How a module wires its SX126x, from its schematic or its maker's example code.
@@ -76,7 +77,7 @@ pub struct Sx126xBoard {
     /// The voltage DIO3 supplies a TCXO with, such as `1.7`, when a TCXO clocks the chip.
     pub tcxo_volts: Option<f64>,
     /// How long the TCXO takes to settle, in microseconds, 5 ms when omitted.
-    pub tcxo_settle_us: Option<u32>,
+    pub tcxo_settle_us: Option<checked::u32>,
     /// Whether DIO2 drives the antenna switch.
     pub dio2_rf_switch: Option<bool>,
     /// Whether the module fits the inductor the DC-DC regulator needs.
@@ -98,19 +99,19 @@ pub struct Sx127xBoard {
 #[napi(object, js_name = "LoraRadioConfig")]
 pub struct LoraRadioConfig {
     /// The carrier frequency in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
     pub link: LoraLink,
     /// The output power asked of the amplifier, in dBm, clamped to its range.
-    pub output_dbm: i32,
+    pub output_dbm: checked::i32,
     /// The sync word byte: `0x34` for a public network such as LoRaWAN, and `0x12`, the
     /// default, for a private one.
-    pub sync_word: Option<u32>,
+    pub sync_word: Option<checked::u32>,
     /// The lower edge of the band an SX126x calibrates its receiver for, in hertz, with
     /// `bandHighHz`; the carrier alone when omitted.
-    pub band_low_hz: Option<u32>,
+    pub band_low_hz: Option<checked::u32>,
     /// The upper edge of that band in hertz.
-    pub band_high_hz: Option<u32>,
+    pub band_high_hz: Option<checked::u32>,
     /// Whether frames go out with inverted IQ, as a LoRaWAN gateway sends downlinks.
     pub invert_iq_transmit: Option<bool>,
     /// Whether frames are expected with inverted IQ, as a LoRaWAN device hears downlinks.
@@ -247,8 +248,8 @@ impl LoraRadio {
     /// relay's scan does, leaving the chip in standby. An SX126x listens over 1, 2, 4, 8, or 16
     /// symbols, rounded down to one of them, and an SX127x over one.
     #[napi]
-    pub async fn detect(&self, symbols: u32) -> napi::Result<bool> {
-        let symbols = u8::try_from(symbols).unwrap_or(u8::MAX);
+    pub async fn detect(&self, symbols: checked::u32) -> napi::Result<bool> {
+        let symbols = u8::try_from(symbols.get()).unwrap_or(u8::MAX);
         drive(
             &self.inner,
             move |held| on_radio!(held, radio => radio.detect(symbols)),
@@ -284,8 +285,8 @@ impl LoraRadio {
 
     /// Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
     #[napi(js_name = "readRegister")]
-    pub async fn read_register(&self, address: u32) -> napi::Result<u32> {
-        let address = register_address(address)?;
+    pub async fn read_register(&self, address: checked::u32) -> napi::Result<u32> {
+        let address = register_address(address.get())?;
         let value = drive(
             &self.inner,
             move |held| on_radio!(held, radio => radio.read_register(address)),
@@ -296,9 +297,13 @@ impl LoraRadio {
 
     /// Writes one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
     #[napi(js_name = "writeRegister")]
-    pub async fn write_register(&self, address: u32, value: u32) -> napi::Result<()> {
-        let address = register_address(address)?;
-        let value = u8::try_from(value).map_err(|_| {
+    pub async fn write_register(
+        &self,
+        address: checked::u32,
+        value: checked::u32,
+    ) -> napi::Result<()> {
+        let address = register_address(address.get())?;
+        let value = u8::try_from(value.get()).map_err(|_| {
             napi::Error::from_reason(format!("a register holds one byte, not {value}"))
         })?;
         drive(
@@ -524,12 +529,12 @@ async fn drive<T: Send + 'static>(
 
 /// Reads the wiring JavaScript passes.
 fn wiring_of(wiring: &LoraRadioWiring) -> Wiring {
-    let mut radio_wiring = Wiring::new(&wiring.spi, &wiring.gpio_chip, wiring.reset_line);
+    let mut radio_wiring = Wiring::new(&wiring.spi, &wiring.gpio_chip, wiring.reset_line.get());
     if let Some(line) = wiring.busy_line {
-        radio_wiring = radio_wiring.with_busy_line(line);
+        radio_wiring = radio_wiring.with_busy_line(line.get());
     }
     if let Some(hz) = wiring.spi_hz {
-        radio_wiring = radio_wiring.with_spi_hz(hz);
+        radio_wiring = radio_wiring.with_spi_hz(hz.get());
     }
     radio_wiring
 }
@@ -549,7 +554,7 @@ fn sx126x_board(board: &Sx126xBoard) -> napi::Result<sx126x::Board> {
         })?;
         chip = chip.with_tcxo(
             voltage,
-            board.tcxo_settle_us.unwrap_or(DEFAULT_TCXO_SETTLE_US),
+            board.tcxo_settle_us.get().unwrap_or(DEFAULT_TCXO_SETTLE_US),
         );
     }
     if board.dio2_rf_switch.unwrap_or(false) {
@@ -576,7 +581,7 @@ fn tcxo_voltage(volts: f64) -> Option<TcxoVoltage> {
 
 /// Reads a configuration JavaScript passes.
 fn config_of(config: &LoraRadioConfig) -> napi::Result<RadioConfig> {
-    let sync_word = match config.sync_word {
+    let sync_word = match config.sync_word.get() {
         None => SyncWord::Private,
         Some(byte) => SyncWord::from_byte(u8::try_from(byte).map_err(|_| {
             napi::Error::from_reason(format!("a sync word is one byte, not {byte}"))
@@ -584,17 +589,24 @@ fn config_of(config: &LoraRadioConfig) -> napi::Result<RadioConfig> {
     };
     let output_dbm = config
         .output_dbm
+        .get()
         .clamp(i32::from(i8::MIN), i32::from(i8::MAX)) as i8;
-    let radio_config = RadioConfig::new(config.frequency_hz, settings(&config.link), output_dbm)
-        .with_sync_word(sync_word)
-        .with_inverted_iq(
-            config.invert_iq_transmit.unwrap_or(false),
-            config.invert_iq_receive.unwrap_or(false),
-        );
-    Ok(match (config.band_low_hz, config.band_high_hz) {
-        (Some(low_hz), Some(high_hz)) => radio_config.with_band(low_hz, high_hz),
-        _ => radio_config,
-    })
+    let radio_config = RadioConfig::new(
+        config.frequency_hz.get(),
+        settings(&config.link),
+        output_dbm,
+    )
+    .with_sync_word(sync_word)
+    .with_inverted_iq(
+        config.invert_iq_transmit.unwrap_or(false),
+        config.invert_iq_receive.unwrap_or(false),
+    );
+    Ok(
+        match (config.band_low_hz.get(), config.band_high_hz.get()) {
+            (Some(low_hz), Some(high_hz)) => radio_config.with_band(low_hz, high_hz),
+            _ => radio_config,
+        },
+    )
 }
 
 /// Flattens how a reception ended, copying the payload out of the buffer.

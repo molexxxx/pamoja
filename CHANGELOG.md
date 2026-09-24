@@ -1280,6 +1280,16 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- Every integer the Node binding takes, as an argument or as a field of an options object,
+  is checked now. N-API reads an integer by keeping the bottom 32 bits of the number and
+  dropping any fraction, so `-1` reached a `u32` as 4294967295, 4294967296 reached it as 0,
+  and `2.5` reached a `u8` as 2. About six hundred parameters and three hundred fields took
+  a number that way; each refuses one that is not a whole number in its range, a string,
+  or `NaN`, with `a value must be a whole number from 0 to 255, not 256`, and names the
+  field when the number came in an object: `... on LoraLink.spreadingFactor`. The generated
+  TypeScript still says `number`. A battery level past 255 is refused rather than lowered to
+  it, a MAVLink signing timestamp or window is a whole number of microseconds, and a radio
+  time below zero or not finite throws where it was read as 0.
 - A quantizer packed a reading that was not a number as 0 and an infinite one as the largest
   64-bit number, so a sensor's missing reading arrived as a real one. It refuses both now.
 - A packed batch followed by more bytes decoded as the batch alone, so two batches run

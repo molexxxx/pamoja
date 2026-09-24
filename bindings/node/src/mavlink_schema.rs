@@ -10,6 +10,7 @@
 //! described through a builder, which puts the fields in wire order and derives the
 //! `CRC_EXTRA` seed, so a caller transcribes a definition as it reads.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pamoja_mavlink::dialect::{
@@ -132,8 +133,8 @@ impl MessageSchema {
     /// @returns The shape.
     /// @throws If this build does not type that id, which is what a builder is for.
     #[napi(factory)]
-    pub fn for_id(msgid: u32) -> Result<Self> {
-        let Some(shape) = descriptor(msgid) else {
+    pub fn for_id(msgid: checked::u32) -> Result<Self> {
+        let Some(shape) = descriptor(msgid.get()) else {
             return Err(Error::new(
                 Status::InvalidArg,
                 format!("message {msgid} is not one this build types"),
@@ -239,9 +240,9 @@ impl MessageSchemaBuilder {
     /// @param name - The message name, which the seed derivation folds in, so it must
     ///   match the dialect exactly.
     #[napi(constructor)]
-    pub fn new(msgid: u32, name: String) -> Self {
+    pub fn new(msgid: checked::u32, name: String) -> Self {
         Self {
-            builder: Some(MessageDescriptorBuilder::new(msgid, name)),
+            builder: Some(MessageDescriptorBuilder::new(msgid.get(), name)),
         }
     }
 
@@ -252,8 +253,13 @@ impl MessageSchemaBuilder {
     /// @param arrayLen - The element count for an array, or `0` for a scalar.
     /// @throws If the type is not a MAVLink field type, or the shape is already built.
     #[napi]
-    pub fn field(&mut self, name: String, field_type: u32, array_len: Option<u8>) -> Result<()> {
-        self.add(name, field_type, array_len.unwrap_or(0), false)
+    pub fn field(
+        &mut self,
+        name: String,
+        field_type: checked::u32,
+        array_len: Option<checked::u8>,
+    ) -> Result<()> {
+        self.add(name, field_type.get(), array_len.get().unwrap_or(0), false)
     }
 
     /// Adds a MAVLink 2 extension field, in the order the definition declares it.
@@ -269,10 +275,10 @@ impl MessageSchemaBuilder {
     pub fn extension(
         &mut self,
         name: String,
-        field_type: u32,
-        array_len: Option<u8>,
+        field_type: checked::u32,
+        array_len: Option<checked::u8>,
     ) -> Result<()> {
-        self.add(name, field_type, array_len.unwrap_or(0), true)
+        self.add(name, field_type.get(), array_len.get().unwrap_or(0), true)
     }
 
     /// Puts the declared fields in wire order and finishes the shape.
@@ -407,8 +413,8 @@ impl MavlinkMessage {
     /// @returns The value.
     /// @throws If the message has no such field, or the element is past the end of an array.
     #[napi]
-    pub fn get(&self, field: String, index: Option<u32>) -> Result<f64> {
-        self.read(|message| message.get_number(&field, index.unwrap_or(0) as usize))
+    pub fn get(&self, field: String, index: Option<checked::u32>) -> Result<f64> {
+        self.read(|message| message.get_number(&field, index.get().unwrap_or(0) as usize))
     }
 
     /// Writes a number into a field, converting it to the field's type.
@@ -422,8 +428,8 @@ impl MavlinkMessage {
     /// @throws If the message has no such field, the element is past the end of an array,
     ///   or an integer field cannot hold the value exactly.
     #[napi]
-    pub fn set(&mut self, field: String, value: f64, index: Option<u32>) -> Result<()> {
-        self.write(|message| message.set_number(&field, index.unwrap_or(0) as usize, value))
+    pub fn set(&mut self, field: String, value: f64, index: Option<checked::u32>) -> Result<()> {
+        self.write(|message| message.set_number(&field, index.get().unwrap_or(0) as usize, value))
     }
 
     /// Copies the raw bytes of a byte-wide array field out.

@@ -10,6 +10,7 @@
 //! A `CanBus` is a node on a bus, simulated or a kernel interface, whose sends and
 //! receives run on a worker thread.
 
+use crate::checked;
 use std::time::Duration;
 
 use napi::bindgen_prelude::{spawn_blocking, Buffer};
@@ -24,7 +25,7 @@ use pamoja_can::{
 #[napi(object)]
 pub struct CanFrame {
     /// The arbitration identifier, already masked to 11 or 29 bits.
-    pub id: u32,
+    pub id: checked::u32,
     /// Whether the identifier is a 29-bit extended one.
     pub extended: bool,
     /// Whether this is a CAN-FD frame rather than classic CAN 2.0.
@@ -32,9 +33,9 @@ pub struct CanFrame {
     /// Whether this is a remote transmission request, which carries no payload.
     pub remote: bool,
     /// The data length: the payload length, or the length a remote frame requests.
-    pub len: u8,
+    pub len: checked::u8,
     /// The data length code as it appears on the wire.
-    pub dlc: u8,
+    pub dlc: checked::u8,
     /// The payload, empty for a remote frame.
     pub data: Buffer,
 }
@@ -59,44 +60,47 @@ pub struct J1939Message {
 
 /// Builds a classic CAN 2.0 frame, which carries up to eight bytes.
 #[napi]
-pub fn can_frame(id: u32, extended: bool, data: Buffer) -> napi::Result<CanFrame> {
-    Frame::new(identifier(id, extended), data.as_ref())
+pub fn can_frame(id: checked::u32, extended: bool, data: Buffer) -> napi::Result<CanFrame> {
+    Frame::new(identifier(id.get(), extended), data.as_ref())
         .map(describe)
         .map_err(to_napi)
 }
 
 /// Builds a CAN-FD frame, which carries up to 64 bytes at the discrete CAN-FD lengths.
 #[napi]
-pub fn can_fd_frame(id: u32, extended: bool, data: Buffer) -> napi::Result<CanFrame> {
-    Frame::fd(identifier(id, extended), data.as_ref())
+pub fn can_fd_frame(id: checked::u32, extended: bool, data: Buffer) -> napi::Result<CanFrame> {
+    Frame::fd(identifier(id.get(), extended), data.as_ref())
         .map(describe)
         .map_err(to_napi)
 }
 
 /// Builds a remote transmission request, which asks another node to send.
 #[napi]
-pub fn can_remote_frame(id: u32, extended: bool, len: u8) -> CanFrame {
-    describe(Frame::remote(identifier(id, extended), len as usize))
+pub fn can_remote_frame(id: checked::u32, extended: bool, len: checked::u8) -> CanFrame {
+    describe(Frame::remote(
+        identifier(id.get(), extended),
+        len.get() as usize,
+    ))
 }
 
 /// Returns the data length code that encodes a payload length.
 #[napi]
-pub fn can_len_to_dlc(len: u32) -> u8 {
-    len_to_dlc(len as usize)
+pub fn can_len_to_dlc(len: checked::u32) -> u8 {
+    len_to_dlc(len.get() as usize)
 }
 
 /// Returns the payload length a data length code encodes.
 #[napi]
-pub fn can_dlc_to_len(dlc: u8) -> u32 {
-    dlc_to_len(dlc) as u32
+pub fn can_dlc_to_len(dlc: checked::u8) -> u32 {
+    dlc_to_len(dlc.get()) as u32
 }
 
 /// Decodes the J1939 fields out of an extended CAN identifier.
 ///
 /// Returns `null` for a standard 11-bit identifier, which J1939 does not use.
 #[napi]
-pub fn j1939_decode(id: u32, extended: bool) -> Option<J1939Message> {
-    J1939Id::from_id(identifier(id, extended)).map(|message| J1939Message {
+pub fn j1939_decode(id: checked::u32, extended: bool) -> Option<J1939Message> {
+    J1939Id::from_id(identifier(id.get(), extended)).map(|message| J1939Message {
         pgn: message.pgn(),
         priority: message.priority(),
         source: message.source(),
@@ -111,8 +115,13 @@ pub fn j1939_decode(id: u32, extended: bool) -> Option<J1939Message> {
 /// The destination is used only for an addressed (PDU1) parameter group and
 /// ignored for a broadcast (PDU2) one.
 #[napi]
-pub fn j1939_compose(priority: u8, pgn: u32, source: u8, destination: u8) -> u32 {
-    J1939Id::from_parts(priority, pgn, source, destination)
+pub fn j1939_compose(
+    priority: checked::u8,
+    pgn: checked::u32,
+    source: checked::u8,
+    destination: checked::u8,
+) -> u32 {
+    J1939Id::from_parts(priority.get(), pgn.get(), source.get(), destination.get())
         .to_id()
         .raw()
 }
@@ -122,8 +131,10 @@ pub fn j1939_compose(priority: u8, pgn: u32, source: u8, destination: u8) -> u32
 /// This is the ordinary case: most parameter groups are broadcast, and a caller
 /// should not have to know that a broadcast is addressed to `0xFF`.
 #[napi]
-pub fn j1939_broadcast(priority: u8, pgn: u32, source: u8) -> u32 {
-    J1939Id::broadcast(priority, pgn, source).to_id().raw()
+pub fn j1939_broadcast(priority: checked::u8, pgn: checked::u32, source: checked::u8) -> u32 {
+    J1939Id::broadcast(priority.get(), pgn.get(), source.get())
+        .to_id()
+        .raw()
 }
 
 /// The byte a J1939 sender writes for a signal it is not reporting.
@@ -186,27 +197,27 @@ impl CanSignals {
 
     /// Writes a one-byte signal at the offset its parameter group defines.
     #[napi]
-    pub fn set_u8(&mut self, at: u32, value: u8) {
-        self.inner.set_u8(at as usize, value);
+    pub fn set_u8(&mut self, at: checked::u32, value: checked::u8) {
+        self.inner.set_u8(at.get() as usize, value.get());
     }
 
     /// Writes a two-byte little-endian signal at the offset its group defines.
     #[napi]
-    pub fn set_u16(&mut self, at: u32, value: u16) {
-        self.inner.set_u16(at as usize, value);
+    pub fn set_u16(&mut self, at: checked::u32, value: checked::u16) {
+        self.inner.set_u16(at.get() as usize, value.get());
     }
 
     /// Reads a one-byte signal, or `null` if the offset is past the payload.
     #[napi]
-    pub fn u8(&self, at: u32) -> Option<u8> {
-        self.inner.u8(at as usize)
+    pub fn u8(&self, at: checked::u32) -> Option<u8> {
+        self.inner.u8(at.get() as usize)
     }
 
     /// Reads a two-byte little-endian signal, or `null` if it would run past the
     /// payload.
     #[napi]
-    pub fn u16(&self, at: u32) -> Option<u16> {
-        self.inner.u16(at as usize)
+    pub fn u16(&self, at: checked::u32) -> Option<u16> {
+        self.inner.u16(at.get() as usize)
     }
 
     /// The eight data bytes, ready to put in a frame.
@@ -219,12 +230,12 @@ impl CanSignals {
 /// Describes a built frame as the plain object JavaScript receives.
 fn describe(frame: Frame) -> CanFrame {
     CanFrame {
-        id: frame.id().raw(),
+        id: frame.id().raw().into(),
         extended: frame.id().is_extended(),
         fd: frame.is_fd(),
         remote: frame.is_remote(),
-        len: frame.len() as u8,
-        dlc: frame.dlc(),
+        len: (frame.len() as u8).into(),
+        dlc: frame.dlc().into(),
         data: frame.data().into(),
     }
 }
@@ -257,9 +268,9 @@ pub enum CanBusKindName {
 #[napi(object)]
 pub struct CanFilter {
     /// The identifier to match.
-    pub id: u32,
+    pub id: checked::u32,
     /// The identifier bits that have to match.
-    pub mask: u32,
+    pub mask: checked::u32,
     /// Whether the identifier is a 29-bit extended one.
     pub extended: bool,
 }
@@ -267,41 +278,44 @@ pub struct CanFilter {
 impl From<Filter> for CanFilter {
     fn from(filter: Filter) -> Self {
         CanFilter {
-            id: filter.id().raw(),
-            mask: filter.mask(),
+            id: filter.id().raw().into(),
+            mask: filter.mask().into(),
             extended: filter.id().is_extended(),
         }
     }
 }
 
 fn filter_of(filter: &CanFilter) -> Filter {
-    Filter::new(identifier(filter.id, filter.extended), filter.mask)
+    Filter::new(
+        identifier(filter.id.get(), filter.extended),
+        filter.mask.get(),
+    )
 }
 
 /// A filter that passes one identifier and nothing else.
 #[napi]
-pub fn can_filter_exact(id: u32, extended: bool) -> CanFilter {
-    Filter::exact(identifier(id, extended)).into()
+pub fn can_filter_exact(id: checked::u32, extended: bool) -> CanFilter {
+    Filter::exact(identifier(id.get(), extended)).into()
 }
 
 /// A filter that passes one J1939 parameter group at any priority, from any source, and for an
 /// addressed group, to any destination.
 #[napi]
-pub fn can_filter_pgn(pgn: u32) -> CanFilter {
-    Filter::pgn(pgn).into()
+pub fn can_filter_pgn(pgn: checked::u32) -> CanFilter {
+    Filter::pgn(pgn.get()).into()
 }
 
 /// Whether a frame with an identifier passes a filter.
 #[napi]
-pub fn can_filter_matches(filter: CanFilter, id: u32, extended: bool) -> bool {
-    filter_of(&filter).matches(identifier(id, extended))
+pub fn can_filter_matches(filter: CanFilter, id: checked::u32, extended: bool) -> bool {
+    filter_of(&filter).matches(identifier(id.get(), extended))
 }
 
 /// Rebuilds a frame from the plain object JavaScript holds.
 fn frame_of(frame: &CanFrame) -> napi::Result<Frame> {
-    let id = identifier(frame.id, frame.extended);
+    let id = identifier(frame.id.get(), frame.extended);
     let built = if frame.remote {
-        Ok(Frame::remote(id, usize::from(frame.len)))
+        Ok(Frame::remote(id, usize::from(frame.len.get())))
     } else if frame.fd {
         Frame::fd(id, frame.data.as_ref())
     } else {

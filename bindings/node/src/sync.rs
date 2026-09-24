@@ -9,6 +9,7 @@
 //! The kind is chosen when the store is created and nothing afterwards has to
 //! care which it is.
 
+use crate::checked::{self, OptionalWhole};
 use std::sync::{Arc, Mutex as SyncMutex};
 
 use crate::transport::{bytes_of, Transport};
@@ -131,8 +132,8 @@ impl Store {
     ///   full store refuses the next append rather than dropping anything, so a
     ///   record is never lost without the caller being told.
     #[napi(factory)]
-    pub fn memory(capacity: Option<u32>) -> Self {
-        let store = match capacity {
+    pub fn memory(capacity: Option<checked::u32>) -> Self {
+        let store = match capacity.get() {
             Some(capacity) if capacity != 0 => MemoryStore::with_capacity(capacity as usize),
             _ => MemoryStore::new(),
         };
@@ -151,8 +152,8 @@ impl Store {
     ///   store refuses the next append, which keeps a long outage from filling the
     ///   disk.
     #[napi(factory)]
-    pub fn file(dir: String, capacity: Option<u32>) -> napi::Result<Self> {
-        let opened = match capacity {
+    pub fn file(dir: String, capacity: Option<checked::u32>) -> napi::Result<Self> {
+        let opened = match capacity.get() {
             Some(capacity) if capacity != 0 => {
                 FileStore::open_with_capacity(dir, capacity as usize)
             }

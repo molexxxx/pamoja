@@ -10,6 +10,7 @@
 //! session byte in bits 48 to 55 of an xtime puts it past what a JavaScript number holds
 //! exactly.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::{BigInt, Buffer};
 use napi_derive::napi;
 use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router, Xtime};
@@ -44,11 +45,11 @@ pub enum GatewayStationKind {
 #[napi(object, js_name = "GatewayStationLevels")]
 pub struct GatewayStationLevels {
     /// The radio the packet arrived on, which an answer goes back out on.
-    pub rctx: i64,
+    pub rctx: checked::i64,
     /// The station clock, in microseconds.
     pub xtime: BigInt,
     /// The GPS time, when the station has one.
-    pub gpstime: Option<i64>,
+    pub gpstime: Option<checked::i64>,
     /// The received signal strength, in dBm.
     pub rssi: f64,
     /// The signal-to-noise ratio, in dB.
@@ -59,18 +60,18 @@ pub struct GatewayStationLevels {
 #[napi(object, js_name = "GatewayStationWindow")]
 pub struct GatewayStationWindow {
     /// The data rate, as the network's table numbers it.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
     /// The frequency in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
 }
 
 /// One number of a configuration's data-rate table.
 #[napi(object, js_name = "GatewayStationDataRate")]
 pub struct GatewayStationDataRate {
     /// The spreading factor, 0 for FSK.
-    pub spreading_factor: u8,
+    pub spreading_factor: checked::u8,
     /// The bandwidth in hertz.
-    pub bandwidth_hz: u32,
+    pub bandwidth_hz: checked::u32,
     /// Whether the rate is used only for downlinks.
     pub downlink_only: bool,
 }
@@ -90,15 +91,15 @@ pub struct GatewayStationBroadcast {
     /// The frame to transmit.
     pub pdu: Buffer,
     /// The data rate to transmit at.
-    pub data_rate: u8,
+    pub data_rate: checked::u8,
     /// The frequency to transmit on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// How urgent it is.
-    pub priority: u8,
+    pub priority: checked::u8,
     /// The GPS time to transmit at.
-    pub gpstime: Option<i64>,
+    pub gpstime: Option<checked::i64>,
     /// The radio to transmit on.
-    pub rctx: Option<i64>,
+    pub rctx: Option<checked::i64>,
 }
 
 /// A message either side of a session sends.
@@ -120,13 +121,13 @@ pub struct GatewayStationMessage {
     /// The hardware model, for a version.
     pub model: Option<String>,
     /// The protocol version it speaks, for a version.
-    pub protocol: Option<u32>,
+    pub protocol: Option<checked::u32>,
     /// What it can do, for a version.
     pub features: Option<String>,
     /// The networks whose data frames a configuration forwards, absent to forward every
     /// network's. A station matches each against the top seven bits of a device address, so an
     /// empty list forwards no data frame at all.
-    pub net_id: Option<Vec<u32>>,
+    pub net_id: Option<Vec<checked::u32>>,
     /// The join identifier ranges a configuration forwards; empty or absent forwards every
     /// join.
     pub join_eui_ranges: Option<Vec<GatewayStationJoinRange>>,
@@ -137,48 +138,48 @@ pub struct GatewayStationMessage {
     /// The concentrator the configuration is written for.
     pub hwspec: Option<String>,
     /// The lowest frequency the station may use, in hertz, for a configuration.
-    pub freq_min: Option<u32>,
+    pub freq_min: Option<checked::u32>,
     /// The highest frequency the station may use, in hertz, for a configuration.
-    pub freq_max: Option<u32>,
+    pub freq_max: Option<checked::u32>,
     /// A configuration's data rates, indexed by data-rate number, with `null` for a number the
     /// table leaves undefined.
     pub data_rates: Option<Vec<Option<GatewayStationDataRate>>>,
     /// The MAC header byte, for a join request or a data frame.
-    pub mhdr: Option<u8>,
+    pub mhdr: Option<checked::u8>,
     /// The application being joined, as sixteen hexadecimal digits.
     pub join_eui: Option<String>,
     /// The device, as sixteen hexadecimal digits.
     pub dev_eui: Option<String>,
     /// The nonce a join request used.
-    pub dev_nonce: Option<u16>,
+    pub dev_nonce: Option<checked::u16>,
     /// The address a data frame came from.
-    pub dev_addr: Option<i32>,
+    pub dev_addr: Option<checked::i32>,
     /// The frame control byte.
-    pub fctrl: Option<u8>,
+    pub fctrl: Option<checked::u8>,
     /// The frame counter, as the sixteen bits on the air.
-    pub fcnt: Option<u16>,
+    pub fcnt: Option<checked::u16>,
     /// The frame options, for a data frame.
     pub fopts: Option<Buffer>,
     /// The port, absent for a frame carrying only options.
-    pub fport: Option<u8>,
+    pub fport: Option<checked::u8>,
     /// The payload, still encrypted, or the whole frame for a proprietary one.
     pub payload: Option<Buffer>,
     /// The message integrity code.
-    pub mic: Option<i32>,
+    pub mic: Option<checked::i32>,
     /// The data rate it arrived at.
-    pub data_rate: Option<u8>,
+    pub data_rate: Option<checked::u8>,
     /// The frequency in hertz.
-    pub frequency_hz: Option<u32>,
+    pub frequency_hz: Option<checked::u32>,
     /// How it was heard, for the kinds a station sends up.
     pub levels: Option<GatewayStationLevels>,
     /// Which class of downlink this is: 0 for A, 1 for B, 2 for C.
-    pub class: Option<u8>,
+    pub class: Option<checked::u8>,
     /// The identifier a downlink and its transmission report share.
     pub diid: Option<BigInt>,
     /// The frame to transmit, for a downlink.
     pub pdu: Option<Buffer>,
     /// The delay before the first receive window, in seconds.
-    pub rx_delay: Option<u8>,
+    pub rx_delay: Option<checked::u8>,
     /// The first receive window a downlink names.
     pub rx1: Option<GatewayStationWindow>,
     /// The second receive window a downlink names.
@@ -186,17 +187,17 @@ pub struct GatewayStationMessage {
     /// The ping slot a class B downlink goes out in.
     pub ping_slot: Option<GatewayStationWindow>,
     /// How urgent a downlink is.
-    pub priority: Option<u8>,
+    pub priority: Option<checked::u8>,
     /// The station clock in microseconds: the uplink a downlink answers, the moment a reported
     /// frame went out, or the one a time sync carries.
     pub xtime: Option<BigInt>,
     /// The radio, for a downlink or a report.
-    pub rctx: Option<i64>,
+    pub rctx: Option<checked::i64>,
     /// When a frame went out, in seconds, or the station time a time sync carries, in
     /// microseconds.
     pub txtime: Option<f64>,
     /// The GPS time in microseconds since the GPS epoch.
-    pub gpstime: Option<i64>,
+    pub gpstime: Option<checked::i64>,
     /// What to transmit to a group, for a schedule.
     pub schedule: Option<Vec<GatewayStationBroadcast>>,
 }
@@ -229,12 +230,17 @@ pub struct GatewayStationRouter {
 #[napi(js_name = "stationHeard")]
 pub fn station_heard(
     frame: Buffer,
-    data_rate: u8,
-    frequency_hz: u32,
+    data_rate: checked::u8,
+    frequency_hz: checked::u32,
     levels: GatewayStationLevels,
 ) -> napi::Result<GatewayStationMessage> {
-    let heard = Message::heard(&frame, data_rate, frequency_hz, levels_of(&levels)?)
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    let heard = Message::heard(
+        &frame,
+        data_rate.get(),
+        frequency_hz.get(),
+        levels_of(&levels)?,
+    )
+    .map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(message_to_js(&heard))
 }
 
@@ -368,23 +374,23 @@ fn range_to_js((first, last): (u64, u64)) -> GatewayStationJoinRange {
 
 /// Reads a window.
 fn window_of(window: &GatewayStationWindow) -> (u8, u32) {
-    (window.data_rate, window.frequency_hz)
+    (window.data_rate.get(), window.frequency_hz.get())
 }
 
 /// Writes a window.
 fn window_to_js(window: Option<(u8, u32)>) -> Option<GatewayStationWindow> {
     window.map(|(data_rate, frequency_hz)| GatewayStationWindow {
-        data_rate,
-        frequency_hz,
+        data_rate: data_rate.into(),
+        frequency_hz: frequency_hz.into(),
     })
 }
 
 /// Reads how a packet was heard.
 fn levels_of(levels: &GatewayStationLevels) -> napi::Result<Levels> {
     Ok(Levels {
-        rctx: levels.rctx,
+        rctx: levels.rctx.get(),
         xtime: exact(&levels.xtime, "xtime")?,
-        gpstime: levels.gpstime,
+        gpstime: levels.gpstime.get(),
         rssi: levels.rssi,
         snr: levels.snr,
     })
@@ -393,9 +399,9 @@ fn levels_of(levels: &GatewayStationLevels) -> napi::Result<Levels> {
 /// Writes how a packet was heard.
 fn levels_to_js(levels: Levels) -> GatewayStationLevels {
     GatewayStationLevels {
-        rctx: levels.rctx,
+        rctx: levels.rctx.into(),
         xtime: BigInt::from(levels.xtime),
-        gpstime: levels.gpstime,
+        gpstime: levels.gpstime.map(Into::into),
         rssi: levels.rssi,
         snr: levels.snr,
     }
@@ -467,7 +473,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             held.firmware = Some(firmware.clone());
             held.package = Some(package.clone());
             held.model = Some(model.clone());
-            held.protocol = Some(*protocol);
+            held.protocol = Some((*protocol).into());
             held.features = Some(features.clone());
             held
         }
@@ -481,21 +487,23 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             data_rates,
         } => {
             let mut held = blank(GatewayStationKind::RouterConfig, msgtype);
-            held.net_id = net_id.clone();
+            held.net_id = net_id
+                .as_ref()
+                .map(|ids| ids.iter().copied().map(Into::into).collect());
             held.join_eui_ranges = Some(join_eui.iter().copied().map(range_to_js).collect());
             held.region = Some(region.clone());
             held.max_eirp = Some(*max_eirp);
             held.hwspec = Some(hwspec.clone());
-            held.freq_min = Some(freq_range.0);
-            held.freq_max = Some(freq_range.1);
+            held.freq_min = Some(freq_range.0.into());
+            held.freq_max = Some(freq_range.1.into());
             held.data_rates = Some(
                 data_rates
                     .iter()
                     .map(|entry| {
                         entry.map(|(spreading_factor, bandwidth_hz, downlink_only)| {
                             GatewayStationDataRate {
-                                spreading_factor,
-                                bandwidth_hz,
+                                spreading_factor: spreading_factor.into(),
+                                bandwidth_hz: bandwidth_hz.into(),
                                 downlink_only,
                             }
                         })
@@ -515,13 +523,13 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             levels,
         } => {
             let mut held = blank(GatewayStationKind::JoinRequest, msgtype);
-            held.mhdr = Some(*mhdr);
+            held.mhdr = Some((*mhdr).into());
             held.join_eui = Some(join_eui.to_hex());
             held.dev_eui = Some(dev_eui.to_hex());
-            held.dev_nonce = Some(*dev_nonce);
-            held.mic = Some(*mic);
-            held.data_rate = Some(*data_rate);
-            held.frequency_hz = Some(*frequency_hz);
+            held.dev_nonce = Some((*dev_nonce).into());
+            held.mic = Some((*mic).into());
+            held.data_rate = Some((*data_rate).into());
+            held.frequency_hz = Some((*frequency_hz).into());
             held.levels = Some(levels_to_js(*levels));
             held
         }
@@ -539,16 +547,16 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             levels,
         } => {
             let mut held = blank(GatewayStationKind::Uplink, msgtype);
-            held.mhdr = Some(*mhdr);
-            held.dev_addr = Some(*dev_addr);
-            held.fctrl = Some(*fctrl);
-            held.fcnt = Some(*fcnt);
+            held.mhdr = Some((*mhdr).into());
+            held.dev_addr = Some((*dev_addr).into());
+            held.fctrl = Some((*fctrl).into());
+            held.fcnt = Some((*fcnt).into());
             held.fopts = Some(Buffer::from(fopts.clone()));
-            held.fport = *fport;
+            held.fport = (*fport).map(Into::into);
             held.payload = Some(Buffer::from(payload.clone()));
-            held.mic = Some(*mic);
-            held.data_rate = Some(*data_rate);
-            held.frequency_hz = Some(*frequency_hz);
+            held.mic = Some((*mic).into());
+            held.data_rate = Some((*data_rate).into());
+            held.frequency_hz = Some((*frequency_hz).into());
             held.levels = Some(levels_to_js(*levels));
             held
         }
@@ -560,8 +568,8 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
         } => {
             let mut held = blank(GatewayStationKind::Proprietary, msgtype);
             held.payload = Some(Buffer::from(payload.clone()));
-            held.data_rate = Some(*data_rate);
-            held.frequency_hz = Some(*frequency_hz);
+            held.data_rate = Some((*data_rate).into());
+            held.frequency_hz = Some((*frequency_hz).into());
             held.levels = Some(levels_to_js(*levels));
             held
         }
@@ -581,17 +589,17 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
         } => {
             let mut held = blank(GatewayStationKind::Downlink, msgtype);
             held.dev_eui = Some(dev_eui.to_hex());
-            held.class = Some(*class);
+            held.class = Some((*class).into());
             held.diid = Some(BigInt::from(*diid));
             held.pdu = Some(Buffer::from(pdu.clone()));
-            held.rx_delay = *rx_delay;
+            held.rx_delay = (*rx_delay).map(Into::into);
             held.rx1 = window_to_js(*rx1);
             held.rx2 = window_to_js(*rx2);
             held.ping_slot = window_to_js(*ping_slot);
-            held.priority = Some(*priority);
+            held.priority = Some((*priority).into());
             held.xtime = xtime.map(BigInt::from);
-            held.rctx = *rctx;
-            held.gpstime = *gpstime;
+            held.rctx = (*rctx).map(Into::into);
+            held.gpstime = (*gpstime).map(Into::into);
             held
         }
         Message::Schedule { frames } => {
@@ -601,11 +609,11 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
                     .iter()
                     .map(|frame| GatewayStationBroadcast {
                         pdu: Buffer::from(frame.pdu.clone()),
-                        data_rate: frame.data_rate,
-                        frequency_hz: frame.frequency_hz,
-                        priority: frame.priority,
-                        gpstime: frame.gpstime,
-                        rctx: frame.rctx,
+                        data_rate: frame.data_rate.into(),
+                        frequency_hz: frame.frequency_hz.into(),
+                        priority: frame.priority.into(),
+                        gpstime: frame.gpstime.map(Into::into),
+                        rctx: frame.rctx.map(Into::into),
                     })
                     .collect(),
             );
@@ -622,10 +630,10 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             let mut held = blank(GatewayStationKind::Transmitted, msgtype);
             held.diid = Some(BigInt::from(*diid));
             held.dev_eui = Some(dev_eui.to_hex());
-            held.rctx = Some(*rctx);
+            held.rctx = Some((*rctx).into());
             held.xtime = Some(BigInt::from(*xtime));
             held.txtime = Some(*txtime);
-            held.gpstime = *gpstime;
+            held.gpstime = (*gpstime).map(Into::into);
             held
         }
         Message::TimeSync {
@@ -636,7 +644,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             let mut held = blank(GatewayStationKind::TimeSync, msgtype);
             held.txtime = txtime.map(|value| value as f64);
             held.xtime = xtime.map(BigInt::from);
-            held.gpstime = *gpstime;
+            held.gpstime = (*gpstime).map(Into::into);
             held
         }
         Message::Other { .. } => blank(GatewayStationKind::Other, msgtype),
@@ -668,11 +676,12 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
             model: message.model.unwrap_or_default(),
             protocol: message
                 .protocol
+                .get()
                 .unwrap_or(pamoja_gateway::station::PROTOCOL_VERSION),
             features: message.features.unwrap_or_default(),
         },
         GatewayStationKind::RouterConfig => Message::RouterConfig {
-            net_id: message.net_id,
+            net_id: message.net_id.map(checked::all),
             join_eui: message
                 .join_eui_ranges
                 .unwrap_or_default()
@@ -683,45 +692,51 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
             max_eirp: message.max_eirp.unwrap_or_default(),
             hwspec: message.hwspec.unwrap_or_default(),
             freq_range: (
-                message.freq_min.unwrap_or_default(),
-                message.freq_max.unwrap_or_default(),
+                message.freq_min.get().unwrap_or_default(),
+                message.freq_max.get().unwrap_or_default(),
             ),
             data_rates: message
                 .data_rates
                 .unwrap_or_default()
                 .into_iter()
                 .map(|entry| {
-                    entry.map(|rate| (rate.spreading_factor, rate.bandwidth_hz, rate.downlink_only))
+                    entry.map(|rate| {
+                        (
+                            rate.spreading_factor.get(),
+                            rate.bandwidth_hz.get(),
+                            rate.downlink_only,
+                        )
+                    })
                 })
                 .collect(),
         },
         GatewayStationKind::JoinRequest => Message::JoinRequest {
-            mhdr: message.mhdr.unwrap_or_default(),
+            mhdr: message.mhdr.get().unwrap_or_default(),
             join_eui: identifier(message.join_eui.as_deref().unwrap_or_default())?,
             dev_eui: identifier(message.dev_eui.as_deref().unwrap_or_default())?,
-            dev_nonce: message.dev_nonce.unwrap_or_default(),
-            mic: message.mic.unwrap_or_default(),
-            data_rate: message.data_rate.unwrap_or_default(),
-            frequency_hz: message.frequency_hz.unwrap_or_default(),
+            dev_nonce: message.dev_nonce.get().unwrap_or_default(),
+            mic: message.mic.get().unwrap_or_default(),
+            data_rate: message.data_rate.get().unwrap_or_default(),
+            frequency_hz: message.frequency_hz.get().unwrap_or_default(),
             levels,
         },
         GatewayStationKind::Uplink => Message::Uplink {
-            mhdr: message.mhdr.unwrap_or_default(),
-            dev_addr: message.dev_addr.unwrap_or_default(),
-            fctrl: message.fctrl.unwrap_or_default(),
-            fcnt: message.fcnt.unwrap_or_default(),
+            mhdr: message.mhdr.get().unwrap_or_default(),
+            dev_addr: message.dev_addr.get().unwrap_or_default(),
+            fctrl: message.fctrl.get().unwrap_or_default(),
+            fcnt: message.fcnt.get().unwrap_or_default(),
             fopts: message
                 .fopts
                 .map(|bytes| bytes.to_vec())
                 .unwrap_or_default(),
-            fport: message.fport,
+            fport: message.fport.get(),
             payload: message
                 .payload
                 .map(|bytes| bytes.to_vec())
                 .unwrap_or_default(),
-            mic: message.mic.unwrap_or_default(),
-            data_rate: message.data_rate.unwrap_or_default(),
-            frequency_hz: message.frequency_hz.unwrap_or_default(),
+            mic: message.mic.get().unwrap_or_default(),
+            data_rate: message.data_rate.get().unwrap_or_default(),
+            frequency_hz: message.frequency_hz.get().unwrap_or_default(),
             levels,
         },
         GatewayStationKind::Proprietary => Message::Proprietary {
@@ -729,23 +744,23 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
                 .payload
                 .map(|bytes| bytes.to_vec())
                 .unwrap_or_default(),
-            data_rate: message.data_rate.unwrap_or_default(),
-            frequency_hz: message.frequency_hz.unwrap_or_default(),
+            data_rate: message.data_rate.get().unwrap_or_default(),
+            frequency_hz: message.frequency_hz.get().unwrap_or_default(),
             levels,
         },
         GatewayStationKind::Downlink => Message::Downlink {
             dev_eui: identifier(message.dev_eui.as_deref().unwrap_or_default())?,
-            class: message.class.unwrap_or_default(),
+            class: message.class.get().unwrap_or_default(),
             diid,
             pdu: message.pdu.map(|bytes| bytes.to_vec()).unwrap_or_default(),
-            rx_delay: message.rx_delay,
+            rx_delay: message.rx_delay.get(),
             rx1: message.rx1.as_ref().map(window_of),
             rx2: message.rx2.as_ref().map(window_of),
             ping_slot: message.ping_slot.as_ref().map(window_of),
-            priority: message.priority.unwrap_or_default(),
+            priority: message.priority.get().unwrap_or_default(),
             xtime,
-            rctx: message.rctx,
-            gpstime: message.gpstime,
+            rctx: message.rctx.get(),
+            gpstime: message.gpstime.get(),
         },
         GatewayStationKind::Schedule => Message::Schedule {
             frames: message
@@ -754,26 +769,26 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
                 .into_iter()
                 .map(|frame| Broadcast {
                     pdu: frame.pdu.to_vec(),
-                    data_rate: frame.data_rate,
-                    frequency_hz: frame.frequency_hz,
-                    priority: frame.priority,
-                    gpstime: frame.gpstime,
-                    rctx: frame.rctx,
+                    data_rate: frame.data_rate.get(),
+                    frequency_hz: frame.frequency_hz.get(),
+                    priority: frame.priority.get(),
+                    gpstime: frame.gpstime.get(),
+                    rctx: frame.rctx.get(),
                 })
                 .collect(),
         },
         GatewayStationKind::Transmitted => Message::Transmitted {
             diid,
             dev_eui: identifier(message.dev_eui.as_deref().unwrap_or_default())?,
-            rctx: message.rctx.unwrap_or_default(),
+            rctx: message.rctx.get().unwrap_or_default(),
             xtime: xtime.unwrap_or_default(),
             txtime: message.txtime.unwrap_or_default(),
-            gpstime: message.gpstime,
+            gpstime: message.gpstime.get(),
         },
         GatewayStationKind::TimeSync => Message::TimeSync {
             txtime: message.txtime.map(|value| value.round() as i64),
             xtime,
-            gpstime: message.gpstime,
+            gpstime: message.gpstime.get(),
         },
         GatewayStationKind::Other => Message::Other {
             msgtype: message

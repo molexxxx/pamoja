@@ -10,6 +10,7 @@
 //! Where and when to answer comes back with the event, so a downlink goes out in the window
 //! the uplink opened without any of it being worked out by hand.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_gateway::network::{Event, Network, Registration, Rx1Channels, Slot, Windows};
@@ -50,28 +51,28 @@ pub enum GatewayRx1Channels {
 #[napi(object, js_name = "GatewayNetworkWindows")]
 pub struct GatewayNetworkWindows {
     /// The delay before the first receive window, in microseconds; one second by default.
-    pub receive_delay_us: Option<u32>,
+    pub receive_delay_us: Option<checked::u32>,
     /// The delay before the window a join accept is sent in; five seconds by default.
-    pub join_delay_us: Option<u32>,
+    pub join_delay_us: Option<checked::u32>,
     /// The offset between the uplink data rate and the rate the first window answers at.
-    pub rx1_data_rate_offset: Option<u8>,
+    pub rx1_data_rate_offset: Option<checked::u8>,
     /// Which channels the first window answers on; where the channel plan says by default.
     pub rx1_channels: Option<GatewayRx1Channels>,
     /// The first downlink channel, in hertz, when the channels are downstream.
-    pub downstream_start_hz: Option<u32>,
+    pub downstream_start_hz: Option<checked::u32>,
     /// The spacing between those channels, in hertz.
-    pub downstream_step_hz: Option<u32>,
+    pub downstream_step_hz: Option<checked::u32>,
     /// How many there are.
-    pub downstream_count: Option<u16>,
+    pub downstream_count: Option<checked::u16>,
 }
 
 /// Where and when a downlink answers an uplink, in the concentrator's own terms.
 #[napi(object, js_name = "GatewaySlot")]
 pub struct GatewaySlot {
     /// The concentrator timestamp to transmit at, in microseconds.
-    pub timestamp_us: u32,
+    pub timestamp_us: checked::u32,
     /// The frequency to transmit on, in hertz.
-    pub frequency_hz: u32,
+    pub frequency_hz: checked::u32,
     /// The settings to transmit with.
     pub link: LoraLink,
 }
@@ -146,15 +147,15 @@ impl GatewayNetwork {
     #[napi(constructor)]
     pub fn new(
         plan: &LoraChannelPlan,
-        net_id: u32,
+        net_id: checked::u32,
         windows: Option<GatewayNetworkWindows>,
-        first_dev_addr: Option<u32>,
+        first_dev_addr: Option<checked::u32>,
     ) -> Self {
-        let mut network = plan.with(|plan| Network::new(plan, net_id));
+        let mut network = plan.with(|plan| Network::new(plan, net_id.get()));
         if let Some(windows) = windows {
             network = network.with_windows(windows_of(windows));
         }
-        if let Some(dev_addr) = first_dev_addr {
+        if let Some(dev_addr) = first_dev_addr.get() {
             network = network.with_first_dev_addr(dev_addr);
         }
         Self { inner: network }
@@ -190,14 +191,14 @@ impl GatewayNetwork {
     #[napi]
     pub fn answer(
         &mut self,
-        dev_addr: u32,
+        dev_addr: checked::u32,
         slot: GatewaySlot,
-        fport: u8,
+        fport: checked::u8,
         payload: Buffer,
     ) -> napi::Result<GatewayTxpk> {
         let downlink = self
             .inner
-            .answer(dev_addr, slot_of(slot), fport, &payload)
+            .answer(dev_addr.get(), slot_of(slot), fport.get(), &payload)
             .map_err(|error| napi::Error::from_reason(error.to_string()))?;
         Ok(txpk_to_js(&downlink))
     }
@@ -228,7 +229,7 @@ impl GatewayNetwork {
     #[napi]
     pub fn command(
         &mut self,
-        dev_addr: u32,
+        dev_addr: checked::u32,
         slot: GatewaySlot,
         commands: Vec<LorawanMacCommand>,
     ) -> napi::Result<GatewayTxpk> {
@@ -238,7 +239,7 @@ impl GatewayNetwork {
             .collect::<napi::Result<Vec<_>>>()?;
         let downlink = self
             .inner
-            .command(dev_addr, slot_of(slot), &commands)
+            .command(dev_addr.get(), slot_of(slot), &commands)
             .map_err(|error| napi::Error::from_reason(error.to_string()))?;
         Ok(txpk_to_js(&downlink))
     }
@@ -248,13 +249,18 @@ impl GatewayNetwork {
     #[napi]
     pub fn trust_command(
         &self,
-        dev_addr: u32,
-        index: u8,
-        reload_rate: u8,
-        bucket_size: u8,
+        dev_addr: checked::u32,
+        index: checked::u8,
+        reload_rate: checked::u8,
+        bucket_size: checked::u8,
     ) -> napi::Result<LorawanMacCommand> {
         self.inner
-            .trust_command(dev_addr, index, reload_rate, bucket_size)
+            .trust_command(
+                dev_addr.get(),
+                index.get(),
+                reload_rate.get(),
+                bucket_size.get(),
+            )
             .map(describe_command)
             .map_err(|error| napi::Error::from_reason(error.to_string()))
     }
@@ -264,19 +270,19 @@ impl GatewayNetwork {
 fn windows_of(windows: GatewayNetworkWindows) -> Windows {
     let mut built = Windows::new();
     if let Some(micros) = windows.receive_delay_us {
-        built = built.with_receive_delay_us(micros);
+        built = built.with_receive_delay_us(micros.get());
     }
     if let Some(micros) = windows.join_delay_us {
-        built = built.with_join_delay_us(micros);
+        built = built.with_join_delay_us(micros.get());
     }
     if let Some(offset) = windows.rx1_data_rate_offset {
-        built = built.with_rx1_data_rate_offset(offset);
+        built = built.with_rx1_data_rate_offset(offset.get());
     }
     let channels = match windows.rx1_channels {
         Some(GatewayRx1Channels::Downstream) => Rx1Channels::Downstream(ChannelBlock::new(
-            windows.downstream_start_hz.unwrap_or(0),
-            windows.downstream_step_hz.unwrap_or(0),
-            windows.downstream_count.unwrap_or(0),
+            windows.downstream_start_hz.get().unwrap_or(0),
+            windows.downstream_step_hz.get().unwrap_or(0),
+            windows.downstream_count.get().unwrap_or(0),
             0,
             0,
         )),
@@ -290,8 +296,8 @@ fn windows_of(windows: GatewayNetworkWindows) -> Windows {
 /// Reads a window from JavaScript.
 fn slot_of(slot: GatewaySlot) -> Slot {
     Slot {
-        timestamp_us: slot.timestamp_us,
-        frequency_hz: slot.frequency_hz,
+        timestamp_us: slot.timestamp_us.get(),
+        frequency_hz: slot.frequency_hz.get(),
         link: settings(&slot.link),
     }
 }
@@ -299,8 +305,8 @@ fn slot_of(slot: GatewaySlot) -> Slot {
 /// Writes a window to JavaScript.
 fn slot_to_js(slot: Slot) -> GatewaySlot {
     GatewaySlot {
-        timestamp_us: slot.timestamp_us,
-        frequency_hz: slot.frequency_hz,
+        timestamp_us: slot.timestamp_us.into(),
+        frequency_hz: slot.frequency_hz.into(),
         link: lora_link_of(slot.link),
     }
 }

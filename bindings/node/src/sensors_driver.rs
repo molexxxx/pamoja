@@ -9,6 +9,7 @@
 //! The DS18B20 is read the way a Linux process reaches one, through the files the kernel's
 //! 1-Wire driver serves, which a program can also write for itself to test against.
 
+use crate::checked::{self, OptionalWhole};
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -45,13 +46,13 @@ type Scd4xDriver = scd4x::Scd4x<Bus, BusDelay>;
 #[napi(object)]
 pub struct Bme280Settings {
     /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
-    pub temperature: Option<u8>,
+    pub temperature: Option<checked::u8>,
     /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
-    pub pressure: Option<u8>,
+    pub pressure: Option<checked::u8>,
     /// The humidity oversampling code, `0..=5`, where `0` skips the measurement.
-    pub humidity: Option<u8>,
+    pub humidity: Option<checked::u8>,
     /// The IIR filter code, `0..=4`, where `0` is off.
-    pub filter: Option<u8>,
+    pub filter: Option<checked::u8>,
 }
 
 /// How a BMP280 driver measures. A field left out keeps the default: both measurements at
@@ -59,11 +60,11 @@ pub struct Bme280Settings {
 #[napi(object)]
 pub struct Bmp280Settings {
     /// The temperature oversampling code, `0..=5`, where `0` skips the measurement.
-    pub temperature: Option<u8>,
+    pub temperature: Option<checked::u8>,
     /// The pressure oversampling code, `0..=5`, where `0` skips the measurement.
-    pub pressure: Option<u8>,
+    pub pressure: Option<checked::u8>,
     /// The IIR filter's three-bit `filter[2:0]` code, `0` for the filter off, written as given.
-    pub filter: Option<u8>,
+    pub filter: Option<checked::u8>,
 }
 
 /// How a TMP117 driver measures. A field left out keeps the default.
@@ -71,7 +72,7 @@ pub struct Bmp280Settings {
 pub struct Tmp117Settings {
     /// The averaging code, `0..=3`, for 1, 8, 32, or 64 conversions per result; `1`, eight,
     /// is the factory setting and the default.
-    pub averaging: Option<u8>,
+    pub averaging: Option<checked::u8>,
 }
 
 /// A TMP117 temperature result.
@@ -102,7 +103,7 @@ pub struct Opt3001Settings {
     pub long_conversion: Option<bool>,
     /// The full-scale range number, `0..=11`, or `12` to let the part choose, which it does
     /// unless given.
-    pub range_number: Option<u8>,
+    pub range_number: Option<checked::u8>,
 }
 
 /// An OPT3001 illuminance result.
@@ -120,9 +121,9 @@ pub struct Opt3001Reading {
 #[napi(object)]
 pub struct Hdc1080Settings {
     /// The temperature resolution in bits: 14 or 11.
-    pub temperature_resolution_bits: Option<u8>,
+    pub temperature_resolution_bits: Option<checked::u8>,
     /// The humidity resolution in bits: 14, 11, or 8.
-    pub humidity_resolution_bits: Option<u8>,
+    pub humidity_resolution_bits: Option<checked::u8>,
 }
 
 /// How an INA219 driver measures. A field left out keeps the default: a 100 milliohm shunt
@@ -130,12 +131,12 @@ pub struct Hdc1080Settings {
 #[napi(object)]
 pub struct Ina219Settings {
     /// The shunt resistance in milliohms.
-    pub shunt_milliohms: Option<u32>,
+    pub shunt_milliohms: Option<checked::u32>,
     /// The largest current the shunt will carry, in microamps, which sets the finest current
     /// step the calibration allows.
-    pub max_microamps: Option<u32>,
+    pub max_microamps: Option<checked::u32>,
     /// A current step to use instead, in microamps per count, such as a round 100.
-    pub current_lsb_microamps: Option<u32>,
+    pub current_lsb_microamps: Option<checked::u32>,
     /// The range, gain, and converter settings; the mode is chosen per conversion.
     pub configuration: Option<Ina219Configuration>,
 }
@@ -170,12 +171,12 @@ pub struct Ina219Reading {
 #[napi(object)]
 pub struct Ina226Settings {
     /// The shunt resistance in milliohms.
-    pub shunt_milliohms: Option<u32>,
+    pub shunt_milliohms: Option<checked::u32>,
     /// The largest current the shunt will carry, in microamps, which sets the finest current
     /// step the calibration allows.
-    pub max_microamps: Option<u32>,
+    pub max_microamps: Option<checked::u32>,
     /// A current step to use instead, in microamps per count.
-    pub current_lsb_microamps: Option<u32>,
+    pub current_lsb_microamps: Option<checked::u32>,
     /// The averaging and conversion times; the mode is chosen per conversion.
     pub configuration: Option<Ina226Configuration>,
 }
@@ -219,11 +220,11 @@ pub struct Ina226Reading {
 pub struct Ads1115Settings {
     /// The input multiplexer code, `0..=7`: `0..=3` a differential pair, `4..=7` one input
     /// against ground.
-    pub mux: Option<u8>,
+    pub mux: Option<checked::u8>,
     /// The gain code, `0..=7`, which sets the full-scale range.
-    pub pga: Option<u8>,
+    pub pga: Option<checked::u8>,
     /// The data-rate code, `0..=7`, from 8 to 860 samples per second.
-    pub data_rate: Option<u8>,
+    pub data_rate: Option<checked::u8>,
 }
 
 /// One ADS1115 conversion.
@@ -260,21 +261,21 @@ impl Bme280 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Bme280Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Bme280Settings>) -> Self {
         let x1 = bme280::Oversampling::X1.code();
         let off = bme280::Filter::Off.code();
         let (temperature, pressure, humidity, filter) = match settings {
             Some(settings) => (
-                settings.temperature.unwrap_or(x1),
-                settings.pressure.unwrap_or(x1),
-                settings.humidity.unwrap_or(x1),
-                settings.filter.unwrap_or(off),
+                settings.temperature.get().unwrap_or(x1),
+                settings.pressure.get().unwrap_or(x1),
+                settings.humidity.get().unwrap_or(x1),
+                settings.filter.get().unwrap_or(off),
             ),
             None => (x1, x1, x1, off),
         };
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = bme280::Bme280::i2c(bus, address, delay)
+        let driver = bme280::Bme280::i2c(bus, address.get(), delay)
             .with_oversampling(
                 bme280::Oversampling::from_code(temperature),
                 bme280::Oversampling::from_code(pressure),
@@ -318,19 +319,19 @@ impl Bmp280 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Bmp280Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Bmp280Settings>) -> Self {
         let x1 = bmp280::Oversampling::X1.code();
         let (temperature, pressure, filter) = match settings {
             Some(settings) => (
-                settings.temperature.unwrap_or(x1),
-                settings.pressure.unwrap_or(x1),
-                settings.filter.unwrap_or(0),
+                settings.temperature.get().unwrap_or(x1),
+                settings.pressure.get().unwrap_or(x1),
+                settings.filter.get().unwrap_or(0),
             ),
             None => (x1, x1, 0),
         };
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = bmp280::Bmp280::i2c(bus, address, delay)
+        let driver = bmp280::Bmp280::i2c(bus, address.get(), delay)
             .with_oversampling(
                 bmp280::Oversampling::from_code(temperature),
                 bmp280::Oversampling::from_code(pressure),
@@ -378,13 +379,13 @@ impl Tmp117 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Tmp117Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Tmp117Settings>) -> Self {
         let averaging = settings
-            .and_then(|settings| settings.averaging)
+            .and_then(|settings| settings.averaging.get())
             .unwrap_or(tmp117::Averaging::X8.code());
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = tmp117::Tmp117::new(bus, address, delay)
+        let driver = tmp117::Tmp117::new(bus, address.get(), delay)
             .with_averaging(tmp117::Averaging::from_code(averaging));
         Tmp117 {
             inner: shared(driver),
@@ -449,11 +450,14 @@ impl Opt3001 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Opt3001Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Opt3001Settings>) -> Self {
         let (long_conversion, range) = match settings {
             Some(settings) => (
                 settings.long_conversion.unwrap_or(true),
-                settings.range_number.unwrap_or(opt3001::RANGE_AUTOMATIC),
+                settings
+                    .range_number
+                    .get()
+                    .unwrap_or(opt3001::RANGE_AUTOMATIC),
             ),
             None => (true, opt3001::RANGE_AUTOMATIC),
         };
@@ -464,7 +468,7 @@ impl Opt3001 {
         };
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = opt3001::Opt3001::new(bus, address, delay)
+        let driver = opt3001::Opt3001::new(bus, address.get(), delay)
             .with_conversion_time(conversion_time)
             .with_range(range);
         Opt3001 {
@@ -494,9 +498,13 @@ impl Opt3001 {
     /// Writes the low and high limits the part's interrupt pin compares each result against,
     /// in millilux.
     #[napi(js_name = "setLimits")]
-    pub async fn set_limits(&self, low_milli_lux: u32, high_milli_lux: u32) -> napi::Result<()> {
+    pub async fn set_limits(
+        &self,
+        low_milli_lux: checked::u32,
+        high_milli_lux: checked::u32,
+    ) -> napi::Result<()> {
         drive(&self.inner, move |driver| {
-            driver.set_limits(low_milli_lux, high_milli_lux)
+            driver.set_limits(low_milli_lux.get(), high_milli_lux.get())
         })
         .await
     }
@@ -523,8 +531,8 @@ impl Hdc1080 {
     pub fn new(bus: &I2cBus, settings: Option<Hdc1080Settings>) -> napi::Result<Self> {
         let (temperature_bits, humidity_bits) = match settings {
             Some(settings) => (
-                settings.temperature_resolution_bits.unwrap_or(14),
-                settings.humidity_resolution_bits.unwrap_or(14),
+                settings.temperature_resolution_bits.get().unwrap_or(14),
+                settings.humidity_resolution_bits.get().unwrap_or(14),
             ),
             None => (14, 14),
         };
@@ -596,7 +604,7 @@ impl Ina219 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Ina219Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Ina219Settings>) -> Self {
         let settings = settings.unwrap_or(Ina219Settings {
             shunt_milliohms: None,
             max_microamps: None,
@@ -605,10 +613,10 @@ impl Ina219 {
         });
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let mut driver = ina219::Ina219::new(bus, address, delay)
+        let mut driver = ina219::Ina219::new(bus, address.get(), delay)
             .with_shunt(
-                settings.shunt_milliohms.unwrap_or(100),
-                settings.max_microamps.unwrap_or(3_200_000),
+                settings.shunt_milliohms.get().unwrap_or(100),
+                settings.max_microamps.get().unwrap_or(3_200_000),
             )
             .with_configuration(
                 settings
@@ -616,7 +624,7 @@ impl Ina219 {
                     .map_or_else(ina219::Configuration::default, Into::into),
             );
         if let Some(lsb) = settings.current_lsb_microamps {
-            driver = driver.with_current_lsb(lsb);
+            driver = driver.with_current_lsb(lsb.get());
         }
         Ina219 {
             inner: shared(driver),
@@ -674,7 +682,7 @@ impl Ina226 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Ina226Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Ina226Settings>) -> Self {
         let settings = settings.unwrap_or(Ina226Settings {
             shunt_milliohms: None,
             max_microamps: None,
@@ -683,10 +691,10 @@ impl Ina226 {
         });
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let mut driver = ina226::Ina226::new(bus, address, delay)
+        let mut driver = ina226::Ina226::new(bus, address.get(), delay)
             .with_shunt(
-                settings.shunt_milliohms.unwrap_or(100),
-                settings.max_microamps.unwrap_or(3_200_000),
+                settings.shunt_milliohms.get().unwrap_or(100),
+                settings.max_microamps.get().unwrap_or(3_200_000),
             )
             .with_configuration(
                 settings
@@ -694,7 +702,7 @@ impl Ina226 {
                     .map_or(ina226::Configuration::RESET, Into::into),
             );
         if let Some(lsb) = settings.current_lsb_microamps {
-            driver = driver.with_current_lsb(lsb);
+            driver = driver.with_current_lsb(lsb.get());
         }
         Ina226 {
             inner: shared(driver),
@@ -734,9 +742,12 @@ impl Ina226 {
     /// Programs the alert pin: which limit it watches, one function at a time, and the limit,
     /// in the units of the register the function watches.
     #[napi(js_name = "setAlert")]
-    pub async fn set_alert(&self, mask: Ina226MaskEnable, limit: u16) -> napi::Result<()> {
+    pub async fn set_alert(&self, mask: Ina226MaskEnable, limit: checked::u16) -> napi::Result<()> {
         let mask = ina226::MaskEnable::from(mask);
-        drive(&self.inner, move |driver| driver.set_alert(mask, limit)).await
+        drive(&self.inner, move |driver| {
+            driver.set_alert(mask, limit.get())
+        })
+        .await
     }
 
     /// The current step the driver programs, in microamps per count.
@@ -769,21 +780,28 @@ impl Ads1115 {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `sample`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Ads1115Settings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Ads1115Settings>) -> Self {
         let reset = ads1115::Config::default();
         let (mux, pga, data_rate) = match settings {
             Some(settings) => (
-                settings.mux.map_or(reset.mux, ads1115::Mux::from_code),
-                settings.pga.map_or(reset.pga, ads1115::Pga::from_code),
+                settings
+                    .mux
+                    .get()
+                    .map_or(reset.mux, ads1115::Mux::from_code),
+                settings
+                    .pga
+                    .get()
+                    .map_or(reset.pga, ads1115::Pga::from_code),
                 settings
                     .data_rate
+                    .get()
                     .map_or(reset.data_rate, ads1115::DataRate::from_code),
             ),
             None => (reset.mux, reset.pga, reset.data_rate),
         };
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = ads1115::Ads1115::new(bus, address, delay)
+        let driver = ads1115::Ads1115::new(bus, address.get(), delay)
             .with_input(mux)
             .with_gain(pga)
             .with_data_rate(data_rate);
@@ -810,8 +828,8 @@ impl Ads1115 {
     /// Converts another input once, by its multiplexer code, leaving the configured input as
     /// it was.
     #[napi(js_name = "sampleInput")]
-    pub async fn sample_input(&self, mux: u8) -> napi::Result<Ads1115Sample> {
-        let mux = ads1115::Mux::from_code(mux);
+    pub async fn sample_input(&self, mux: checked::u8) -> napi::Result<Ads1115Sample> {
+        let mux = ads1115::Mux::from_code(mux.get());
         let sample = drive(&self.inner, move |driver| driver.sample_input(mux)).await?;
         Ok(sample_of(sample))
     }
@@ -834,13 +852,13 @@ impl Sht3x {
     /// A driver for the part at `address` on `bus`. Nothing is sent until `init` or the first
     /// `measure`.
     #[napi(constructor)]
-    pub fn new(bus: &I2cBus, address: u8, settings: Option<Sht3xSettings>) -> Self {
+    pub fn new(bus: &I2cBus, address: checked::u8, settings: Option<Sht3xSettings>) -> Self {
         let repeatability = settings
             .and_then(|settings| settings.repeatability)
             .map_or(sht3x::Repeatability::High, Into::into);
         let bus = bus.inner.clone();
         let delay = bus.delay();
-        let driver = sht3x::Sht3x::new(bus, address, delay).with_repeatability(repeatability);
+        let driver = sht3x::Sht3x::new(bus, address.get(), delay).with_repeatability(repeatability);
         Sht3x {
             inner: shared(driver),
         }
@@ -951,18 +969,18 @@ impl Scd4x {
     /// Sets the temperature offset that compensates the part's own warmth, in millidegrees,
     /// until power is lost.
     #[napi(js_name = "setTemperatureOffset")]
-    pub async fn set_temperature_offset(&self, milli_celsius: u32) -> napi::Result<()> {
+    pub async fn set_temperature_offset(&self, milli_celsius: checked::u32) -> napi::Result<()> {
         drive(&self.inner, move |driver| {
-            driver.set_temperature_offset(milli_celsius)
+            driver.set_temperature_offset(milli_celsius.get())
         })
         .await
     }
 
     /// Sets the altitude the part corrects its carbon dioxide reading for, in meters.
     #[napi(js_name = "setSensorAltitude")]
-    pub async fn set_sensor_altitude(&self, meters: u16) -> napi::Result<()> {
+    pub async fn set_sensor_altitude(&self, meters: checked::u16) -> napi::Result<()> {
         drive(&self.inner, move |driver| {
-            driver.set_sensor_altitude(meters)
+            driver.set_sensor_altitude(meters.get())
         })
         .await
     }
@@ -1048,9 +1066,9 @@ impl Ds18b20Thermometer {
 /// A simulated BME280 holding a real part's calibration and one measurement it took, which
 /// compensate to 20.44 C, 848.05 hPa, and 44.65 %.
 #[napi]
-pub fn bme280_sim_part(address: u8) -> I2cPart {
+pub fn bme280_sim_part(address: checked::u8) -> I2cPart {
     I2cPart {
-        inner: bme280::sim::part(address),
+        inner: bme280::sim::part(address.get()),
     }
 }
 
@@ -1058,14 +1076,14 @@ pub fn bme280_sim_part(address: u8) -> I2cPart {
 /// represent.
 #[napi]
 pub fn bme280_sim_reporting(
-    address: u8,
+    address: checked::u8,
     celsius: f64,
     hectopascals: f64,
     relative_humidity: f64,
 ) -> I2cPart {
     I2cPart {
         inner: bme280::sim::reporting(
-            address,
+            address.get(),
             celsius as f32,
             hectopascals as f32,
             relative_humidity as f32,
@@ -1107,18 +1125,18 @@ pub fn bme280_sim_burst_for(celsius: f64, hectopascals: f64, relative_humidity: 
 /// A simulated BMP280 holding a real part's trimming and one measurement it took, which
 /// compensate to 20.44 C and 848.05 hPa.
 #[napi]
-pub fn bmp280_sim_part(address: u8) -> I2cPart {
+pub fn bmp280_sim_part(address: checked::u8) -> I2cPart {
     I2cPart {
-        inner: bmp280::sim::part(address),
+        inner: bmp280::sim::part(address.get()),
     }
 }
 
 /// A simulated BMP280 that reads what it is asked to, within a hundredth of a degree and of a
 /// hectopascal.
 #[napi]
-pub fn bmp280_sim_reporting(address: u8, celsius: f64, hectopascals: f64) -> I2cPart {
+pub fn bmp280_sim_reporting(address: checked::u8, celsius: f64, hectopascals: f64) -> I2cPart {
     I2cPart {
-        inner: bmp280::sim::reporting(address, celsius as f32, hectopascals as f32),
+        inner: bmp280::sim::reporting(address.get(), celsius as f32, hectopascals as f32),
     }
 }
 
@@ -1143,34 +1161,34 @@ pub fn bmp280_sim_burst_for(celsius: f64, hectopascals: f64) -> Buffer {
 /// A simulated TMP117 reading 21.25 C, its configuration register keeping the flags the part
 /// sets for itself, with the data-ready flag set.
 #[napi]
-pub fn tmp117_sim_part(address: u8) -> WordPart {
+pub fn tmp117_sim_part(address: checked::u8) -> WordPart {
     WordPart {
-        inner: tmp117::sim::part(address),
+        inner: tmp117::sim::part(address.get()),
     }
 }
 
 /// A simulated TMP117 that reads what it is asked to, to the nearest 7.8125 millidegrees.
 #[napi]
-pub fn tmp117_sim_reporting(address: u8, celsius: f64) -> WordPart {
+pub fn tmp117_sim_reporting(address: checked::u8, celsius: f64) -> WordPart {
     WordPart {
-        inner: tmp117::sim::reporting(address, celsius as f32),
+        inner: tmp117::sim::reporting(address.get(), celsius as f32),
     }
 }
 
 /// A simulated OPT3001 reading 380 lux, its conversion-ready flag set.
 #[napi]
-pub fn opt3001_sim_part(address: u8) -> WordPart {
+pub fn opt3001_sim_part(address: checked::u8) -> WordPart {
     WordPart {
-        inner: opt3001::sim::part(address),
+        inner: opt3001::sim::part(address.get()),
     }
 }
 
 /// A simulated OPT3001 that reads what it is asked to, to the nearest step its exponent and
 /// mantissa represent.
 #[napi]
-pub fn opt3001_sim_reporting(address: u8, lux: f64) -> WordPart {
+pub fn opt3001_sim_reporting(address: checked::u8, lux: f64) -> WordPart {
     WordPart {
-        inner: opt3001::sim::reporting(address, lux as f32),
+        inner: opt3001::sim::reporting(address.get(), lux as f32),
     }
 }
 
@@ -1194,9 +1212,9 @@ pub fn hdc1080_sim_reporting(celsius: f64, relative_humidity: f64) -> WordPart {
 /// A simulated INA219 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
 /// with.
 #[napi]
-pub fn ina219_sim_part(address: u8) -> WordPart {
+pub fn ina219_sim_part(address: checked::u8) -> WordPart {
     WordPart {
-        inner: ina219::sim::part(address),
+        inner: ina219::sim::part(address.get()),
     }
 }
 
@@ -1204,19 +1222,19 @@ pub fn ina219_sim_part(address: u8) -> WordPart {
 /// current a driver is given.
 #[napi]
 pub fn ina219_sim_reporting(
-    address: u8,
-    shunt_milliohms: u32,
-    max_microamps: u32,
-    bus_millivolts: u32,
-    microamps: i32,
+    address: checked::u8,
+    shunt_milliohms: checked::u32,
+    max_microamps: checked::u32,
+    bus_millivolts: checked::u32,
+    microamps: checked::i32,
 ) -> WordPart {
     WordPart {
         inner: ina219::sim::reporting(
-            address,
-            shunt_milliohms,
-            max_microamps,
-            bus_millivolts,
-            microamps,
+            address.get(),
+            shunt_milliohms.get(),
+            max_microamps.get(),
+            bus_millivolts.get(),
+            microamps.get(),
         ),
     }
 }
@@ -1224,9 +1242,9 @@ pub fn ina219_sim_reporting(
 /// A simulated INA226 carrying 500 mA at 12 V through the 100 milliohm shunt a driver starts
 /// with.
 #[napi]
-pub fn ina226_sim_part(address: u8) -> WordPart {
+pub fn ina226_sim_part(address: checked::u8) -> WordPart {
     WordPart {
-        inner: ina226::sim::part(address),
+        inner: ina226::sim::part(address.get()),
     }
 }
 
@@ -1234,53 +1252,61 @@ pub fn ina226_sim_part(address: u8) -> WordPart {
 /// current a driver is given.
 #[napi]
 pub fn ina226_sim_reporting(
-    address: u8,
-    shunt_milliohms: u32,
-    max_microamps: u32,
-    bus_microvolts: u32,
-    microamps: i32,
+    address: checked::u8,
+    shunt_milliohms: checked::u32,
+    max_microamps: checked::u32,
+    bus_microvolts: checked::u32,
+    microamps: checked::i32,
 ) -> WordPart {
     WordPart {
         inner: ina226::sim::reporting(
-            address,
-            shunt_milliohms,
-            max_microamps,
-            bus_microvolts,
-            microamps,
+            address.get(),
+            shunt_milliohms.get(),
+            max_microamps.get(),
+            bus_microvolts.get(),
+            microamps.get(),
         ),
     }
 }
 
 /// A simulated ADS1115 reading 1.65 V, half a 3.3 V supply, at the range a driver starts with.
 #[napi]
-pub fn ads1115_sim_part(address: u8) -> WordPart {
+pub fn ads1115_sim_part(address: checked::u8) -> WordPart {
     WordPart {
-        inner: ads1115::sim::part(address),
+        inner: ads1115::sim::part(address.get()),
     }
 }
 
 /// A simulated ADS1115 that reads what it is asked to at the gain code a driver converts at.
 #[napi]
-pub fn ads1115_sim_reporting(address: u8, pga: u8, volts: f64) -> WordPart {
+pub fn ads1115_sim_reporting(address: checked::u8, pga: checked::u8, volts: f64) -> WordPart {
     WordPart {
-        inner: ads1115::sim::reporting(address, ads1115::Pga::from_code(pga), volts as f32),
+        inner: ads1115::sim::reporting(
+            address.get(),
+            ads1115::Pga::from_code(pga.get()),
+            volts as f32,
+        ),
     }
 }
 
 /// A simulated SHT3x reading 22.5 C and 45 %.
 #[napi(js_name = "sht3xSimPart")]
-pub fn sht3x_sim_part(address: u8) -> CommandPart {
+pub fn sht3x_sim_part(address: checked::u8) -> CommandPart {
     CommandPart {
-        inner: sht3x::sim::part(address),
+        inner: sht3x::sim::part(address.get()),
     }
 }
 
 /// A simulated SHT3x that reads what it is asked to, within three thousandths of a degree and
 /// two thousandths of a percent.
 #[napi(js_name = "sht3xSimReporting")]
-pub fn sht3x_sim_reporting(address: u8, celsius: f64, relative_humidity: f64) -> CommandPart {
+pub fn sht3x_sim_reporting(
+    address: checked::u8,
+    celsius: f64,
+    relative_humidity: f64,
+) -> CommandPart {
     CommandPart {
-        inner: sht3x::sim::reporting(address, celsius as f32, relative_humidity as f32),
+        inner: sht3x::sim::reporting(address.get(), celsius as f32, relative_humidity as f32),
     }
 }
 
@@ -1294,9 +1320,13 @@ pub fn scd4x_sim_part() -> CommandPart {
 
 /// A simulated SCD4x that reads what it is asked to.
 #[napi(js_name = "scd4xSimReporting")]
-pub fn scd4x_sim_reporting(co2_ppm: u16, celsius: f64, relative_humidity: f64) -> CommandPart {
+pub fn scd4x_sim_reporting(
+    co2_ppm: checked::u16,
+    celsius: f64,
+    relative_humidity: f64,
+) -> CommandPart {
     CommandPart {
-        inner: scd4x::sim::reporting(co2_ppm, celsius as f32, relative_humidity as f32),
+        inner: scd4x::sim::reporting(co2_ppm.get(), celsius as f32, relative_humidity as f32),
     }
 }
 

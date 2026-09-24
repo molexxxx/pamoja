@@ -2445,7 +2445,7 @@ function routingVectors() {
   for (const want of vector.empty.decisions) {
     assertDecision(none, want);
   }
-  assert.throws(() => routing.router(0x01, -1), /whole number from 0 up/, "a negative capacity");
+  assert.throws(() => routing.router(0x01, -1), /whole number from 0 to 4294967295, not -1/, "a negative capacity");
 }
 
 /** Checks one routing decision against the vector that describes it. */

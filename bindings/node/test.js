@@ -85,6 +85,30 @@ const {
   QuadratureScale,
 } = require("pamoja");
 
+// A number an integer parameter cannot hold is refused, naming the value, rather than
+// wrapped to its bottom bits or cut down to a whole number.
+function wholeNumbers() {
+  const link = lora.link(12, 125_000);
+  assert.strictEqual(lora.airtimeUs(link, 10), 991_232, "a whole number in range passes");
+  assert.throws(
+    () => lora.airtimeUs(link, -1),
+    /a value must be a whole number from 0 to 4294967295, not -1/,
+    "a negative length is not read as 4294967295",
+  );
+  assert.throws(() => lora.airtimeUs(link, 2 ** 32), /not 4294967296/, "nor one past 32 bits as 0");
+  assert.throws(() => lora.airtimeUs(link, 10.5), /not 10.5/, "a fraction is not cut down");
+  assert.throws(() => lora.airtimeUs(link, NaN), /not NaN/);
+  assert.throws(() => lora.airtimeUs(link, "10"), /not a string/, "a string is not read as a number");
+  assert.throws(
+    () => lora.airtimeUs({ ...link, spreadingFactor: 256 }, 10),
+    /from 0 to 255, not 256 on LoraLink.spreadingFactor/,
+    "a field of an object is checked the same way, and named",
+  );
+  assert.throws(() => sensors.tmp117.microCelsius(32_768), /from -32768 to 32767, not 32768/);
+  assert.throws(() => new bus.EventBus(Infinity), /not Infinity/, "a capacity is a whole number");
+  assert.strictEqual(new bus.EventBus().missed, 0, "and one left out takes the default");
+}
+
 async function main() {
   const v = version();
   console.log("pamoja version:", v);
@@ -139,6 +163,7 @@ async function main() {
   mavlinkProtocols();
   trustAndOperation();
   await asyncTransports();
+  wholeNumbers();
 
   console.log("ok");
 }
@@ -1055,7 +1080,7 @@ function sensingAndActuation() {
   lastFew.push(NaN);
   assert.strictEqual(lastFew.mean(), 2.5, "a reading that is not a number is not kept");
 
-  assert.throws(() => new Debounce(2.9, false), /samples must be a whole number from 0 to 65535, not 2.9/);
+  assert.throws(() => new Debounce(2.9, false), /a value must be a whole number from 0 to 65535, not 2.9/);
   assert.throws(() => new Debounce(-1, false), /not -1/);
   assert.strictEqual(new Debounce(3, true).state, true, "a debouncer starts where it is told");
 

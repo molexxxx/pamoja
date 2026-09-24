@@ -15,6 +15,7 @@
 //! vendor SDK or a class of the caller's own composes like a transport pamoja
 //! ships.
 
+use crate::checked::{self, OptionalWhole};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -521,10 +522,8 @@ pub(crate) async fn within<T>(
     })?
 }
 
-/// Reads a time limit given in milliseconds, rounding a fraction up.
-///
-/// JavaScript hands a negative number to an unsigned parameter as a very large
-/// one, so a limit is taken as a number and checked here instead.
+/// Reads a time limit given in milliseconds, rounding a fraction up and refusing a
+/// limit below zero.
 pub(crate) fn limit_of(timeout_ms: Option<f64>) -> napi::Result<Option<std::time::Duration>> {
     match timeout_ms {
         None => Ok(None),
@@ -543,11 +542,11 @@ pub(crate) fn limit_of(timeout_ms: Option<f64>) -> napi::Result<Option<std::time
 #[derive(Default)]
 pub struct Faults {
     /// Lose one send in every this many.
-    pub drop_every: Option<u32>,
+    pub drop_every: Option<checked::u32>,
     /// How many sends the link stays reachable for before it goes down.
-    pub up: Option<u32>,
+    pub up: Option<checked::u32>,
     /// How many sends it then stays unreachable for.
-    pub down: Option<u32>,
+    pub down: Option<checked::u32>,
 }
 
 /// One transport: a link to drive with `connect`, `subscribe`, `send`, and `recv`, or to
@@ -642,10 +641,10 @@ impl Transport {
     /// transport is consumed.
     #[cfg(feature = "loopback")]
     #[napi(factory)]
-    pub fn faulty(inner: &Transport, failures: u32) -> napi::Result<Self> {
+    pub fn faulty(inner: &Transport, failures: checked::u32) -> napi::Result<Self> {
         Ok(Self::wrap(Kind::Faulty(pamoja_loopback::Faulty::new(
             AnyTransport::new(inner.take()?),
-            failures as usize,
+            failures.get() as usize,
         ))))
     }
 
@@ -662,11 +661,11 @@ impl Transport {
     pub fn degraded(inner: &Transport, faults: Option<Faults>) -> napi::Result<Self> {
         let faults = faults.unwrap_or_default();
         let mut link = pamoja_sim::DegradedLink::new(AnyTransport::new(inner.take()?));
-        if let Some(drop_every) = faults.drop_every.filter(|every| *every != 0) {
+        if let Some(drop_every) = faults.drop_every.get().filter(|every| *every != 0) {
             link = link.drop_every(drop_every);
         }
-        if let Some(up) = faults.up.filter(|up| *up != 0) {
-            link = link.intermittent(up, faults.down.unwrap_or(0));
+        if let Some(up) = faults.up.get().filter(|up| *up != 0) {
+            link = link.intermittent(up, faults.down.get().unwrap_or(0));
         }
         Ok(Self::wrap(Kind::Degraded(link)))
     }

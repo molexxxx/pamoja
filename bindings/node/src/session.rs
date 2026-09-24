@@ -8,6 +8,7 @@
 //! boundary anyway, so these take a plaintext and return a ciphertext instead of
 //! pretending to mutate what the caller passed.
 
+use crate::checked;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_session::{
@@ -150,8 +151,8 @@ pub fn hmac_sha256_digest(key: Buffer, message: Buffer) -> Buffer {
 
 /// Expands input keying material into `length` bytes bound to `info`.
 #[napi]
-pub fn hkdf_sha256_expand(salt: Buffer, ikm: Buffer, info: Buffer, length: u32) -> Buffer {
-    let mut derived = vec![0u8; length as usize];
+pub fn hkdf_sha256_expand(salt: Buffer, ikm: Buffer, info: Buffer, length: checked::u32) -> Buffer {
+    let mut derived = vec![0u8; length.get() as usize];
     hkdf_sha256(salt.as_ref(), ikm.as_ref(), info.as_ref(), &mut derived);
     derived.into()
 }

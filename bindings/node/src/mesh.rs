@@ -9,6 +9,7 @@
 //! holds state across calls, so it is a class, sized when it is built because the
 //! Rust crate fixes its size with a const generic that cannot reach JavaScript.
 
+use crate::checked::{self, OptionalWhole};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use pamoja_mesh::{crc16, DynamicSeenCache, Frame, MeshError};
@@ -63,14 +64,14 @@ pub struct MeshFrame {
 /// `hopLimit` defaults to [`MESH_DEFAULT_HOP_LIMIT`] when omitted.
 #[napi]
 pub fn mesh_frame(
-    src: u32,
-    dst: u32,
-    id: u16,
+    src: checked::u32,
+    dst: checked::u32,
+    id: checked::u16,
     payload: Buffer,
-    hop_limit: Option<u8>,
+    hop_limit: Option<checked::u8>,
 ) -> napi::Result<MeshFrame> {
-    Frame::new(src, dst, id, payload.as_ref())
-        .map(|frame| describe(limited(frame, hop_limit)))
+    Frame::new(src.get(), dst.get(), id.get(), payload.as_ref())
+        .map(|frame| describe(limited(frame, hop_limit.get())))
         .map_err(to_napi)
 }
 
@@ -79,13 +80,13 @@ pub fn mesh_frame(
 /// `hopLimit` defaults to [`MESH_DEFAULT_HOP_LIMIT`] when omitted.
 #[napi]
 pub fn mesh_broadcast_frame(
-    src: u32,
-    id: u16,
+    src: checked::u32,
+    id: checked::u16,
     payload: Buffer,
-    hop_limit: Option<u8>,
+    hop_limit: Option<checked::u8>,
 ) -> napi::Result<MeshFrame> {
-    Frame::broadcast(src, id, payload.as_ref())
-        .map(|frame| describe(limited(frame, hop_limit)))
+    Frame::broadcast(src.get(), id.get(), payload.as_ref())
+        .map(|frame| describe(limited(frame, hop_limit.get())))
         .map_err(to_napi)
 }
 
@@ -125,16 +126,18 @@ impl SeenPackets {
     /// [`MESH_SEEN_DEFAULT_CAPACITY`]. A capacity of zero remembers nothing, so
     /// every copy of a packet is relayed.
     #[napi(constructor)]
-    pub fn new(capacity: Option<u32>) -> Self {
+    pub fn new(capacity: Option<checked::u32>) -> Self {
         Self {
-            inner: DynamicSeenCache::new(capacity.unwrap_or(MESH_SEEN_DEFAULT_CAPACITY) as usize),
+            inner: DynamicSeenCache::new(
+                capacity.get().unwrap_or(MESH_SEEN_DEFAULT_CAPACITY) as usize
+            ),
         }
     }
 
     /// Reports whether a packet is currently remembered, without recording it.
     #[napi]
-    pub fn contains(&self, src: u32, id: u16) -> bool {
-        self.inner.contains((src, id))
+    pub fn contains(&self, src: checked::u32, id: checked::u16) -> bool {
+        self.inner.contains((src.get(), id.get()))
     }
 
     /// Records a packet and reports whether it was new.
@@ -142,8 +145,8 @@ impl SeenPackets {
     /// A `true` answer is when a node should act on the packet and relay it; a
     /// `false` one means another copy already arrived by a different path.
     #[napi]
-    pub fn record(&mut self, src: u32, id: u16) -> bool {
-        self.inner.record((src, id))
+    pub fn record(&mut self, src: checked::u32, id: checked::u16) -> bool {
+        self.inner.record((src.get(), id.get()))
     }
 
     /// How many packets this cache remembers.
