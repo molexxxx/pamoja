@@ -292,9 +292,13 @@ fn device() -> std::result::Result<(), Box<dyn Error>> {
         .session(&app_key, 1)
         .encode_downlink(&Downlink::new(0, 2, b"set=19.0").with_ack())?;
     if let Heard::Data(delivery) = node.heard_in(ReceiveWindow::Rx1, answer.as_bytes(), 7)? {
+        let reading_was = if delivery.acknowledged() {
+            "acknowledged"
+        } else {
+            "not acknowledged"
+        };
         println!(
-            "downlink  acknowledged: {}, port {} says {}",
-            delivery.acknowledged(),
+            "downlink  the reading was {reading_was}, and port {} says {}",
             delivery.port().unwrap_or(0),
             String::from_utf8_lossy(delivery.payload()),
         );
