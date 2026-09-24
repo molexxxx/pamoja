@@ -10,7 +10,9 @@ the loop it runs.
 The four presets the library ships (`vaccine-fridge-monitor`, `irrigation-node`,
 `well-level`, `flood-sensor`) are here in the same form, written from the
 constructors that build them, so the code stays the one source for those four. The
-rest were shared by people who ran them.
+other four (`brooder-heater`, `grain-store-humidity`, `pipeline-pressure-drop`,
+`soil-moisture-valve`) are worked examples written for the catalog. A profile shared
+from a node that has run lands beside them through a pull request.
 
 Every file here is proved to run, not only to parse: a test loads each one with the
 parser a device uses, feeds it readings that cross its own lines, and checks that

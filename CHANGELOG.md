@@ -1336,6 +1336,28 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- The README, the landing page, and the install page said things that were not true, and
+  now say what the build measures:
+  - The Rust command for a domain was `cargo add pamoja --features radio`, which still
+    compiles every capability, because the default features name them all. Every domain
+    command is `--no-default-features --features std,<domain>` now.
+  - The README's grain table is generated from the capability map, so it says 32
+    capabilities rather than thirty.
+  - The landing page counts packaged capabilities (32, not 37), and all 38 guides. It
+    says only the 25 `no_std` crates are cross-compiled for a Cortex-M4F, and the site
+    build refuses one CI does not cross-compile. It reads the third-party count from the
+    measured build table: 1 of 5 crates, not "none".
+  - The shipped profiles are described as the library's presets and worked examples
+    written for the catalog, not as profiles shared by other people.
+  - The dashboard is served on the local network; nothing sets up a hotspot.
+  - A profile is run by a `Node` in Rust, and decided by its controller in the other
+    three languages.
+  - The direction map marks relays, valves, and pumps, and TLS to a broker, as shipping.
+    It adds rules and names the shipped sensor parts, and groups the radio track by
+    outcome.
+  - The Raspberry Pi node program loaded the soil-moisture irrigation profile while feeding
+    it a temperature. It now takes the profile as an argument, documented with
+    `brooder-heater.json`, and hands it the temperature through `Sensor::map`.
 - `MqttTransport::disconnect` stopped the event loop before the `DISCONNECT` went out, so
   the broker saw the connection drop and would have published the client's will. It sends the
   goodbye first now. A transport dropped without disconnecting kept its connection open

@@ -1,6 +1,6 @@
 # Pamoja.Profiles
 
-A node instantiated by name with its policy and schedule, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed.
+A node written down as a JSON file, rules between nodes as another, and the naming and encoding rules a robot's topics follow, with no ROS 2 or Zenoh installed.
 
 One reference for the 5 capabilities of this domain. Each is also its own package,
 and `Pamoja` is the whole framework in one.

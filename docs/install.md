@@ -75,7 +75,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#field-io">Field I/O</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features field-io</code><button class="copy" type="button" data-copy="cargo add pamoja --features field-io" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,field-io</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,field-io" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
@@ -85,7 +85,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#sensing-and-actuation">Sensing and actuation</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features sensing</code><button class="copy" type="button" data-copy="cargo add pamoja --features sensing" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,sensing</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,sensing" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">3</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
@@ -95,7 +95,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#radio-and-reach">Radio and reach</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features radio</code><button class="copy" type="button" data-copy="cargo add pamoja --features radio" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,radio</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,radio" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">6</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
@@ -105,7 +105,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#trust-and-operation">Trust and operation</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features trust</code><button class="copy" type="button" data-copy="cargo add pamoja --features trust" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,trust</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,trust" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
@@ -115,7 +115,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#transports-and-testing">Transports and testing</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features transports</code><button class="copy" type="button" data-copy="cargo add pamoja --features transports" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,transports</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,transports" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">9</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>
@@ -125,7 +125,7 @@ name two of them share stays unambiguous. Pick a language:
 <div class="domain">
 <div class="pkg-head">
 <div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/reference/rust.html#profiles-and-robotics">Profiles and robotics</a></div>
-<div class="pkg-get"><code class="cmd">cargo add pamoja --features profiles</code><button class="copy" type="button" data-copy="cargo add pamoja --features profiles" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-get"><code class="cmd">cargo add pamoja --no-default-features --features std,profiles</code><button class="copy" type="button" data-copy="cargo add pamoja --no-default-features --features std,profiles" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot"><div class="pkg-btns"><details class="guide-menu">
 <summary><span class="guide-menu-n">5</span> guides<span class="guide-menu-caret" aria-hidden="true"></span></summary>

@@ -1003,7 +1003,7 @@ use pamoja_hal::digital::PinState;
 use pamoja_hal::linux;
 use pamoja_mqtt::{MqttConfig, MqttTransport};
 use pamoja_profile::{Node, Profile};
-use pamoja_sensors::bme280::{Bme280, I2C_ADDRESS_PRIMARY};
+use pamoja_sensors::bme280::{Bme280, Measurement, I2C_ADDRESS_PRIMARY};
 
 /// The header's I2C bus, once the interface is on.
 const I2C_BUS: &str = "/dev/i2c-1";
@@ -1012,40 +1012,25 @@ const I2C_BUS: &str = "/dev/i2c-1";
 const CHIP: &str = "/dev/gpiochip0";
 const RELAY_LINE: u32 = 17;
 
-/// The BME280 measures three things at once. The profile judges one number, so the node
-/// hands it the temperature and keeps the rest for the reading it reports alongside.
-struct Probe(Bme280<pamoja_sensors::driver::I2cRegisters<linux::I2cdev>, linux::Delay>);
-
-impl Sensor for Probe {
-    type Reading = f32;
-
-    async fn read(&mut self) -> pamoja_core::Result<f32> {
-        let measurement = self
-            .0
-            .measure()
-            .map_err(|err| pamoja_core::Error::Io(format!("the BME280 did not answer: {err}")))?;
-        Ok(measurement.celsius())
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args().skip(1);
     let broker = args.next().unwrap_or_else(|| "localhost".to_owned());
-    let manifest = args.next();
+    let manifest = args
+        .next()
+        .ok_or("pass the profile to run, such as profiles/brooder-heater.json")?;
 
-    // The profile is a file: either one passed on the command line, or the shipped
-    // grain-store profile as a starting point. Nothing below repeats a number from it.
-    let profile = match &manifest {
-        Some(path) => Profile::from_json(&std::fs::read_to_string(path)?)?,
-        None => Profile::irrigation_node(),
-    };
+    // The profile is a file, and nothing below repeats a number from it. The BME280 feeds
+    // it a temperature, so it has to be a profile that judges one.
+    let profile = Profile::from_json(&std::fs::read_to_string(&manifest)?)?;
     println!("running {} into {}", profile.name, profile.topic);
 
     // The sensor: the kernel's I2C adapter, handed to the driver, which runs the
-    // datasheet's sequence over it.
-    let mut sensor = Bme280::i2c(linux::i2c(I2C_BUS)?, I2C_ADDRESS_PRIMARY, linux::delay());
-    sensor.init()?;
+    // datasheet's sequence over it. The BME280 measures three things at once and the
+    // profile judges one number, so `map` hands it the temperature.
+    let mut bme280 = Bme280::i2c(linux::i2c(I2C_BUS)?, I2C_ADDRESS_PRIMARY, linux::delay());
+    bme280.init()?;
+    let sensor = bme280.map(|measurement: Measurement| measurement.celsius());
 
     // The output: one GPIO line, driven to its resting level the moment it is taken, with
     // the relay board's active-low input stated once.
@@ -1058,7 +1043,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // That is the node. Each tick reads the probe, decides with the profile, switches the
     // relay, and publishes the reading.
-    let mut node = Node::new(profile, Probe(sensor), output, link, JsonCodec);
+    let mut node = Node::new(profile, sensor, output, link, JsonCodec);
     loop {
         let reaction = node.tick().await?;
         if let Some(alert) = reaction.alert {
@@ -1075,14 +1060,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 <!-- end -->
 
 ```sh
-cargo run --release --bin node -- broker.example.org profiles/irrigation-node.json
+cargo run --release --bin node -- broker.example.org profiles/brooder-heater.json
 ```
 
 Nothing in it names a threshold, a deadband, or an interval. Those are in the
 manifest, which anyone can read, edit, and share back, and the same manifest
 runs on a microcontroller with a different two lines of setup at the top. The
-[device profile guide](../guides/profile.md) is the full account of that loop,
-and [`examples/brooder_node.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/brooder_node.rs)
+[device profile guide](../guides/profile.md) says what a manifest holds and how a
+controller decides with it, and [`examples/brooder_node.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/brooder_node.rs)
 is a worked version with a flaky uplink and a second node driven by rules.
 
 ## Running it as a service

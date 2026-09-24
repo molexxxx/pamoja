@@ -1,7 +1,7 @@
 //! Local-first dashboard for a pamoja node.
 //!
-//! A node serves its own dashboard over its own WiFi hotspot, so a clinic worker, a
-//! farmer, or a water committee sees their own data with no internet at all, in their
+//! A node serves its own dashboard on the local network it is on, so a clinic worker,
+//! a farmer, or a water committee sees their own data with no internet at all, in their
 //! own language, on whatever cheap phone they have. This crate is the host side of
 //! that: it turns the state a node already holds into a small, language-neutral
 //! snapshot and serves a hand-built, localized page that renders it.
