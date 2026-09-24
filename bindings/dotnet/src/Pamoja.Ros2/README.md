@@ -25,32 +25,68 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/Ros2Guide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/Ros2Guide.cs):
 
 ```csharp
-// A name is slash-separated tokens. A token may hold letters, digits, and
-// underscores, and may not begin with a digit, which is the rule that catches most
-// generated names.
-foreach (string candidate in new[] { "/robot1/camera_left/image_raw", "/2foo" })
+// A name is slash-separated tokens of letters, digits, and underscores. A token may
+// not start with a digit, and a name may not end in a slash, hold an empty token, or
+// double an underscore.
+const string camera = "/robot1/camera_left/image_raw";
+if (Ros2.IsValidName(camera))
 {
-    Console.WriteLine($"{candidate} is a valid name: {Ros2.IsValidName(candidate)}");
+    Console.WriteLine($"valid     {camera}");
 }
 
-Console.WriteLine($"chatter is fully qualified: {Ros2.IsFullyQualified("chatter")}");
-Console.WriteLine($"/chatter is fully qualified: {Ros2.IsFullyQualified("/chatter")}");
+foreach ((string name, string why) in new[]
+{
+    ("/2foo", "a token starts with a digit"),
+    ("/cmd_vel/", "it ends in a slash"),
+    ("/robot1//odom", "it has an empty token"),
+    ("/robot1/cmd__vel", "it doubles an underscore"),
+})
+{
+    if (!Ros2.IsValidName(name))
+    {
+        Console.WriteLine($"invalid   {name}, since {why}");
+    }
+}
 
-// On the wire a topic carries a prefix that says what kind of endpoint it is, so a
-// subscription and a service request never collide in the same DDS partition.
+// A name with no leading slash is relative, and one that starts with a tilde is
+// private. Both are valid, and both resolve against the node before they reach the
+// wire, so neither is fully qualified.
+foreach ((string label, string name, string against) in new[]
+{
+    ("relative", "cmd_vel", "the node's namespace"),
+    ("private", "~/setpoint", "the node's own name"),
+})
+{
+    if (Ros2.IsValidName(name) && !Ros2.IsFullyQualified(name))
+    {
+        Console.WriteLine($"{label,-10}{name} is valid, and resolves against {against} first");
+    }
+}
+
+// Only a fully qualified name reaches the wire. DDS puts a prefix before it that says
+// what kind of endpoint it is, and a service travels on two topics, each ending in the
+// suffix the middleware appends.
 string? published = Ros2.DdsTopic("/robot1/cmd_vel", EntityKind.Topic);
-string? asked = Ros2.DdsTopic("/robot1/add", EntityKind.ServiceRequest);
-string? answered = Ros2.DdsTopic("/robot1/add", EntityKind.ServiceResponse);
-Console.WriteLine($"a topic    becomes {published}");
-Console.WriteLine($"a request  becomes {asked}");
-Console.WriteLine($"a response becomes {answered}");
+string? asked = Ros2.DdsTopic("/robot1/add_two_ints", EntityKind.ServiceRequest);
+string? answered = Ros2.DdsTopic("/robot1/add_two_ints", EntityKind.ServiceResponse);
+Console.WriteLine($"topic     /robot1/cmd_vel travels on {published}");
+Console.WriteLine($"request   /robot1/add_two_ints asks on {asked}");
+Console.WriteLine($"reply     and answers on {answered}");
 
-// A message type maps to a DDS type name the same way, so both ends agree on what
-// is being carried before a byte is exchanged.
-Console.WriteLine(
-    $"std_msgs/msg/String becomes {Ros2.DdsTypeName("std_msgs/msg/String")}");
-Console.WriteLine(
-    $"a malformed type name becomes {Ros2.DdsTypeName("not a type") ?? "nothing"}");
+// A message type maps to a DDS type name the same way, so both ends agree on what is
+// carried before a byte is exchanged. A name that is not package/namespace/Type maps
+// to nothing rather than to something plausible.
+foreach (string rosType in new[]
+{
+    "std_msgs/msg/String",
+    "example_interfaces/srv/AddTwoInts",
+    "std_msgs/String",
+})
+{
+    Console.WriteLine(Ros2.DdsTypeName(rosType) is { } carried
+        ? $"type      {rosType} is named {carried}"
+        : $"malformed {rosType} is not package/namespace/Type, so it has no DDS type name");
+}
 ```
 
 ## The same capability in every language

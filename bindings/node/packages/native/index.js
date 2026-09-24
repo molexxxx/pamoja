@@ -1349,6 +1349,7 @@ module.exports.ros2DdsTopic = nativeBinding.ros2DdsTopic
 module.exports.ros2DdsTypeName = nativeBinding.ros2DdsTypeName
 module.exports.ros2EntityKey = nativeBinding.ros2EntityKey
 module.exports.ros2EntityKindPrefix = nativeBinding.ros2EntityKindPrefix
+module.exports.ros2EntityKindSuffix = nativeBinding.ros2EntityKindSuffix
 module.exports.ros2IsFullyQualified = nativeBinding.ros2IsFullyQualified
 module.exports.ros2IsValidName = nativeBinding.ros2IsValidName
 module.exports.ros2PercentMangle = nativeBinding.ros2PercentMangle

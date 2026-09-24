@@ -21,6 +21,7 @@ from pamoja._native import (
     ros2_dds_type_name as dds_type_name,
     ros2_entity_key as entity_key,
     ros2_entity_kind_prefix as prefix_for,
+    ros2_entity_kind_suffix as suffix_for,
     ros2_is_fully_qualified as is_fully_qualified,
     ros2_is_valid_name as is_valid_name,
     ros2_percent_mangle as percent_mangle,
@@ -40,6 +41,7 @@ __all__ = [
     "is_valid_name",
     "percent_mangle",
     "prefix_for",
+    "suffix_for",
     "twist_from_cdr",
     "twist_to_cdr",
     "type_hash_digest",
@@ -47,11 +49,11 @@ __all__ = [
 
 
 class EntityKind(str, enum.Enum):
-    """The ROS 2 subsystem a name belongs to, which fixes its DDS prefix."""
+    """The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix."""
 
     #: A topic, which takes the ``rt`` prefix.
     TOPIC = "Topic"
-    #: The request side of a service, which takes the ``rq`` prefix.
+    #: The request side of a service, which takes the ``rq`` prefix and the ``Request`` suffix.
     SERVICE_REQUEST = "ServiceRequest"
-    #: The reply side of a service, which takes the ``rr`` prefix.
+    #: The reply side of a service, which takes the ``rr`` prefix and the ``Reply`` suffix.
     SERVICE_RESPONSE = "ServiceResponse"

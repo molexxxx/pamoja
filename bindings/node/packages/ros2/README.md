@@ -23,27 +23,57 @@ From [`bindings/node/guides/ros2.ts`](https://github.com/molexxxx/pamoja/blob/ma
 ```typescript
 import { EntityKind, name } from '@pamoja/ros2'
 
-// A name is slash-separated tokens. A token may hold letters, digits, and underscores, and
-// may not begin with a digit, which is the rule that catches most generated names.
-for (const candidate of ['/robot1/camera_left/image_raw', '/2foo']) {
-  console.log(`${candidate} is a valid name: ${name.isValid(candidate)}`)
+// A name is slash-separated tokens of letters, digits, and underscores. A token may not start
+// with a digit, and a name may not end in a slash, hold an empty token, or double an
+// underscore.
+const camera = '/robot1/camera_left/image_raw'
+if (name.isValid(camera)) {
+  console.log(`valid     ${camera}`)
 }
-console.log(`chatter is fully qualified: ${name.isFullyQualified('chatter')}`)
-console.log(`/chatter is fully qualified: ${name.isFullyQualified('/chatter')}`)
+for (const [candidate, why] of [
+  ['/2foo', 'a token starts with a digit'],
+  ['/cmd_vel/', 'it ends in a slash'],
+  ['/robot1//odom', 'it has an empty token'],
+  ['/robot1/cmd__vel', 'it doubles an underscore'],
+]) {
+  if (!name.isValid(candidate)) {
+    console.log(`invalid   ${candidate}, since ${why}`)
+  }
+}
 
-// On the wire a topic carries a prefix that says what kind of endpoint it is, so a
-// subscription and a service request never collide in the same DDS partition.
+// A name with no leading slash is relative, and one that starts with a tilde is private. Both
+// are valid, and both resolve against the node before they reach the wire, so neither is
+// fully qualified.
+for (const [label, candidate, against] of [
+  ['relative', 'cmd_vel', "the node's namespace"],
+  ['private', '~/setpoint', "the node's own name"],
+]) {
+  if (name.isValid(candidate) && !name.isFullyQualified(candidate)) {
+    console.log(`${label.padEnd(10)}${candidate} is valid, and resolves against ${against} first`)
+  }
+}
+
+// Only a fully qualified name reaches the wire. DDS puts a prefix before it that says what
+// kind of endpoint it is, and a service travels on two topics, each ending in the suffix the
+// middleware appends.
 const published = name.ddsTopic('/robot1/cmd_vel', EntityKind.Topic)
-const asked = name.ddsTopic('/robot1/add', EntityKind.ServiceRequest)
-const answered = name.ddsTopic('/robot1/add', EntityKind.ServiceResponse)
-console.log(`a topic    becomes ${published}`)
-console.log(`a request  becomes ${asked}`)
-console.log(`a response becomes ${answered}`)
+const asked = name.ddsTopic('/robot1/add_two_ints', EntityKind.ServiceRequest)
+const answered = name.ddsTopic('/robot1/add_two_ints', EntityKind.ServiceResponse)
+console.log(`topic     /robot1/cmd_vel travels on ${published}`)
+console.log(`request   /robot1/add_two_ints asks on ${asked}`)
+console.log(`reply     and answers on ${answered}`)
 
-// A message type maps to a DDS type name the same way, so both ends agree on what is being
-// carried before a byte is exchanged.
-console.log(`std_msgs/msg/String becomes ${name.ddsTypeName('std_msgs/msg/String')}`)
-console.log(`a malformed type name becomes ${name.ddsTypeName('not a type')}`)
+// A message type maps to a DDS type name the same way, so both ends agree on what is carried
+// before a byte is exchanged. A name that is not package/namespace/Type maps to nothing
+// rather than to something plausible.
+for (const rosType of ['std_msgs/msg/String', 'example_interfaces/srv/AddTwoInts', 'std_msgs/String']) {
+  const carried = name.ddsTypeName(rosType)
+  if (carried !== null) {
+    console.log(`type      ${rosType} is named ${carried}`)
+  } else {
+    console.log(`malformed ${rosType} is not package/namespace/Type, so it has no DDS type name`)
+  }
+}
 ```
 
 ## The same capability in every language

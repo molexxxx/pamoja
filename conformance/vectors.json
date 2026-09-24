@@ -12877,12 +12877,12 @@
       {
         "fqn": "/add_two_ints",
         "kind": "ServiceRequest",
-        "topic": "rq/add_two_ints"
+        "topic": "rq/add_two_intsRequest"
       },
       {
         "fqn": "/add_two_ints",
         "kind": "ServiceResponse",
-        "topic": "rr/add_two_ints"
+        "topic": "rr/add_two_intsReply"
       }
     ],
     "entityKey": {
@@ -12927,6 +12927,11 @@
       "ServiceRequest": "rq",
       "ServiceResponse": "rr",
       "Topic": "rt"
+    },
+    "suffixes": {
+      "ServiceRequest": "Request",
+      "ServiceResponse": "Reply",
+      "Topic": ""
     },
     "twist": {
       "angular": [

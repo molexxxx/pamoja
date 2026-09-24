@@ -553,6 +553,7 @@ __all__ = [
     "ros2_dds_type_name",
     "ros2_entity_key",
     "ros2_entity_kind_prefix",
+    "ros2_entity_kind_suffix",
     "ros2_is_fully_qualified",
     "ros2_is_valid_name",
     "ros2_percent_mangle",
@@ -13630,6 +13631,12 @@ def ros2_entity_kind_prefix(kind: builtins.str) -> builtins.str:
     Returns the DDS topic prefix a subsystem uses.
     """
 
+def ros2_entity_kind_suffix(kind: builtins.str) -> builtins.str:
+    r"""
+    Returns what the middleware appends to a name for a subsystem: nothing for a topic,
+    `Request` for a service request, and `Reply` for a service response.
+    """
+
 def ros2_is_fully_qualified(name: builtins.str) -> builtins.bool:
     r"""
     Reports whether a name is fully qualified, so it resolves with no namespace.
@@ -13642,7 +13649,7 @@ def ros2_is_valid_name(name: builtins.str) -> builtins.bool:
 
 def ros2_percent_mangle(name: builtins.str) -> builtins.str:
     r"""
-    Percent-mangles a name the way a DDS partition requires.
+    Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`.
     """
 
 def ros2_twist_from_cdr(data: typing.Sequence[builtins.int]) -> typing.Optional[tuple[tuple[builtins.float, builtins.float, builtins.float], tuple[builtins.float, builtins.float, builtins.float]]]:

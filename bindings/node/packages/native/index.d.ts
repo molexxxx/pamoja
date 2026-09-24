@@ -4598,13 +4598,13 @@ export declare function encodeDeltaSamples(samples: Array<number>): Buffer
 /** Encodes the body of a manifest, which is the part a signature covers. */
 export declare function encodeManifest(manifest: Manifest): Buffer
 
-/** The ROS 2 subsystem a name belongs to, which fixes its DDS prefix. */
+/** The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix. */
 export declare const enum EntityKindName {
   /** A topic, which takes the `rt` prefix. */
   Topic = 'Topic',
-  /** The request side of a service, which takes the `rq` prefix. */
+  /** The request side of a service, which takes the `rq` prefix and the `Request` suffix. */
   ServiceRequest = 'ServiceRequest',
-  /** The reply side of a service, which takes the `rr` prefix. */
+  /** The reply side of a service, which takes the `rr` prefix and the `Reply` suffix. */
   ServiceResponse = 'ServiceResponse',
 }
 
@@ -8569,13 +8569,19 @@ export declare function ros2EntityKey(domainId: number, fqn: string, rosType: st
 /** Returns the DDS topic prefix a subsystem uses. */
 export declare function ros2EntityKindPrefix(kind: EntityKindName): string
 
+/**
+ * Returns what the middleware appends to a name for a subsystem: nothing for a topic,
+ * `Request` for a service request, and `Reply` for a service response.
+ */
+export declare function ros2EntityKindSuffix(kind: EntityKindName): string
+
 /** Reports whether a name is fully qualified, so it resolves with no namespace. */
 export declare function ros2IsFullyQualified(name: string): boolean
 
 /** Reports whether a string is a valid ROS 2 topic or service name. */
 export declare function ros2IsValidName(name: string): boolean
 
-/** Percent-mangles a name the way a DDS partition requires. */
+/** Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`. */
 export declare function ros2PercentMangle(name: string): string
 
 /**

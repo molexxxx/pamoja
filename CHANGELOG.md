@@ -894,6 +894,10 @@ released together, so one entry covers all of them.
   the other languages read the file with their own JSON and rebuilt the engine by hand.
   `Fired` carries the actions a rule called for, and `RuleEngine` gains `topics()` and
   `actuators()`.
+- What the middleware appends to a ROS 2 name for each kind of endpoint: nothing for a
+  topic, `Request` for a service request, and `Reply` for a service reply, as
+  `EntityKind::suffix()` in Rust, `name.suffixFor` in TypeScript, `suffix_for` in Python,
+  `Ros2.SuffixFor` in C#, and `pamoja_ros2_entity_kind_suffix` in C.
 
 ### Changed
 
@@ -1211,6 +1215,14 @@ released together, so one entry covers all of them.
   release band. The page gains a paragraph for each language, tables of the file, when a
   condition moves, what fired, the refusals, and the calls, and a section on what goes
   wrong.
+- The ROS 2 guide says in words what it printed as booleans that read differently in each
+  language, and `nothing` where it printed `null` or `None`. It runs four malformed names
+  past the rules, each with the rule it breaks, shows a relative and a private name, and
+  gains two parts: the `rmw_zenoh` key for a topic from its published type hash, with what
+  refuses a key or a hash, and a command velocity in CDR, with the alignment padding
+  between an integer and a double and a message cut short. The page gains a paragraph for
+  each language, tables of the name rules, where a name resolves, the DDS topics and type
+  names, the `rmw_zenoh` key, CDR sizes, and the calls, and a section on what goes wrong.
 
 ### Fixed
 
@@ -1511,6 +1523,14 @@ released together, so one entry covers all of them.
   was with nothing to say why, since the trigger ignores one. `RuleEvaluator::evaluate`
   and `RuleEngine::step` refuse it now with `Error::Codec`, as they do a payload that does
   not decode.
+- A ROS 2 service's DDS topics were written without the suffix the middleware appends:
+  `dds_topic` gave `rq/add_two_ints` and `rr/add_two_ints`, where `rmw_fastrtps` and
+  `rmw_cyclonedds` both put the service on `rq/add_two_intsRequest` and
+  `rr/add_two_intsReply`, so a bridge built on it never met a ROS 2 service. It appends
+  `Request` and `Reply` now, in every language, and the conformance vectors pin the names
+  the middleware builds.
+- The percent-mangling helpers said they wrote a name the way a DDS partition requires.
+  They write it as `rmw_zenoh` does in a liveliness token, each `/` as `%`, and now say so.
 
 ## [0.1.18] - 2026-09-10
 

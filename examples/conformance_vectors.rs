@@ -7012,15 +7012,22 @@ fn ros2() -> Value {
             { "name": "/2foo", "valid": false, "fullyQualified": false },
             { "name": "/foo/", "valid": false, "fullyQualified": false },
         ],
+        // A service's two topics, as rmw_cyclonedds and rmw_fastrtps both build them: the
+        // prefix, the name, and a suffix.
         "ddsTopics": [
             { "fqn": "/robot1/cmd_vel", "kind": "Topic", "topic": "rt/robot1/cmd_vel" },
-            { "fqn": "/add_two_ints", "kind": "ServiceRequest", "topic": "rq/add_two_ints" },
-            { "fqn": "/add_two_ints", "kind": "ServiceResponse", "topic": "rr/add_two_ints" },
+            { "fqn": "/add_two_ints", "kind": "ServiceRequest", "topic": "rq/add_two_intsRequest" },
+            { "fqn": "/add_two_ints", "kind": "ServiceResponse", "topic": "rr/add_two_intsReply" },
         ],
         "prefixes": {
             "Topic": EntityKind::Topic.prefix(),
             "ServiceRequest": EntityKind::ServiceRequest.prefix(),
             "ServiceResponse": EntityKind::ServiceResponse.prefix(),
+        },
+        "suffixes": {
+            "Topic": "",
+            "ServiceRequest": "Request",
+            "ServiceResponse": "Reply",
         },
         "mangled": {
             "name": "/robot1/cmd_vel",

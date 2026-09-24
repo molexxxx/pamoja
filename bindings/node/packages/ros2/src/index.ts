@@ -21,6 +21,7 @@ import {
   ros2DdsTypeName,
   ros2EntityKey,
   ros2EntityKindPrefix,
+  ros2EntityKindSuffix,
   ros2IsFullyQualified,
   ros2IsValidName,
   ros2PercentMangle,
@@ -35,16 +36,16 @@ export { CdrReader, CdrWriter } from '@pamoja/native'
 export type { Ros2Twist, Ros2Vector3 } from '@pamoja/native'
 
 /**
- * The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+ * The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.
  *
  * Provided as a runtime object plus a matching string-union type.
  */
 export const EntityKind = {
   /** A topic, which takes the `rt` prefix. */
   Topic: 'Topic' as EntityKindName,
-  /** The request side of a service, which takes the `rq` prefix. */
+  /** The request side of a service, which takes the `rq` prefix and the `Request` suffix. */
   ServiceRequest: 'ServiceRequest' as EntityKindName,
-  /** The reply side of a service, which takes the `rr` prefix. */
+  /** The reply side of a service, which takes the `rr` prefix and the `Reply` suffix. */
   ServiceResponse: 'ServiceResponse' as EntityKindName,
 } as const
 
@@ -60,11 +61,16 @@ export const name = {
   /** Returns the DDS topic prefix a subsystem uses. */
   prefixFor: ros2EntityKindPrefix,
   /**
+   * Returns what the middleware appends to a name for a subsystem: nothing for a
+   * topic, `Request` for a service request, and `Reply` for a service response.
+   */
+  suffixFor: ros2EntityKindSuffix,
+  /**
    * Returns the DDS topic a fully qualified name maps onto, or `null` if the
    * name is not fully qualified.
    */
   ddsTopic: ros2DdsTopic,
-  /** Percent-mangles a name the way a DDS partition requires. */
+  /** Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`. */
   percentMangle: ros2PercentMangle,
   /**
    * Returns the DDS type name an interface type maps onto, or `null` if the

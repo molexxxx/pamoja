@@ -2,16 +2,16 @@ using Pamoja.Native.Interop;
 
 namespace Pamoja.Ros2;
 
-/// <summary>The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.</summary>
+/// <summary>The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.</summary>
 public enum EntityKind
 {
     /// <summary>A topic, which takes the <c>rt</c> prefix.</summary>
     Topic = 0,
 
-    /// <summary>The request side of a service, which takes the <c>rq</c> prefix.</summary>
+    /// <summary>The request side of a service, which takes the <c>rq</c> prefix and the <c>Request</c> suffix.</summary>
     ServiceRequest = 1,
 
-    /// <summary>The reply side of a service, which takes the <c>rr</c> prefix.</summary>
+    /// <summary>The reply side of a service, which takes the <c>rr</c> prefix and the <c>Reply</c> suffix.</summary>
     ServiceResponse = 2,
 }
 
@@ -59,6 +59,15 @@ public static class Ros2
             NativeMethods.pamoja_ros2_entity_kind_prefix(
                 (PamojaEntityKind)NamedValue.Require(kind, nameof(kind)))) ?? string.Empty;
 
+    /// <summary>Returns what the middleware appends to a name for a subsystem.</summary>
+    /// <param name="kind">The subsystem.</param>
+    /// <returns>Nothing for a topic, <c>Request</c> for a service request, or <c>Reply</c> for a service response.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not one of the <see cref="EntityKind"/> values.</exception>
+    public static string SuffixFor(EntityKind kind) =>
+        System.Runtime.InteropServices.Marshal.PtrToStringUTF8(
+            NativeMethods.pamoja_ros2_entity_kind_suffix(
+                (PamojaEntityKind)NamedValue.Require(kind, nameof(kind)))) ?? string.Empty;
+
     /// <summary>Returns the DDS topic a fully qualified name maps onto.</summary>
     /// <param name="fqn">The fully qualified name.</param>
     /// <param name="kind">Which subsystem the name belongs to.</param>
@@ -68,7 +77,7 @@ public static class Ros2
         OwnedString.ReadOrNull(
             NativeMethods.pamoja_ros2_dds_topic(fqn, (PamojaEntityKind)NamedValue.Require(kind, nameof(kind))));
 
-    /// <summary>Percent-mangles a name the way a DDS partition requires.</summary>
+    /// <summary>Percent-mangles a name as <c>rmw_zenoh</c> writes it in a liveliness token, each <c>/</c> as <c>%</c>.</summary>
     /// <param name="name">The name to mangle.</param>
     /// <returns>The mangled name.</returns>
     public static string PercentMangle(string name) =>

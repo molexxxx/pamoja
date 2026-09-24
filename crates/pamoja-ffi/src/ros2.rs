@@ -25,15 +25,15 @@ use crate::{read_bytes, read_str, set_last_error, PamojaBuffer, PamojaStatus, Pa
 /// The number of bytes in a RIHS01 type hash digest.
 pub const PAMOJA_TYPE_HASH_LEN: usize = 32;
 
-/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PamojaEntityKind {
     /// A topic, which takes the `rt` prefix.
     Topic = 0,
-    /// The request side of a service, which takes the `rq` prefix.
+    /// The request side of a service, which takes the `rq` prefix and the `Request` suffix.
     ServiceRequest = 1,
-    /// The reply side of a service, which takes the `rr` prefix.
+    /// The reply side of a service, which takes the `rr` prefix and the `Reply` suffix.
     ServiceResponse = 2,
 }
 
@@ -171,12 +171,34 @@ pub extern "C" fn pamoja_ros2_entity_kind_prefix(kind: PamojaEntityKind) -> *con
     }
 }
 
+/// Returns what the middleware appends to a name for a subsystem.
+///
+/// # Arguments
+///
+/// * `kind` - the subsystem.
+///
+/// # Returns
+///
+/// `""` for a topic, `"Request"` for a service request, and `"Reply"` for a service
+/// response, as a null-terminated string with static lifetime, which the caller does not
+/// free.
+#[no_mangle]
+pub extern "C" fn pamoja_ros2_entity_kind_suffix(kind: PamojaEntityKind) -> *const c_char {
+    match kind {
+        PamojaEntityKind::Topic => c"".as_ptr(),
+        PamojaEntityKind::ServiceRequest => c"Request".as_ptr(),
+        PamojaEntityKind::ServiceResponse => c"Reply".as_ptr(),
+    }
+}
+
 /// Returns the DDS topic a fully qualified ROS 2 name maps onto.
 ///
 /// # Arguments
 ///
 /// * `fqn` - the fully qualified name, as null-terminated UTF-8.
-/// * `kind` - which subsystem the name belongs to, which fixes the prefix.
+/// * `kind` - which subsystem the name belongs to, which fixes the prefix and the
+///   suffix, so a service's request travels on `rq/<name>Request` and its reply on
+///   `rr/<name>Reply`.
 ///
 /// # Returns
 ///
@@ -205,7 +227,7 @@ pub unsafe extern "C" fn pamoja_ros2_dds_topic(
     }
 }
 
-/// Percent-mangles a name the way a DDS partition requires.
+/// Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`.
 ///
 /// # Arguments
 ///
@@ -849,6 +871,27 @@ mod tests {
         let fqn = CString::new("/robot1/cmd_vel").expect("static");
         let topic = unsafe { pamoja_ros2_dds_topic(fqn.as_ptr(), PamojaEntityKind::Topic) };
         assert_eq!(text_of(topic), "rt/robot1/cmd_vel");
+    }
+
+    #[test]
+    fn a_service_travels_on_a_request_and_a_reply_topic() {
+        let fqn = CString::new("/add_two_ints").expect("static");
+        // Safety: the name is valid for the call.
+        let (asked, answered) = unsafe {
+            (
+                pamoja_ros2_dds_topic(fqn.as_ptr(), PamojaEntityKind::ServiceRequest),
+                pamoja_ros2_dds_topic(fqn.as_ptr(), PamojaEntityKind::ServiceResponse),
+            )
+        };
+        assert_eq!(text_of(asked), "rq/add_two_intsRequest");
+        assert_eq!(text_of(answered), "rr/add_two_intsReply");
+        // Safety: the suffix is a static string the ABI owns.
+        let suffix = unsafe {
+            CStr::from_ptr(pamoja_ros2_entity_kind_suffix(
+                PamojaEntityKind::ServiceRequest,
+            ))
+        };
+        assert_eq!(suffix.to_str(), Ok("Request"));
     }
 
     #[test]

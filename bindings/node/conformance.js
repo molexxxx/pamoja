@@ -3738,6 +3738,9 @@ function ros2Vectors() {
   for (const [kind, prefix] of Object.entries(vector.prefixes)) {
     assert.strictEqual(ros2.name.prefixFor(kind), prefix, `the ${kind} prefix`);
   }
+  for (const [kind, suffix] of Object.entries(vector.suffixes)) {
+    assert.strictEqual(ros2.name.suffixFor(kind), suffix, `the ${kind} suffix`);
+  }
 
   assert.strictEqual(
     ros2.name.percentMangle(vector.mangled.name),
