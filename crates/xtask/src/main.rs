@@ -14,6 +14,7 @@ mod diagram;
 mod docs;
 mod examples;
 mod footprint;
+mod guides;
 mod hardware;
 mod i18n;
 mod licenses;

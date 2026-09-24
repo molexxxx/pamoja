@@ -922,6 +922,11 @@ released together, so one entry covers all of them.
   `STATUSTEXT`, servos 9 to 16 of `SERVO_OUTPUT_RAW`, and the mission state of
   `MISSION_CURRENT`. A frame from a peer that sends none of them still decodes, with each
   read as zero.
+- `cargo xtask docs --check` holds every guide to one shape: its sections in the guide
+  order, an `It proves:` list, and a paragraph opening each language's section before its
+  code. It also reads the calls each language names in "Values at a glance" and fails when
+  one names something that language's sources never mention, so a renamed call, or a
+  Python name written into the TypeScript table, fails the build rather than a reader.
 
 ### Changed
 

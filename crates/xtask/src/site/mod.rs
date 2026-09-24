@@ -17,7 +17,7 @@ mod layout;
 mod markdown;
 pub(crate) mod minify;
 mod nav;
-mod pages;
+pub(crate) mod pages;
 mod search;
 
 use std::collections::BTreeMap;
