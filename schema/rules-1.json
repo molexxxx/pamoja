@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pamoja.molex.cloud/schema/rules-1.json",
+  "title": "pamoja rules",
+  "description": "Rules between nodes: when one topic's reading crosses a line, drive an output or publish a message, and undo it once the reading comes back.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rules"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "(^|/)rules-1\\.json$",
+      "description": "The format the file is written in: this schema's address, or a copy of it by the same file name. An editor reads it to check the file as it is typed."
+    },
+    "rules": {
+      "type": "array",
+      "description": "The rules, checked against each reading in the order they are listed.",
+      "items": { "$ref": "#/definitions/rule" }
+    }
+  },
+  "definitions": {
+    "rule": {
+      "type": "object",
+      "description": "One rule: a line through one topic's readings, and what to do as a reading crosses it and comes back.",
+      "additionalProperties": false,
+      "required": ["name", "when"],
+      "anyOf": [
+        { "required": ["then"], "properties": { "then": { "minItems": 1 } } },
+        { "required": ["otherwise"], "properties": { "otherwise": { "minItems": 1 } } }
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "A name no other rule in the file has, such as water-when-dry. The engine reports it when the rule fires."
+        },
+        "when": {
+          "$ref": "#/definitions/condition"
+        },
+        "then": {
+          "type": "array",
+          "description": "What to do once, the moment the condition becomes true.",
+          "items": { "$ref": "#/definitions/action" }
+        },
+        "otherwise": {
+          "type": "array",
+          "description": "What to do once, the moment the condition stops holding.",
+          "items": { "$ref": "#/definitions/action" }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "description": "The line a topic's readings cross. It names one side, above or below.",
+      "additionalProperties": false,
+      "required": ["topic"],
+      "oneOf": [
+        { "required": ["above"] },
+        { "required": ["below"] }
+      ],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^+#]+$",
+          "description": "The topic whose readings are watched, exactly as the node publishes to it. One topic, so no + or # wildcards."
+        },
+        "above": {
+          "type": "number",
+          "description": "The condition holds while readings are above this line."
+        },
+        "below": {
+          "type": "number",
+          "description": "The condition holds while readings are below this line."
+        },
+        "hysteresis": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "How far back past the line a reading must come for the condition to clear, so readings hovering at the line do not fire it over and over."
+        }
+      }
+    },
+    "action": {
+      "description": "One thing a rule does: drive an output, or publish a message.",
+      "oneOf": [
+        {
+          "type": "object",
+          "title": "drive",
+          "description": "Switches an output the program running the rules holds under this name.",
+          "additionalProperties": false,
+          "required": ["drive", "on"],
+          "properties": {
+            "drive": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "The output's name, such as bed-valve."
+            },
+            "on": {
+              "type": "boolean",
+              "description": "true to switch it on, false to switch it off."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "title": "publish",
+          "description": "Publishes a message over the link the rules run on.",
+          "additionalProperties": false,
+          "required": ["publish", "payload"],
+          "properties": {
+            "publish": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^+#]+$",
+              "description": "The topic to publish to. One topic, so no + or # wildcards."
+            },
+            "payload": {
+              "type": "string",
+              "description": "The text to publish."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

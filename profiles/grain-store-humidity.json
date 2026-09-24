@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "grain-store-humidity",
   "description": "Reports the relative humidity in a grain store without driving anything, drawn as a droplet with a safe band up to 65 %, above which stored cereal takes on the moisture that mold grows in. Samples every 10 minutes, since a store changes slowly.",
+  "reads": {
+    "quantity": "relative_humidity",
+    "unit": "percent"
+  },
   "topic": "storage/grain/humidity",
   "control": {
     "kind": "monitor"

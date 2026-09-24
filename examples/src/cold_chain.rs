@@ -141,7 +141,7 @@ pub async fn run() -> Result<Outcome> {
 
     // The profile supplies the control policy; a fresh controller tracks its state.
     let profile = Profile::vaccine_fridge_monitor();
-    let mut controller = profile.controller();
+    let mut controller = profile.controller()?;
 
     // A gateway and the node share an in-process broker.
     let broker = LoopbackBroker::new();
@@ -262,7 +262,7 @@ pub async fn run() -> Result<Outcome> {
 
     // Profile as data: the same profile reloaded from JSON decides identically.
     let manifest = profile.to_json()?;
-    let mut reloaded = Profile::from_json(&manifest)?.controller();
+    let mut reloaded = Profile::from_json(&manifest)?.controller()?;
     let reloaded_matches = sent_readings
         .iter()
         .zip(&steps)

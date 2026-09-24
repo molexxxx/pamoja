@@ -1,0 +1,345 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pamoja.molex.cloud/schema/profile-1.json",
+  "title": "pamoja profile",
+  "description": "A node written down as data: what it reads, where it reports, how it decides each reading, how often it samples as its battery drains, and how a dashboard draws it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "topic", "control", "power"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "(^|/)profile-1\\.json$",
+      "description": "The format the file is written in: this schema's address, or a copy of it by the same file name. An editor reads it to check the file as it is typed."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "A stable name, lowercase words joined by hyphens, such as brooder-heater. A shared profile's file carries the same name."
+    },
+    "description": {
+      "type": "string",
+      "description": "What the profile is for, in a sentence or two: what it watches or holds, and what it does when a reading crosses a line."
+    },
+    "reads": {
+      "$ref": "#/definitions/reads"
+    },
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^+#]+$",
+      "description": "The topic each reading is published to, such as poultry/brooder/temperature. One topic, so no + or # wildcards."
+    },
+    "control": {
+      "$ref": "#/definitions/control"
+    },
+    "power": {
+      "$ref": "#/definitions/power"
+    },
+    "presentation": {
+      "$ref": "#/definitions/presentation"
+    }
+  },
+  "definitions": {
+    "reads": {
+      "type": "object",
+      "description": "What the profile reads. The setpoint, bands, and limits under control are in this unit.",
+      "additionalProperties": false,
+      "required": ["quantity", "unit"],
+      "properties": {
+        "quantity": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(_[a-z][a-z0-9]*)*$",
+          "description": "The quantity its control decides on, in lowercase words joined by underscores, such as temperature, relative_humidity, soil_moisture, water_level, or pressure.",
+          "examples": ["temperature", "relative_humidity", "soil_moisture", "water_level", "pressure"]
+        },
+        "unit": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(_[a-z][a-z0-9]*)*$",
+          "description": "The unit its numbers are in, in lowercase words joined by underscores, such as celsius, percent, meter, or bar.",
+          "examples": ["celsius", "percent", "meter", "bar"]
+        }
+      }
+    },
+    "control": {
+      "description": "How each reading is decided. The kind names the policy and the other fields tune it.",
+      "oneOf": [
+        { "$ref": "#/definitions/setpoint" },
+        { "$ref": "#/definitions/level" },
+        { "$ref": "#/definitions/surge" },
+        { "$ref": "#/definitions/monitor" },
+        { "$ref": "#/definitions/custom" }
+      ]
+    },
+    "setpoint": {
+      "type": "object",
+      "title": "setpoint",
+      "description": "Holds a reading near a target by switching an output on and off, and alerts when the reading strays too far.",
+      "additionalProperties": false,
+      "required": ["kind", "setpoint", "hysteresis", "cooling", "safe_band"],
+      "properties": {
+        "kind": {
+          "const": "setpoint",
+          "description": "Names this policy."
+        },
+        "setpoint": {
+          "type": "number",
+          "description": "The target reading, such as 32 for a brooder in celsius."
+        },
+        "hysteresis": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Half the deadband around the setpoint. The output switches at the setpoint less and plus this, so it does not chatter."
+        },
+        "cooling": {
+          "type": "boolean",
+          "description": "true for an output that switches on above the band, such as a cooler; false for one that switches on below it, such as a heater or a valve that adds water."
+        },
+        "safe_band": {
+          "type": "number",
+          "description": "How far the reading may stray from the setpoint before an OutOfRange alert. No narrower than the hysteresis."
+        }
+      }
+    },
+    "level": {
+      "type": "object",
+      "title": "level",
+      "description": "Watches a falling level and warns before it runs out.",
+      "additionalProperties": false,
+      "required": ["kind", "empty", "warn_within"],
+      "properties": {
+        "kind": {
+          "const": "level",
+          "description": "Names this policy."
+        },
+        "empty": {
+          "type": "number",
+          "description": "The level treated as empty, such as 0.5 for a well in meters."
+        },
+        "warn_within": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Raise RunningOut once the level is on course to reach empty within this many more samples."
+        }
+      }
+    },
+    "surge": {
+      "type": "object",
+      "title": "surge",
+      "description": "Warns when a reading changes faster than is safe, such as a river rising into a flash flood.",
+      "additionalProperties": false,
+      "required": ["kind", "rising", "limit"],
+      "properties": {
+        "kind": {
+          "const": "surge",
+          "description": "Names this policy."
+        },
+        "rising": {
+          "type": "boolean",
+          "description": "true to watch for a rapid rise, false for a rapid fall."
+        },
+        "limit": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The largest safe change between two samples. A bigger one raises ChangingFast."
+        }
+      }
+    },
+    "monitor": {
+      "type": "object",
+      "title": "monitor",
+      "description": "Reports readings and decides nothing: no output, no alerts.",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "monitor",
+          "description": "Names this policy."
+        }
+      }
+    },
+    "custom": {
+      "type": "object",
+      "title": "a kind of your own",
+      "description": "A policy the library does not ship. Its parameters sit beside the kind, and the program that runs the profile registers the code that decides it.",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "not": { "enum": ["setpoint", "level", "surge", "monitor"] },
+          "description": "The kind's own name, in lowercase words joined by underscores, such as frost_guard."
+        }
+      },
+      "additionalProperties": {
+        "type": ["number", "boolean", "string"],
+        "description": "A parameter the kind's code reads: a number, true or false, or text."
+      }
+    },
+    "power": {
+      "type": "object",
+      "description": "How often the node samples as its battery drains. The intervals may not shorten as the charge falls.",
+      "additionalProperties": false,
+      "required": ["active_secs", "saver_secs", "critical_secs"],
+      "properties": {
+        "active_secs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds between samples on a healthy battery."
+        },
+        "saver_secs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds between samples below saver_below. No shorter than active_secs."
+        },
+        "critical_secs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds between samples below critical_below. No shorter than saver_secs."
+        },
+        "saver_below": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "The state of charge, from 0 to 1, below which the node samples at saver_secs."
+        },
+        "critical_below": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.2,
+          "description": "The state of charge below which the node samples at critical_secs. Below saver_below."
+        },
+        "hysteresis": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.05,
+          "description": "How far above a threshold the charge must climb to leave the slower cadence, so a charge hovering at a threshold does not switch it every cycle."
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "How a dashboard draws the node: the readings it adds, a tint, and the words for its own states.",
+      "additionalProperties": false,
+      "properties": {
+        "elements": {
+          "type": "array",
+          "default": [],
+          "description": "The readings and node stats the dashboard draws, in the order they are offered.",
+          "items": { "$ref": "#/definitions/element" }
+        },
+        "theme": {
+          "$ref": "#/definitions/theme"
+        },
+        "messages": {
+          "type": "object",
+          "description": "The words for each state. or event. code the profile introduces, keyed by the code, such as state.lamp_on.",
+          "propertyNames": { "pattern": "^(state|event)\\." },
+          "additionalProperties": { "$ref": "#/definitions/text" }
+        }
+      }
+    },
+    "element": {
+      "type": "object",
+      "description": "One reading or node stat on the dashboard.",
+      "additionalProperties": false,
+      "required": ["key", "unit", "label", "viz"],
+      "not": { "required": ["value", "state"] },
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The stable key the value travels under, in lowercase words joined by underscores, such as brooder_temperature. Used once per profile."
+        },
+        "unit": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The unit's name, such as celsius, percent, ntu, or state for an on and off reading."
+        },
+        "label": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The label shown when the reader's language has none of its own."
+        },
+        "labels": {
+          "type": "object",
+          "description": "The label in other languages, keyed by locale tag, such as fr or sw.",
+          "additionalProperties": { "type": "string" }
+        },
+        "viz": {
+          "enum": [
+            "spark", "gauge", "dial", "bar", "thermometer", "droplet", "battery", "wind",
+            "sun", "wave", "switch", "valve", "chain", "mesh", "count"
+          ],
+          "description": "The graphic the value is drawn with."
+        },
+        "band": {
+          "type": "array",
+          "description": "The safe band, [low, high] in the element's unit, drawn as the graphic's safe zone. The low end comes first.",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number" }
+        },
+        "stat": {
+          "type": "boolean",
+          "default": false,
+          "description": "true for telemetry about the node itself, such as a battery or dropped packets, which the dashboard counts apart from the world it measures."
+        },
+        "scope": {
+          "default": "always",
+          "description": "Which groups offer the element: always, or { \"links\": [...] } for groups on those link kinds only, such as mesh.",
+          "oneOf": [
+            { "const": "always" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["links"],
+              "properties": {
+                "links": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          ]
+        },
+        "span": {
+          "type": "boolean",
+          "default": false,
+          "description": "true to give a wide graphic two columns."
+        },
+        "value": {
+          "type": "number",
+          "description": "The value shown until the first real sample arrives."
+        },
+        "state": {
+          "type": "string",
+          "pattern": "^state\\.",
+          "description": "The state shown until the first real sample arrives, for an on and off reading, such as state.lamp_off. Not together with value."
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "description": "A tint for the dashboard. Each color is any CSS color.",
+      "additionalProperties": false,
+      "properties": {
+        "accent": { "type": "string", "pattern": "\\S", "description": "Links, focus, and the brand mark." },
+        "ok": { "type": "string", "pattern": "\\S", "description": "A healthy reading, and an in-band gauge." },
+        "warn": { "type": "string", "pattern": "\\S", "description": "A warning." },
+        "alarm": { "type": "string", "pattern": "\\S", "description": "An alarm." },
+        "track": { "type": "string", "pattern": "\\S", "description": "The unfilled rail behind gauges and bars." }
+      }
+    },
+    "text": {
+      "description": "One text for every language, or an object of texts keyed by locale tag with an en text the others fall back to.",
+      "oneOf": [
+        { "type": "string", "pattern": "\\S" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "additionalProperties": { "type": "string" }
+        }
+      ]
+    }
+  }
+}

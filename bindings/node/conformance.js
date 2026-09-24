@@ -3627,8 +3627,8 @@ function rulesVectors() {
   // Each action written back in the rule file's own shape, to compare with the vector.
   const written = (action) =>
     action.kind === profile.RuleActionKind.Drive
-      ? { do: "drive", actuator: action.actuator, on: action.on }
-      : { do: "publish", topic: action.topic, payload: action.payload };
+      ? { drive: action.actuator, on: action.on }
+      : { publish: action.topic, payload: action.payload };
   for (const step of vector.steps) {
     const fired = evaluator.evaluate(step.topic, step.reading).map((one) => ({
       rule: one.rule,
@@ -3674,6 +3674,7 @@ function profileVectors() {
   close(fridge.power.activeSecs, coldChain.power.activeSecs, "the active cadence");
   close(fridge.power.saverBelow, coldChain.power.saverBelow, "the saver threshold");
   close(fridge.power.hysteresis, coldChain.power.hysteresis, "the hysteresis margin");
+  assert.deepStrictEqual(fridge.reads, coldChain.reads, "what the preset reads");
   assertReactions(fridge.controller(), coldChain.reactions);
 
   const plan = fridge.powerPlan();
@@ -3707,17 +3708,23 @@ function profileVectors() {
   assert.strictEqual(vector.observed.alert.kind, "None");
   assert.ok(observed.alert == null, "and raises nothing");
 
-  // A kind the library never shipped: loaded, named, its parameters kept, and its
-  // built-in controller observing only.
+  // A kind the library never shipped: loaded, named, and its parameters kept, but no
+  // built-in controller decides it, so asking for one is refused.
   const custom = vector.custom;
   const orchard = profile.Profile.fromJson(custom.manifest);
   assert.strictEqual(orchard.name, custom.name, "a custom kind's profile carries its name");
   assertControl(orchard.control, custom.control);
-  assertReactions(orchard.controller(), custom.reactions);
+  assert.throws(() => orchard.controller(), (error) => {
+    assert.ok(error.message.includes(custom.refusal), `${error.message} should say ${custom.refusal}`);
+    return true;
+  });
 
   // Profiles built from their parts write the same manifest bytes Rust does.
   for (const built of vector.built) {
-    const made = new profile.Profile(built.name, built.topic, built.control, built.power);
+    let made = new profile.Profile(built.name, built.topic, built.control, built.power);
+    if (built.reads != null) {
+      made = made.withReads(built.reads.quantity, built.reads.unit);
+    }
     assert.strictEqual(made.toJson(), built.manifest, `the manifest ${built.name} writes`);
   }
 }

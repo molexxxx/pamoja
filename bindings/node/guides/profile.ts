@@ -8,13 +8,13 @@ import { Profile, Viz } from '@pamoja/profile'
 // A profile is plain data, so a fleet ships one as a file rather than as code. This
 // manifest names no battery thresholds, so the documented defaults apply.
 const manifest = `{
-  "name": "brooder-heater",
-  "topic": "poultry/brooder/temperature",
-  "control": {
-    "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-    "cooling": false, "safe_band": 4.0
-  },
-  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+    "name": "brooder-heater",
+    "topic": "poultry/brooder/temperature",
+    "control": {
+        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+        "cooling": false, "safe_band": 4.0
+    },
+    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }`
 const profile = Profile.fromJson(manifest)
 console.log(`profile   ${profile.name} reports on ${profile.topic}`)
@@ -104,8 +104,6 @@ for (const gauge of [1.2, 1.35, 1.9]) {
 // ANCHOR_END: kinds
 
 // ANCHOR: wrong
-import { ControlKind } from '@pamoja/profile'
-
 // A probe that fails reports a reading that is not a number. The controller raises it
 // rather than going quiet, and the lamp holds its state; what off means for the chicks is
 // the node's call.
@@ -125,10 +123,13 @@ if (first === true && then === false) {
   )
 }
 
-// A manifest no node could run is refused as it loads, with the reason.
+// A manifest no node could run is refused as it loads, with the reason. So is a misspelled
+// field, with the one it was probably meant to be, rather than leaving the default in its
+// place without a word.
 for (const edited of [
   manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
   manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
+  manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
 ]) {
   try {
     Profile.fromJson(edited)
@@ -138,27 +139,14 @@ for (const edited of [
   }
 }
 
-// A misspelled optional field is not an error: it names no field, so the default stays.
-// Writing the profile back out shows what the node understood.
-const misspelled = manifest.replace(
-  '"critical_secs": 1800 }',
-  '"critical_secs": 1800, "saver_bellow": 0.3 }',
-)
-const understood = Profile.fromJson(misspelled)
-console.log(
-  `typo      saver_bellow names no field, so saver still starts below ${(understood.power.saverBelow * 100).toFixed(0)}%`,
-)
-
-// A kind the library does not ship loads with its parameters and runs as a monitor until
-// the node supplies the policy, so it drives nothing and raises nothing.
+// A kind the library does not ship loads with its parameters, but no built-in controller
+// decides it, so asking for one is refused rather than handing back a node that would
+// never switch the lamp.
 const custom = Profile.fromJson(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
-if (custom.control.kind === ControlKind.Custom) {
-  const reaction = custom.controller().evaluate(27.5)
-  if (reaction.actuator == null && reaction.alert == null) {
-    const count = Object.keys(custom.control.params ?? {}).length
-    console.log(
-      `custom    ${custom.control.customKind} loads with ${count} parameters, and with no policy behind it drives nothing`,
-    )
-  }
+try {
+  custom.controller()
+  console.log('a custom kind ran without its policy, which should never happen')
+} catch (error) {
+  console.log(`refused   ${(error as Error).message}`)
 }
 // ANCHOR_END: wrong

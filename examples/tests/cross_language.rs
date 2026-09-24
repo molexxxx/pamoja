@@ -3772,7 +3772,18 @@ fn profile_vectors_match() {
         "the saver threshold"
     );
 
-    let mut control = fridge.controller();
+    let reads = &cold_chain["reads"];
+    let declared = fridge
+        .reads
+        .as_ref()
+        .expect("the fridge says what it reads");
+    assert_eq!(
+        declared.quantity,
+        reads["quantity"].as_str().expect("the quantity")
+    );
+    assert_eq!(declared.unit, reads["unit"].as_str().expect("the unit"));
+
+    let mut control = fridge.controller().expect("a setpoint");
     assert_reactions(&mut control, &cold_chain["reactions"]);
 
     let plan = fridge.power.plan();
@@ -3809,7 +3820,7 @@ fn profile_vectors_match() {
     let well = Profile::well_level();
     assert_eq!(well.name, draining["name"].as_str().expect("the name"));
     assert_control(&well.control, &draining["control"]);
-    let mut level = well.controller();
+    let mut level = well.controller().expect("a level");
     assert_reactions(&mut level, &draining["reactions"]);
 
     let custom = &vector["custom"];
@@ -3817,8 +3828,12 @@ fn profile_vectors_match() {
         .expect("a custom kind parses");
     assert_eq!(orchard.name, custom["name"].as_str().expect("the name"));
     assert_control(&orchard.control, &custom["control"]);
-    let mut inert = orchard.controller();
-    assert_reactions(&mut inert, &custom["reactions"]);
+    let refusal = orchard
+        .controller()
+        .expect_err("no built-in controller decides a custom kind")
+        .to_string();
+    let reason = custom["refusal"].as_str().expect("the refusal");
+    assert!(refusal.contains(reason), "{refusal} should say {reason}");
 
     let mut observer = Controller::monitor();
     let observed = &vector["observed"];
@@ -3839,12 +3854,18 @@ fn profile_vectors_match() {
                 .expect("the critical cadence"),
         )
         .with_thresholds(float(&power["saverBelow"]), float(&power["criticalBelow"]));
-        let profile = Profile::new(
+        let mut profile = Profile::new(
             case["name"].as_str().expect("the name"),
             case["topic"].as_str().expect("the topic"),
             spec_from(&case["control"]),
             schedule,
         );
+        if let Some(reads) = case["reads"].as_object() {
+            profile = profile.with_reads(
+                reads["quantity"].as_str().expect("the quantity"),
+                reads["unit"].as_str().expect("the unit"),
+            );
+        }
         assert_eq!(
             profile.to_json().expect("a profile serializes"),
             case["manifest"].as_str().expect("the manifest"),

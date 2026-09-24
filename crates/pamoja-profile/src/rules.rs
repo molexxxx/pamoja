@@ -23,10 +23,10 @@ pub enum Compare {
 /// A line drawn through one topic's readings, with the release band that stops it
 /// firing over and over.
 ///
-/// In a rule file it is the `when` object:
+/// In a rule file it is the `when` object, which names the line with `below` or `above`:
 ///
 /// ```json
-/// { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 }
+/// { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 }
 /// ```
 ///
 /// The condition becomes true the moment a reading crosses the threshold in the named
@@ -34,6 +34,7 @@ pub enum Compare {
 /// hysteresis; readings in between leave it as it was. That is a
 /// [`Trigger`](pamoja_kit::Trigger), and [`trigger`](Condition::trigger) builds it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "ConditionFile", into = "ConditionFile")]
 pub struct Condition {
     /// The topic whose readings are watched, exactly as the node publishes to it.
     pub topic: String,
@@ -42,8 +43,64 @@ pub struct Condition {
     /// The line a reading crosses.
     pub threshold: f32,
     /// How far back past the line a reading must come for the condition to clear.
-    #[serde(default)]
     pub hysteresis: f32,
+}
+
+/// A condition as a rule file writes it, with the line named by the side it holds on.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConditionFile {
+    topic: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    above: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    below: Option<f32>,
+    #[serde(default)]
+    hysteresis: f32,
+}
+
+impl TryFrom<ConditionFile> for Condition {
+    type Error = String;
+
+    fn try_from(file: ConditionFile) -> core::result::Result<Self, String> {
+        let (compare, threshold) = match (file.above, file.below) {
+            (Some(line), None) => (Compare::Above, line),
+            (None, Some(line)) => (Compare::Below, line),
+            (Some(_), Some(_)) => {
+                return Err(format!(
+                    "the condition on `{}` names both `above` and `below`; a rule draws one line, so write a second rule for the other",
+                    file.topic
+                ))
+            }
+            (None, None) => {
+                return Err(format!(
+                    "the condition on `{}` needs a line to cross: `above` or `below`, such as \"below\": 30.0",
+                    file.topic
+                ))
+            }
+        };
+        Ok(Condition {
+            topic: file.topic,
+            compare,
+            threshold,
+            hysteresis: file.hysteresis,
+        })
+    }
+}
+
+impl From<Condition> for ConditionFile {
+    fn from(condition: Condition) -> Self {
+        let (above, below) = match condition.compare {
+            Compare::Above => (Some(condition.threshold), None),
+            Compare::Below => (None, Some(condition.threshold)),
+        };
+        ConditionFile {
+            topic: condition.topic,
+            above,
+            below,
+            hysteresis: condition.hysteresis,
+        }
+    }
 }
 
 impl Condition {
@@ -115,14 +172,14 @@ impl Condition {
 
 /// What a rule does when its condition sets or clears.
 ///
-/// In a rule file each action is an object tagged by `do`:
+/// In a rule file each action is an object named by what it does:
 ///
 /// ```json
-/// { "do": "drive", "actuator": "bed-valve", "on": true }
-/// { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" }
+/// { "drive": "bed-valve", "on": true }
+/// { "publish": "garden/bed-1/valve", "payload": "open" }
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "do", rename_all = "snake_case")]
+#[serde(try_from = "ActionFile", into = "ActionFile")]
 pub enum Action {
     /// Switches an actuator the engine was given under this name.
     Drive {
@@ -140,14 +197,97 @@ pub enum Action {
     },
 }
 
+/// An action as a rule file writes it: `drive` with `on`, or `publish` with `payload`.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActionFile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drive: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    on: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    publish: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    payload: Option<String>,
+}
+
+impl TryFrom<ActionFile> for Action {
+    type Error = String;
+
+    fn try_from(file: ActionFile) -> core::result::Result<Self, String> {
+        match file {
+            ActionFile {
+                drive: Some(actuator),
+                on: Some(on),
+                publish: None,
+                payload: None,
+            } => Ok(Action::Drive { actuator, on }),
+            ActionFile {
+                drive: None,
+                on: None,
+                publish: Some(topic),
+                payload: Some(payload),
+            } => Ok(Action::Publish { topic, payload }),
+            ActionFile {
+                drive: Some(_),
+                publish: Some(_),
+                ..
+            } => Err("an action does one thing: `drive` or `publish`, not both".to_owned()),
+            ActionFile {
+                drive: Some(actuator),
+                on: None,
+                ..
+            } => Err(format!(
+                "driving `{actuator}` needs `on`: true to switch it on, false to switch it off"
+            )),
+            ActionFile {
+                publish: Some(topic),
+                payload: None,
+                ..
+            } => Err(format!(
+                "publishing to `{topic}` needs a `payload`, the text to send"
+            )),
+            ActionFile { drive: Some(_), .. } => {
+                Err("`payload` belongs to `publish`, not to `drive`".to_owned())
+            }
+            ActionFile {
+                publish: Some(_), ..
+            } => Err("`on` belongs to `drive`, not to `publish`".to_owned()),
+            ActionFile { .. } => Err(
+                "an action names what it does: `drive` an actuator or `publish` to a topic"
+                    .to_owned(),
+            ),
+        }
+    }
+}
+
+impl From<Action> for ActionFile {
+    fn from(action: Action) -> Self {
+        match action {
+            Action::Drive { actuator, on } => ActionFile {
+                drive: Some(actuator),
+                on: Some(on),
+                publish: None,
+                payload: None,
+            },
+            Action::Publish { topic, payload } => ActionFile {
+                drive: None,
+                on: None,
+                publish: Some(topic),
+                payload: Some(payload),
+            },
+        }
+    }
+}
+
 /// One rule: a condition over a topic, and what to do as it sets and clears.
 ///
 /// ```json
 /// {
 ///   "name": "water-when-dry",
-///   "when": { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 },
-///   "then": [ { "do": "drive", "actuator": "bed-valve", "on": true } ],
-///   "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false } ]
+///   "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+///   "then": [ { "drive": "bed-valve", "on": true } ],
+///   "otherwise": [ { "drive": "bed-valve", "on": false } ]
 /// }
 /// ```
 ///
@@ -155,6 +295,7 @@ pub enum Action {
 /// holding; either may be left out. The name is what the engine reports when the rule
 /// fires.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rule {
     /// A stable name for the rule, such as `"water-when-dry"`.
     pub name: String,
@@ -235,15 +376,51 @@ impl Rule {
 /// A set of rules, as a file a fleet shares.
 ///
 /// ```json
-/// { "rules": [ ... ] }
+/// { "$schema": "https://pamoja.molex.cloud/schema/rules-1.json", "rules": [ ... ] }
 /// ```
+///
+/// The `$schema` is optional; it names the format the file is written in, and an editor
+/// reads it to check the file as it is typed. A field the format does not have is
+/// refused, with the nearest one it does.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RulesFile", into = "RulesFile")]
 pub struct Rules {
     /// The rules, in the order they are checked against each message.
     pub rules: Vec<Rule>,
 }
 
+/// A rule file as written, with the `$schema` that names its format.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RulesFile {
+    #[serde(rename = "$schema", default, skip_serializing_if = "Option::is_none")]
+    schema: Option<String>,
+    rules: Vec<Rule>,
+}
+
+impl TryFrom<RulesFile> for Rules {
+    type Error = String;
+
+    fn try_from(file: RulesFile) -> core::result::Result<Self, String> {
+        crate::format::check_schema(file.schema.as_deref(), "rules", Rules::SCHEMA)?;
+        Ok(Rules { rules: file.rules })
+    }
+}
+
+impl From<Rules> for RulesFile {
+    fn from(rules: Rules) -> Self {
+        RulesFile {
+            schema: Some(Rules::SCHEMA.to_owned()),
+            rules: rules.rules,
+        }
+    }
+}
+
 impl Rules {
+    /// The address of the published JSON Schema for the rule file format this build
+    /// writes, which [`to_json`](Rules::to_json) names as the file's `$schema`.
+    pub const SCHEMA: &'static str = "https://pamoja.molex.cloud/schema/rules-1.json";
+
     /// Starts with no rules.
     ///
     /// # Returns
@@ -279,10 +456,39 @@ impl Rules {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Codec`] if the text is not a rule file.
+    /// Returns [`Error::Codec`] if the text is not a rule file, is written in a format
+    /// this build does not read, carries a field the format does not have, or holds a rule
+    /// [`check`](Rules::check) refuses. A misspelled field is reported with the name it was
+    /// probably meant to be.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Rules;
+    ///
+    /// let file = r#"{
+    ///   "$schema": "https://pamoja.molex.cloud/schema/rules-1.json",
+    ///   "rules": [
+    ///     { "name": "vent-when-hot",
+    ///       "when": { "topic": "greenhouse/air", "above": 30.0, "hysteresis": 3.0 },
+    ///       "then": [ { "drive": "roof-vent", "on": true } ],
+    ///       "otherwise": [ { "drive": "roof-vent", "on": false } ] }
+    ///   ]
+    /// }"#;
+    /// let rules = Rules::from_json(file)?;
+    /// assert_eq!(rules.rules[0].when.threshold, 30.0);
+    ///
+    /// let typo = file.replace("\"hysteresis\"", "\"hysterisis\"");
+    /// let refused = Rules::from_json(&typo).unwrap_err().to_string();
+    /// assert!(refused.contains("did you mean `hysteresis`?"), "{refused}");
+    /// # Ok::<(), pamoja_core::Error>(())
+    /// ```
     #[cfg(feature = "json")]
     pub fn from_json(text: &str) -> Result<Self> {
-        serde_json::from_str(text).map_err(|error| Error::Codec(error.to_string()))
+        let rules: Rules = serde_json::from_str(text)
+            .map_err(|error| Error::Codec(crate::format::explain(&error)))?;
+        rules.check()?;
+        Ok(rules)
     }
 
     /// Writes the rules as the JSON file a fleet shares.
@@ -858,17 +1064,18 @@ mod tests {
     use super::*;
 
     const FILE: &str = r#"{
+  "$schema": "https://pamoja.molex.cloud/schema/rules-1.json",
   "rules": [
     {
       "name": "water-when-dry",
-      "when": { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 },
+      "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
       "then": [
-        { "do": "drive", "actuator": "bed-valve", "on": true },
-        { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" }
+        { "drive": "bed-valve", "on": true },
+        { "publish": "garden/bed-1/valve", "payload": "open" }
       ],
       "otherwise": [
-        { "do": "drive", "actuator": "bed-valve", "on": false },
-        { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" }
+        { "drive": "bed-valve", "on": false },
+        { "publish": "garden/bed-1/valve", "payload": "closed" }
       ]
     }
   ]
@@ -898,7 +1105,16 @@ mod tests {
         let mut trigger = rule.when.trigger();
         assert_eq!(trigger.update(28.0), Some(Edge::Set));
         let shared = rules.to_json().unwrap();
-        assert!(shared.contains("\"do\": \"publish\""), "{shared}");
+        assert!(
+            shared.contains("\"publish\": \"garden/bed-1/valve\",\n"),
+            "{shared}"
+        );
+        assert!(
+            shared.starts_with(
+                "{\n  \"$schema\": \"https://pamoja.molex.cloud/schema/rules-1.json\""
+            ),
+            "{shared}"
+        );
         assert_eq!(Rules::from_json(&shared).unwrap(), rules);
 
         let built = Rules::new().with(
@@ -925,6 +1141,58 @@ mod tests {
         );
         assert_eq!(built, rules);
         assert_eq!(Condition::above("t", 1.0).compare, Compare::Above);
+    }
+
+    #[test]
+    fn a_rule_file_says_what_it_does_in_its_own_words_or_is_refused() {
+        let rule = |when: &str, then: &str| {
+            format!(r#"{{ "rules": [ {{ "name": "r", "when": {when}, "then": [ {then} ] }} ] }}"#)
+        };
+        let refused = |text: String| match Rules::from_json(&text) {
+            Err(Error::Codec(reason)) => reason,
+            other => panic!("expected {text} to be refused, got {other:?}"),
+        };
+        let drive = r#"{ "drive": "fan", "on": true }"#;
+        let when = r#"{ "topic": "t", "above": 1.0 }"#;
+        Rules::from_json(&rule(when, drive)).expect("a usable rule");
+
+        assert!(refused(rule(r#"{ "topic": "t" }"#, drive)).contains("needs a line to cross"));
+        assert!(refused(rule(
+            r#"{ "topic": "t", "above": 1.0, "below": 0.0 }"#,
+            drive
+        ))
+        .contains("names both `above` and `below`"));
+        assert!(refused(rule(
+            r#"{ "topic": "t", "compare": "above", "threshold": 1.0 }"#,
+            drive
+        ))
+        .starts_with("unknown field `compare`, expected one of `topic`, `above`, `below`"));
+        assert!(refused(rule(r#"{ "topic": "t", "abve": 1.0 }"#, drive))
+            .starts_with("unknown field `abve`, did you mean `above`?"));
+
+        assert!(refused(rule(when, r#"{ "drive": "fan" }"#)).contains("needs `on`"));
+        assert!(refused(rule(when, r#"{ "publish": "t/out" }"#)).contains("needs a `payload`"));
+        assert!(refused(rule(
+            when,
+            r#"{ "drive": "fan", "on": true, "publish": "t/out", "payload": "x" }"#
+        ))
+        .contains("not both"));
+        assert!(refused(rule(
+            when,
+            r#"{ "drive": "fan", "on": true, "payload": "x" }"#
+        ))
+        .contains("`payload` belongs to `publish`"));
+        assert!(refused(rule(when, r#"{ "on": true }"#)).contains("an action names what it does"));
+        assert!(refused(rule(
+            when,
+            r#"{ "do": "drive", "actuator": "fan", "on": true }"#
+        ))
+        .starts_with("unknown field `do`"));
+
+        let newer = FILE.replace("rules-1.json", "rules-2.json");
+        assert!(refused(newer).contains("rules format 2"));
+        let idle = rule(when, "").replace(r#", "then": [  ]"#, "");
+        assert_eq!(refused(idle), "the rule `r` has nothing to do");
     }
 
     #[test]

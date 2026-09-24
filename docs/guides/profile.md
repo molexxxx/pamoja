@@ -30,8 +30,8 @@ The second part runs the other two policies on the profiles the library ships: a
 well whose level falls toward dry, and a river that rises too fast.
 
 The third part is what goes wrong: a probe that fails, a controller built again
-for each reading, two manifests no node could run, a misspelled field, and a
-control kind the library does not ship.
+for each reading, two manifests no node could run and one with a misspelled field,
+and a control kind the library does not ship.
 
 The manifest sets the three sampling intervals but neither battery threshold, so
 the 50% and 20% printed come from the library's defaults rather than from the
@@ -56,9 +56,10 @@ It proves:
 - A reading that is not a number raises `InvalidReading` and the lamp holds, and a
   controller built again for each reading forgets the lamp was on.
 - A manifest with a hysteresis of zero, or intervals that shorten as the battery
-  drains, is refused with the reason. A misspelled field is not, and its default
-  stays. A control kind the library does not ship decides nothing until the node
-  supplies the policy.
+  drains, is refused with the reason, and one with a misspelled field is refused
+  with the field it was probably meant to be. A control kind the library does not
+  ship loads, but no built-in controller decides it, so asking for one is refused
+  rather than handing back a node that never switches the lamp.
 
 ## Run it
 
@@ -88,11 +89,11 @@ manifest's custom kind to it.
 From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/profile.rs):
 
 ```rust
-use pamoja_profile::{ElementSpec, Presentation, Profile, Viz};
+    use pamoja_profile::{ElementSpec, Presentation, Profile, Viz};
 
-// A profile is plain data, so a fleet ships one as a file rather than as code. This
-// manifest names no battery thresholds, so the documented defaults apply.
-let manifest = r#"{
+    // A profile is plain data, so a fleet ships one as a file rather than as code. This
+    // manifest names no battery thresholds, so the documented defaults apply.
+    let manifest = r#"{
     "name": "brooder-heater",
     "topic": "poultry/brooder/temperature",
     "control": {
@@ -101,81 +102,81 @@ let manifest = r#"{
     },
     "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }"#;
-let profile = Profile::from_json(manifest)?;
-println!("profile   {} reports on {}", profile.name, profile.topic);
-println!(
-    "defaults  the file names no battery thresholds, so saver starts below {:.0}% and critical below {:.0}%",
-    profile.power.saver_below * 100.0,
-    profile.power.critical_below * 100.0
-);
-
-// The schedule becomes a power plan, which says what mode a charge puts the node in
-// and how long it waits between samples there.
-let plan = profile.power.plan();
-for charge in [0.8, 0.3, 0.1] {
+    let profile = Profile::from_json(manifest)?;
+    println!("profile   {} reports on {}", profile.name, profile.topic);
     println!(
-        "battery   at {:.0}% it runs {:?} and samples every {} s",
-        charge * 100.0,
-        plan.mode(charge),
-        plan.interval(charge).as_secs()
+        "defaults  the file names no battery thresholds, so saver starts below {:.0}% and critical below {:.0}%",
+        profile.power.saver_below * 100.0,
+        profile.power.critical_below * 100.0
     );
-}
 
-// One controller runs for the life of the node, because it remembers whether the
-// lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the
-// setpoint less and plus the hysteresis, and in between it stays as it was. A reading
-// more than 4 C from the setpoint raises an alert as well.
-let mut controller = profile.controller();
-let mut lamp = false;
-for reading in [27.5, 31.8, 32.6, 32.1, 31.4] {
-    let reaction = controller.evaluate(reading);
-    let on = reaction.actuator.expect("this profile drives a lamp");
-    let change = match (lamp, on) {
-        (false, true) => "lamp on",
-        (true, false) => "lamp off",
-        (true, true) => "lamp stays on",
-        (false, false) => "lamp stays off",
-    };
-    let alert = reaction
-        .alert
-        .map(|alert| format!(", alert {}", alert.kind()))
-        .unwrap_or_default();
-    println!("{:<10}{change}{alert}", format!("{reading} C"));
-    lamp = on;
-}
+    // The schedule becomes a power plan, which says what mode a charge puts the node in
+    // and how long it waits between samples there.
+    let plan = profile.power.plan();
+    for charge in [0.8, 0.3, 0.1] {
+        println!(
+            "battery   at {:.0}% it runs {:?} and samples every {} s",
+            charge * 100.0,
+            plan.mode(charge),
+            plan.interval(charge).as_secs()
+        );
+    }
 
-// Written back out, the manifest names the thresholds the file left to their
-// defaults, so the next reader has nothing to infer, and it loads as the same profile.
-let shared = profile.to_json()?;
-if shared.contains("saver_below") && Profile::from_json(&shared)?.to_json()? == shared {
-    println!("shared    written back out, it names saver_below and loads as the same profile");
-}
+    // One controller runs for the life of the node, because it remembers whether the
+    // lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the
+    // setpoint less and plus the hysteresis, and in between it stays as it was. A reading
+    // more than 4 C from the setpoint raises an alert as well.
+    let mut controller = profile.controller()?;
+    let mut lamp = false;
+    for reading in [27.5, 31.8, 32.6, 32.1, 31.4] {
+        let reaction = controller.evaluate(reading);
+        let on = reaction.actuator.expect("this profile drives a lamp");
+        let change = match (lamp, on) {
+            (false, true) => "lamp on",
+            (true, false) => "lamp off",
+            (true, true) => "lamp stays on",
+            (false, false) => "lamp stays off",
+        };
+        let alert = reaction
+            .alert
+            .map(|alert| format!(", alert {}", alert.kind()))
+            .unwrap_or_default();
+        println!("{:<10}{change}{alert}", format!("{reading} C"));
+        lamp = on;
+    }
 
-// The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature on a thermometer with the band the chicks are safe in.
-let drawn = profile.clone().with_presentation(
-    Presentation::new().with_element(
-        ElementSpec::new(
-            "brooder_temperature",
-            "celsius",
-            "Brooder temperature",
-            Viz::Thermometer,
-        )
-        .with_band(28.0, 36.0),
-    ),
-);
-let element = &drawn
-    .presentation
-    .as_ref()
-    .expect("a declared presentation")
-    .elements[0];
-let [low, high] = element.band.expect("a band");
-println!(
-    "draws     {} in {} on a {}, safe from {low} to {high}",
-    element.key,
-    element.unit,
-    element.viz.name()
-);
+    // Written back out, the manifest names the thresholds the file left to their
+    // defaults, so the next reader has nothing to infer, and it loads as the same profile.
+    let shared = profile.to_json()?;
+    if shared.contains("saver_below") && Profile::from_json(&shared)?.to_json()? == shared {
+        println!("shared    written back out, it names saver_below and loads as the same profile");
+    }
+
+    // The manifest also carries how a dashboard draws the node: one element here, the
+    // brooder's temperature on a thermometer with the band the chicks are safe in.
+    let drawn = profile.clone().with_presentation(
+        Presentation::new().with_element(
+            ElementSpec::new(
+                "brooder_temperature",
+                "celsius",
+                "Brooder temperature",
+                Viz::Thermometer,
+            )
+            .with_band(28.0, 36.0),
+        ),
+    );
+    let element = &drawn
+        .presentation
+        .as_ref()
+        .expect("a declared presentation")
+        .elements[0];
+    let [low, high] = element.band.expect("a band");
+    println!(
+        "draws     {} in {} on a {}, safe from {low} to {high}",
+        element.key,
+        element.unit,
+        element.viz.name()
+    );
 ```
 <!-- end -->
 
@@ -189,7 +190,7 @@ use pamoja_profile::Alert;
 
 // A level warns before a tank or a well runs dry. The shipped well profile counts
 // 0.5 m as dry and warns once the last fall puts dry six samples away or nearer.
-let mut well = Profile::well_level().controller();
+let mut well = Profile::well_level().controller()?;
 for depth in [5.0, 4.4, 3.8] {
     match well.evaluate(depth).alert {
         Some(Alert::RunningOut { samples }) => {
@@ -201,7 +202,7 @@ for depth in [5.0, 4.4, 3.8] {
 
 // A surge warns when a reading moves too far in one sample. The shipped flood sensor
 // warns when a river rises more than 0.3 m between two readings.
-let mut river = Profile::flood_sensor().controller();
+let mut river = Profile::flood_sensor().controller()?;
 for gauge in [1.2, 1.35, 1.9] {
     match river.evaluate(gauge).alert {
         Some(Alert::ChangingFast { rate }) => {
@@ -219,8 +220,6 @@ What goes wrong, continuing from above:
 From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/profile.rs):
 
 ```rust
-use pamoja_profile::ControlSpec;
-
 // A probe that fails reports a reading that is not a number. The controller raises
 // it rather than going quiet, and the lamp holds its state; what off means for the
 // chicks is the node's call.
@@ -239,18 +238,24 @@ if let Some(alert) = failed.alert {
 
 // A controller built again for each reading forgets the lamp was on, so inside the
 // deadband it switches the lamp off.
-let first = profile.controller().evaluate(27.5).actuator;
-let then = profile.controller().evaluate(31.8).actuator;
+let first = profile.controller()?.evaluate(27.5).actuator;
+let then = profile.controller()?.evaluate(31.8).actuator;
 if first == Some(true) && then == Some(false) {
     println!(
         "fresh     built again for each reading, the controller turns the lamp off at 31.8 C"
     );
 }
 
-// A manifest no node could run is refused as it loads, with the reason.
+// A manifest no node could run is refused as it loads, with the reason. So is a
+// misspelled field, with the one it was probably meant to be, rather than leaving
+// the default in its place without a word.
 for edited in [
     manifest.replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
     manifest.replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+    manifest.replace(
+        "\"critical_secs\": 1800 }",
+        "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }",
+    ),
 ] {
     match Profile::from_json(&edited) {
         Ok(_) => {
@@ -260,31 +265,15 @@ for edited in [
     }
 }
 
-// A misspelled optional field is not an error: it names no field, so the default
-// stays. Writing the profile back out shows what the node understood.
-let misspelled = manifest.replace(
-    "\"critical_secs\": 1800 }",
-    "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }",
-);
-let understood = Profile::from_json(&misspelled)?;
-println!(
-    "typo      saver_bellow names no field, so saver still starts below {:.0}%",
-    understood.power.saver_below * 100.0
-);
-
-// A kind the library does not ship loads with its parameters and runs as a monitor
-// until the node supplies the policy, so it drives nothing and raises nothing.
+// A kind the library does not ship loads with its parameters, but no built-in
+// controller decides it, so asking for one is refused rather than handing back a
+// node that would never switch the lamp.
 let custom = Profile::from_json(
     &manifest.replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""),
 )?;
-if let ControlSpec::Custom { kind, params } = &custom.control {
-    let reaction = custom.controller().evaluate(27.5);
-    if reaction.actuator.is_none() && reaction.alert.is_none() {
-        println!(
-            "custom    {kind} loads with {} parameters, and with no policy behind it drives nothing",
-            params.len()
-        );
-    }
+match custom.controller() {
+    Ok(_) => println!("a custom kind ran without its policy, which should never happen"),
+    Err(error) => println!("refused   {error}"),
 }
 ```
 <!-- end -->
@@ -306,13 +295,13 @@ import { Profile, Viz } from '@pamoja/profile'
 // A profile is plain data, so a fleet ships one as a file rather than as code. This
 // manifest names no battery thresholds, so the documented defaults apply.
 const manifest = `{
-  "name": "brooder-heater",
-  "topic": "poultry/brooder/temperature",
-  "control": {
-    "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-    "cooling": false, "safe_band": 4.0
-  },
-  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+    "name": "brooder-heater",
+    "topic": "poultry/brooder/temperature",
+    "control": {
+        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+        "cooling": false, "safe_band": 4.0
+    },
+    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }`
 const profile = Profile.fromJson(manifest)
 console.log(`profile   ${profile.name} reports on ${profile.topic}`)
@@ -411,8 +400,6 @@ What goes wrong, continuing from above:
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import { ControlKind } from '@pamoja/profile'
-
 // A probe that fails reports a reading that is not a number. The controller raises it
 // rather than going quiet, and the lamp holds its state; what off means for the chicks is
 // the node's call.
@@ -432,10 +419,13 @@ if (first === true && then === false) {
   )
 }
 
-// A manifest no node could run is refused as it loads, with the reason.
+// A manifest no node could run is refused as it loads, with the reason. So is a misspelled
+// field, with the one it was probably meant to be, rather than leaving the default in its
+// place without a word.
 for (const edited of [
   manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
   manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
+  manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
 ]) {
   try {
     Profile.fromJson(edited)
@@ -445,28 +435,15 @@ for (const edited of [
   }
 }
 
-// A misspelled optional field is not an error: it names no field, so the default stays.
-// Writing the profile back out shows what the node understood.
-const misspelled = manifest.replace(
-  '"critical_secs": 1800 }',
-  '"critical_secs": 1800, "saver_bellow": 0.3 }',
-)
-const understood = Profile.fromJson(misspelled)
-console.log(
-  `typo      saver_bellow names no field, so saver still starts below ${(understood.power.saverBelow * 100).toFixed(0)}%`,
-)
-
-// A kind the library does not ship loads with its parameters and runs as a monitor until
-// the node supplies the policy, so it drives nothing and raises nothing.
+// A kind the library does not ship loads with its parameters, but no built-in controller
+// decides it, so asking for one is refused rather than handing back a node that would
+// never switch the lamp.
 const custom = Profile.fromJson(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
-if (custom.control.kind === ControlKind.Custom) {
-  const reaction = custom.controller().evaluate(27.5)
-  if (reaction.actuator == null && reaction.alert == null) {
-    const count = Object.keys(custom.control.params ?? {}).length
-    console.log(
-      `custom    ${custom.control.customKind} loads with ${count} parameters, and with no policy behind it drives nothing`,
-    )
-  }
+try {
+  custom.controller()
+  console.log('a custom kind ran without its policy, which should never happen')
+} catch (error) {
+  console.log(`refused   ${(error as Error).message}`)
 }
 ```
 <!-- end -->
@@ -595,7 +572,6 @@ From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/bl
 
 ```python
 from pamoja.core import PamojaError
-from pamoja.profile import ControlKind
 
 # A probe that fails reports a reading that is not a number. The controller raises it
 # rather than going quiet, and the lamp holds its state; what off means for the chicks is
@@ -612,10 +588,13 @@ then = profile.controller().evaluate(31.8).actuator
 if first is True and then is False:
     print("fresh     built again for each reading, the controller turns the lamp off at 31.8 C")
 
-# A manifest no node could run is refused as it loads, with the reason.
+# A manifest no node could run is refused as it loads, with the reason. So is a misspelled
+# field, with the one it was probably meant to be, rather than leaving the default in its
+# place without a word.
 for edited in [
     manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
     manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
+    manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
 ]:
     try:
         Profile.from_json(edited)
@@ -623,27 +602,15 @@ for edited in [
     except PamojaError as error:
         print(f"refused   {error}")
 
-# A misspelled optional field is not an error: it names no field, so the default stays.
-# Writing the profile back out shows what the node understood.
-misspelled = manifest.replace(
-    '"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'
-)
-understood = Profile.from_json(misspelled)
-print(
-    "typo      saver_bellow names no field, so saver still starts below "
-    f"{understood.power.saver_below * 100:.0f}%"
-)
-
-# A kind the library does not ship loads with its parameters and runs as a monitor until
-# the node supplies the policy, so it drives nothing and raises nothing.
+# A kind the library does not ship loads with its parameters, but no built-in controller
+# decides it, so asking for one is refused rather than handing back a node that would never
+# switch the lamp.
 custom = Profile.from_json(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
-if custom.control.kind == ControlKind.CUSTOM:
-    reaction = custom.controller().evaluate(27.5)
-    if reaction.actuator is None and reaction.alert is None:
-        print(
-            f"custom    {custom.control.custom_kind} loads with {len(custom.control.params)} "
-            "parameters, and with no policy behind it drives nothing"
-        )
+try:
+    custom.controller()
+    print("a custom kind ran without its policy, which should never happen")
+except PamojaError as error:
+    print(f"refused   {error}")
 ```
 <!-- end -->
 
@@ -803,11 +770,14 @@ if (first == true && then == false)
     Console.WriteLine("fresh     built again for each reading, the controller turns the lamp off at 31.8 C");
 }
 
-// A manifest no node could run is refused as it loads, with the reason.
+// A manifest no node could run is refused as it loads, with the reason. So is a
+// misspelled field, with the one it was probably meant to be, rather than leaving
+// the default in its place without a word.
 foreach (string edited in new[]
 {
     manifest.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
     manifest.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+    manifest.Replace("\"critical_secs\": 1800 }", "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }"),
 })
 {
     try
@@ -821,46 +791,27 @@ foreach (string edited in new[]
     }
 }
 
-// A misspelled optional field is not an error: it names no field, so the default
-// stays. Writing the profile back out shows what the node understood.
-string misspelled = manifest.Replace(
-    "\"critical_secs\": 1800 }",
-    "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }");
-using (var understood = Profile.FromJson(misspelled))
-{
-    Console.WriteLine(Invariant(
-        $"typo      saver_bellow names no field, so saver still starts below {understood.Power.SaverBelow * 100:F0}%"));
-}
-
-// A kind the library does not ship loads with its parameters and runs as a monitor
-// until the node supplies the policy, so it drives nothing and raises nothing.
+// A kind the library does not ship loads with its parameters, but no built-in
+// controller decides it, so asking for one is refused rather than handing back a
+// node that would never switch the lamp.
 using var custom = Profile.FromJson(manifest.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
-ControlPolicy policy = custom.Control;
-if (policy.Kind == ControlKind.Custom)
+try
 {
     using Controller inert = custom.Controller();
-    Reaction reaction = inert.Evaluate(27.5f);
-    if (reaction.Actuator is null && reaction.Alert is null)
-    {
-        Console.WriteLine(
-            $"custom    {policy.CustomKind} loads with {policy.Params!.Count} parameters, and with no policy behind it drives nothing");
-    }
+    Console.WriteLine("a custom kind ran without its policy, which should never happen");
+}
+catch (PamojaException error)
+{
+    Console.WriteLine($"refused   {error.Message}");
 }
 ```
 <!-- end -->
 
 ## Values at a glance
 
-**A manifest:**
-
-| Field | Required | Holds |
-| --- | --- | --- |
-| `name` | yes | a stable name, such as `brooder-heater` |
-| `description` | no | what the profile is for, in a sentence or two |
-| `topic` | yes | the one topic each reading is published to |
-| `control` | yes | the policy, named by `kind`, with that kind's fields beside it |
-| `power` | yes | the sampling schedule |
-| `presentation` | no | the elements, theme, and wording a dashboard draws the node with |
+Every field a manifest may carry, with what it holds and its default, is under
+[Every field](#every-field) below, generated from the published schema an editor
+checks the file with.
 
 **The control kinds:**
 
@@ -870,7 +821,7 @@ if (policy.Kind == ControlKind.Custom)
 | `level` | `empty`, `warn_within` | drives nothing; estimates how many more samples the last fall takes to reach `empty`, rounded up | `RunningOut` once that is `warn_within` or fewer |
 | `surge` | `rising`, `limit` | drives nothing; compares each reading with the one before | `ChangingFast` when one sample moves more than `limit` the watched way |
 | `monitor` | none | drives nothing and raises nothing | none |
-| any other | its own, kept as parameters | runs as a monitor until the node supplies the policy: through a `PolicyRegistry` in Rust, from `control.params` elsewhere | whatever that policy raises |
+| any other | its own, kept as parameters | whatever the code registered for the kind decides: through a `PolicyRegistry` in Rust, from `control.params` elsewhere; asking for a built-in controller is refused | whatever that policy raises |
 
 A level and a surge need a reading before they can compare, so the first one never
 warns.
@@ -885,20 +836,9 @@ warns.
 | `InvalidReading` | a reading is not a finite number, under every kind but a monitor | the reading as it arrived |
 | `Custom` | a policy of your own raised it | the code it chose, and a value |
 
-**The power schedule:**
-
-| Field | Holds | When the file leaves it out |
-| --- | --- | --- |
-| `active_secs` | seconds between samples at a healthy charge | required |
-| `saver_secs` | seconds between samples while conserving | required |
-| `critical_secs` | seconds between samples when critically low | required |
-| `saver_below` | the charge, from 0 to 1, below which the node conserves | 0.5 |
-| `critical_below` | the charge below which it does the least | 0.2 |
-| `hysteresis` | how far above a threshold the charge must climb before the node leaves the lower cadence | 0.05 |
-
-A charge below `critical_below` is critical, below `saver_below` is saver, and
-anything else is active. A charge that is not a number, from a fuel gauge that
-failed to answer, is taken as critical. While the panel charges, the plan eases
+**The power schedule.** A charge below `critical_below` is critical, below
+`saver_below` is saver, and anything else is active. A charge that is not a number,
+from a fuel gauge that failed to answer, is taken as critical. While the panel charges, the plan eases
 the node up one step, from critical to saver and from saver to active. A running
 node remembers its mode: it drops a cadence as soon as the charge crosses a
 threshold, and climbs back only once the charge is `hysteresis` above it, so a
@@ -909,7 +849,11 @@ constructor builds one:
 
 | The manifest | The reason says |
 | --- | --- |
+| a field the format does not have, such as a misspelled `saver_bellow` | `` unknown field `saver_bellow` ``, and the field it was probably meant to be |
+| a `$schema` for another format | `written in profile format 2`, or that it `is not a pamoja profile schema` |
 | an empty name | `` `name` must not be empty `` |
+| a `reads` quantity or unit that is not lowercase words joined by underscores | `must be lowercase words joined by underscores` |
+| a custom kind with no name | `a custom control needs a kind to be named by` |
 | a topic that is empty, or holds `+` or `#` | `the topic is empty`, or that it `is a filter` |
 | a control value that is not a finite number | `must be a finite number` |
 | a hysteresis of zero or less | `the output chatters at the setpoint` |
@@ -923,7 +867,11 @@ constructor builds one:
 | a dashboard element with a band whose low end is not first, a key given twice, or a state that is not a `state.` code | the element and what is wrong with it |
 
 The catalog in [Profiles](../profiles.md) holds its own files to more: a file
-named for the profile, a description, and snake_case keys and kinds.
+named for the profile, a description, a `reads`, and snake_case keys and kinds.
+
+Asking a profile whose kind is custom for a built-in controller is refused too,
+naming the kind: `` no policy decides the control kind `brooder_guard` ``, with
+the built-in kind it is probably a misspelling of when there is one.
 
 **The calls in each language:**
 
@@ -933,11 +881,11 @@ named for the profile, a description, and snake_case keys and kinds.
 | --- | --- |
 | load and write | `Profile::from_json(text)`, `to_json()`, `check()` |
 | start from a preset | `Profile::vaccine_fridge_monitor()`, `irrigation_node()`, `well_level()`, `flood_sensor()` |
-| build one | `Profile::new(name, topic, ControlSpec, PowerSchedule::new(active, saver, critical))`, `with_thresholds`, `with_description`, `with_presentation`, `with_element` |
+| build one | `Profile::new(name, topic, ControlSpec, PowerSchedule::new(active, saver, critical))`, `with_reads`, `with_thresholds`, `with_description`, `with_presentation`, `with_element` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller::setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert`, `Alert::kind()` |
 | schedule sampling | `power.plan()`, then `mode(charge)`, `mode_while_charging(charge, charging)`, `interval(charge)` |
-| supply a policy | `impl Policy`, `PolicyRegistry::new().register(kind, factory)`, `resolve(&profile.control)`, `Node::with_policy` |
+| supply a policy | `impl Policy`, `PolicyRegistry::new().register(kind, factory)`, `resolve(&profile.control)`, `Node::resolve`, `Node::with_policy` |
 
 ### TypeScript
 
@@ -945,10 +893,11 @@ named for the profile, a description, and snake_case keys and kinds.
 | --- | --- |
 | load and write | `Profile.fromJson(text)`, `toJson()` |
 | start from a preset | `Profile.vaccineFridgeMonitor()`, `irrigationNode()`, `wellLevel()`, `floodSensor()` |
-| build one | `new Profile(name, topic, control, power)`, `withDescription`, `withPresentation` |
+| build one | `new Profile(name, topic, control, power)`, `withReads`, `withDescription`, `withPresentation` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller.setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert.kind`, `AlertKind` |
 | schedule sampling | `powerPlan()`, then `mode(charge)`, `modeWhileCharging(charge, charging)`, `intervalUs(charge)` |
+| read what it reads | `reads?.quantity`, `reads?.unit` |
 | read a custom kind | `control.kind === ControlKind.Custom`, `control.customKind`, `control.params` |
 
 ### Python
@@ -957,10 +906,11 @@ named for the profile, a description, and snake_case keys and kinds.
 | --- | --- |
 | load and write | `Profile.from_json(text)`, `to_json()` |
 | start from a preset | `Profile.vaccine_fridge_monitor()`, `irrigation_node()`, `well_level()`, `flood_sensor()` |
-| build one | `Profile(name, topic, ControlPolicy(...), PowerScheduleSpec(...))`, `with_description`, `with_presentation` |
+| build one | `Profile(name, topic, ControlPolicy(...), PowerScheduleSpec(...))`, `with_reads`, `with_description`, `with_presentation` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller.setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert.kind`, `AlertKind` |
 | schedule sampling | `power_plan()`, then `mode(charge)`, `mode_while_charging(charge, charging)`, `interval_us(charge)` |
+| read what it reads | `reads.quantity`, `reads.unit` |
 | read a custom kind | `control.kind == ControlKind.CUSTOM`, `control.custom_kind`, `control.params` |
 
 ### C#
@@ -969,13 +919,152 @@ named for the profile, a description, and snake_case keys and kinds.
 | --- | --- |
 | load and write | `Profile.FromJson(text)`, `ToJson()` |
 | start from a preset | `Profile.VaccineFridgeMonitor()`, `IrrigationNode()`, `WellLevel()`, `FloodSensor()` |
-| build one | `new Profile(name, topic, ControlPolicy, PowerSchedule)`, `WithDescription`, `WithPresentation` |
+| build one | `new Profile(name, topic, ControlPolicy, PowerSchedule)`, `WithReads`, `WithDescription`, `WithPresentation` |
 | decide a reading | `Controller()`, then `Evaluate(reading)`; `Controller.Setpoint`, `Level`, `Surge`, `Monitor` |
 | read the reaction | `Actuator`, `Alert?.Kind`, `AlertKind` |
 | schedule sampling | `PowerPlan`, then `Mode(charge)`, `ModeWhileCharging(charge, charging)`, `IntervalUs(charge)` |
+| read what it reads | `Reads?.Quantity`, `Reads?.Unit` |
 | read a custom kind | `Control.Kind == ControlKind.Custom`, `Control.CustomKind`, `Control.Params` |
 
 <!-- languages end -->
+
+## Every field
+
+These tables are generated from the published JSON Schema,
+[`profile-1.json`](https://pamoja.molex.cloud/schema/profile-1.json), the same file
+an editor checks a manifest against. Name it as the manifest's `$schema` and an
+editor such as VS Code completes the fields and marks a wrong one as it is typed.
+The schema cannot say that a safe band is at least as wide as its hysteresis, that
+the sampling intervals lengthen as the battery drains, or that an element's key is
+used once, so the library's own check is the last word on those.
+
+<!-- table: schema profile -->
+### The profile file {#profile-fields}
+
+A node written down as data: what it reads, where it reports, how it decides each reading, how often it samples as its battery drains, and how a dashboard draws it.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `$schema` | text | no | The format the file is written in: this schema's address, or a copy of it by the same file name. An editor reads it to check the file as it is typed. |
+| `name` | text | yes | A stable name, lowercase words joined by hyphens, such as brooder-heater. A shared profile's file carries the same name. |
+| `description` | text | no | What the profile is for, in a sentence or two: what it watches or holds, and what it does when a reading crosses a line. |
+| `reads` | object, see [reads](#profile-reads) | no | What the profile reads. The setpoint, bands, and limits under control are in this unit. |
+| `topic` | text | yes | The topic each reading is published to, such as poultry/brooder/temperature. One topic, so no + or # wildcards. |
+| `control` | object, one of the control kinds below | yes | How each reading is decided. The kind names the policy and the other fields tune it. |
+| `power` | object, see [power](#profile-power) | yes | How often the node samples as its battery drains. The intervals may not shorten as the charge falls. |
+| `presentation` | object, see [presentation](#profile-presentation) | no | How a dashboard draws the node: the readings it adds, a tint, and the words for its own states. |
+
+### reads {#profile-reads}
+
+What the profile reads. The setpoint, bands, and limits under control are in this unit.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `quantity` | text | yes | The quantity its control decides on, in lowercase words joined by underscores, such as temperature, relative_humidity, soil_moisture, water_level, or pressure. |
+| `unit` | text | yes | The unit its numbers are in, in lowercase words joined by underscores, such as celsius, percent, meter, or bar. |
+
+### control, kind setpoint {#profile-setpoint}
+
+Holds a reading near a target by switching an output on and off, and alerts when the reading strays too far.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `kind` | `setpoint` | yes | Names this policy. |
+| `setpoint` | number | yes | The target reading, such as 32 for a brooder in celsius. |
+| `hysteresis` | number, above 0 | yes | Half the deadband around the setpoint. The output switches at the setpoint less and plus this, so it does not chatter. |
+| `cooling` | true or false | yes | true for an output that switches on above the band, such as a cooler; false for one that switches on below it, such as a heater or a valve that adds water. |
+| `safe_band` | number | yes | How far the reading may stray from the setpoint before an OutOfRange alert. No narrower than the hysteresis. |
+
+### control, kind level {#profile-level}
+
+Watches a falling level and warns before it runs out.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `kind` | `level` | yes | Names this policy. |
+| `empty` | number | yes | The level treated as empty, such as 0.5 for a well in meters. |
+| `warn_within` | whole number, at least 1 | yes | Raise RunningOut once the level is on course to reach empty within this many more samples. |
+
+### control, kind surge {#profile-surge}
+
+Warns when a reading changes faster than is safe, such as a river rising into a flash flood.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `kind` | `surge` | yes | Names this policy. |
+| `rising` | true or false | yes | true to watch for a rapid rise, false for a rapid fall. |
+| `limit` | number, above 0 | yes | The largest safe change between two samples. A bigger one raises ChangingFast. |
+
+### control, kind monitor {#profile-monitor}
+
+Reports readings and decides nothing: no output, no alerts.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `kind` | `monitor` | yes | Names this policy. |
+
+### control, a kind of your own {#profile-custom}
+
+A policy the library does not ship. Its parameters sit beside the kind, and the program that runs the profile registers the code that decides it.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `kind` | text | yes | The kind's own name, in lowercase words joined by underscores, such as frost_guard. |
+| any other field | number, true or false, text | no | A parameter the kind's code reads: a number, true or false, or text. |
+
+### power {#profile-power}
+
+How often the node samples as its battery drains. The intervals may not shorten as the charge falls.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `active_secs` | whole number, at least 1 | yes | Seconds between samples on a healthy battery. |
+| `saver_secs` | whole number, at least 1 | yes | Seconds between samples below saver_below. No shorter than active_secs. |
+| `critical_secs` | whole number, at least 1 | yes | Seconds between samples below critical_below. No shorter than saver_secs. |
+| `saver_below` | number, above 0, at most 1 | no, `0.5` | The state of charge, from 0 to 1, below which the node samples at saver_secs. |
+| `critical_below` | number, above 0, at most 1 | no, `0.2` | The state of charge below which the node samples at critical_secs. Below saver_below. |
+| `hysteresis` | number, at least 0 | no, `0.05` | How far above a threshold the charge must climb to leave the slower cadence, so a charge hovering at a threshold does not switch it every cycle. |
+
+### presentation {#profile-presentation}
+
+How a dashboard draws the node: the readings it adds, a tint, and the words for its own states.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `elements` | list of objects, see [presentation elements](#profile-element) | no, `[]` | The readings and node stats the dashboard draws, in the order they are offered. |
+| `theme` | object, see [presentation theme](#profile-theme) | no | A tint for the dashboard. Each color is any CSS color. |
+| `messages` | object of texts | no | The words for each state. or event. code the profile introduces, keyed by the code, such as state.lamp_on. |
+
+### presentation elements {#profile-element}
+
+One reading or node stat on the dashboard.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `key` | text | yes | The stable key the value travels under, in lowercase words joined by underscores, such as brooder_temperature. Used once per profile. |
+| `unit` | text | yes | The unit's name, such as celsius, percent, ntu, or state for an on and off reading. |
+| `label` | text | yes | The label shown when the reader's language has none of its own. |
+| `labels` | object of texts | no | The label in other languages, keyed by locale tag, such as fr or sw. |
+| `viz` | one of `spark`, `gauge`, `dial`, `bar`, `thermometer`, `droplet`, `battery`, `wind`, `sun`, `wave`, `switch`, `valve`, `chain`, `mesh`, `count` | yes | The graphic the value is drawn with. |
+| `band` | list of 2 numbers | no | The safe band, [low, high] in the element's unit, drawn as the graphic's safe zone. The low end comes first. |
+| `stat` | true or false | no, `false` | true for telemetry about the node itself, such as a battery or dropped packets, which the dashboard counts apart from the world it measures. |
+| `scope` | `always`, or object | no, `always` | Which groups offer the element: always, or { "links": [...] } for groups on those link kinds only, such as mesh. |
+| `span` | true or false | no, `false` | true to give a wide graphic two columns. |
+| `value` | number | no | The value shown until the first real sample arrives. |
+| `state` | text | no | The state shown until the first real sample arrives, for an on and off reading, such as state.lamp_off. Not together with value. |
+
+### presentation theme {#profile-theme}
+
+A tint for the dashboard. Each color is any CSS color.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `accent` | text | no | Links, focus, and the brand mark. |
+| `ok` | text | no | A healthy reading, and an in-band gauge. |
+| `warn` | text | no | A warning. |
+| `alarm` | text | no | An alarm. |
+| `track` | text | no | The unfilled rail behind gauges and bars. |
+<!-- end -->
 
 ## When it goes wrong
 
@@ -992,14 +1081,17 @@ that cost an afternoon:
   `InvalidReading`, and the output holds its last state rather than acting on a
   number that is not there. Decide in the node what off means for its plant, and
   turn the output off, or raise an alarm, when the alert comes.
-- **A setting in the file makes no difference.** A field the library does not know,
-  such as a misspelled `saver_bellow`, names nothing, so it is ignored and the
-  default stays. Write the loaded profile back out with `to_json` and read what
-  the node understood.
-- **A custom kind does nothing.** A kind the library does not ship loads with its
-  fields as parameters and runs as a monitor, so it drives nothing and raises
-  nothing until the node supplies the policy: through a `PolicyRegistry` in Rust,
-  or in the program's own code from `control.params` elsewhere.
+- **A manifest from a shared folder is refused for a field.** The format refuses a
+  field it does not have rather than ignore it, so a misspelled `saver_bellow`
+  cannot leave the default in place without a word. The reason names the field it
+  was probably meant to be and where in the file it sits. Name the schema as the
+  manifest's `$schema` and an editor marks the same field as it is typed.
+- **A custom kind is refused as the node starts.** A kind the library does not ship
+  loads with its fields as parameters, but no built-in controller decides it, so
+  `controller` refuses it rather than hand back a node that reports readings and
+  never drives its output. Register the code that decides it: through a
+  `PolicyRegistry` in Rust, or in the program's own code from `control.params`
+  elsewhere. A kind a letter away from a built-in one is named in the reason.
 - **A warning means something else on a low battery.** `warn_within` counts
   samples, not minutes, so on the shipped well profile six samples are an hour
   ahead of dry at the active cadence and three hours at the saver one. A surge's

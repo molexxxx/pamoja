@@ -639,6 +639,104 @@ pub unsafe extern "C" fn pamoja_profile_with_description(
     PamojaProfile::into_raw(profile.inner.clone().with_description(description))
 }
 
+/// Returns the quantity a profile says it reads, such as `temperature`.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string, which the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile does not
+/// say what it reads or `profile` is null. The two cases are told apart by
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set only
+/// for a null handle.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_reads_quantity(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    match profile_handle(profile).and_then(|profile| profile.inner.reads.as_ref()) {
+        Some(reads) => PamojaString::into_raw(reads.quantity.clone()),
+        None => ptr::null_mut(),
+    }
+}
+
+/// Returns the unit a profile's numbers are in, such as `celsius`.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+///
+/// # Returns
+///
+/// A null-terminated UTF-8 string, which the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile does not
+/// say what it reads or `profile` is null. The two cases are told apart by
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set only
+/// for a null handle.
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_reads_unit(
+    profile: *const PamojaProfile,
+) -> *mut PamojaString {
+    match profile_handle(profile).and_then(|profile| profile.inner.reads.as_ref()) {
+        Some(reads) => PamojaString::into_raw(reads.unit.clone()),
+        None => ptr::null_mut(),
+    }
+}
+
+/// Returns a copy of a profile that says what it reads.
+///
+/// # Arguments
+///
+/// * `profile` - the profile.
+/// * `quantity` - the quantity its control decides on, such as `temperature`, as
+///   null-terminated UTF-8.
+/// * `unit` - the unit its numbers are in, such as `celsius`, as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// A handle the caller must release with [`pamoja_profile_free`], or null if a pointer
+/// is null, a string is not UTF-8, or the quantity or unit is not lowercase words joined
+/// by underscores, with the reason available from
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+///
+/// # Safety
+///
+/// `profile` must be a live handle from a call that produced one, and `quantity` and
+/// `unit` must be valid null-terminated UTF-8 strings for the duration of the call; any
+/// may be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_profile_with_reads(
+    profile: *const PamojaProfile,
+    quantity: *const c_char,
+    unit: *const c_char,
+) -> *mut PamojaProfile {
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    let (Some(quantity), Some(unit)) = (read_str(quantity, "quantity"), read_str(unit, "unit"))
+    else {
+        return ptr::null_mut();
+    };
+    let read = profile.inner.clone().with_reads(quantity, unit);
+    match read.check() {
+        Ok(()) => PamojaProfile::into_raw(read),
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
 /// Returns how a profile presents itself on a dashboard, as the JSON object its
 /// manifest carries under `presentation`.
 ///
@@ -895,7 +993,9 @@ pub unsafe extern "C" fn pamoja_profile_power_plan(
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_controller_free`], or null if
-/// `profile` is null.
+/// `profile` is null or names a custom control kind, which no built-in controller
+/// decides, with the reason available from
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 ///
 /// # Safety
 ///
@@ -904,9 +1004,15 @@ pub unsafe extern "C" fn pamoja_profile_power_plan(
 pub unsafe extern "C" fn pamoja_profile_controller(
     profile: *const PamojaProfile,
 ) -> *mut PamojaController {
-    match profile_handle(profile) {
-        Some(profile) => PamojaController::into_raw(profile.inner.controller()),
-        None => ptr::null_mut(),
+    let Some(profile) = profile_handle(profile) else {
+        return ptr::null_mut();
+    };
+    match profile.inner.controller() {
+        Ok(controller) => PamojaController::into_raw(controller),
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
     }
 }
 
@@ -1359,11 +1465,15 @@ mod tests {
             "a built-in kind has no parameter object"
         );
 
-        // The built-in controller for a custom kind observes only; the custom alert a
-        // host's own policy raises crosses as its code and value.
-        let controller = unsafe { pamoja_profile_controller(profile) };
-        let reaction = reaction_for(controller, -4.0);
-        assert!(!reaction.has_actuator);
+        // No built-in controller decides a custom kind, so asking for one is refused with
+        // the kind named; the custom alert a host's own policy raises crosses as its code
+        // and value.
+        assert!(unsafe { pamoja_profile_controller(profile) }.is_null());
+        assert!(
+            last_error().contains("no policy decides the control kind `frost_guard`"),
+            "{}",
+            last_error()
+        );
         let flat = PamojaReaction::flatten(pamoja_profile::Reaction {
             actuator: Some(true),
             alert: Some(Alert::Custom {
@@ -1390,9 +1500,48 @@ mod tests {
         assert_eq!(cut.len(), PAMOJA_ALERT_CODE_LEN - 1);
 
         unsafe {
-            pamoja_controller_free(controller);
             pamoja_profile_free(fridge);
             pamoja_profile_free(profile);
+        }
+    }
+
+    #[test]
+    fn what_a_profile_reads_crosses_as_its_quantity_and_unit() {
+        let fridge = pamoja_profile_vaccine_fridge_monitor();
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_reads_quantity(fridge) }),
+            "temperature"
+        );
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_reads_unit(fridge) }),
+            "celsius"
+        );
+        let quantity = CString::new("relative_humidity").unwrap();
+        let unit = CString::new("percent").unwrap();
+        let humid = unsafe { pamoja_profile_with_reads(fridge, quantity.as_ptr(), unit.as_ptr()) };
+        assert!(!humid.is_null());
+        assert_eq!(
+            text_of(unsafe { pamoja_profile_reads_quantity(humid) }),
+            "relative_humidity"
+        );
+        let shouting = CString::new("Temperature").unwrap();
+        assert!(
+            unsafe { pamoja_profile_with_reads(fridge, shouting.as_ptr(), unit.as_ptr()) }
+                .is_null()
+        );
+        assert!(last_error().contains("lowercase words"), "{}", last_error());
+
+        let manifest = CString::new(
+            r#"{ "name": "tank", "topic": "water/tank", "control": { "kind": "monitor" }, "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 } }"#,
+        )
+        .unwrap();
+        let unread = unsafe { pamoja_profile_from_json(manifest.as_ptr()) };
+        assert!(unsafe { pamoja_profile_reads_quantity(unread) }.is_null());
+        assert!(unsafe { pamoja_profile_reads_unit(unread) }.is_null());
+        unsafe {
+            pamoja_profile_free(unread);
+            pamoja_profile_free(humid);
+            pamoja_profile_free(fridge);
         }
     }
 

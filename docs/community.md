@@ -21,8 +21,10 @@ needs no code.
    [catalog](profiles.md), and change the numbers to the ones that worked: the
    setpoint and its deadband, the safe band an alert waits for, the sampling
    intervals your battery allowed. Give it a `name` in lowercase words joined by
-   hyphens, a `topic`, and a `description` of a sentence or two saying what it
-   watches or holds and what it does about it.
+   hyphens, a `topic`, a `reads` naming the quantity and unit, and a `description`
+   of a sentence or two saying what it watches or holds and what it does about it.
+   Keep the `$schema` line at the top and an editor such as VS Code checks every
+   field as you type.
 2. Run it. Load it with `Profile::from_json` (or `fromJson`, `from_json`,
    `FromJson`) and let its controller decide a few readings, as the
    [device profiles guide](guides/profile.md) does, or run it on the node.
@@ -40,8 +42,10 @@ form with the manifest pasted in, and a maintainer runs the steps above and
 credits you in the pull request.
 
 What the check enforces, so a reader knows what a listed profile has been held to:
-the name matches the file and is unique; the description is there and reads as a
-sentence; the topic is one publishable path, with no wildcards; a custom kind is
+every field is one the [published schema](https://pamoja.molex.cloud/schema/profile-1.json)
+has; the name matches the file and is unique; the description is there and reads as
+a sentence; `reads` says what the profile measures and in what unit; the topic is
+one publishable path, with no wildcards; a custom kind is
 named in lowercase words joined by underscores; a setpoint policy
 has a deadband above zero and a safe band no narrower than it; a level policy
 warns at least one sample ahead; a surge policy has a limit above zero; the

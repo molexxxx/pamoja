@@ -23,16 +23,14 @@ public static class RulesGuide
         const string file = """
             { "rules": [
               { "name": "water-when-dry",
-                "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-                          "threshold": 30.0, "hysteresis": 5.0 },
-                "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-                          { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-                "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                               { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
+                "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+                "then": [ { "drive": "bed-valve", "on": true },
+                          { "publish": "garden/bed-1/valve", "payload": "open" } ],
+                "otherwise": [ { "drive": "bed-valve", "on": false },
+                               { "publish": "garden/bed-1/valve", "payload": "closed" } ] },
               { "name": "flood-alarm",
-                "when": { "topic": "garden/bed-1/moisture", "compare": "above",
-                          "threshold": 60.0, "hysteresis": 5.0 },
-                "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+                "when": { "topic": "garden/bed-1/moisture", "above": 60.0, "hysteresis": 5.0 },
+                "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
             ] }
             """;
 

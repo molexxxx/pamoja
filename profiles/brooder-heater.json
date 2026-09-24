@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "brooder-heater",
   "description": "Keeps a poultry brooder at 32 C by switching a heat lamp on below 31.5 C and off above 32.5 C, and alerts when the chicks are more than 4 C from target. Samples every two minutes on a healthy battery and eases off as it drains.",
+  "reads": {
+    "quantity": "temperature",
+    "unit": "celsius"
+  },
   "topic": "poultry/brooder/temperature",
   "control": {
     "kind": "setpoint",

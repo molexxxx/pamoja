@@ -2661,9 +2661,10 @@ async function asyncTransports() {
   assert.strictEqual(orchard.control.kind, profile.ControlKind.Custom);
   assert.strictEqual(orchard.control.customKind, "frost_guard");
   assert.deepStrictEqual(orchard.control.params, { warn_below: 2, latching: true, zone: "north" });
-  assert.ok(
-    orchard.controller().evaluate(-4).actuator == null,
-    "the built-in controller for a custom kind observes only",
+  assert.throws(
+    () => orchard.controller(),
+    /no policy decides the control kind `frost_guard`/,
+    "no built-in controller decides a custom kind",
   );
   assert.ok(orchard.toJson().includes('"kind": "frost_guard"'), "and it writes back under its own name");
 

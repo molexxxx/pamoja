@@ -270,6 +270,9 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
                     "standards" => Ok(standards.table(&catalog)),
                     "examples" => examples::table(&root),
                     "profiles" => Ok(profiles.table()),
+                    format if format.starts_with("schema ") => {
+                        crate::schema::table(&root, format.trim_start_matches("schema ").trim())
+                    }
                     "run" => Ok(examples::run_block(&text)),
                     "architecture" => crate::diagram::blocks(&catalog, &root)
                         .map(|blocks| crate::site::block::diagram(&blocks)),

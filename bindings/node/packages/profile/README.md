@@ -26,13 +26,13 @@ import { Profile, Viz } from '@pamoja/profile'
 // A profile is plain data, so a fleet ships one as a file rather than as code. This
 // manifest names no battery thresholds, so the documented defaults apply.
 const manifest = `{
-  "name": "brooder-heater",
-  "topic": "poultry/brooder/temperature",
-  "control": {
-    "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-    "cooling": false, "safe_band": 4.0
-  },
-  "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+    "name": "brooder-heater",
+    "topic": "poultry/brooder/temperature",
+    "control": {
+        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+        "cooling": false, "safe_band": 4.0
+    },
+    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }`
 const profile = Profile.fromJson(manifest)
 console.log(`profile   ${profile.name} reports on ${profile.topic}`)

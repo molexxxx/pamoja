@@ -1015,6 +1015,7 @@ mod tests {
         let profile = Profile {
             name: "raised-bed-drip".to_owned(),
             description: None,
+            reads: None,
             topic: "garden/bed-1/moisture".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 37.5,
@@ -1025,7 +1026,8 @@ mod tests {
             power: PowerSchedule::new(300, 1800, 3600),
             presentation: None,
         };
-        let mut node = Node::new(profile, Probe(20.0), Valve(Vec::new()), ladder, CborCodec);
+        let mut node = Node::new(profile, Probe(20.0), Valve(Vec::new()), ladder, CborCodec)
+            .expect("a built-in kind");
         let reaction = node.tick().await.expect("a tick");
         assert_eq!(reaction.actuator, Some(true));
 

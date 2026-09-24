@@ -24,6 +24,7 @@ mod prices;
 mod profiles;
 mod regions;
 mod release;
+mod schema;
 mod site;
 mod standards;
 mod theme;

@@ -699,6 +699,26 @@ impl Profile {
         self.inner.description.clone()
     }
 
+    /// What the profile reads, the quantity and the unit its numbers are in, or `null`
+    /// when the manifest does not say.
+    #[napi(getter)]
+    pub fn reads(&self) -> Option<Reads> {
+        self.inner.reads.as_ref().map(|reads| Reads {
+            quantity: reads.quantity.clone(),
+            unit: reads.unit.clone(),
+        })
+    }
+
+    /// A copy of this profile that says what it reads.
+    ///
+    /// @param quantity - the quantity its control decides on, such as `temperature`.
+    /// @param unit - the unit its numbers are in, such as `celsius`.
+    /// @throws when the quantity or unit is not lowercase words joined by underscores.
+    #[napi]
+    pub fn with_reads(&self, quantity: String, unit: String) -> napi::Result<Profile> {
+        checked(self.inner.clone().with_reads(quantity, unit))
+    }
+
     /// How the profile presents itself on the dashboard, or `null` when it declares
     /// nothing beyond the built-in set.
     #[napi(getter)]
@@ -751,12 +771,26 @@ impl Profile {
     /// Each call builds a new controller, so keep the one it returns for the life of the
     /// node: one built again for each reading forgets whether its output was on and what
     /// the reading before was.
+    ///
+    /// @throws when the profile names a custom control kind, which no built-in
+    ///   controller decides.
     #[napi]
-    pub fn controller(&self) -> Controller {
-        Controller {
-            inner: self.inner.controller(),
-        }
+    pub fn controller(&self) -> napi::Result<Controller> {
+        self.inner
+            .controller()
+            .map(|inner| Controller { inner })
+            .map_err(to_napi)
     }
+}
+
+/// What a profile reads: the quantity its control decides on, and the unit its numbers are
+/// in, both lowercase words joined by underscores.
+#[napi(object)]
+pub struct Reads {
+    /// The quantity, such as `temperature` or `relative_humidity`.
+    pub quantity: String,
+    /// The unit the profile's numbers are in, such as `celsius` or `percent`.
+    pub unit: String,
 }
 
 /// Hands a profile to JavaScript once it passes its check, or says why it does not.

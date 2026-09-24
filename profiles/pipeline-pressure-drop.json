@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "pipeline-pressure-drop",
   "description": "Watches the pressure in a water main and warns when it falls by more than 0.5 bar between samples, the signature of a burst or a valve left open downstream. Samples every 30 s, since a burst empties a tank in minutes.",
+  "reads": {
+    "quantity": "pressure",
+    "unit": "bar"
+  },
   "topic": "water/main/pressure",
   "control": {
     "kind": "surge",

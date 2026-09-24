@@ -78,105 +78,103 @@ carried out. A `RuleEvaluator` is the same decisions for a loop of your own.
 From [`examples/guides/rules.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/rules.rs):
 
 ```rust
-use pamoja_codec::JsonCodec;
-use pamoja_core::{Receive, Transport};
-use pamoja_kit::Edge;
-use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
-use pamoja_profile::{Action, RuleEngine, Rules};
+    use pamoja_codec::JsonCodec;
+    use pamoja_core::{Receive, Transport};
+    use pamoja_kit::Edge;
+    use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+    use pamoja_profile::{Action, RuleEngine, Rules};
 
-// A rule is a file: the topic it watches, the line a reading crosses, the release
-// band that stops it firing over and over, and what to do on the way down and on the
-// way back. Two rules watch one bed here: one waters it when it dries past 30 and
-// stops once it is wetter than 35, and one raises an alarm when it is soaked past 60.
-let file = r#"{ "rules": [
-    { "name": "water-when-dry",
-      "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-                "threshold": 30.0, "hysteresis": 5.0 },
-      "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-                { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-      "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                     { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
-    { "name": "flood-alarm",
-      "when": { "topic": "garden/bed-1/moisture", "compare": "above",
-                "threshold": 60.0, "hysteresis": 5.0 },
-      "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+    // A rule is a file: the topic it watches, the line a reading crosses, the release
+    // band that stops it firing over and over, and what to do on the way down and on the
+    // way back. Two rules watch one bed here: one waters it when it dries past 30 and
+    // stops once it is wetter than 35, and one raises an alarm when it is soaked past 60.
+    let file = r#"{ "rules": [
+  { "name": "water-when-dry",
+    "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+    "then": [ { "drive": "bed-valve", "on": true },
+              { "publish": "garden/bed-1/valve", "payload": "open" } ],
+    "otherwise": [ { "drive": "bed-valve", "on": false },
+                   { "publish": "garden/bed-1/valve", "payload": "closed" } ] },
+  { "name": "flood-alarm",
+    "when": { "topic": "garden/bed-1/moisture", "above": 60.0, "hysteresis": 5.0 },
+    "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }"#;
 
-// Three parties on one broker: the node that reads the bed, the engine that holds the
-// valve, and a watcher on the topics the rules publish to.
-let broker = LoopbackBroker::new();
-let mut probe = LoopbackTransport::new(broker.clone());
-let mut watcher = LoopbackTransport::new(broker.clone());
-probe.connect().await?;
-watcher.connect().await?;
-watcher.subscribe("garden/bed-1/valve").await?;
-watcher.subscribe("garden/alarm").await?;
+    // Three parties on one broker: the node that reads the bed, the engine that holds the
+    // valve, and a watcher on the topics the rules publish to.
+    let broker = LoopbackBroker::new();
+    let mut probe = LoopbackTransport::new(broker.clone());
+    let mut watcher = LoopbackTransport::new(broker.clone());
+    probe.connect().await?;
+    watcher.connect().await?;
+    watcher.subscribe("garden/bed-1/valve").await?;
+    watcher.subscribe("garden/alarm").await?;
 
-let valve = Valve::default();
-let mut engine = RuleEngine::new(
-    Rules::from_json(file)?,
-    LoopbackTransport::new(broker),
-    JsonCodec,
-)
-.with_actuator("bed-valve", valve.clone());
-engine.connect().await?;
-println!(
-    "watches   {}, and drives {}",
-    engine.topics().join(", "),
-    engine.actuators().join(", ")
-);
+    let valve = Valve::default();
+    let mut engine = RuleEngine::new(
+        Rules::from_json(file)?,
+        LoopbackTransport::new(broker),
+        JsonCodec,
+    )
+    .with_actuator("bed-valve", valve.clone());
+    engine.connect().await?;
+    println!(
+        "watches   {}, and drives {}",
+        engine.topics().join(", "),
+        engine.actuators().join(", ")
+    );
 
-// The bed dries out, is watered, and floods. A rule fires only as its condition sets
-// or clears, and the readings in between change nothing. At 65 two rules fire on one
-// reading, in the order the file lists them.
-for reading in [42.0f32, 31.0, 28.0, 33.0, 65.0, 50.0] {
-    probe
-        .send_text("garden/bed-1/moisture", &reading.to_string())
-        .await?;
-    let fired = engine.step().await?.expect("the link is up");
-    if fired.is_empty() {
-        println!("{reading:<10}nothing fired");
-    }
-    for one in &fired {
-        let edge = match one.edge {
-            Edge::Set => "set",
-            Edge::Cleared => "cleared",
-        };
-        let actions: Vec<String> = one
-            .actions
-            .iter()
-            .map(|action| match action {
-                Action::Drive { actuator, on } => {
-                    format!("drive {actuator} {}", if *on { "on" } else { "off" })
-                }
-                Action::Publish { topic, payload } => format!("publish {payload} to {topic}"),
-            })
-            .collect();
-        if actions.is_empty() {
-            println!("{reading:<10}{} {edge}, with nothing to do", one.rule);
-        } else {
-            println!("{reading:<10}{} {edge}: {}", one.rule, actions.join(", "));
+    // The bed dries out, is watered, and floods. A rule fires only as its condition sets
+    // or clears, and the readings in between change nothing. At 65 two rules fire on one
+    // reading, in the order the file lists them.
+    for reading in [42.0f32, 31.0, 28.0, 33.0, 65.0, 50.0] {
+        probe
+            .send_text("garden/bed-1/moisture", &reading.to_string())
+            .await?;
+        let fired = engine.step().await?.expect("the link is up");
+        if fired.is_empty() {
+            println!("{reading:<10}nothing fired");
+        }
+        for one in &fired {
+            let edge = match one.edge {
+                Edge::Set => "set",
+                Edge::Cleared => "cleared",
+            };
+            let actions: Vec<String> = one
+                .actions
+                .iter()
+                .map(|action| match action {
+                    Action::Drive { actuator, on } => {
+                        format!("drive {actuator} {}", if *on { "on" } else { "off" })
+                    }
+                    Action::Publish { topic, payload } => format!("publish {payload} to {topic}"),
+                })
+                .collect();
+            if actions.is_empty() {
+                println!("{reading:<10}{} {edge}, with nothing to do", one.rule);
+            } else {
+                println!("{reading:<10}{} {edge}: {}", one.rule, actions.join(", "));
+            }
         }
     }
-}
 
-// The watcher heard every message the rules published, in the order they went out.
-let mut heard = Vec::new();
-for _ in 0..3 {
-    let message = watcher.recv().await?.expect("a message");
-    heard.push(message.text().expect("words").to_owned());
-}
-println!("heard     {}", heard.join(", "));
-let switches = valve.switches.lock().expect("valve lock").clone();
-let state = if switches.last() == Some(&true) {
-    "on"
-} else {
-    "off"
-};
-println!(
-    "valve     switched {} times, and it is {state}",
-    switches.len()
-);
+    // The watcher heard every message the rules published, in the order they went out.
+    let mut heard = Vec::new();
+    for _ in 0..3 {
+        let message = watcher.recv().await?.expect("a message");
+        heard.push(message.text().expect("words").to_owned());
+    }
+    println!("heard     {}", heard.join(", "));
+    let switches = valve.switches.lock().expect("valve lock").clone();
+    let state = if switches.last() == Some(&true) {
+        "on"
+    } else {
+        "off"
+    };
+    println!(
+        "valve     switched {} times, and it is {state}",
+        switches.len()
+    );
 ```
 <!-- end -->
 
@@ -260,16 +258,14 @@ import { type RuleAction, RuleActionKind, RuleEvaluator } from '@pamoja/profile'
 // wetter than 35, and one raises an alarm when it is soaked past 60.
 const file = `{ "rules": [
   { "name": "water-when-dry",
-    "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-              "threshold": 30.0, "hysteresis": 5.0 },
-    "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-              { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-    "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                   { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
+    "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+    "then": [ { "drive": "bed-valve", "on": true },
+              { "publish": "garden/bed-1/valve", "payload": "open" } ],
+    "otherwise": [ { "drive": "bed-valve", "on": false },
+                   { "publish": "garden/bed-1/valve", "payload": "closed" } ] },
   { "name": "flood-alarm",
-    "when": { "topic": "garden/bed-1/moisture", "compare": "above",
-              "threshold": 60.0, "hysteresis": 5.0 },
-    "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+    "when": { "topic": "garden/bed-1/moisture", "above": 60.0, "hysteresis": 5.0 },
+    "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }`
 
 // The evaluator judges each reading and says what the rules call for; the program moves
@@ -418,16 +414,14 @@ from pamoja.profile import RuleActionKind, RuleEvaluator
 # than 35, and one raises an alarm when it is soaked past 60.
 file = """{ "rules": [
   { "name": "water-when-dry",
-    "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-              "threshold": 30.0, "hysteresis": 5.0 },
-    "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-              { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-    "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                   { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
+    "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+    "then": [ { "drive": "bed-valve", "on": true },
+              { "publish": "garden/bed-1/valve", "payload": "open" } ],
+    "otherwise": [ { "drive": "bed-valve", "on": false },
+                   { "publish": "garden/bed-1/valve", "payload": "closed" } ] },
   { "name": "flood-alarm",
-    "when": { "topic": "garden/bed-1/moisture", "compare": "above",
-              "threshold": 60.0, "hysteresis": 5.0 },
-    "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+    "when": { "topic": "garden/bed-1/moisture", "above": 60.0, "hysteresis": 5.0 },
+    "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }"""
 
 # The evaluator judges each reading and says what the rules call for; the program moves the
@@ -562,16 +556,14 @@ From [`bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs`](https://github.com/
 const string file = """
     { "rules": [
       { "name": "water-when-dry",
-        "when": { "topic": "garden/bed-1/moisture", "compare": "below",
-                  "threshold": 30.0, "hysteresis": 5.0 },
-        "then": [ { "do": "drive", "actuator": "bed-valve", "on": true },
-                  { "do": "publish", "topic": "garden/bed-1/valve", "payload": "open" } ],
-        "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                       { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ] },
+        "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+        "then": [ { "drive": "bed-valve", "on": true },
+                  { "publish": "garden/bed-1/valve", "payload": "open" } ],
+        "otherwise": [ { "drive": "bed-valve", "on": false },
+                       { "publish": "garden/bed-1/valve", "payload": "closed" } ] },
       { "name": "flood-alarm",
-        "when": { "topic": "garden/bed-1/moisture", "compare": "above",
-                  "threshold": 60.0, "hysteresis": 5.0 },
-        "then": [ { "do": "publish", "topic": "garden/alarm", "payload": "waterlogged" } ] }
+        "when": { "topic": "garden/bed-1/moisture", "above": 60.0, "hysteresis": 5.0 },
+        "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
     ] }
     """;
 
@@ -712,29 +704,17 @@ Console.WriteLine(
 
 ## Values at a glance
 
-**A rule file:**
-
-| Field | Holds |
-| --- | --- |
-| `rules` | the rules, judged against each message in this order |
-| `name` | a name no other rule in the file has |
-| `when.topic` | the one topic whose readings the rule judges, matched exactly |
-| `when.compare` | `below` or `above`: the side of the line the condition holds on |
-| `when.threshold` | the line |
-| `when.hysteresis` | how far back past the line a reading must come for the condition to clear; 0 when left out |
-| `then` | the actions for the moment the condition becomes true |
-| `otherwise` | the actions for the moment it stops holding |
-
-An action is `{ "do": "drive", "actuator": ..., "on": ... }`, which switches an
-output the program holds by that name, or `{ "do": "publish", "topic": ...,
-"payload": ... }`, which sends the text to the topic.
+A rule reads as a sentence: when `garden/bed-1/moisture` is `below` 30, `drive`
+`bed-valve` `on`, and otherwise `drive` it off. Every field of the file, with what
+it holds and its default, is under [Every field](#every-field) below, generated
+from the published schema an editor checks the file with.
 
 **When a condition moves.** Every condition starts cleared:
 
-| `compare` | Sets when a reading is | Clears when a reading is | Any other reading |
+| The line | Sets when a reading is | Clears when a reading is | Any other reading |
 | --- | --- | --- | --- |
-| `below` | below the threshold | above the threshold plus the hysteresis | leaves it as it was |
-| `above` | above the threshold | below the threshold less the hysteresis | leaves it as it was |
+| `below` | below the line | above the line plus the hysteresis | leaves it as it was |
+| `above` | above the line | below the line less the hysteresis | leaves it as it was |
 
 A reading exactly on the threshold does not set the condition, and one exactly on
 the far edge of the band does not clear it. The example's watering rule sets below
@@ -755,6 +735,10 @@ Rules that fire on one reading come back in the order the file lists them.
 
 | The file | The reason says |
 | --- | --- |
+| a field the format does not have, such as a misspelled `hysterisis` | `` unknown field `hysterisis` ``, and the field it was probably meant to be |
+| a `$schema` for another format | `written in rules format 2`, or that it `is not a pamoja rules schema` |
+| a condition with both `above` and `below`, or neither | `names both`, or `needs a line to cross` |
+| a drive with no `on`, a publish with no `payload`, or an action that does both | `needs`, and the field it lacks, or `not both` |
 | a rule with no name | `a rule needs a name` |
 | two rules with one name | `two rules share the name` |
 | a rule with no topic | `needs a topic to watch` |
@@ -810,6 +794,66 @@ actuator it was not given.
 | see what it needs | `Topics`, `Actuators`, `Watches(topic)`, `IsSet(rule)` |
 
 <!-- languages end -->
+
+## Every field
+
+These tables are generated from the published JSON Schema,
+[`rules-1.json`](https://pamoja.molex.cloud/schema/rules-1.json), the same file an
+editor checks a rule file against. Name it as the file's `$schema` and an editor
+such as VS Code completes the fields and marks a wrong one as it is typed. The
+schema cannot say that two rules have different names, so the library's own check
+is the last word on that.
+
+<!-- table: schema rules -->
+### The rule file {#rules-fields}
+
+Rules between nodes: when one topic's reading crosses a line, drive an output or publish a message, and undo it once the reading comes back.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `$schema` | text | no | The format the file is written in: this schema's address, or a copy of it by the same file name. An editor reads it to check the file as it is typed. |
+| `rules` | list of objects, see [rules](#rules-rule) | yes | The rules, checked against each reading in the order they are listed. |
+
+### rules {#rules-rule}
+
+One rule: a line through one topic's readings, and what to do as a reading crosses it and comes back.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `name` | text | yes | A name no other rule in the file has, such as water-when-dry. The engine reports it when the rule fires. |
+| `when` | object, see [when](#rules-when) | yes | The line a topic's readings cross. It names one side, above or below. |
+| `then` | list of [drive](#rules-drive) and [publish](#rules-publish) actions | no | What to do once, the moment the condition becomes true. |
+| `otherwise` | list of [drive](#rules-drive) and [publish](#rules-publish) actions | no | What to do once, the moment the condition stops holding. |
+
+### when {#rules-when}
+
+The line a topic's readings cross. It names one side, above or below.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `topic` | text | yes | The topic whose readings are watched, exactly as the node publishes to it. One topic, so no + or # wildcards. |
+| `above` | number | no | The condition holds while readings are above this line. |
+| `below` | number | no | The condition holds while readings are below this line. |
+| `hysteresis` | number, at least 0 | no, `0` | How far back past the line a reading must come for the condition to clear, so readings hovering at the line do not fire it over and over. |
+
+### then and otherwise, drive {#rules-drive}
+
+Switches an output the program running the rules holds under this name.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `drive` | text | yes | The output's name, such as bed-valve. |
+| `on` | true or false | yes | true to switch it on, false to switch it off. |
+
+### then and otherwise, publish {#rules-publish}
+
+Publishes a message over the link the rules run on.
+
+| Field | Value | Required | What it does |
+| --- | --- | --- | --- |
+| `publish` | text | yes | The topic to publish to. One topic, so no + or # wildcards. |
+| `payload` | text | yes | The text to publish. |
+<!-- end -->
 
 ## When it goes wrong
 

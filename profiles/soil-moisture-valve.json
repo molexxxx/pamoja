@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "soil-moisture-valve",
   "description": "Waters a raised bed through a solenoid valve, opening it when the volumetric water content falls below 25 % and closing it above 35 %, and alerts when the bed is drier than 15 % or wetter than 45 %. The dashboard draws the bed as a droplet and the valve as a valve, with French and Swahili labels.",
+  "reads": {
+    "quantity": "soil_moisture",
+    "unit": "percent"
+  },
   "topic": "garden/bed/moisture",
   "control": {
     "kind": "setpoint",

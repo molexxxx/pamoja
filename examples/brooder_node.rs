@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
     let probe = Replay::new(NIGHT.iter().map(|&(reading, _)| reading).collect());
 
     // That is the whole node: profile, probe, lamp, link, wire format.
-    let mut node = Node::new(profile.clone(), probe, lamp, uplink, JsonCodec);
+    let mut node = Node::new(profile.clone(), probe, lamp, uplink, JsonCodec)?;
 
     // The gateway end. The vent fan hangs off the rule engine, not off the node, and the
     // rules are a file the fleet shares the same way it shares the profile.

@@ -2654,6 +2654,19 @@ export declare class Profile {
   /** What the profile is for, in the words its manifest carries, or `null`. */
   get description(): string | null
   /**
+   * What the profile reads, the quantity and the unit its numbers are in, or `null`
+   * when the manifest does not say.
+   */
+  get reads(): Reads | null
+  /**
+   * A copy of this profile that says what it reads.
+   *
+   * @param quantity - the quantity its control decides on, such as `temperature`.
+   * @param unit - the unit its numbers are in, such as `celsius`.
+   * @throws when the quantity or unit is not lowercase words joined by underscores.
+   */
+  withReads(quantity: string, unit: string): Profile
+  /**
    * How the profile presents itself on the dashboard, or `null` when it declares
    * nothing beyond the built-in set.
    */
@@ -2682,6 +2695,9 @@ export declare class Profile {
    * Each call builds a new controller, so keep the one it returns for the life of the
    * node: one built again for each reading forgets whether its output was on and what
    * the reading before was.
+   *
+   * @throws when the profile names a custom control kind, which no built-in
+   *   controller decides.
    */
   controller(): Controller
 }
@@ -8698,6 +8714,17 @@ export interface Reaction {
   actuator?: boolean
   /** The alert the reading raised, or `null` if it crossed nothing. */
   alert?: AlertReport
+}
+
+/**
+ * What a profile reads: the quantity its control decides on, and the unit its numbers are
+ * in, both lowercase words joined by underscores.
+ */
+export interface Reads {
+  /** The quantity, such as `temperature` or `relative_humidity`. */
+  quantity: string
+  /** The unit the profile's numbers are in, such as `celsius` or `percent`. */
+  unit: string
 }
 
 /** Whether a CoAP request is acknowledged and retried. */
