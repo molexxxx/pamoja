@@ -440,7 +440,8 @@ pub enum NetworkError {
         /// The counter it carried.
         fcnt: u32,
     },
-    /// A frame further ahead of the counter last seen than [`MAX_FCNT_GAP`] allows.
+    /// A frame [`MAX_FCNT_GAP`] or more ahead of the counter last seen, which LoRaWAN 1.0.3
+    /// section 4.3.1.5 does not follow.
     CounterGap {
         /// The address it claimed.
         dev_addr: u32,
@@ -933,7 +934,7 @@ impl Network {
                 if candidate < seen {
                     candidate = candidate.wrapping_add(0x0001_0000);
                 }
-                if candidate - seen > MAX_FCNT_GAP {
+                if candidate - seen >= MAX_FCNT_GAP {
                     return Err(NetworkError::CounterGap {
                         dev_addr,
                         seen,
@@ -1030,7 +1031,7 @@ impl Network {
                         if candidate < seen {
                             candidate = candidate.wrapping_add(0x0001_0000);
                         }
-                        if candidate - seen > MAX_FCNT_GAP {
+                        if candidate - seen >= MAX_FCNT_GAP {
                             return Err(NetworkError::CounterGap {
                                 dev_addr,
                                 seen,
@@ -1362,6 +1363,51 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    // LoRaWAN 1.0.3 section 4.3.1.5: the receiver follows a counter that has gone up by less
+    // than MAX_FCNT_GAP, so one exactly that far ahead is refused, as the device refuses it.
+    #[test]
+    fn a_counter_a_whole_gap_ahead_is_refused() {
+        let mut network = site();
+        let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+        let request = device.join_request(0x0102);
+        let Event::Joined { accept, .. } = network
+            .uplink(&heard(request.as_bytes().to_vec(), 1_000_000))
+            .expect("the request verifies")
+        else {
+            panic!("a join request is admitted");
+        };
+        let session = device
+            .accept_join(&accept.payload, 0x0102)
+            .expect("the accept verifies")
+            .session();
+        let frame = |fcnt: u32| {
+            session
+                .encode_uplink(&pamoja_lorawan::Uplink::new(fcnt, 2, b"level"))
+                .expect("it fits one frame")
+                .as_bytes()
+                .to_vec()
+        };
+
+        network
+            .uplink(&heard(frame(1), 2_000_000))
+            .expect("the first frame is read");
+        let refused = network.uplink(&heard(frame(1 + MAX_FCNT_GAP), 3_000_000));
+        assert!(
+            matches!(
+                refused,
+                Err(NetworkError::CounterGap { seen: 1, carried, .. }) if carried == 1 + MAX_FCNT_GAP
+            ),
+            "{refused:?}"
+        );
+        let Event::Data { fcnt, .. } = network
+            .uplink(&heard(frame(MAX_FCNT_GAP), 4_000_000))
+            .expect("one short of the gap is followed")
+        else {
+            panic!("a data frame is read");
+        };
+        assert_eq!(fcnt, MAX_FCNT_GAP);
     }
 
     #[test]

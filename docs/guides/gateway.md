@@ -1856,7 +1856,7 @@ below; the three a gateway sends carry its identifier next.
 | Data | a frame decrypted, with its counter, port, payload, and where an answer goes |
 | Foreign | a frame for an address this site never granted, which is another network's |
 | a counter already seen | a replay, or a device that restarted its counter without joining again |
-| a counter too far ahead | more than 16384 frames past the last one taken |
+| a counter too far ahead | 16384 or more frames past the last one taken |
 | no registered key | a join request no registration verifies |
 | no session | an answer for an address the site holds no session for |
 
