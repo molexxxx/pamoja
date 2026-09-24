@@ -232,6 +232,10 @@ fn render_all() -> Result<Vec<(String, String)>, String> {
     let profiles = Profiles::load(&root)?;
     profiles.check(&root)?;
 
+    // Every guide keeps the template, and every call its values tables name is one its
+    // language's sources mention.
+    crate::guides::check(&root)?;
+
     let mut files = Vec::new();
     for krate in &crates {
         let lib = fs::read_to_string(crates_root.join(krate).join("src/lib.rs"))
