@@ -32,7 +32,11 @@ console.log(`budget    ${messagesPerHour(link, 10, permille)} readings an hour`)
 // A frequency in no sub-band the plan describes has no duty cycle to budget against. That
 // is a limit published elsewhere, not permission to transmit.
 const outside = plan.dutyCyclePermille(700_000_000)
-console.log(`700 MHz  is outside this plan, so it budgets nothing: ${outside === null}`)
+const elsewhere =
+  outside === null
+    ? 'in no sub-band of this plan, so its limit is published elsewhere'
+    : `limited to ${outside} per mille`
+console.log(`700 MHz   ${elsewhere}`)
 // ANCHOR_END: example
 
 assert.equal(plan.name, 'EU863-870')
@@ -108,6 +112,20 @@ console.log(
 // decibel an antenna has over 6 dBi.
 const limit = fccMaxConductedDbm(9, 64)!
 console.log(`fcc       a 9 dBi Yagi on 64 hopping channels may carry ${limit.toFixed(2)} dBm`)
+
+// Each step down in spreading factor halves the time on air and gives up 2.5 dB of reach:
+// the trade between how often a node speaks and how far it is heard.
+const dutyCycle = eu868.dutyCyclePermille(frequency)!
+const trade = [0, 1, 2, 3, 4, 5].map((dataRate) => {
+  const rate = eu868.linkSettings(dataRate)!
+  const sf = String(rate.spreadingFactor).padEnd(2)
+  const ms = (airtimeUs(rate, 10) / 1000).toFixed(1).padStart(5)
+  const readings = messagesPerHour(rate, 10, dutyCycle)
+  const reach = maxPathLossDb(node, rate)
+  const hour = String(readings).padStart(3)
+  console.log(`DR${dataRate} SF${sf}  ${ms} ms, ${hour} an hour, ${reach.toFixed(2)} dB of path loss`)
+  return { readings, reach }
+})
 // ANCHOR_END: range
 
 assert.equal(most, 14.35)
@@ -118,3 +136,6 @@ assert.equal(survives, 160.18)
 assert.deepEqual(margins, [62.94, 54.98, 45.44])
 assert.equal(radius, 20_777)
 assert.equal(limit, 27)
+assert.deepEqual(trade[0], { readings: 36, reach: survives })
+assert.equal(trade[5].readings, 873)
+assert.equal(Math.round((survives - trade[5].reach) * 100), 1_250)

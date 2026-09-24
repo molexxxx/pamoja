@@ -5896,6 +5896,10 @@ static void ConformLora(JsonElement vector)
         Assert(
             link.SymbolTimeMicros == described.GetProperty("symbolTimeUs").GetUInt64(),
             "symbol time");
+        Assert(
+            link.LowDataRateOptimization
+                == described.GetProperty("lowDataRateOptimization").GetBoolean(),
+            "low data rate optimization");
 
         foreach (JsonElement airtime in described.GetProperty("airtimes").EnumerateArray())
         {
@@ -5913,6 +5917,12 @@ static void ConformLora(JsonElement vector)
                     budget.GetProperty("permille").GetUInt32())
                     == budget.GetProperty("offTimeUs").GetUInt64(),
                 "the silence a duty cycle forces");
+            Assert(
+                link.MessagesPerHour(
+                    budget.GetProperty("payloadLen").GetInt32(),
+                    budget.GetProperty("permille").GetUInt32())
+                    == budget.GetProperty("messagesPerHour").GetUInt64(),
+                "the messages an hour it leaves");
         }
     }
 
@@ -5941,6 +5951,46 @@ static void ConformLora(JsonElement vector)
             forbidden.GetProperty("payloadLen").GetInt32(),
             forbidden.GetProperty("permille").GetUInt32()) == 0,
         "and so allows no messages at all");
+
+    JsonElement edges = vector.GetProperty("edges");
+    JsonElement zero = edges.GetProperty("zeroBandwidth");
+    var unset = new LoraLink(
+        zero.GetProperty("spreadingFactor").GetByte(),
+        zero.GetProperty("bandwidthHz").GetUInt32());
+    Assert(
+        unset.BandwidthHz == zero.GetProperty("usedBandwidthHz").GetUInt32(),
+        "a zero bandwidth counts as one hertz");
+    Assert(
+        unset.SymbolTimeMicros == zero.GetProperty("symbolTimeUs").GetUInt64(),
+        "and sets the symbol time");
+    Assert(
+        unset.AirtimeMicros(zero.GetProperty("payloadLen").GetInt32())
+            == zero.GetProperty("airtimeUs").GetUInt64(),
+        "and the airtime");
+    JsonElement past = edges.GetProperty("pastOneFrame");
+    string pastName = past.GetProperty("link").GetString()!;
+    LoraLink sf12 = LinkOf(vector.GetProperty("links").EnumerateArray()
+        .First(entry => entry.GetProperty("name").GetString() == pastName));
+    Assert(
+        sf12.AirtimeMicros(past.GetProperty("payloadLen").GetInt32())
+            == past.GetProperty("airtimeUs").GetUInt64(),
+        "a payload past one frame keeps counting");
+    foreach (JsonElement whole in edges.GetProperty("wholeTime").EnumerateArray())
+    {
+        int payloadLen = whole.GetProperty("payloadLen").GetInt32();
+        uint permille = whole.GetProperty("permille").GetUInt32();
+        Assert(
+            sf12.MinOffTimeMicros(payloadLen, permille) == whole.GetProperty("offTimeUs").GetUInt64(),
+            "the whole of the time owes no silence");
+        Assert(
+            sf12.MessagesPerHour(payloadLen, permille)
+                == whole.GetProperty("messagesPerHour").GetUInt64(),
+            "so the hour holds as many as fit back to back");
+    }
+    ExpectArgument(
+        () => sf12.AirtimeMicros(-1),
+        "payloadLength ('-1') must be a non-negative value",
+        "a negative payload is refused");
 }
 
 static void ConformMesh(JsonElement vector)

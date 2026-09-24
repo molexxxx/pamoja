@@ -50,7 +50,8 @@ impl LinkSettings {
     ///
     /// * `spreading_factor` - the spreading factor; clamped to the LoRa range 5 to 12.
     ///   SF5 and SF6 carry the data rates RP002-1.0.5 added to several regions.
-    /// * `bandwidth_hz` - the channel bandwidth in hertz, such as `125_000`.
+    /// * `bandwidth_hz` - the channel bandwidth in hertz, such as `125_000`; `0` counts as one
+    ///   hertz, as it does across [`budget`](crate::budget).
     ///
     /// # Returns
     ///
@@ -58,7 +59,7 @@ impl LinkSettings {
     pub fn new(spreading_factor: u8, bandwidth_hz: u32) -> Self {
         Self {
             spreading_factor: spreading_factor.clamp(5, 12),
-            bandwidth_hz,
+            bandwidth_hz: bandwidth_hz.max(1),
             cr_denominator: 5,
             preamble_symbols: 8,
             explicit_header: true,
@@ -191,18 +192,18 @@ impl LinkSettings {
     }
 
     // The number of symbols in the payload portion of the frame.
-    fn payload_symbols(&self, payload_len: usize) -> u32 {
-        let sf = i32::from(self.spreading_factor);
+    fn payload_symbols(&self, payload_len: usize) -> u128 {
+        let sf = i128::from(self.spreading_factor);
         let low_data_rate = self.low_data_rate_optimization();
-        let de = i32::from(low_data_rate);
-        let ih = i32::from(!self.explicit_header);
-        let crc = i32::from(self.crc);
+        let de = i128::from(low_data_rate);
+        let ih = i128::from(!self.explicit_header);
+        let crc = i128::from(self.crc);
 
-        let numerator = 8 * payload_len as i32 - 4 * sf + 28 + 16 * crc - 20 * ih;
+        let numerator = 8 * payload_len as i128 - 4 * sf + 28 + 16 * crc - 20 * ih;
         let denominator = 4 * (sf - 2 * de); // always positive: sf >= 5, de <= 1
         let term = if numerator > 0 {
-            let groups = (numerator as u32).div_ceil(denominator as u32);
-            groups * u32::from(self.cr_denominator)
+            let groups = (numerator as u128).div_ceil(denominator as u128);
+            groups * u128::from(self.cr_denominator)
         } else {
             0
         };
@@ -217,17 +218,19 @@ impl LinkSettings {
     ///
     /// # Arguments
     ///
-    /// * `payload_len` - the payload length in bytes.
+    /// * `payload_len` - the payload length in bytes. One LoRa frame carries at most 255;
+    ///   the count runs on past that for a caller who asks.
     ///
     /// # Returns
     ///
-    /// The time on air in microseconds.
+    /// The time on air in microseconds, held at [`u64::MAX`] rather than overflowing.
     pub fn airtime_us(&self, payload_len: usize) -> u64 {
-        let payload_symbols = u64::from(self.payload_symbols(payload_len));
+        let payload_symbols = self.payload_symbols(payload_len);
         // Work in quarter-symbols so the preamble's 4.25-symbol tail stays exact.
-        let quarter_symbols = (4 * u64::from(self.preamble_symbols) + 17) + 4 * payload_symbols;
-        let symbol_units = quarter_symbols * (1u64 << self.spreading_factor);
-        symbol_units * 1_000_000 / (4 * u64::from(self.bandwidth_hz))
+        let quarter_symbols = (4 * u128::from(self.preamble_symbols) + 17) + 4 * payload_symbols;
+        let symbol_units = quarter_symbols << self.spreading_factor;
+        let micros = symbol_units * 1_000_000 / (4 * u128::from(self.bandwidth_hz));
+        u64::try_from(micros).unwrap_or(u64::MAX)
     }
 
     /// Returns the minimum silence after a transmission to honor a duty-cycle limit.
@@ -244,14 +247,55 @@ impl LinkSettings {
     ///
     /// # Returns
     ///
-    /// The required off time in microseconds, or [`u64::MAX`] if the limit is zero.
+    /// The required off time in microseconds: [`u64::MAX`] if the limit is zero, and `0`
+    /// for a limit of 1000 or more, the whole of the time.
     pub fn min_off_time_us(&self, payload_len: usize, duty_cycle_permille: u32) -> u64 {
         if duty_cycle_permille == 0 {
             return u64::MAX;
         }
-        let airtime = self.airtime_us(payload_len);
-        let permille = u64::from(duty_cycle_permille);
-        airtime * (1000 - permille) / permille
+        if duty_cycle_permille >= 1000 {
+            return 0;
+        }
+        let airtime = u128::from(self.airtime_us(payload_len));
+        let permille = u128::from(duty_cycle_permille);
+        u64::try_from(airtime * (1000 - permille) / permille).unwrap_or(u64::MAX)
+    }
+
+    /// Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
+    ///
+    /// A transmission really costs its airtime plus the silence the limit forces after
+    /// it, so this is the message budget a deployment plans against.
+    ///
+    /// # Arguments
+    ///
+    /// * `payload_len` - the payload length in bytes.
+    /// * `duty_cycle_permille` - the duty-cycle limit in parts per thousand, so `10` is
+    ///   1%.
+    ///
+    /// # Returns
+    ///
+    /// The number of whole transmissions an hour, or `0` when the limit is zero and so
+    /// forbids transmitting.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_lora::LinkSettings;
+    ///
+    /// // Ten bytes at SF12 hold the air for just under a second, and 1% of the time
+    /// // leaves room for thirty-six of them an hour.
+    /// let link = LinkSettings::new(12, 125_000);
+    /// assert_eq!(link.messages_per_hour(10, 10), 36);
+    /// assert_eq!(link.messages_per_hour(10, 0), 0);
+    /// ```
+    pub fn messages_per_hour(&self, payload_len: usize, duty_cycle_permille: u32) -> u64 {
+        if duty_cycle_permille == 0 {
+            return 0;
+        }
+        let airtime = u128::from(self.airtime_us(payload_len));
+        let silence = u128::from(self.min_off_time_us(payload_len, duty_cycle_permille));
+        let each = (airtime + silence).max(1);
+        u64::try_from(3_600_000_000 / each).unwrap_or(u64::MAX)
     }
 }
 
@@ -366,5 +410,55 @@ mod tests {
         let narrow = LinkSettings::new(9, 125_000).airtime_us(20);
         let wide = LinkSettings::new(9, 250_000).airtime_us(20);
         assert!(wide < narrow);
+    }
+
+    #[test]
+    fn a_zero_bandwidth_counts_as_one_hertz() {
+        let link = LinkSettings::new(12, 0);
+        assert_eq!(link.bandwidth_hz(), 1);
+        assert_eq!(link.symbol_time_us(), 4_096_000_000);
+        assert_eq!(
+            link.airtime_us(10),
+            LinkSettings::new(12, 125_000).airtime_us(10) * 125_000
+        );
+    }
+
+    #[test]
+    fn a_payload_past_one_frame_keeps_counting_up() {
+        let link = LinkSettings::new(12, 125_000);
+        let most = link.airtime_us(255);
+        assert!(link.airtime_us(1 << 29) > most);
+        assert!(link.airtime_us(u32::MAX as usize) > link.airtime_us(1 << 29));
+        assert_eq!(link.airtime_us(usize::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn a_limit_of_the_whole_time_owes_no_silence() {
+        let link = LinkSettings::new(12, 125_000);
+        assert_eq!(link.min_off_time_us(10, 1000), 0);
+        assert_eq!(link.min_off_time_us(10, 1001), 0);
+        assert_eq!(link.min_off_time_us(10, u32::MAX), 0);
+        assert_eq!(link.min_off_time_us(10, 0), u64::MAX);
+    }
+
+    #[test]
+    fn the_hourly_budget_is_the_hour_over_what_each_transmission_costs() {
+        let link = LinkSettings::new(12, 125_000);
+        let each = link.airtime_us(10) + link.min_off_time_us(10, 10);
+        assert_eq!(link.messages_per_hour(10, 10), 3_600_000_000 / each);
+        assert_eq!(
+            link.messages_per_hour(10, 1000),
+            3_600_000_000 / link.airtime_us(10),
+            "the whole of the time owes no silence"
+        );
+        assert_eq!(
+            link.messages_per_hour(10, 0),
+            0,
+            "a zero limit forbids sending"
+        );
+        assert_eq!(link.messages_per_hour(usize::MAX, 10), 0);
+        let instant = LinkSettings::new(5, u32::MAX);
+        assert_eq!(instant.airtime_us(0), 0);
+        assert_eq!(instant.messages_per_hour(0, 1000), 3_600_000_000);
     }
 }

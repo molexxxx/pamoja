@@ -828,6 +828,13 @@ released together, so one entry covers all of them.
   `resume_at` does. The hash travels only while the slot holds exactly what the transfer
   left in it; once the slot has been opened for anything else, its bytes are read back
   and hashed again.
+- `LinkSettings::messages_per_hour` in Rust and `pamoja_lora_messages_per_hour` in C give
+  the hourly budget the bindings already offered, and each binding now takes it from the
+  core rather than working it out on its own.
+- Every language can ask whether a LoRa link uses low data rate optimization, which a
+  radio set up from those settings must match: `lowDataRateOptimization` in TypeScript,
+  `low_data_rate_optimization` in Python, `LowDataRateOptimization` in C#, and
+  `pamoja_lora_low_data_rate_optimization` in C. Only Rust could ask before.
 
 ### Changed
 
@@ -1051,6 +1058,11 @@ released together, so one entry covers all of them.
   docstrings, and they read the same way now.
 - The bus, loopback, store-and-forward, sensor, and actuator crates open with an example,
   where they had none, and the first three run rather than only compile.
+- The LoRa guide runs one reading through every LoRa data rate from DR0 to DR5, what it
+  costs on air, how many fit in an hour, and how far it is heard, and prints the same
+  twenty lines in every language, with words where it printed a boolean. The page gains
+  a paragraph for each language, tables of the regions, the data rates, the link
+  settings, the budget terms, and the FCC rule, and a section on what goes wrong.
 - The power guide takes the charging node's cadence from the mode the panel bought, asks
   a plan about a fuel gauge that did not answer, moves the thresholds for winter, and
   sizes a duty cycle from what a panel harvests. It prints the same twelve lines in every
@@ -1313,6 +1325,18 @@ released together, so one entry covers all of them.
   a negative duration or one that was not a number as 0 and cut a fractional one to its
   whole part, so a job that ran longer than its interval slept not at all without a word.
   They refuse such a duration now: `sleepUs must be a whole number of microseconds, not -1`.
+- LoRa airtime divided by the bandwidth, so link settings with a bandwidth of 0 panicked,
+  which ended the process when the call came from TypeScript, C#, or C. A bandwidth of 0
+  counts as one hertz now, as it already did across the link budget.
+- A LoRa payload of 2^28 bytes or more overflowed the airtime arithmetic, so 2^29 bytes
+  came back shorter on air than ten. The count keeps rising now and holds at the largest
+  number rather than wrapping.
+- The silence owed after a transmission wrapped round for a duty-cycle limit above 1000
+  per mille, asking for about 18 quadrillion microseconds at 1001. A limit of the whole
+  of the time or more owes none now.
+- The C# LoRa calls read a negative payload length as a vast one. They throw
+  `ArgumentOutOfRangeException` now, and `MessagesPerHour` takes the count from the core
+  rather than adding two numbers that could wrap.
 
 ## [0.1.18] - 2026-09-10
 

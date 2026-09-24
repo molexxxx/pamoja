@@ -5845,6 +5845,15 @@ export declare function loraLinkBudgetDefault(): LoraLinkBudget
  */
 export declare function loraLinkDefault(spreadingFactor: number, bandwidthHz: number): LoraLink
 
+/**
+ * Reports whether a link uses low data rate optimization.
+ *
+ * It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+ * SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+ * turn it on too.
+ */
+export declare function loraLowDataRateOptimization(link: LoraLink): boolean
+
 /** Returns how far above the sensitivity a signal arrives across a path, in dB. */
 export declare function loraMarginDb(budget: LoraLinkBudget, link: LoraLink, pathLossDb: number): number
 
@@ -5892,11 +5901,20 @@ export interface LoraMaxPayload {
 export declare function loraMaxTransmitPowerDbm(budget: LoraLinkBudget, eirpCeilingDbm: number): number
 
 /**
+ * Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
+ *
+ * A transmission really costs its airtime plus the silence the limit forces after it. A
+ * limit of `0` forbids transmitting, which comes back as `0`.
+ */
+export declare function loraMessagesPerHour(link: LoraLink, payloadLen: number, dutyCyclePermille: number): number
+
+/**
  * Returns the minimum silence after a transmission to honor a duty-cycle limit.
  *
  * The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
  * transmitting at all, which comes back as `null` rather than as a silence no
- * caller could ever wait out.
+ * caller could ever wait out, and one of 1000 or more, the whole of the time, owes
+ * no silence.
  */
 export declare function loraMinOffTimeUs(link: LoraLink, payloadLen: number, dutyCyclePermille: number): number | null
 

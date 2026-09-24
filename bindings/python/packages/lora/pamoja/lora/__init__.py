@@ -146,10 +146,7 @@ def messages_per_hour(
     :returns: The number of whole transmissions per hour, or ``0`` when the limit
         forbids transmitting.
     """
-    off_time = settings.min_off_time_us(payload_len, duty_cycle_permille)
-    if off_time is None:
-        return 0
-    return 3_600_000_000 // (settings.airtime_us(payload_len) + off_time)
+    return settings.messages_per_hour(payload_len, duty_cycle_permille)
 
 
 def plan_for(region: str) -> ChannelPlan:

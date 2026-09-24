@@ -5122,11 +5122,20 @@ class LoraLink:
         Creates link settings, clamping every value to its LoRa range.
         
         The defaults are coding rate 4/5, an eight-symbol preamble, an explicit
-        header, and CRC on, which is a typical uplink.
+        header, and CRC on, which is a typical uplink. A bandwidth of `0` counts as one
+        hertz.
         """
     def symbol_time_us(self) -> builtins.int:
         r"""
         The duration of one symbol on this link, in microseconds.
+        """
+    def low_data_rate_optimization(self) -> builtins.bool:
+        r"""
+        Whether the link uses low data rate optimization.
+        
+        It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz
+        and SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings
+        must turn it on too.
         """
     def airtime_us(self, payload_len: builtins.int) -> builtins.int:
         r"""
@@ -5140,7 +5149,15 @@ class LoraLink:
         The minimum silence after a transmission to honor a duty-cycle limit.
         
         The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
-        transmitting at all, which comes back as `None`.
+        transmitting at all, which comes back as `None`, and one of 1000 or more, the whole
+        of the time, owes no silence.
+        """
+    def messages_per_hour(self, payload_len: builtins.int, duty_cycle_permille: builtins.int) -> builtins.int:
+        r"""
+        How many transmissions of a payload fit in an hour under a duty-cycle limit.
+        
+        A transmission really costs its airtime plus the silence the limit forces after
+        it. A limit of `0` forbids transmitting, which comes back as `0`.
         """
 
 @typing.final

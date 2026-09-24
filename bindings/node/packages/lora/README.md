@@ -50,7 +50,11 @@ console.log(`budget    ${messagesPerHour(link, 10, permille)} readings an hour`)
 // A frequency in no sub-band the plan describes has no duty cycle to budget against. That
 // is a limit published elsewhere, not permission to transmit.
 const outside = plan.dutyCyclePermille(700_000_000)
-console.log(`700 MHz  is outside this plan, so it budgets nothing: ${outside === null}`)
+const elsewhere =
+  outside === null
+    ? 'in no sub-band of this plan, so its limit is published elsewhere'
+    : `limited to ${outside} per mille`
+console.log(`700 MHz   ${elsewhere}`)
 ```
 
 ## The same capability in every language

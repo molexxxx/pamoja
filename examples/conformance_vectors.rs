@@ -2502,6 +2502,41 @@ fn mavlink_protocol() -> Value {
     })
 }
 
+/// What a link answers at the edges: a bandwidth of zero, a payload longer than one
+/// frame, and a duty-cycle limit of the whole of the time or more.
+fn lora_edges() -> Value {
+    let unset = LinkSettings::new(12, 0);
+    let sf12 = LinkSettings::new(12, 125_000);
+    let past_one_frame = 1usize << 29;
+    let whole: Vec<Value> = [1000u32, 1001]
+        .iter()
+        .map(|&permille| {
+            json!({
+                "link": "sf12-125k",
+                "payloadLen": 10,
+                "permille": permille,
+                "offTimeUs": sf12.min_off_time_us(10, permille),
+                "messagesPerHour": sf12.messages_per_hour(10, permille),
+            })
+        })
+        .collect();
+    json!({
+        "zeroBandwidth": {
+            "spreadingFactor": 12,
+            "bandwidthHz": 0,
+            "usedBandwidthHz": unset.bandwidth_hz(),
+            "symbolTimeUs": unset.symbol_time_us(),
+            "payloadLen": 10,
+            "airtimeUs": unset.airtime_us(10),
+        },
+        "pastOneFrame": {
+            "link": "sf12-125k",
+            "payloadLen": past_one_frame,
+            "airtimeUs": sf12.airtime_us(past_one_frame),
+        },
+        "wholeTime": whole,
+    })
+}
 fn lora() -> Value {
     // Four settings that between them exercise every field: the slowest and
     // fastest spreading factors, a wider channel, and a link with the header and
@@ -2572,6 +2607,7 @@ fn lora() -> Value {
                         "payloadLen": payload_len,
                         "permille": permille,
                         "offTimeUs": link.min_off_time_us(payload_len, permille),
+                        "messagesPerHour": link.messages_per_hour(payload_len, permille),
                     })
                 })
                 .collect();
@@ -2584,6 +2620,7 @@ fn lora() -> Value {
                 "explicitHeader": header,
                 "crc": crc,
                 "symbolTimeUs": link.symbol_time_us(),
+                "lowDataRateOptimization": link.low_data_rate_optimization(),
                 "airtimes": airtimes,
                 "budgets": budgets,
             })
@@ -2601,6 +2638,7 @@ fn lora() -> Value {
         // A duty cycle of zero forbids transmitting; each binding reports that in
         // its own idiom, so only the inputs are pinned here.
         "forbidden": { "link": "sf12-125k", "payloadLen": 20, "permille": 0 },
+        "edges": lora_edges(),
         "budget": lora_budget(),
     })
 }

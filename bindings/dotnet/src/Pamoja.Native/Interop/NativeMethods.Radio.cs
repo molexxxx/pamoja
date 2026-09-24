@@ -54,6 +54,11 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial ulong pamoja_lora_symbol_time_us(PamojaLoraLink link);
 
+    /// <summary>Reports whether a link uses low data rate optimization.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_lora_low_data_rate_optimization(PamojaLoraLink link);
+
     /// <summary>Returns the time on air of a payload, in microseconds.</summary>
     [LibraryImport(Library)]
     public static partial ulong pamoja_lora_airtime_us(PamojaLoraLink link, nuint payloadLen);
@@ -61,6 +66,13 @@ public static partial class NativeMethods
     /// <summary>Returns the silence a duty-cycle limit forces after a transmission.</summary>
     [LibraryImport(Library)]
     public static partial ulong pamoja_lora_min_off_time_us(
+        PamojaLoraLink link,
+        nuint payloadLen,
+        uint dutyCyclePermille);
+
+    /// <summary>Returns how many transmissions of a payload fit in an hour under a limit.</summary>
+    [LibraryImport(Library)]
+    public static partial ulong pamoja_lora_messages_per_hour(
         PamojaLoraLink link,
         nuint payloadLen,
         uint dutyCyclePermille);

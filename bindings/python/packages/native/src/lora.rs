@@ -70,7 +70,8 @@ impl LoraLink {
     /// Creates link settings, clamping every value to its LoRa range.
     ///
     /// The defaults are coding rate 4/5, an eight-symbol preamble, an explicit
-    /// header, and CRC on, which is a typical uplink.
+    /// header, and CRC on, which is a typical uplink. A bandwidth of `0` counts as one
+    /// hertz.
     #[new]
     #[pyo3(signature = (
         spreading_factor,
@@ -88,19 +89,30 @@ impl LoraLink {
         explicit_header: bool,
         crc: bool,
     ) -> Self {
-        LoraLink {
-            spreading_factor: spreading_factor.clamp(5, 12),
-            bandwidth_hz,
-            coding_rate_denominator: coding_rate_denominator.clamp(5, 8),
-            preamble_symbols,
-            explicit_header,
-            crc,
+        let mut settings = LinkSettings::new(spreading_factor, bandwidth_hz)
+            .with_coding_rate(coding_rate_denominator)
+            .with_preamble(preamble_symbols);
+        if !explicit_header {
+            settings = settings.implicit_header();
         }
+        if !crc {
+            settings = settings.without_crc();
+        }
+        Self::from_settings(settings)
     }
 
     /// The duration of one symbol on this link, in microseconds.
     fn symbol_time_us(&self) -> u64 {
         self.settings().symbol_time_us()
+    }
+
+    /// Whether the link uses low data rate optimization.
+    ///
+    /// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz
+    /// and SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings
+    /// must turn it on too.
+    fn low_data_rate_optimization(&self) -> bool {
+        self.settings().low_data_rate_optimization()
     }
 
     /// The time on air of a payload, in microseconds.
@@ -114,7 +126,8 @@ impl LoraLink {
     /// The minimum silence after a transmission to honor a duty-cycle limit.
     ///
     /// The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
-    /// transmitting at all, which comes back as `None`.
+    /// transmitting at all, which comes back as `None`, and one of 1000 or more, the whole
+    /// of the time, owes no silence.
     fn min_off_time_us(&self, payload_len: usize, duty_cycle_permille: u32) -> Option<u64> {
         if duty_cycle_permille == 0 {
             return None;
@@ -123,6 +136,15 @@ impl LoraLink {
             self.settings()
                 .min_off_time_us(payload_len, duty_cycle_permille),
         )
+    }
+
+    /// How many transmissions of a payload fit in an hour under a duty-cycle limit.
+    ///
+    /// A transmission really costs its airtime plus the silence the limit forces after
+    /// it. A limit of `0` forbids transmitting, which comes back as `0`.
+    fn messages_per_hour(&self, payload_len: usize, duty_cycle_permille: u32) -> u64 {
+        self.settings()
+            .messages_per_hour(payload_len, duty_cycle_permille)
     }
 }
 

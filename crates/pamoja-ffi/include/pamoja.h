@@ -2927,8 +2927,8 @@ typedef struct {
 //
 // Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
 // from the defaults. Values outside the ranges LoRa defines are clamped when the
-// link is used: the spreading factor to 5-12 and the coding-rate denominator to
-// 5-8.
+// link is used: the spreading factor to 5-12, the coding-rate denominator to 5-8,
+// and a bandwidth of 0 to one hertz.
 typedef struct {
   // The channel bandwidth in hertz, such as `125000`.
   uint32_t bandwidth_hz;
@@ -10841,7 +10841,7 @@ PamojaTransport *pamoja_transport_loopback(const PamojaLoopbackBroker *broker);
 // # Arguments
 //
 // * `spreading_factor` - the spreading factor, clamped to 5-12.
-// * `bandwidth_hz` - the channel bandwidth in hertz.
+// * `bandwidth_hz` - the channel bandwidth in hertz; `0` counts as one hertz.
 //
 // # Returns
 //
@@ -10859,6 +10859,21 @@ PamojaLoraLink pamoja_lora_link_default(uint8_t spreading_factor, uint32_t bandw
 // The symbol time in microseconds.
 uint64_t pamoja_lora_symbol_time_us(PamojaLoraLink link);
 
+// Reports whether a link uses low data rate optimization.
+//
+// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+// SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+// turn it on too.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+//
+// # Returns
+//
+// `true` when the symbol time exceeds 16 ms.
+bool pamoja_lora_low_data_rate_optimization(PamojaLoraLink link);
+
 // Returns the time on air of a payload, in microseconds.
 //
 // This is the channel occupancy a transmission costs: how long the radio holds
@@ -10872,7 +10887,7 @@ uint64_t pamoja_lora_symbol_time_us(PamojaLoraLink link);
 //
 // # Returns
 //
-// The time on air in microseconds.
+// The time on air in microseconds, held at `UINT64_MAX` rather than overflowing.
 uint64_t pamoja_lora_airtime_us(PamojaLoraLink link, uintptr_t payload_len);
 
 // Returns the minimum silence after a transmission to honor a duty-cycle limit.
@@ -10885,11 +10900,28 @@ uint64_t pamoja_lora_airtime_us(PamojaLoraLink link, uintptr_t payload_len);
 //
 // # Returns
 //
-// The required off time in microseconds, or `UINT64_MAX` if the limit is zero,
-// which forbids transmitting at all.
+// The required off time in microseconds: `UINT64_MAX` if the limit is zero, which
+// forbids transmitting at all, and `0` for a limit of 1000 or more.
 uint64_t pamoja_lora_min_off_time_us(PamojaLoraLink link,
                                      uintptr_t payload_len,
                                      uint32_t duty_cycle_permille);
+
+// Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
+//
+// A transmission really costs its airtime plus the silence the limit forces after it.
+//
+// # Arguments
+//
+// * `link` - the link settings.
+// * `payload_len` - the payload length in bytes.
+// * `duty_cycle_permille` - the limit in parts per thousand, so `10` is 1%.
+//
+// # Returns
+//
+// The number of whole transmissions an hour, or `0` when the limit is zero.
+uint64_t pamoja_lora_messages_per_hour(PamojaLoraLink link,
+                                       uintptr_t payload_len,
+                                       uint32_t duty_cycle_permille);
 
 // Returns a link budget of 0 dBm between isotropic antennas with no cable loss.
 //
