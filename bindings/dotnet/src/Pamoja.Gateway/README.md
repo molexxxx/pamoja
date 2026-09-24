@@ -27,65 +27,91 @@ From [`bindings/dotnet/samples/Pamoja.Guides/GatewayGuide.cs`](https://github.co
 ```csharp
 // A gateway on a Raspberry Pi, whose identifier is written from its network interface.
 const string GatewayEui = "b827ebfffe010203";
-var dr5 = new LoraLink(7, 125_000);
 
-// It heard a packet on 868.1 MHz, and forwards it with the levels it was heard at and
-// the concentrator's own timestamp of the reception.
-var heard = new GatewayRxpk(868_100_000, Encoding.UTF8.GetBytes("TEST_PACKET_1234"))
+// Every few seconds it sends a PULL_DATA, which holds a path open through whatever
+// translates its address, so the server has somewhere to send a downlink. The server
+// answers each one, and a gateway that stops hearing answers knows the path is gone.
+byte[] pull = Gateway.Encode(new GatewayPacket(GatewayPacketKind.PullData, 0x7A01)
 {
-    Link = dr5,
-    RssiDbm = -35,
-    SnrDb = 5.1,
+    GatewayEui = GatewayEui,
+});
+GatewayPacket held = Gateway.Acknowledgment(Gateway.Parse(pull))!;
+Console.WriteLine(
+    $"pull      {pull.Length} bytes out and {Gateway.Encode(held).Length} back hold the downlink path open");
+
+// A node sends a reading, and the gateway hears it on 868.1 MHz at SF9, near the edge
+// of its range. It forwards the frame as it arrived, with the levels, the
+// concentrator's own timestamp, and its counts since the last report. It holds no key
+// and reads none of it.
+using var node = new LorawanSession(0x26010001, Filled(0x44), Filled(0x55));
+byte[] frame = node.EncodeUplink(7, 2, "21.5"u8);
+var heard = new GatewayRxpk(868_100_000, frame)
+{
+    Link = new LoraLink(9, 125_000),
+    RssiDbm = -97,
+    SnrDb = -3.2,
     TimestampMicros = 3_512_348_611,
 };
+var counts = new GatewayStat { Received = 2, ReceivedOk = 1, Forwarded = 1, AcknowledgedPercent = 100 };
 byte[] datagram = Gateway.Encode(new GatewayPacket(GatewayPacketKind.PushData, 0x1234)
 {
     GatewayEui = GatewayEui,
     Packets = [heard],
+    Status = counts,
 });
-Console.WriteLine($"push      {datagram.Length} bytes, token {0x1234:x4}");
-
-// The server reads it. Nothing about the packet has to be decoded by hand: the
-// frequency is in hertz, the datarate identifier is the link settings, and the payload
-// is bytes.
-GatewayRxpk received = Gateway.Parse(datagram).Packets[0];
 Console.WriteLine(
-    $"heard     {received.FrequencyHz} Hz at SF{received.Link!.SpreadingFactor}, " +
-    $"{received.Link.BandwidthHz / 1000} kHz, {received.RssiDbm} dBm, " +
-    $"SNR {received.SnrDb} dB, {received.Payload.Length} bytes");
+    $"push      a reading and the gateway's counts, {datagram.Length} bytes, token {0x1234:x4}");
 
-// Every uplink is acknowledged at once, by token, before anything is processed.
+// The server reads it. The frequency is in hertz, the datarate identifier is the link
+// settings, and the payload is bytes, so nothing is decoded by hand.
+GatewayPacket forwarded = Gateway.Parse(datagram);
+GatewayRxpk received = forwarded.Packets[0];
+Console.WriteLine(Invariant(
+    $"heard     {received.FrequencyHz} Hz at SF{received.Link!.SpreadingFactor}, {received.Link.BandwidthHz / 1000} kHz, ") +
+    Invariant($"{received.RssiDbm:F0} dBm, SNR {received.SnrDb:F1} dB, ") +
+    $"CRC {received.Crc.ToString().ToLowerInvariant()}, {received.Payload.Length} bytes");
+GatewayStat report = forwarded.Status!;
+Console.WriteLine(Invariant(
+    $"counts    {report.Received} received, {report.ReceivedOk} with a good CRC, {report.Forwarded} forwarded, {report.AcknowledgedPercent:F1}% acknowledged"));
+
+// It is acknowledged at once, by token, before anything in it is read.
 GatewayPacket ack = Gateway.Acknowledgment(Gateway.Parse(datagram))!;
-Console.WriteLine($"ack       {Gateway.Encode(ack).Length} bytes");
+Console.WriteLine($"ack       token {ack.Token:x4} acknowledged in {Gateway.Encode(ack).Length} bytes");
 
-// Later the server sends one back, at the concentrator timestamp that hits the device's
-// receive window, with the inverted polarity a LoRaWAN device listens for.
-byte[] downlink = Gateway.Encode(new GatewayPacket(GatewayPacketKind.PullResp, 0x00AB)
+// An answer goes back in a PULL_RESP, timed in the concentrator's own microseconds for
+// the device's first receive window, a second after the uplink ended, with the
+// inverted polarity a LoRaWAN device listens for.
+byte[] answer = node.EncodeDownlink(0, 2, "ok"u8);
+byte[] pullResp = Gateway.Encode(new GatewayPacket(GatewayPacketKind.PullResp, 0x00AB)
 {
-    Transmit = new GatewayTxpk(869_525_000, Encoding.UTF8.GetBytes("downlink"))
+    Transmit = new GatewayTxpk(868_100_000, answer)
     {
-        Link = dr5,
+        Link = new LoraLink(9, 125_000),
         TimestampMicros = 3_513_348_611,
-        PowerDbm = 27,
+        PowerDbm = 14,
         InvertPolarity = true,
-        WithoutCrc = true,
     },
 });
-GatewayTxpk transmit = Gateway.Parse(downlink).Transmit!;
+GatewayTxpk transmit = Gateway.Parse(pullResp).Transmit!;
+string iq = transmit.InvertPolarity ? "IQ inverted" : "IQ upright";
 Console.WriteLine(
-    $"downlink  {transmit.FrequencyHz} Hz at {transmit.PowerDbm} dBm, " +
-    $"inverted IQ {transmit.InvertPolarity}");
+    $"downlink  at {transmit.TimestampMicros} us on {transmit.FrequencyHz} Hz, {transmit.PowerDbm} dBm, {iq}");
 
-// The gateway answers with what became of it. A packet already scheduled in that window
-// is refused rather than dropped silently.
-byte[] refused = Gateway.Encode(new GatewayPacket(GatewayPacketKind.TxAck, 0x00AB)
+// The gateway answers each PULL_RESP with a TX_ACK saying what became of it:
+// scheduled, or refused with a reason, such as a window that had already passed.
+foreach (GatewayTxStatus said in new[] { GatewayTxStatus.None, GatewayTxStatus.TooLate })
 {
-    GatewayEui = GatewayEui,
-    TxStatus = GatewayTxStatus.CollisionPacket,
-});
-GatewayTxStatus status = Gateway.Parse(refused).TxStatus!.Value;
-Console.WriteLine(
-    $"txack     {Gateway.NameOf(status)}, scheduled {status == GatewayTxStatus.None}");
+    byte[] reported = Gateway.Encode(new GatewayPacket(GatewayPacketKind.TxAck, 0x00AB)
+    {
+        GatewayEui = GatewayEui,
+        TxStatus = said,
+    });
+    GatewayTxStatus status = Gateway.Parse(reported).TxStatus!.Value;
+    string meaning = status == GatewayTxStatus.None
+        ? "it goes out in the device's window"
+        : "it was not sent";
+    Console.WriteLine($"txack     {Gateway.NameOf(status)}: {meaning}");
+}
 ```
 
 ## The same capability in every language

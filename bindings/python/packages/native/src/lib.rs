@@ -819,6 +819,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<gateway_station::GatewayStationWindow>()?;
         m.add_class::<gateway_station::GatewayStationDataRate>()?;
         m.add_class::<gateway_station::GatewayStationJoinRange>()?;
+        m.add_class::<gateway_station::GatewayStationXtime>()?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_xtime, m)?)?;
+        m.add_function(wrap_pyfunction!(gateway_station::station_xtime_parts, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_heard, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_encode, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_parse, m)?)?;

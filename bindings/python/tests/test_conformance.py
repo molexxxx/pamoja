@@ -2979,6 +2979,17 @@ def test_station_vectors_match():
     assert gateway.station_router_refused(vector["router"], refusal["error"]) == refusal["json"]
     assert gateway.station_router_parse(refusal["json"]).error == refusal["error"]
 
+    # A station clock value is built from its parts and taken apart again, to the microsecond.
+    clock = vector["clock"]
+    built = gateway.station_xtime(clock["unit"], clock["session"], clock["micros"])
+    assert built == int(clock["value"])
+    parts = gateway.station_xtime_parts(built)
+    assert (parts.unit, parts.session, parts.micros) == (
+        clock["unit"],
+        clock["session"],
+        clock["micros"],
+    )
+
     # A join request the radio heard, split into the fields the protocol names.
     join = gateway.station_heard(
         bytes.fromhex(vector["join"]["frame"]),

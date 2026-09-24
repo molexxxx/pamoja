@@ -13574,6 +13574,12 @@
     "weight": 0.5
   },
   "station": {
+    "clock": {
+      "micros": 3512348611,
+      "session": 165,
+      "unit": 0,
+      "value": "46443374669606851"
+    },
     "dataRate": 5,
     "discovery": "{\"router\":\"b827:ebff:fe01:203\"}",
     "frequencyHz": 868100000,

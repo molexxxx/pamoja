@@ -33,7 +33,7 @@ const MIN_SPREADING_FACTOR: u8 = 5;
 const MAX_SPREADING_FACTOR: u8 = 12;
 
 /// The port a packet forwarder speaks on when a configuration does not say.
-pub const DEFAULT_FORWARDER_PORT: u16 = 1700;
+pub const DEFAULT_FORWARDER_PORT: u16 = crate::udp::DEFAULT_PORT;
 
 /// Why a configuration was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -47,6 +47,7 @@ from pamoja._native import GatewayStationLevels as StationLevels
 from pamoja._native import GatewayStationMessage as StationMessage
 from pamoja._native import GatewayStationRouter as StationRouter
 from pamoja._native import GatewayStationWindow as StationWindow
+from pamoja._native import GatewayStationXtime as StationXtime
 from pamoja._native import gateway_acknowledgment as acknowledgment
 from pamoja._native import gateway_encode as encode
 from pamoja._native import gateway_parse as parse
@@ -61,6 +62,8 @@ from pamoja._native import station_parse
 from pamoja._native import station_router_accepted
 from pamoja._native import station_router_parse
 from pamoja._native import station_router_refused
+from pamoja._native import station_xtime
+from pamoja._native import station_xtime_parts
 
 __all__ = [
     "CHIRPSTACK_UPLINK_TOPIC",
@@ -87,6 +90,7 @@ __all__ = [
     "StationMessage",
     "StationRouter",
     "StationWindow",
+    "StationXtime",
     "TxStatus",
     "Txpk",
     "acknowledgment",
@@ -103,6 +107,8 @@ __all__ = [
     "station_router_accepted",
     "station_router_parse",
     "station_router_refused",
+    "station_xtime",
+    "station_xtime_parts",
 ]
 
 #: The port a packet forwarder sends to by convention, which the protocol itself does not fix.

@@ -207,6 +207,105 @@ pub fn eui_of(text: &str) -> Option<Eui> {
     Some(Eui::new(bytes))
 }
 
+/// Where the run of the station sits in a station clock value, above the microseconds.
+const XTIME_SESSION_SHIFT: u32 = 48;
+
+/// Where the radio unit sits, above the run.
+const XTIME_UNIT_SHIFT: u32 = 56;
+
+/// The microseconds a run counts in, the low 48 bits.
+const XTIME_MICROS: u64 = (1 << XTIME_SESSION_SHIFT) - 1;
+
+/// The highest radio unit, which has seven bits.
+const XTIME_MAX_UNIT: u8 = 0x7f;
+
+/// A station clock value taken apart: the radio it was read on, the run of the station it
+/// belongs to, and the microseconds that run had counted.
+///
+/// A station reports every uplink with an `xtime`, and a server hands the same value back
+/// with the downlink that answers it, so the station knows which radio and which run the
+/// answer is timed against. The reference station writes the microseconds in bits 0 to 47,
+/// the run in bits 48 to 55, which it picks at random and never leaves at zero, and the
+/// radio in bits 56 to 62 (`src/ral.h` in `lorabasics/basicstation`). A value with a run
+/// past 31 is larger than a double holds exactly, which is why every reader here takes it as
+/// an integer.
+///
+/// # Examples
+///
+/// ```
+/// use pamoja_gateway::station::Xtime;
+///
+/// // A frame heard 3512.348611 seconds into the station's first run, on its only radio.
+/// let heard = Xtime::new(0, 1, 3_512_348_611).expect("in range");
+/// let carried = heard.value();
+/// assert_eq!(Xtime::of(carried), heard);
+///
+/// // A radio past 127, or a run longer than 48 bits of microseconds, has no value.
+/// assert_eq!(Xtime::new(128, 1, 0), None);
+/// assert_eq!(Xtime::new(0, 1, 1 << 48), None);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Xtime {
+    /// The radio unit the time was read on, 0 to 127.
+    pub unit: u8,
+    /// The run of the station the time belongs to.
+    pub session: u8,
+    /// The microseconds the run had counted, below 2^48.
+    pub micros: u64,
+}
+
+impl Xtime {
+    /// Builds a clock value from its parts.
+    ///
+    /// # Arguments
+    ///
+    /// * `unit` - the radio unit, 0 to 127.
+    /// * `session` - the run of the station.
+    /// * `micros` - the microseconds the run had counted.
+    ///
+    /// # Returns
+    ///
+    /// The value, or `None` when the unit is past 127 or the microseconds do not fit 48 bits.
+    pub const fn new(unit: u8, session: u8, micros: u64) -> Option<Xtime> {
+        if unit > XTIME_MAX_UNIT || micros > XTIME_MICROS {
+            return None;
+        }
+        Some(Xtime {
+            unit,
+            session,
+            micros,
+        })
+    }
+
+    /// Returns the value a message carries.
+    ///
+    /// # Returns
+    ///
+    /// The `xtime`.
+    pub const fn value(self) -> i64 {
+        (((self.unit & XTIME_MAX_UNIT) as i64) << XTIME_UNIT_SHIFT)
+            | ((self.session as i64) << XTIME_SESSION_SHIFT)
+            | (self.micros & XTIME_MICROS) as i64
+    }
+
+    /// Takes apart a value a message carried.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - the `xtime`.
+    ///
+    /// # Returns
+    ///
+    /// Its radio unit, run, and microseconds.
+    pub const fn of(value: i64) -> Xtime {
+        Xtime {
+            unit: (value >> XTIME_UNIT_SHIFT) as u8 & XTIME_MAX_UNIT,
+            session: (value >> XTIME_SESSION_SHIFT) as u8,
+            micros: value as u64 & XTIME_MICROS,
+        }
+    }
+}
+
 /// What a station asks the discovery endpoint, naming itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Discovery {
@@ -1640,6 +1739,27 @@ mod tests {
                 "a message names its kind"
             );
         }
+    }
+
+    // lorabasics/basicstation src/ral.h reads the radio unit as (xtime >> 56) & 0x7f, the
+    // session as (xtime >> 48) & 0xff, and keeps the microseconds in bits 47 to 0.
+    #[test]
+    fn an_xtime_holds_its_parts_where_the_reference_station_reads_them() {
+        let clock = Xtime::new(3, 0xa5, 3_512_348_611).expect("in range");
+        let value = clock.value();
+        assert_eq!((value >> 56) & 0x7f, 3);
+        assert_eq!((value >> 48) & 0xff, 0xa5);
+        assert_eq!(value & 0xffff_ffff_ffff, 3_512_348_611);
+        assert!(value > 0, "the sign bit stays clear");
+        assert_eq!(Xtime::of(value), clock);
+        assert_eq!(
+            Xtime::of(i64::MAX),
+            Xtime {
+                unit: 0x7f,
+                session: 0xff,
+                micros: (1 << 48) - 1
+            }
+        );
     }
 
     // lorabasics/basicstation src/ral.h puts a random session byte, never zero, in bits 48

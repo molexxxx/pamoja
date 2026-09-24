@@ -87,6 +87,12 @@ public sealed record GatewayStationBroadcast(byte[] Pdu, byte DataRate, uint Fre
     public long? Rctx { get; init; }
 }
 
+/// <summary>A station clock value taken apart.</summary>
+/// <param name="Unit">The radio unit the time was read on, 0 to 127.</param>
+/// <param name="Session">The run of the station the time belongs to.</param>
+/// <param name="Micros">The microseconds the run had counted, below 2^48.</param>
+public sealed record GatewayStationXtime(byte Unit, byte Session, long Micros);
+
 /// <summary>The answer a discovery endpoint gives.</summary>
 /// <param name="Uri">The websocket to open, or <c>null</c> when the station was refused.</param>
 /// <param name="Error">Why the station was refused, or <c>null</c> when it was not.</param>
@@ -417,6 +423,38 @@ public static class GatewayStation
             Router = ids.HasRouter == 0 ? null : ids.Router.ToArray(),
             Muxs = ids.HasMuxs == 0 ? null : ids.Muxs.ToArray(),
         };
+    }
+
+    /// <summary>
+    /// Builds a station clock value from the radio it was read on, the run of the station, and
+    /// the microseconds that run had counted.
+    /// </summary>
+    /// <param name="unit">The radio unit, 0 to 127.</param>
+    /// <param name="session">The run of the station, which the reference station never leaves at 0.</param>
+    /// <param name="micros">The microseconds the run had counted, below 2^48.</param>
+    /// <returns>The value a message carries as its <c>xtime</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="unit"/> is past 127, or <paramref name="micros"/> is negative or does
+    /// not fit 48 bits.
+    /// </exception>
+    public static long Xtime(byte unit, byte session, long micros)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(unit, (byte)127);
+        ArgumentOutOfRangeException.ThrowIfNegative(micros);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(micros, 1L << 48);
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_station_xtime(
+            unit, session, (ulong)micros, out long value));
+        return value;
+    }
+
+    /// <summary>Takes a station clock value apart into its radio unit, run, and microseconds.</summary>
+    /// <param name="xtime">The value a message carried.</param>
+    /// <returns>Its parts.</returns>
+    public static GatewayStationXtime XtimeParts(long xtime)
+    {
+        NativeStatus.ThrowIfError(NativeMethods.pamoja_gateway_station_xtime_parts(
+            xtime, out PamojaGatewayStationXtime parts));
+        return new GatewayStationXtime(parts.Unit, parts.Session, (long)parts.Micros);
     }
 
     /// <summary>Writes an identifier in the ID6 form the protocol prefers.</summary>

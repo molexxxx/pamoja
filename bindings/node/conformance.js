@@ -3960,6 +3960,17 @@ function stationVectors() {
     "the refusal read back",
   );
 
+  // A station clock value is built from its parts and taken apart again, to the microsecond.
+  const clock = vector.clock;
+  const built = gateway.stationXtime(clock.unit, clock.session, clock.micros);
+  assert.strictEqual(built, BigInt(clock.value), "the clock value");
+  assert.deepStrictEqual(
+    { ...gateway.stationXtimeParts(built) },
+    { unit: clock.unit, session: clock.session, micros: clock.micros },
+    "the clock taken apart",
+  );
+  assert.throws(() => gateway.stationXtime(128, 1, 0), /unit up to 127/, "a radio past 127");
+
   // A join request the radio heard, split into the fields the protocol names.
   const join = gateway.stationHeard(
     Buffer.from(vector.join.frame, "hex"),

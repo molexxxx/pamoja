@@ -861,6 +861,14 @@ released together, so one entry covers all of them.
   endpoint it names, as the others did.
 - A class B downlink's ping slot and GPS time, `ping_slot` and `gpstime` on
   `station::Message::Downlink`, written as the protocol's `DR`, `Freq`, and `gpstime`.
+- `station::Xtime` takes a Basics Station clock value apart into the radio it was read on,
+  the station's run, and the microseconds that run had counted, and builds one from them, as
+  the reference station lays them out. It is `stationXtime` and `stationXtimeParts` in
+  TypeScript, `station_xtime` and `station_xtime_parts` in Python, `GatewayStation.Xtime`
+  and `XtimeParts` in C#, and `pamoja_gateway_station_xtime` in C. The gateway daemon builds
+  its own clock with it.
+- `udp::DEFAULT_PORT` in Rust, the port a packet forwarder sends to by convention, as the
+  other languages already had.
 
 ### Changed
 
@@ -1117,6 +1125,18 @@ released together, so one entry covers all of them.
 - The C ABI's `PamojaGatewayStationFields` carries every fixed field of every kind, and a
   transmission report's clock is in its `xtime`, `rctx`, and `gpstime` rather than in
   `levels`.
+- The gateway guide carries a node's real, encrypted frame through both protocols, where it
+  sent a placeholder and pasted the server's discovery answer. It has four parts: the packet
+  forwarder protocol from both ends, a site that admits a join, answers a reading, refuses a
+  replay and lets another network's frame pass, a Basics Station session from both sides
+  timed on the station's own clock, and a network server over UDP beside the gateway daemon
+  on a Raspberry Pi. It prints the same twenty lines in every language, with words where it
+  printed booleans. The page gains a paragraph for each language, tables of the datagrams,
+  the TX_ACK words, the receive windows, the site's events, the station messages and their
+  filters, and the station clock, and a section on what goes wrong.
+- The Python gateway network raises `PamojaError` when it refuses a frame, as every other
+  refusal by the core does, where it raised `ValueError`, which stays for an argument of the
+  wrong shape.
 
 ### Fixed
 

@@ -3517,6 +3517,16 @@ typedef struct {
   bool has_muxs;
 } PamojaGatewayStationRouterIds;
 
+// A station clock value taken apart.
+typedef struct {
+  // The radio unit the time was read on, 0 to 127.
+  uint8_t unit;
+  // The run of the station the time belongs to.
+  uint8_t session;
+  // The microseconds the run had counted, below 2^48.
+  uint64_t micros;
+} PamojaGatewayStationXtime;
+
 // A validated I2C device address.
 //
 // Build one with [`pamoja_i2c_address_seven_bit`] or
@@ -8904,6 +8914,46 @@ PamojaStatus pamoja_gateway_station_router_parse(const uint8_t *text,
 PamojaStatus pamoja_gateway_station_router_identities(const uint8_t *text,
                                                       uintptr_t text_len,
                                                       PamojaGatewayStationRouterIds *out_ids);
+
+// Builds a station clock value from the radio it was read on, the run of the station, and
+// the microseconds that run had counted.
+//
+// # Arguments
+//
+// * `unit` - the radio unit, 0 to 127.
+// * `session` - the run of the station, which the reference station never leaves at 0.
+// * `micros` - the microseconds the run had counted.
+// * `out_value` - receives the value a message carries as its `xtime`.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written, or [`PamojaStatus::InvalidArgument`] when the unit is
+// past 127 or the microseconds do not fit 48 bits.
+//
+// # Safety
+//
+// `out_value` must point to writable storage.
+PamojaStatus pamoja_gateway_station_xtime(uint8_t unit,
+                                          uint8_t session,
+                                          uint64_t micros,
+                                          int64_t *out_value);
+
+// Takes a station clock value apart into its radio unit, run, and microseconds.
+//
+// # Arguments
+//
+// * `value` - the `xtime` a message carried.
+// * `out_parts` - receives the parts.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once written.
+//
+// # Safety
+//
+// `out_parts` must point to writable storage.
+PamojaStatus pamoja_gateway_station_xtime_parts(int64_t value,
+                                                PamojaGatewayStationXtime *out_parts);
 
 // Writes an identifier in the ID6 form the protocol prefers.
 //

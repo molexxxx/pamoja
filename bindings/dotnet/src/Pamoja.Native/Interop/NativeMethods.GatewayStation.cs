@@ -180,6 +180,20 @@ public static partial class NativeMethods
         nuint errorLen,
         out IntPtr outText);
 
+    /// <summary>Builds a station clock value from its radio unit, run, and microseconds.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_xtime(
+        byte unit,
+        byte session,
+        ulong micros,
+        out long outValue);
+
+    /// <summary>Takes a station clock value apart.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_xtime_parts(
+        long value,
+        out PamojaGatewayStationXtime outParts);
+
     /// <summary>Reads the identities a discovery answer names.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_gateway_station_router_identities(

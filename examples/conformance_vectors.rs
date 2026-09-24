@@ -6812,7 +6812,7 @@ fn zenoh() -> Value {
 /// heard split as a station reports them, and one message of every kind as the Rust side
 /// writes it, which each binding reads and writes back unchanged.
 fn station() -> Value {
-    use pamoja_gateway::station::{id6, Discovery, Levels, Message, Router};
+    use pamoja_gateway::station::{id6, Discovery, Levels, Message, Router, Xtime};
     use pamoja_gateway::udp::Eui;
     use pamoja_lorawan::{Device, Session, Uplink as LorawanUplink};
 
@@ -6847,6 +6847,9 @@ fn station() -> Value {
     let answered = Router::accepted(router, muxs, uri);
     let why = "this gateway is not registered";
     let refused = Router::refused(router, why);
+
+    // A station clock value on its first radio, in a run whose byte puts it past 2^53.
+    let clock = Xtime::new(0, 0xa5, 3_512_348_611).expect("in range");
 
     // The device asks to join, and the station splits the frame into the fields it reports.
     let device = Device::new(dev_eui, app_eui, app_key);
@@ -6893,6 +6896,12 @@ fn station() -> Value {
         "discovery": asking.to_json(),
         "routerAnswer": answered.to_json(),
         "refusal": { "error": why, "json": refused.to_json() },
+        "clock": {
+            "unit": clock.unit,
+            "session": clock.session,
+            "micros": clock.micros,
+            "value": clock.value().to_string(),
+        },
         "dataRate": data_rate,
         "frequencyHz": frequency_hz,
         "join": {

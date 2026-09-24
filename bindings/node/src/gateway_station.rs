@@ -12,7 +12,7 @@
 
 use napi::bindgen_prelude::{BigInt, Buffer};
 use napi_derive::napi;
-use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router};
+use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router, Xtime};
 use pamoja_gateway::udp::Eui;
 
 /// Which kind of message this is.
@@ -201,6 +201,17 @@ pub struct GatewayStationMessage {
     pub schedule: Option<Vec<GatewayStationBroadcast>>,
 }
 
+/// A station clock value taken apart.
+#[napi(object, js_name = "GatewayStationXtime")]
+pub struct GatewayStationXtime {
+    /// The radio unit the time was read on, 0 to 127.
+    pub unit: u8,
+    /// The run of the station the time belongs to.
+    pub session: u8,
+    /// The microseconds the run had counted, below 2^48.
+    pub micros: i64,
+}
+
 /// The answer a discovery endpoint gives.
 #[napi(object, js_name = "GatewayStationRouter")]
 pub struct GatewayStationRouter {
@@ -278,6 +289,35 @@ pub fn station_router_parse(text: String) -> napi::Result<GatewayStationRouter> 
         muxs: answer.muxs.map(|eui| eui.to_hex()),
         uri: answer.uri,
         error: answer.error,
+    })
+}
+
+/// Builds a station clock value from the radio it was read on, the run of the station, and
+/// the microseconds that run had counted.
+#[napi(js_name = "stationXtime")]
+pub fn station_xtime(unit: f64, session: f64, micros: f64) -> napi::Result<BigInt> {
+    let whole = |value: f64, below: f64| {
+        (value.fract() == 0.0 && (0.0..below).contains(&value)).then_some(value as u64)
+    };
+    let clock = whole(unit, 128.0)
+        .zip(whole(session, 256.0))
+        .zip(whole(micros, (1u64 << 48) as f64))
+        .and_then(|((unit, session), micros)| Xtime::new(unit as u8, session as u8, micros));
+    clock.map(|clock| BigInt::from(clock.value())).ok_or_else(|| {
+        napi::Error::from_reason(format!(
+            "a station clock takes a unit up to 127, a session up to 255 and a whole number of microseconds below 2^48, not {unit}, {session} and {micros}"
+        ))
+    })
+}
+
+/// Takes a station clock value apart into its radio unit, run, and microseconds.
+#[napi(js_name = "stationXtimeParts")]
+pub fn station_xtime_parts(xtime: BigInt) -> napi::Result<GatewayStationXtime> {
+    let clock = Xtime::of(exact(&xtime, "xtime")?);
+    Ok(GatewayStationXtime {
+        unit: clock.unit,
+        session: clock.session,
+        micros: clock.micros as i64,
     })
 }
 

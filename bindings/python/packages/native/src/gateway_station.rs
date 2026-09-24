@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
-use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router};
+use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router, Xtime};
 use pamoja_gateway::udp::Eui;
 
 use crate::PamojaError;
@@ -497,6 +497,33 @@ impl GatewayStationMessage {
     }
 }
 
+/// A station clock value taken apart.
+#[gen_stub_pyclass]
+#[pyclass(frozen, eq, skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+pub struct GatewayStationXtime {
+    /// The radio unit the time was read on, 0 to 127.
+    #[pyo3(get)]
+    unit: u8,
+    /// The run of the station the time belongs to.
+    #[pyo3(get)]
+    session: u8,
+    /// The microseconds the run had counted, below 2^48.
+    #[pyo3(get)]
+    micros: u64,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl GatewayStationXtime {
+    fn __repr__(&self) -> String {
+        format!(
+            "GatewayStationXtime(unit={}, session={}, micros={})",
+            self.unit, self.session, self.micros
+        )
+    }
+}
+
 /// The answer a discovery endpoint gives.
 #[gen_stub_pyclass]
 #[pyclass(frozen)]
@@ -612,6 +639,32 @@ pub fn station_router_parse(text: String) -> PyResult<GatewayStationRouter> {
         uri: answer.uri,
         error: answer.error,
     })
+}
+
+/// Builds a station clock value from the radio it was read on, the run of the station, and
+/// the microseconds that run had counted.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn station_xtime(unit: u8, session: u8, micros: u64) -> PyResult<i64> {
+    Xtime::new(unit, session, micros)
+        .map(Xtime::value)
+        .ok_or_else(|| {
+            PamojaError::new_err(format!(
+                "a station clock takes a unit up to 127 and 48 bits of microseconds, not unit {unit} and {micros} us"
+            ))
+        })
+}
+
+/// Takes a station clock value apart into its radio unit, run, and microseconds.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn station_xtime_parts(xtime: i64) -> GatewayStationXtime {
+    let clock = Xtime::of(xtime);
+    GatewayStationXtime {
+        unit: clock.unit,
+        session: clock.session,
+        micros: clock.micros,
+    }
 }
 
 /// Writes an identifier in the ID6 form the protocol prefers.
