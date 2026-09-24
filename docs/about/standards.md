@@ -21,7 +21,7 @@ What a row's second heading claims:
 | Round trip only | The code against itself, with no external vector to pin against |
 
 <!-- table: standards -->
-<p class="source">61 standards registered, 35 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
+<p class="source">62 standards registered, 35 of them pinned to the document's own published vectors. Counted from <code>docs/standards.toml</code> when this page was rendered.</p>
 
 ## Cryptography
 
@@ -686,7 +686,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 
 The protocol a ground station and a flight controller speak.
 
-<nav class="hw-index" aria-label="Drones index"><a href="#mavlink-framing">MAVLink v1 and v2</a><a href="#crc-16-mcrf4xx">CRC-16/MCRF4XX</a><a href="#mavlink-crc-extra">CRC_EXTRA</a><a href="#mavlink-signing">MAVLink 2 signing</a></nav>
+<nav class="hw-index" aria-label="Drones index"><a href="#mavlink-framing">MAVLink v1 and v2</a><a href="#crc-16-mcrf4xx">CRC-16/MCRF4XX</a><a href="#mavlink-crc-extra">CRC_EXTRA</a><a href="#mavlink-common-dialect">MAVLink common dialect, minimal.xml and common.xml</a><a href="#mavlink-signing">MAVLink 2 signing</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="mavlink-framing">
 <header class="hw-head">
@@ -698,7 +698,7 @@ The protocol a ground station and a flight controller speak.
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://mavlink.io/en/guide/serialization.html"><span class="hw-main"><b>The document</b><small>MAVLink v1 and v2</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mavlink/src/frame.rs#L505"><span class="hw-main"><b>The test</b><small><code>frame.rs</code> line 505</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mavlink/src/frame.rs#L544"><span class="hw-main"><b>The test</b><small><code>frame.rs</code> line 544</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="crc-16-mcrf4xx">
@@ -725,6 +725,19 @@ The protocol a ground station and a flight controller speak.
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://mavlink.io/en/guide/serialization.html#crc_extra"><span class="hw-main"><b>The document</b><small>CRC_EXTRA</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 <section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mavlink/src/crc.rs#L171"><span class="hw-main"><b>The test</b><small><code>crc.rs</code> line 171</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+</div>
+</article>
+<article class="hw-card" aria-labelledby="mavlink-common-dialect">
+<header class="hw-head">
+
+### MAVLink common dialect, minimal.xml and common.xml {#mavlink-common-dialect}
+
+<p class="hw-by">MAVLink project</p>
+<p class="hw-summary">The typed messages with their extension fields, and the named values of every enumeration they use</p>
+</header>
+<p class="hw-summary">Every enumeration value as the dialect files define them at that commit, whose names every binding reads back identically.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/mavlink/mavlink/blob/20ed9b2760cffec2ac9becb9b8287cb2456d7ee7/message_definitions/v1.0/common.xml"><span class="hw-main"><b>The document</b><small>MAVLink common dialect, minimal.xml and common.xml</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-mavlink/src/dialect/enums.rs#L787"><span class="hw-main"><b>The test</b><small><code>enums.rs</code> line 787</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="mavlink-signing">

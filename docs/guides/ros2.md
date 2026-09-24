@@ -788,7 +788,7 @@ wrong. The ones that cost an afternoon:
 
 <!-- table: next ros2 -->
 - [Zenoh keys](zenoh.md): Zenoh key expressions.
-- [MAVLink](mavlink.md): MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols.
+- [MAVLink](mavlink.md): MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols.
 - [Rules](rules.md): Rules between nodes as a file.
 - Also in Profiles and robotics: [Device profiles](profile.md), [Robot motion](motion.md).
 <!-- end -->

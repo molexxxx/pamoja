@@ -47,7 +47,13 @@ from pamoja._native import (
     ReceiverStep,
     SenderStep,
     mavlink_crc16_mcrf4xx,
+    mavlink_enum_entries,
+    mavlink_enum_entry,
+    mavlink_enum_is_bitmask,
+    mavlink_enum_names,
+    mavlink_enum_value,
     mavlink_known_crc_extra,
+    mavlink_known_enums,
     mavlink_known_messages,
     mavlink_message_crc_extra,
     mavlink_offboard_global_position,
@@ -83,10 +89,16 @@ __all__ = [
     "SenderStep",
     "TypeMask",
     "crc16",
+    "enum_entries",
+    "enum_entry",
+    "enum_is_bitmask",
+    "enum_names",
+    "enum_value",
     "frame",
     "from_dict",
     "global_position",
     "known_crc_extra",
+    "known_enums",
     "known_messages",
     "local_position",
     "local_velocity",
@@ -199,8 +211,8 @@ def frame(header: MavlinkHeader, msgid: int, payload: bytes) -> MavlinkFrame:
         build the frame with :meth:`MavlinkFrame.raw` and a seed of your own.
 
     >>> heartbeat = message("HEARTBEAT")
-    >>> heartbeat.set("type", 18)  # MAV_TYPE_ONBOARD_CONTROLLER
-    >>> heartbeat.set("system_status", 4)  # MAV_STATE_ACTIVE
+    >>> heartbeat.set("type", enum_value("MAV_TYPE_ONBOARD_CONTROLLER"))
+    >>> heartbeat.set("system_status", enum_value("MAV_STATE_ACTIVE"))
     >>> heartbeat.set("mavlink_version", 3)
     >>> sent = frame(MavlinkHeader(1, 1), heartbeat.message_id, heartbeat.payload)
     >>> sent.message_id
@@ -267,6 +279,91 @@ def known_messages() -> list[str]:
     return mavlink_known_messages()
 
 
+def enum_value(entry: str) -> int:
+    """Return the value a dialect entry name stands for, whichever enumeration it
+    belongs to.
+
+    MAVLink writes each value's name with its enumeration in front, such as
+    ``MAV_TYPE_QUADROTOR``, and the names are unique across the dialect, so the
+    name alone is enough.
+
+    :param entry: The entry's name, such as ``MAV_CMD_COMPONENT_ARM_DISARM``.
+    :returns: The value, ready to set on a field.
+    :raises ValueError: If no entry of any dialect enumeration has that name.
+
+    >>> enum_value("MAV_CMD_COMPONENT_ARM_DISARM")
+    400
+    """
+    return mavlink_enum_value(entry)
+
+
+def enum_entry(enumeration: str, value: int) -> str | None:
+    """Name the entry of an enumeration that stands for a value.
+
+    :param enumeration: The enumeration's name, such as ``MAV_STATE``.
+    :param value: The value a field carried.
+    :returns: The entry's name, or ``None`` if no entry names the value.
+    :raises ValueError: If the enumeration is unknown.
+
+    >>> enum_entry("MAV_STATE", 3)
+    'MAV_STATE_STANDBY'
+    """
+    return mavlink_enum_entry(enumeration, value)
+
+
+def enum_names(enumeration: str, value: int) -> list[str]:
+    """Name the entries a value is made of.
+
+    For a bitmask such as ``MAV_MODE_FLAG`` these are the entries whose bits are
+    set in the value, in dialect order; otherwise the one entry that names it.
+
+    :param enumeration: The enumeration's name.
+    :param value: The value a field carried.
+    :returns: The names, empty when none applies.
+    :raises ValueError: If the enumeration is unknown.
+
+    >>> enum_names("MAV_MODE_FLAG", 129)
+    ['MAV_MODE_FLAG_SAFETY_ARMED', 'MAV_MODE_FLAG_CUSTOM_MODE_ENABLED']
+    """
+    return mavlink_enum_names(enumeration, value)
+
+
+def enum_entries(enumeration: str) -> list[tuple[str, int]]:
+    """Return every entry of an enumeration as ``(name, value)`` pairs, in
+    dialect order.
+
+    :param enumeration: The enumeration's name.
+    :returns: Each entry's name and value.
+    :raises ValueError: If the enumeration is unknown.
+
+    >>> enum_entries("MAV_MISSION_TYPE")[-1]
+    ('MAV_MISSION_TYPE_ALL', 255)
+    """
+    return mavlink_enum_entries(enumeration)
+
+
+def enum_is_bitmask(enumeration: str) -> bool:
+    """Report whether an enumeration's values combine as bits.
+
+    :param enumeration: The enumeration's name.
+    :returns: ``True`` for a bitmask such as ``MAV_MODE_FLAG``.
+    :raises ValueError: If the enumeration is unknown.
+    """
+    return mavlink_enum_is_bitmask(enumeration)
+
+
+def known_enums() -> list[str]:
+    """Return the names of every enumeration this build names values for.
+
+    :returns: Each enumeration a field of a typed message names, in the order
+        the dialect defines them.
+
+    >>> "MAV_RESULT" in known_enums()
+    True
+    """
+    return mavlink_known_enums()
+
+
 def message(shape: MessageSchema | int | str) -> MavlinkMessage:
     """Create a message with every field zero.
 
@@ -275,8 +372,8 @@ def message(shape: MessageSchema | int | str) -> MavlinkMessage:
     :returns: The zeroed message, ready for its fields to be set.
 
     >>> heartbeat = message("HEARTBEAT")
-    >>> heartbeat.set("type", 18)  # MAV_TYPE_ONBOARD_CONTROLLER
-    >>> heartbeat.set("system_status", 4)  # MAV_STATE_ACTIVE
+    >>> heartbeat.set("type", enum_value("MAV_TYPE_ONBOARD_CONTROLLER"))
+    >>> heartbeat.set("system_status", enum_value("MAV_STATE_ACTIVE"))
     >>> frame = heartbeat.to_frame(MavlinkHeader(1, 1))
     >>> frame.message_id
     0
@@ -324,7 +421,7 @@ def from_dict(shape: MessageSchema, values: dict[str, object]) -> MavlinkMessage
     :param shape: The shape to build.
     :param values: The fields to set.
     :returns: The message.
-    :raises ValueError: If a name is not a field of the message, or a value does
+    :raises PamojaError: If a name is not a field of the message, or a value does
         not fit its field.
 
     >>> position = schema_for("GLOBAL_POSITION_INT")

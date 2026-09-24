@@ -63,6 +63,8 @@ mod lorawan_relay_node;
 #[cfg(feature = "mavlink")]
 mod mavlink;
 #[cfg(feature = "mavlink")]
+mod mavlink_enums;
+#[cfg(feature = "mavlink")]
 mod mavlink_protocol;
 #[cfg(feature = "mavlink")]
 mod mavlink_schema;
@@ -1109,6 +1111,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<mavlink_schema::MessageSchemaBuilder>()?;
         m.add_class::<mavlink_schema::MavlinkMessage>()?;
         m.add_function(wrap_pyfunction!(mavlink_schema::mavlink_known_messages, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_enum_value, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_enum_entry, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_enum_names, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_enum_entries, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_enum_is_bitmask, m)?)?;
+        m.add_function(wrap_pyfunction!(mavlink_enums::mavlink_known_enums, m)?)?;
         m.add_class::<mavlink_protocol::ReceiverStep>()?;
         m.add_class::<mavlink_protocol::MissionReceiver>()?;
         m.add_class::<mavlink_protocol::SenderStep>()?;

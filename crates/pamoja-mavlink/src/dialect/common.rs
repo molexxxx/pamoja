@@ -77,7 +77,12 @@ message! {
     errors_count2: u16,
     errors_count3: u16,
     errors_count4: u16,
-    battery_remaining: i8,
+    battery_remaining: i8;
+    ext {
+        onboard_control_sensors_present_extended: u32,
+        onboard_control_sensors_enabled_extended: u32,
+        onboard_control_sensors_health_extended: u32,
+    }
 }
 
 message! {
@@ -190,7 +195,19 @@ message! {
     z: i16,
     r: i16,
     buttons: u16,
-    target: u8,
+    target: u8;
+    ext {
+        buttons2: u16,
+        enabled_extensions: u8,
+        s: i16,
+        t: i16,
+        aux1: i16,
+        aux2: i16,
+        aux3: i16,
+        aux4: i16,
+        aux5: i16,
+        aux6: i16,
+    }
 }
 
 message! {
@@ -241,7 +258,8 @@ message! {
     vel: u16,
     cog: u16,
     fix_type: u8,
-    satellites_visible: u8,
+    satellites_visible: u8;
+    ext { alt_ellipsoid: i32, h_acc: u32, v_acc: u32, vel_acc: u32, hdg_acc: u32, yaw: u16 }
 }
 
 message! {
@@ -254,7 +272,8 @@ message! {
     q4: f32,
     rollspeed: f32,
     pitchspeed: f32,
-    yawspeed: f32,
+    yawspeed: f32;
+    ext { repr_offset_q: [f32; 4] }
 }
 
 message! {
@@ -281,7 +300,17 @@ message! {
     servo6_raw: u16,
     servo7_raw: u16,
     servo8_raw: u16,
-    port: u8,
+    port: u8;
+    ext {
+        servo9_raw: u16,
+        servo10_raw: u16,
+        servo11_raw: u16,
+        servo12_raw: u16,
+        servo13_raw: u16,
+        servo14_raw: u16,
+        servo15_raw: u16,
+        servo16_raw: u16,
+    }
 }
 
 message! {
@@ -332,7 +361,14 @@ message! {
     id: u8,
     battery_function: u8,
     type_: u8,
-    battery_remaining: i8,
+    battery_remaining: i8;
+    ext {
+        time_remaining: i32,
+        charge_state: u8,
+        voltages_ext: [u16; 4],
+        mode: u8,
+        fault_bitmask: u32,
+    }
 }
 
 message! {
@@ -397,7 +433,15 @@ message! {
 message! {
     /// `MISSION_CURRENT`: the sequence number of the mission item the vehicle is running.
     MissionCurrent = 42, crc = 28, name = "MISSION_CURRENT";
-    seq: u16,
+    seq: u16;
+    ext {
+        total: u16,
+        mission_state: u8,
+        mission_mode: u8,
+        mission_id: u32,
+        fence_id: u32,
+        rally_points_id: u32,
+    }
 }
 
 message! {
@@ -473,7 +517,8 @@ message! {
     q: [f32; 4],
     approach_x: f32,
     approach_y: f32,
-    approach_z: f32,
+    approach_z: f32;
+    ext { time_usec: u64 }
 }
 
 message! {
@@ -489,7 +534,8 @@ message! {
     product_id: u16,
     flight_custom_version: [u8; 8],
     middleware_custom_version: [u8; 8],
-    os_custom_version: [u8; 8],
+    os_custom_version: [u8; 8];
+    ext { uid2: [u8; 18] }
 }
 
 message! {
@@ -503,7 +549,8 @@ message! {
     /// `STATUSTEXT`: a human-readable status message with a severity.
     Statustext = 253, crc = 83, name = "STATUSTEXT";
     severity: u8,
-    text: [char; 50],
+    text: [char; 50];
+    ext { id: u16, chunk_seq: u8 }
 }
 
 #[cfg(test)]

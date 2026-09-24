@@ -487,7 +487,13 @@ __all__ = [
     "lorawan_relay_wor_uplink",
     "lorawan_wrap_mc_key",
     "mavlink_crc16_mcrf4xx",
+    "mavlink_enum_entries",
+    "mavlink_enum_entry",
+    "mavlink_enum_is_bitmask",
+    "mavlink_enum_names",
+    "mavlink_enum_value",
     "mavlink_known_crc_extra",
+    "mavlink_known_enums",
     "mavlink_known_messages",
     "mavlink_message_crc_extra",
     "mavlink_offboard_global_position",
@@ -2028,7 +2034,7 @@ class ChannelPlanBuilder:
         r"""
         Finishes the plan.
         
-        Raises `ValueError` if the plan would answer a question wrongly, for
+        Raises `PamojaError` if the plan would answer a question wrongly, for
         example because an RX1 row is narrower than the plan's offsets allow, or
         because the second receive window listens at a data rate the plan does not
         define.
@@ -8395,7 +8401,7 @@ class MavlinkFrame:
         r"""
         Parses one frame, checking it against a known `CRC_EXTRA`.
         
-        Raises `ValueError` if the bytes are not a whole frame or the checksum
+        Raises `PamojaError` if the bytes are not a whole frame or the checksum
         does not match, which is what rejects a frame mangled in transit.
         """
     @staticmethod
@@ -8464,7 +8470,7 @@ class MavlinkMessage:
         r"""
         Creates a message with every field zero.
         
-        Raises `ValueError` if the shape does not fit a MAVLink payload.
+        Raises `PamojaError` if the shape does not fit a MAVLink payload.
         """
     @staticmethod
     def decode(schema: MessageSchema, payload: typing.Sequence[builtins.int]) -> MavlinkMessage:
@@ -8473,14 +8479,14 @@ class MavlinkMessage:
         
         A payload shorter than the shape is zero-extended, as MAVLink 2
         truncation requires, so a frame from a peer that trimmed trailing zeros or
-        predates an extension field still decodes. Raises `ValueError` if the
+        predates an extension field still decodes. Raises `PamojaError` if the
         payload is longer than the shape describes.
         """
     def to_frame(self, header: MavlinkHeader) -> MavlinkFrame:
         r"""
         Builds a v2 frame carrying this message.
         
-        Raises `ValueError` if the message does not fit a frame.
+        Raises `PamojaError` if the message does not fit a frame.
         """
     def get(self, field: builtins.str, index: builtins.int = 0) -> builtins.float:
         r"""
@@ -8603,7 +8609,7 @@ class MavlinkVerifier:
         r"""
         Checks a frame's signature and its place in the timestamp sequence.
         
-        Raises `ValueError` when the frame is unsigned, the signature does not
+        Raises `PamojaError` when the frame is unsigned, the signature does not
         match the key, or the timestamp has been seen before.
         """
 
@@ -8820,8 +8826,8 @@ class MessageSchemaBuilder:
         r"""
         Puts the declared fields in wire order and finishes the shape.
         
-        Raises `ValueError` if two fields share a name, the fields do not fit a
-        MAVLink payload, or the shape has already been built.
+        Raises `PamojaError` if two fields share a name or the fields do not fit a
+        MAVLink payload, and `ValueError` if the shape has already been built.
         """
 
 @typing.final
@@ -13275,10 +13281,56 @@ def mavlink_crc16_mcrf4xx(data: typing.Sequence[builtins.int]) -> builtins.int:
     implements part of the protocol itself needs the same arithmetic.
     """
 
+def mavlink_enum_entries(enumeration: builtins.str) -> builtins.list[tuple[builtins.str, builtins.int]]:
+    r"""
+    Returns every entry of an enumeration as `(name, value)` pairs, in dialect
+    order.
+    
+    Raises `ValueError` if the enumeration is unknown.
+    """
+
+def mavlink_enum_entry(enumeration: builtins.str, value: builtins.int) -> typing.Optional[builtins.str]:
+    r"""
+    Names the entry of an enumeration that stands for a value, or `None` if
+    none does.
+    
+    Raises `ValueError` if the enumeration is unknown.
+    """
+
+def mavlink_enum_is_bitmask(enumeration: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether an enumeration's values combine as bits.
+    
+    Raises `ValueError` if the enumeration is unknown.
+    """
+
+def mavlink_enum_names(enumeration: builtins.str, value: builtins.int) -> builtins.list[builtins.str]:
+    r"""
+    Names the entries a value is made of: for a bitmask, each entry whose bits
+    are set in it, in dialect order; otherwise the one entry that names it.
+    Empty when none applies.
+    
+    Raises `ValueError` if the enumeration is unknown.
+    """
+
+def mavlink_enum_value(entry: builtins.str) -> builtins.int:
+    r"""
+    Returns the value a dialect entry name stands for, whichever enumeration it
+    belongs to.
+    
+    Raises `ValueError` if no entry of any dialect enumeration has that name.
+    """
+
 def mavlink_known_crc_extra(msgid: builtins.int) -> typing.Optional[builtins.int]:
     r"""
     Returns the `CRC_EXTRA` the common dialect publishes for a message id, or
     `None` for an id outside it, which is what a `Dialect` is for.
+    """
+
+def mavlink_known_enums() -> builtins.list[builtins.str]:
+    r"""
+    Returns the names of every enumeration the dialect table holds, in the order
+    the dialect defines them.
     """
 
 def mavlink_known_messages() -> builtins.list[builtins.str]:

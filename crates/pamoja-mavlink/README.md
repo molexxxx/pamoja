@@ -2,7 +2,7 @@
 
 # pamoja-mavlink
 
-MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with MAVLink 2 extension fields, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL.
+MAVLink for pamoja: build, parse, and sign v1/v2 frames (CRC-16/MCRF4XX, per-message CRC_EXTRA, MAVLink 2 SHA-256 signing), a typed common dialect with its MAVLink 2 extension fields and the named values of every enumeration its fields use, the mission, command, and offboard protocols as sans-IO state machines, and a vehicle modeled as a pamoja Device driven over real serial, UDP, and TCP links. Hand-written from the mavlink.io spec, no_std and allocation-free at the core, and exercised against ArduPilot and PX4 SITL.
 
 <a href="https://pamoja.molex.cloud/docs/guides/mavlink.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_mavlink/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -38,10 +38,14 @@ its reference values rather than guessed from memory:
   timestamp that let a ground station trust a command came from the vehicle it expects
   and was not replayed.
 - `dialect` - a broad, typed slice of the common dialect (HEARTBEAT, the command,
-  parameter, and mission protocols, and core telemetry), plus message shapes as data:
-  a `MessageDescriptor` gives any message's bytes named
+  parameter, and mission protocols, and core telemetry), each message with every MAVLink 2
+  extension field the dialect defines, plus message shapes as data: a
+  `MessageDescriptor` gives any message's bytes named
   fields, and a builder describes one this crate
-  does not type, so a vendor or private dialect is usable at runtime.
+  does not type, so a vendor or private dialect is usable at runtime. Every enumeration
+  a typed message's fields name is there in full, as constants and as a table of the
+  dialect's own names (`ENUMS`), so `MAV_STATE_STANDBY` reads as 3 and
+  3 reads back as `MAV_STATE_STANDBY`.
 - `protocol` - the mission, command, and offboard exchanges as pure, allocation-free
   state machines: the rules of order, matching, and retransmission that turn single
   messages into a real conversation with an autopilot, with no IO of their own. Each

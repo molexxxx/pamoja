@@ -119,6 +119,7 @@ pub(crate) fn status_of(error: MavlinkError) -> PamojaStatus {
         MavlinkError::FrameTooShort
         | MavlinkError::BadMagic(_)
         | MavlinkError::Truncated
+        | MavlinkError::UnknownIncompatFlags(_)
         | MavlinkError::CrcMismatch { .. }
         | MavlinkError::UnknownMessage(_)
         | MavlinkError::BadPayload => PamojaStatus::Codec,

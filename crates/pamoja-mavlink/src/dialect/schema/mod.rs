@@ -1277,7 +1277,8 @@ mod tests {
         });
 
         // SYS_STATUS declares an int8 in the middle of its 16-bit fields, so a stable sort
-        // by size is what moves it to the end and nothing else with it.
+        // by size is what moves it to the end and nothing else with it. Its extensions stay
+        // in the order they are declared, after every base field.
         let status = MessageDescriptorBuilder::new(1, "SYS_STATUS")
             .field("onboard_control_sensors_present", FieldType::U32, 0)
             .field("onboard_control_sensors_enabled", FieldType::U32, 0)
@@ -1292,6 +1293,17 @@ mod tests {
             .field("errors_count2", FieldType::U16, 0)
             .field("errors_count3", FieldType::U16, 0)
             .field("errors_count4", FieldType::U16, 0)
+            .extension(
+                "onboard_control_sensors_present_extended",
+                FieldType::U32,
+                0,
+            )
+            .extension(
+                "onboard_control_sensors_enabled_extended",
+                FieldType::U32,
+                0,
+            )
+            .extension("onboard_control_sensors_health_extended", FieldType::U32, 0)
             .build()?;
 
         assert_eq!(status.crc_extra(), crate::dialect::SysStatus::CRC_EXTRA);

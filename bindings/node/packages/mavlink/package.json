@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/mavlink",
   "version": "0.1.18",
-  "description": "MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols.",
+  "description": "MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

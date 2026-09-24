@@ -1953,7 +1953,7 @@ def test_an_inconsistent_plan_is_refused_where_it_is_built():
     builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
     builder.rx(915_000_000, 0, 5)
     builder.rx1_row([0])
-    with pytest.raises(ValueError, match="RX1 row"):
+    with pytest.raises(PamojaError, match="RX1 row"):
         builder.build()
 
     # Listening at a data rate the plan never defines could not work either.
@@ -1961,7 +1961,7 @@ def test_an_inconsistent_plan_is_refused_where_it_is_built():
     builder.data_rate(lora.LoraDataRate.lora(12, 125_000, 250))
     builder.rx(915_000_000, 3, 0)
     builder.rx1_row([0])
-    with pytest.raises(ValueError, match="RX2 listens"):
+    with pytest.raises(PamojaError, match="RX2 listens"):
         builder.build()
 
 
@@ -1990,7 +1990,7 @@ def test_a_frame_reaches_an_autopilot_and_reads_back():
     # A frame mangled in transit is refused rather than acted on.
     mangled = bytearray(sent.bytes)
     mangled[12] ^= 0xFF
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         mavlink.MavlinkFrame.parse_known(bytes(mangled))
 
     # A message the common dialect does not define cannot be built blind.
@@ -2033,7 +2033,7 @@ def test_a_private_dialect_is_checked_once_its_seed_is_derived():
 
     sent = mavlink.MavlinkFrame.raw(header, 50_000, seed, (42).to_bytes(4, "little"))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         mavlink.MavlinkFrame.parse_known(sent.bytes)
 
     back = mavlink.MavlinkFrame.parse_known(sent.bytes, dialect)
@@ -2058,14 +2058,14 @@ def test_a_signed_frame_proves_its_sender_and_refuses_a_replay():
 
     verifier = mavlink.MavlinkVerifier(key)
     verifier.verify(signed)
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         verifier.verify(signed)
 
     # A different key is a different sender, and an unsigned frame is never
     # silently treated as authentic.
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         mavlink.MavlinkVerifier(bytes([9]) * mavlink.KEY_LEN).verify(signed)
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         mavlink.MavlinkVerifier(key).verify(mavlink.frame(header, 0, _HEARTBEAT))
 
     with pytest.raises(ValueError, match="signing key"):
@@ -2096,11 +2096,11 @@ def test_mavlink_shapes_fill_a_message_by_name():
     assert received.get("system_status") == 4
     assert mavlink.to_dict(received, heartbeat)["type"] == 18
 
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         received.get("throttle")
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         built.set("type", 300)
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         built.set("type", 1.5)
 
     status = mavlink.schema_for("STATUSTEXT")

@@ -172,6 +172,7 @@ fn main() {
         "chirpstack": chirpstack(),
         "mavlink": mavlink(),
         "mavlinkSchema": mavlink_schema(),
+        "mavlinkEnums": mavlink_enums(),
         "mavlinkProtocol": mavlink_protocol(),
         "mesh": mesh(),
         "routing": routing(),
@@ -2074,6 +2075,68 @@ fn field_type_code(ty: MavFieldType) -> u32 {
         MavFieldType::F32 => 10,
         MavFieldType::F64 => 11,
     }
+}
+
+/// The dialect's named values: the whole table, which every binding walks and must read the
+/// same, and the lookups a program makes of it, with the names whose shape is irregular in the
+/// dialect itself.
+fn mavlink_enums() -> Value {
+    use pamoja_mavlink::dialect::ENUMS;
+
+    let table: Vec<Value> = ENUMS
+        .iter()
+        .map(|described| {
+            let entries: Vec<Value> = described
+                .entries
+                .iter()
+                .map(|entry| json!([entry.name, entry.value]))
+                .collect();
+            json!({
+                "name": described.name,
+                "bitmask": described.bitmask,
+                "entries": entries,
+            })
+        })
+        .collect();
+    json!({
+        "table": table,
+        "values": [
+            { "entry": "MAV_TYPE_QUADROTOR", "value": 2 },
+            { "entry": "MAV_STATE_STANDBY", "value": 3 },
+            { "entry": "MAV_CMD_COMPONENT_ARM_DISARM", "value": 400 },
+            { "entry": "MAV_RESULT_CANCELLED", "value": 6 },
+            { "entry": "MAV_MISSION_ACCEPTED", "value": 0 },
+            { "entry": "MAV_SYS_STATUS_SENSOR_3D_GYRO", "value": 1 },
+            { "entry": "MAV_SYS_STATUS_PREARM_CHECK", "value": 268435456 },
+            { "entry": "GPS_FIX_TYPE_3D_FIX", "value": 3 },
+            { "entry": "MAV_PROTOCOL_CAPABILITY_MAVLINK2", "value": 8192 },
+        ],
+        "entries": [
+            { "enumeration": "MAV_STATE", "value": 3, "entry": "MAV_STATE_STANDBY" },
+            { "enumeration": "MAV_AUTOPILOT", "value": 3, "entry": "MAV_AUTOPILOT_ARDUPILOTMEGA" },
+            { "enumeration": "MAV_STATE", "value": 200, "entry": null },
+        ],
+        "names": [
+            {
+                "enumeration": "MAV_MODE_FLAG",
+                "value": 129,
+                "names": ["MAV_MODE_FLAG_SAFETY_ARMED", "MAV_MODE_FLAG_CUSTOM_MODE_ENABLED"],
+            },
+            {
+                "enumeration": "MAV_SYS_STATUS_SENSOR",
+                "value": 268435489,
+                "names": [
+                    "MAV_SYS_STATUS_SENSOR_3D_GYRO",
+                    "MAV_SYS_STATUS_SENSOR_GPS",
+                    "MAV_SYS_STATUS_PREARM_CHECK",
+                ],
+            },
+            { "enumeration": "MAV_RESULT", "value": 0, "names": ["MAV_RESULT_ACCEPTED"] },
+            { "enumeration": "MAV_RESULT", "value": 99, "names": [] },
+        ],
+        "unknownEntries": ["MAV_TYPE_TELEPORTER", "mav_type_quadrotor", ""],
+        "unknownEnumerations": ["MAV_STATES", "HEARTBEAT"],
+    })
 }
 
 fn mavlink_schema() -> Value {

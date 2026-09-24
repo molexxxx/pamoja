@@ -908,6 +908,20 @@ released together, so one entry covers all of them.
   They pass every intersection and inclusion vector in Zenoh's own tests, and with the
   `runtime` feature a test asks Zenoh the same questions of every expression that three
   chunks of nine forms spell.
+- The MAVLink dialect's named values, in every language: `dialect::ENUMS` with
+  `enum_named` and `entry_value` in Rust; `enumValue`, `enumEntry`, `enumNames`,
+  `enumEntries`, `enumIsBitmask`, and `knownEnums` in TypeScript; the same in snake case in
+  Python; `MavlinkEnum` in C#; and `pamoja_mavlink_enum_*` in C. `MAV_STATE_STANDBY` reads
+  as 3, 3 reads back as `MAV_STATE_STANDBY`, and a bitmask reads back as the flags it
+  holds. Every enumeration a field of a typed message uses is there in full, 24 of them and
+  458 values, taken from the MAVLink dialect files, and each Rust constant module, such as
+  `mav_cmd`, now holds its whole enumeration.
+- The typed MAVLink messages carry every MAVLink 2 extension field the dialect defines for
+  them: 43 fields across ten messages, among them the accuracy fields of `GPS_RAW_INT`, the
+  charge state and remaining time of `BATTERY_STATUS`, the chunk fields of a long
+  `STATUSTEXT`, servos 9 to 16 of `SERVO_OUTPUT_RAW`, and the mission state of
+  `MISSION_CURRENT`. A frame from a peer that sends none of them still decodes, with each
+  read as zero.
 
 ### Changed
 
@@ -1240,6 +1254,20 @@ released together, so one entry covers all of them.
   and a verbatim chunk no wildcard reaches. The page gains a paragraph for each language,
   tables of the chunk forms, what makes an expression malformed, the canonical form, the
   questions two expressions answer, and the calls, and a section on what goes wrong.
+- `mav_result::CANCELED` is `mav_result::CANCELLED`, the dialect's own spelling of
+  `MAV_RESULT_CANCELLED`.
+- In Python, a MAVLink frame, signature, or field refusal, and a channel plan that would
+  answer wrongly, raise `PamojaError` as other core refusals do, where they raised
+  `ValueError`. A malformed argument, such as a signing key of the wrong length or a name
+  the dialect does not know, still raises `ValueError`.
+- The MAVLink guide sets and reads every value by the dialect's name, where TypeScript,
+  Python, and C# copied the values in as numbers and the output printed `type-2` and
+  `Unrelated`. It gains parts on commands, with a resend, a stray answer, progress, a
+  refusal, and giving up; on signing, with a replay, a forgery, and an unsigned frame each
+  refused with its reason; and on moving a plan item by item. All four languages print the
+  same twenty-six lines. The page gains a paragraph for each language, tables of the frame,
+  the named values, a command's answers, a signature, the mission exchange, and the calls,
+  and a section on what goes wrong.
 
 ### Fixed
 
@@ -1554,6 +1582,10 @@ released together, so one entry covers all of them.
   would forward keys Zenoh keeps sealed, its own administration space among them. No
   wildcard selects a verbatim chunk now, and only the same chunk matches it, in every
   language.
+- A MAVLink 2 frame with an incompatibility flag other than signing was parsed as though
+  the flag were not there. The serialization guide requires such a frame be dropped, since
+  the flag can change its layout. `Frame::parse` refuses it now with
+  `MavlinkError::UnknownIncompatFlags`, and the streaming parser passes over it.
 
 ## [0.1.18] - 2026-09-10
 

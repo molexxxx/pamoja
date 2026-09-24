@@ -4277,6 +4277,91 @@ fn field_type_of(code: u32) -> MavFieldType {
 }
 
 #[test]
+fn mavlink_enum_vectors_match() {
+    use pamoja_mavlink::dialect::{entry_value, enum_named, ENUMS};
+
+    let vectors = vectors();
+    let vector = &vectors["mavlinkEnums"];
+
+    let table = vector["table"].as_array().expect("the table");
+    assert_eq!(table.len(), ENUMS.len(), "the number of enumerations");
+    for (want, described) in table.iter().zip(ENUMS) {
+        assert_eq!(described.name, want["name"].as_str().expect("a name"));
+        assert_eq!(
+            described.bitmask,
+            want["bitmask"].as_bool().expect("a flag"),
+            "whether {} is a bitmask",
+            described.name
+        );
+        let entries = want["entries"].as_array().expect("the entries");
+        assert_eq!(
+            described.entries.len(),
+            entries.len(),
+            "the entries of {}",
+            described.name
+        );
+        for (entry, pair) in described.entries.iter().zip(entries) {
+            assert_eq!(entry.name, pair[0].as_str().expect("a name"));
+            assert_eq!(
+                entry.value,
+                pair[1].as_u64().expect("a value"),
+                "{}",
+                entry.name
+            );
+        }
+    }
+
+    for case in vector["values"].as_array().expect("the values") {
+        let entry = case["entry"].as_str().expect("an entry");
+        assert_eq!(
+            entry_value(entry),
+            case["value"].as_u64(),
+            "the value of {entry}"
+        );
+    }
+    for case in vector["entries"].as_array().expect("the reverse lookups") {
+        let enumeration = case["enumeration"].as_str().expect("an enumeration");
+        let value = case["value"].as_u64().expect("a value");
+        let described = enum_named(enumeration).expect("a dialect enumeration");
+        assert_eq!(
+            described.entry(value),
+            case["entry"].as_str(),
+            "the {enumeration} entry for {value}"
+        );
+    }
+    for case in vector["names"].as_array().expect("the decodes") {
+        let enumeration = case["enumeration"].as_str().expect("an enumeration");
+        let value = case["value"].as_u64().expect("a value");
+        let want: Vec<&str> = case["names"]
+            .as_array()
+            .expect("the names")
+            .iter()
+            .map(|name| name.as_str().expect("a name"))
+            .collect();
+        let described = enum_named(enumeration).expect("a dialect enumeration");
+        assert_eq!(
+            described.names(value).collect::<Vec<_>>(),
+            want,
+            "the {enumeration} names in {value}"
+        );
+    }
+    for entry in vector["unknownEntries"]
+        .as_array()
+        .expect("the unknown entries")
+    {
+        let entry = entry.as_str().expect("a name");
+        assert_eq!(entry_value(entry), None, "no enumeration names {entry}");
+    }
+    for name in vector["unknownEnumerations"]
+        .as_array()
+        .expect("the unknown enumerations")
+    {
+        let name = name.as_str().expect("a name");
+        assert!(enum_named(name).is_none(), "{name} is not an enumeration");
+    }
+}
+
+#[test]
 fn mavlink_schema_vectors_match() {
     let vectors = vectors();
     let case = &vectors["mavlinkSchema"];

@@ -1,6 +1,6 @@
 # Pamoja.Mavlink
 
-MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/mavlink.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -28,90 +28,62 @@ From [`bindings/dotnet/samples/Pamoja.Guides/MavlinkGuide.cs`](https://github.co
 const byte Vehicle = 1;
 const byte Autopilot = 1;
 const byte Station = 255;
+const byte Planner = 190;
 
-// The values the MAVLink common dialect gives these fields.
-const byte MavTypeGcs = 6;
-const byte MavTypeQuadrotor = 2;
-const byte MavAutopilotInvalid = 8;
-const byte MavAutopilotArdupilotmega = 3;
-const byte MavStateActive = 4;
-const byte MavStateStandby = 3;
-const ushort MavCmdComponentArmDisarm = 400;
-const ushort MavCmdNavTakeoff = 22;
-const byte MavResultAccepted = 0;
+// An enum field travels as a number, and the dialect names each number. Printing
+// the name keeps a reader from looking up what 2 or 81 means.
+static string Name(string enumeration, double value) =>
+    MavlinkEnum.Entry(enumeration, (ulong)value) ?? Invariant($"{value}");
 
-// Every MAVLink node broadcasts a heartbeat to say what it is and that it is
-// alive. The fields are set by name rather than by writing the payload out byte
-// by byte.
+// Every node broadcasts a heartbeat to say what it is and that it is alive. The
+// frame wraps the payload in a header and a checksum seeded with the message's own
+// value.
 using MavlinkSchema heartbeatShape = MavlinkSchema.ForName("HEARTBEAT");
 using MavlinkMessage announce = heartbeatShape.CreateMessage();
-announce.Set("type", MavTypeGcs);
-announce.Set("autopilot", MavAutopilotInvalid);
-announce.Set("system_status", MavStateActive);
+announce.Set("type", MavlinkEnum.Value("MAV_TYPE_GCS"));
+announce.Set("autopilot", MavlinkEnum.Value("MAV_AUTOPILOT_INVALID"));
+announce.Set("system_status", MavlinkEnum.Value("MAV_STATE_ACTIVE"));
 announce.Set("mavlink_version", 3);
-using MavlinkFrame sent = announce.ToFrame(new MavlinkHeader(Station, 190, 0));
-Console.WriteLine($"sent      HEARTBEAT in {sent.Bytes.Length} bytes");
+using MavlinkFrame sent = announce.ToFrame(new MavlinkHeader(Station, Planner, 0));
+Console.WriteLine($"sent      {heartbeatShape.Name} in {sent.Bytes.Length} bytes");
 
-// The vehicle answers with its own heartbeat. This copy arrives after some bytes
-// that were already on the wire, and after a copy with one bit flipped in flight.
+// The vehicle answers with its own heartbeat, which reaches the station behind some
+// noise and a copy with its last byte flipped in flight.
 using MavlinkMessage vehicle = heartbeatShape.CreateMessage();
-vehicle.Set("type", MavTypeQuadrotor);
-vehicle.Set("autopilot", MavAutopilotArdupilotmega);
-vehicle.Set("system_status", MavStateStandby);
+vehicle.Set("type", MavlinkEnum.Value("MAV_TYPE_QUADROTOR"));
+vehicle.Set("autopilot", MavlinkEnum.Value("MAV_AUTOPILOT_ARDUPILOTMEGA"));
+vehicle.Set(
+    "base_mode",
+    MavlinkEnum.Value("MAV_MODE_FLAG_CUSTOM_MODE_ENABLED")
+        | MavlinkEnum.Value("MAV_MODE_FLAG_STABILIZE_ENABLED")
+        | MavlinkEnum.Value("MAV_MODE_FLAG_MANUAL_INPUT_ENABLED"));
+vehicle.Set("system_status", MavlinkEnum.Value("MAV_STATE_STANDBY"));
 vehicle.Set("mavlink_version", 3);
 using MavlinkFrame good = vehicle.ToFrame(new MavlinkHeader(Vehicle, Autopilot, 0));
 byte[] garbled = [.. good.Bytes];
 garbled[^1] ^= 0xFF;
 byte[] delivered = [.. "???"u8, .. garbled, .. good.Bytes];
 
-// The parser skips whatever does not start a frame and drops one whose checksum
-// fails, so the frame it hands back is the good copy rather than the garbled one.
+// The parser skips whatever does not start a frame and drops a frame whose checksum
+// fails, so only the good copy comes out.
 using MavlinkParser parser = new();
-using MavlinkFrame received = parser.Push(delivered)[0];
-using MavlinkMessage heard = heartbeatShape.Decode(received.Payload);
+IReadOnlyList<MavlinkFrame> frames = parser.Push(delivered);
 Console.WriteLine(
-    $"heard     a type-{heard.Get("type")} vehicle in state {heard.Get("system_status")}");
-
-// Arming it is a command, not a message a sender fires and forgets: the vehicle
-// has to answer, and the sender keeps asking until it does. The protocol numbers
-// each resend, which is how a vehicle tells a retry from a deliberate second one.
-using MavlinkCommand arming = new(MavCmdComponentArmDisarm, 3);
-using MavlinkSchema commandShape = MavlinkSchema.ForName("COMMAND_LONG");
-using MavlinkMessage arm = commandShape.CreateMessage();
-arm.Set("param1", 1.0); // 1 arms, 0 disarms
-arm.Set("target_system", Vehicle);
-arm.Set("target_component", Autopilot);
-arm.Set("command", arming.Command);
-arm.Set("confirmation", arming.Confirmation);
-Console.WriteLine($"sent      arm request, confirmation {arming.Confirmation}");
-arm.ToFrame(new MavlinkHeader(Station, 190, 1)).Dispose();
-
-// Nothing comes back in time, so it goes again with the next confirmation number.
-byte? resend = arming.OnTimeout();
-Console.WriteLine($"silence, resending with confirmation {resend}");
-
-// An acknowledgment names the command it answers, so one for a different command
-// is not this exchange finishing.
-using MavlinkSchema ackShape = MavlinkSchema.ForName("COMMAND_ACK");
-MavlinkAckOutcome? stray = Acknowledge(ackShape, arming, MavCmdNavTakeoff);
-Console.WriteLine($"an ack for another command: {stray?.Kind}");
-
-MavlinkAckOutcome? outcome = Acknowledge(ackShape, arming, MavCmdComponentArmDisarm);
+    $"parsed    {frames.Count} frame out of {delivered.Length} bytes,"
+    + " past the noise and the garbled copy");
+using MavlinkMessage heard = heartbeatShape.Decode(frames[0].Payload);
 Console.WriteLine(
-    outcome?.Kind == MavlinkAckKind.Final && outcome?.Value == MavResultAccepted
-        ? "armed     the vehicle is ready"
-        : $"the vehicle answered {outcome?.Kind} {outcome?.Value}");
+    $"heard     {Name("MAV_TYPE", heard.Get("type"))} on"
+    + $" {Name("MAV_AUTOPILOT", heard.Get("autopilot"))},"
+    + $" in {Name("MAV_STATE", heard.Get("system_status"))}");
 
-static MavlinkAckOutcome? Acknowledge(
-    MavlinkSchema shape,
-    MavlinkCommand tracked,
-    ushort command)
+// The base mode is a bitmask, so it names a set of flags rather than one value.
+ulong baseMode = (ulong)heard.Get("base_mode");
+Console.WriteLine(
+    $"flags     {string.Join(" | ", MavlinkEnum.Names("MAV_MODE_FLAG", baseMode))}");
+if ((baseMode & MavlinkEnum.Value("MAV_MODE_FLAG_SAFETY_ARMED")) == 0)
 {
-    using MavlinkMessage ack = shape.CreateMessage();
-    ack.Set("command", command);
-    ack.Set("result", 0);
-    using MavlinkFrame frame = ack.ToFrame(new MavlinkHeader(1, 1, 0));
-    return tracked.OnFrame(frame);
+    Console.WriteLine("disarmed  MAV_MODE_FLAG_SAFETY_ARMED is not among them");
 }
 ```
 

@@ -68,6 +68,8 @@ pub mod lorawan_relay;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
 #[cfg(feature = "mavlink")]
+pub mod mavlink_enums;
+#[cfg(feature = "mavlink")]
 pub mod mavlink_protocol;
 #[cfg(feature = "mavlink")]
 pub mod mavlink_schema;

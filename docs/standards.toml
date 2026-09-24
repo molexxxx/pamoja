@@ -683,6 +683,18 @@ at = "fn heartbeat_crc_extra_matches_the_dialect"
 anchor = "vector"
 
 [[entry]]
+key = "mavlink-common-dialect"
+chapter = "mavlink"
+designation = "MAVLink common dialect, minimal.xml and common.xml"
+body = "MAVLink project"
+subject = "The typed messages with their extension fields, and the named values of every enumeration they use"
+url = "https://github.com/mavlink/mavlink/blob/20ed9b2760cffec2ac9becb9b8287cb2456d7ee7/message_definitions/v1.0/common.xml"
+evidence = "crates/pamoja-mavlink/src/dialect/enums.rs"
+at = "fn the_constants_and_the_names_agree"
+anchor = "rule"
+note = "Every enumeration value as the dialect files define them at that commit, whose names every binding reads back identically."
+
+[[entry]]
 key = "mavlink-signing"
 chapter = "mavlink"
 designation = "MAVLink 2 signing"

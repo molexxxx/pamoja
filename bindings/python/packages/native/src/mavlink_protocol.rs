@@ -14,7 +14,6 @@
 
 use std::sync::Mutex;
 
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyfunction, gen_stub_pymethods};
 
@@ -30,10 +29,11 @@ use pamoja_mavlink::{Frame as CoreFrame, Header, MavlinkError};
 
 use crate::mavlink::{MavlinkFrame, MavlinkHeader};
 use crate::mavlink_schema::MavlinkMessage;
+use crate::PamojaError;
 
 /// Turns a MAVLink error into the exception a caller sees.
 fn error_of(error: MavlinkError) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    PamojaError::new_err(error.to_string())
 }
 
 /// What one incoming frame produced for a mission receiver.

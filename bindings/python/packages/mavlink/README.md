@@ -1,6 +1,6 @@
 # pamoja-mavlink
 
-MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/mavlink.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -26,49 +26,54 @@ From [`bindings/python/guides/mavlink.py`](https://github.com/molexxxx/pamoja/bl
 
 ```python
 from pamoja.mavlink import (
-    CommandProtocol,
     MavlinkHeader,
     MavlinkMessage,
     MavlinkParser,
+    enum_entry,
+    enum_names,
+    enum_value,
     from_dict,
-    message,
     schema_for,
 )
 
 VEHICLE = 1
 AUTOPILOT = 1
 STATION = 255
+PLANNER = 190
 
-# The values the MAVLink common dialect gives these fields.
-MAV_TYPE_GCS = 6
-MAV_TYPE_QUADROTOR = 2
-MAV_AUTOPILOT_INVALID = 8
-MAV_AUTOPILOT_ARDUPILOTMEGA = 3
-MAV_STATE_ACTIVE = 4
-MAV_STATE_STANDBY = 3
-MAV_CMD_COMPONENT_ARM_DISARM = 400
-MAV_CMD_NAV_TAKEOFF = 22
-MAV_RESULT_ACCEPTED = 0
 
-# Every MAVLink node broadcasts a heartbeat to say what it is and that it is alive. The
-# fields are set by name rather than by writing the payload out byte by byte.
-announce = message("HEARTBEAT")
-announce.set("type", MAV_TYPE_GCS)
-announce.set("autopilot", MAV_AUTOPILOT_INVALID)
-announce.set("system_status", MAV_STATE_ACTIVE)
-announce.set("mavlink_version", 3)
-sent = announce.to_frame(MavlinkHeader(STATION, 190, 0))
-print(f"sent      HEARTBEAT in {len(sent.bytes)} bytes")
+# An enum field travels as a number, and the dialect names each number. Printing the name
+# keeps a reader from looking up what 2 or 81 means.
+def name(enumeration: str, value: int) -> str:
+    return enum_entry(enumeration, value) or str(value)
 
-# The vehicle answers with its own heartbeat. This copy arrives after some bytes that were
-# already on the wire, and after a copy with one bit flipped in flight.
-vehicle_shape = schema_for("HEARTBEAT")
-vehicle = from_dict(
-    vehicle_shape,
+
+# Every node broadcasts a heartbeat to say what it is and that it is alive. The frame wraps
+# the payload in a header and a checksum seeded with the message's own value.
+heartbeat_shape = schema_for("HEARTBEAT")
+announce = from_dict(
+    heartbeat_shape,
     {
-        "type": MAV_TYPE_QUADROTOR,
-        "autopilot": MAV_AUTOPILOT_ARDUPILOTMEGA,
-        "system_status": MAV_STATE_STANDBY,
+        "type": enum_value("MAV_TYPE_GCS"),
+        "autopilot": enum_value("MAV_AUTOPILOT_INVALID"),
+        "system_status": enum_value("MAV_STATE_ACTIVE"),
+        "mavlink_version": 3,
+    },
+)
+sent = announce.to_frame(MavlinkHeader(STATION, PLANNER, 0))
+print(f"sent      {heartbeat_shape.name} in {len(sent.bytes)} bytes")
+
+# The vehicle answers with its own heartbeat, which reaches the station behind some noise and
+# a copy with its last byte flipped in flight.
+vehicle = from_dict(
+    heartbeat_shape,
+    {
+        "type": enum_value("MAV_TYPE_QUADROTOR"),
+        "autopilot": enum_value("MAV_AUTOPILOT_ARDUPILOTMEGA"),
+        "base_mode": enum_value("MAV_MODE_FLAG_CUSTOM_MODE_ENABLED")
+        | enum_value("MAV_MODE_FLAG_STABILIZE_ENABLED")
+        | enum_value("MAV_MODE_FLAG_MANUAL_INPUT_ENABLED"),
+        "system_status": enum_value("MAV_STATE_STANDBY"),
         "mavlink_version": 3,
     },
 )
@@ -77,53 +82,25 @@ garbled = bytearray(good.bytes)
 garbled[-1] ^= 0xFF
 delivered = b"???" + bytes(garbled) + good.bytes
 
-# The parser skips whatever does not start a frame and drops one whose checksum fails, so
-# the frame it hands back is the good copy rather than the garbled one.
-parser = MavlinkParser()
-received = parser.push(delivered)[0]
-heard = MavlinkMessage.decode(vehicle_shape, received.payload)
-print(f"heard     a type-{heard.get_int('type')} vehicle in state {heard.get_int('system_status')}")
-
-# Arming it is a command, not a message a sender fires and forgets: the vehicle has to
-# answer, and the sender keeps asking until it does. The protocol numbers each resend,
-# which is how a vehicle tells a retry from a second, deliberate command.
-arming = CommandProtocol(MAV_CMD_COMPONENT_ARM_DISARM, 3)
-command_shape = schema_for("COMMAND_LONG")
-arm = from_dict(
-    command_shape,
-    {
-        "param1": 1.0,  # 1 arms, 0 disarms
-        "target_system": VEHICLE,
-        "target_component": AUTOPILOT,
-        "command": arming.command,
-        "confirmation": arming.confirmation,
-    },
+# The parser skips whatever does not start a frame and drops a frame whose checksum fails, so
+# only the good copy comes out.
+frames = MavlinkParser().push(delivered)
+print(
+    f"parsed    {len(frames)} frame out of {len(delivered)} bytes,"
+    " past the noise and the garbled copy"
 )
-arm.to_frame(MavlinkHeader(STATION, 190, 1))
-print(f"sent      arm request, confirmation {arming.confirmation}")
+heard = MavlinkMessage.decode(heartbeat_shape, frames[0].payload)
+print(
+    f"heard     {name('MAV_TYPE', heard.get_int('type'))} on"
+    f" {name('MAV_AUTOPILOT', heard.get_int('autopilot'))},"
+    f" in {name('MAV_STATE', heard.get_int('system_status'))}"
+)
 
-# Nothing comes back in time, so it goes again with the next confirmation number.
-resend = arming.on_timeout()
-print(f"silence, resending with confirmation {resend}")
-
-# An acknowledgment names the command it answers, so one for a different command is not
-# this exchange finishing.
-ack_shape = schema_for("COMMAND_ACK")
-
-
-def acknowledgment(command: int) -> object:
-    built = from_dict(ack_shape, {"command": command, "result": MAV_RESULT_ACCEPTED})
-    return built.to_frame(MavlinkHeader(VEHICLE, AUTOPILOT, 0))
-
-
-stray = arming.on_frame(acknowledgment(MAV_CMD_NAV_TAKEOFF))
-print(f"an ack for another command: {stray.kind}")
-
-outcome = arming.on_frame(acknowledgment(MAV_CMD_COMPONENT_ARM_DISARM))
-if outcome.kind == "final" and outcome.value == MAV_RESULT_ACCEPTED:
-    print("armed     the vehicle is ready")
-else:
-    print(f"the vehicle answered {outcome.kind} {outcome.value}")
+# The base mode is a bitmask, so it names a set of flags rather than one value.
+base_mode = heard.get_int("base_mode")
+print(f"flags     {' | '.join(enum_names('MAV_MODE_FLAG', base_mode))}")
+if base_mode & enum_value("MAV_MODE_FLAG_SAFETY_ARMED") == 0:
+    print("disarmed  MAV_MODE_FLAG_SAFETY_ARMED is not among them")
 ```
 
 ## The same capability in every language
