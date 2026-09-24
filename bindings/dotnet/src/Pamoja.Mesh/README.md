@@ -30,37 +30,41 @@ From [`bindings/dotnet/samples/Pamoja.Guides/MeshGuide.cs`](https://github.com/m
 // payload and a checksum over everything but the hop limit.
 const uint RiverGauge = 305_419_896;
 MeshFrame reading = Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8);
-Console.WriteLine($"sent      {reading.Bytes.Length} bytes to every node in range");
-Console.WriteLine($"addressed to broadcast: {reading.Dst == Mesh.Broadcast}");
+string to = reading.Dst == Mesh.Broadcast ? "every node in range" : "one node";
+Console.WriteLine($"sent      {reading.Bytes.Length} bytes to {to}, hop limit {reading.HopLimit}");
 
 // A neighbor hears it. Every node in range rebroadcasts, so the same packet
 // arrives several times over; the source and sequence id decide which copy is
 // the first.
 MeshFrame received = Mesh.Parse(reading.Bytes);
-Console.WriteLine($"payload   {System.Text.Encoding.UTF8.GetString(received.Payload)}");
-
+Console.WriteLine($"payload   {Encoding.UTF8.GetString(received.Payload)}");
 using SeenPackets seen = new(64);
 bool first = seen.Record(received.Src, received.Id);
 bool again = seen.Record(received.Src, received.Id);
-Console.WriteLine($"first copy relayed: {first}, second copy relayed: {again}");
+if (first && !again)
+{
+    Console.WriteLine("dedup     the first copy is relayed, and the second is dropped");
+}
 
 // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay
 // forwards the frame without recomputing it and the check stays end to end.
 MeshFrame forwarded = Mesh.Relayed(received.Bytes)!;
-Console.WriteLine($"relayed   hop limit {forwarded.HopLimit}");
 MeshFrame onward = Mesh.Parse(forwarded.Bytes);
-Console.WriteLine($"onward    {System.Text.Encoding.UTF8.GetString(onward.Payload)}");
+Console.WriteLine(
+    $"relayed   hop limit {forwarded.HopLimit}, and the checksum still holds: " +
+    Encoding.UTF8.GetString(onward.Payload));
 
-// A frame that has run out of hops is not relayed again, which ends the flood.
-MeshFrame? spent = Mesh.Relayed(Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8, 0).Bytes);
-Console.WriteLine(spent is null
-    ? "spent     hop limit reached, the flood stops here"
-    : "a spent frame was relayed, which should never happen");
+// A frame that has run out of hops is not relayed again, which is what ends the
+// flood.
+if (Mesh.Relayed(Mesh.BroadcastFrame(RiverGauge, 1, "level=high"u8, hopLimit: 0).Bytes) is null)
+{
+    Console.WriteLine("spent     at hop limit 0 the frame goes no further");
+}
 
 // A payload byte the air mangled fails the checksum rather than reaching the
 // application as a plausible reading. The header is a fixed width, so the first
 // byte past it is the first byte of the reading itself.
-byte[] mangled = [.. reading.Bytes];
+byte[] mangled = reading.Bytes.ToArray();
 mangled[Mesh.HeaderLen] ^= 0xFF;
 try
 {

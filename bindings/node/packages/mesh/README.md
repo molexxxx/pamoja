@@ -28,32 +28,31 @@ import { BROADCAST, HEADER_LEN, SeenPackets, broadcast, parse, relayed } from '@
 // a checksum over everything but the hop limit.
 const RIVER_GAUGE = 305419896
 const reading = broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'))
-console.log(`sent      ${reading.bytes.length} bytes to every node in range`)
-console.log(`addressed to broadcast: ${reading.dst === BROADCAST}`)
+const to = reading.dst === BROADCAST ? 'every node in range' : 'one node'
+console.log(`sent      ${reading.bytes.length} bytes to ${to}, hop limit ${reading.hopLimit}`)
 
 // A neighbor hears it. Every node in range rebroadcasts, so the same packet arrives
 // several times over; the source and sequence id decide which copy is the first.
 const received = parse(reading.bytes)
 console.log(`payload   ${received.payload.toString()}`)
-
 const seen = new SeenPackets(64)
 const first = seen.record(received.src, received.id)
 const again = seen.record(received.src, received.id)
-console.log(`first copy relayed: ${first}, second copy relayed: ${again}`)
+if (first && !again) {
+  console.log('dedup     the first copy is relayed, and the second is dropped')
+}
 
 // Relaying spends one hop. The checksum skips the hop-limit byte, so a relay forwards the
 // frame without recomputing it and the check stays end to end.
 const forwarded = relayed(received.bytes)!
-console.log(`relayed   hop limit ${forwarded.hopLimit}`)
 const onward = parse(forwarded.bytes)
-console.log(`onward    ${onward.payload.toString()}`)
+console.log(
+  `relayed   hop limit ${forwarded.hopLimit}, and the checksum still holds: ${onward.payload.toString()}`,
+)
 
 // A frame that has run out of hops is not relayed again, which is what ends the flood.
-const spent = relayed(broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'), 0).bytes)
-if (spent === null) {
-  console.log('spent     hop limit reached, the flood stops here')
-} else {
-  console.log('a spent frame was relayed, which should never happen')
+if (relayed(broadcast(RIVER_GAUGE, 1, Buffer.from('level=high'), 0).bytes) === null) {
+  console.log('spent     at hop limit 0 the frame goes no further')
 }
 
 // A payload byte the air mangled fails the checksum rather than reaching the application
