@@ -86,11 +86,13 @@ transport (`pamoja-mqtt`, `pamoja-coap`) is its own crate, so Rust code pulls
 `MqttTransport` from `pamoja-mqtt`, not from the core. Every registry offers the
 same three grain sizes, and the guides' chapters are the domains:
 
+<!-- table: grains -->
 | What you want | Rust | npm | PyPI | NuGet |
 | --- | --- | --- | --- | --- |
 | Everything | `pamoja` | `pamoja` | `pamoja` | `Pamoja` |
-| A domain, six of them | `pamoja --features radio` | `@pamoja/radio` | `pamoja-radio` | `Pamoja.Radio` |
-| One capability, thirty | `pamoja-lora` | `@pamoja/lora` | `pamoja-lora` | `Pamoja.Lora` |
+| A domain, six of them | `pamoja` with `--no-default-features --features std,radio` | `@pamoja/radio` | `pamoja-radio` | `Pamoja.Radio` |
+| One capability, 32 of them | `pamoja-lora` | `@pamoja/lora` | `pamoja-lora` | `Pamoja.Lora` |
+<!-- end -->
 
 Underneath the three bindings, and nowhere in Rust, is the compiled engine:
 `@pamoja/native`, `pamoja-native`, and `Pamoja.Native`. It is the built library,

@@ -197,6 +197,58 @@ impl Catalog {
     /// qualifies when more than one of its capabilities has a crate of its own, and the
     /// engine's own surface comes with the chapter it belongs to, so installing a domain
     /// gives the whole chapter as the guides present it.
+    /// The three grain sizes a project installs at, for the README: everything, one domain,
+    /// or one capability, with how many of each there are.
+    ///
+    /// # Returns
+    ///
+    /// The Markdown table, without a trailing newline.
+    pub fn grains_table(&self) -> String {
+        let domains = self.domains();
+        let packaged = self
+            .capabilities
+            .iter()
+            .filter(|capability| !capability.crates.is_empty())
+            .count();
+        let domain = domains
+            .iter()
+            .map(|(chapter, _)| chapter.key.as_str())
+            .find(|key| *key == "radio")
+            .or_else(|| domains.first().map(|(chapter, _)| chapter.key.as_str()))
+            .unwrap_or_default();
+        let one = self
+            .capabilities
+            .iter()
+            .find(|capability| capability.key == "lora")
+            .or_else(|| {
+                self.capabilities
+                    .iter()
+                    .find(|capability| !capability.crates.is_empty())
+            });
+        let (crate_name, node, python, dotnet) = match one {
+            Some(capability) => (
+                capability.crates.first().cloned().unwrap_or_default(),
+                node_package(capability),
+                format!("pamoja-{}", capability.python.replace('_', "-")),
+                capability.dotnet_package(),
+            ),
+            None => Default::default(),
+        };
+        let dotnet_domain = domain
+            .split('-')
+            .map(dotnet_name)
+            .collect::<Vec<_>>()
+            .concat();
+        format!(
+            "| What you want | Rust | npm | PyPI | NuGet |\n\
+             | --- | --- | --- | --- | --- |\n\
+             | Everything | `pamoja` | `pamoja` | `pamoja` | `Pamoja` |\n\
+             | A domain, {} of them | `pamoja` with `--no-default-features --features std,{domain}` | `@pamoja/{domain}` | `pamoja-{domain}` | `Pamoja.{dotnet_domain}` |\n\
+             | One capability, {packaged} of them | `{crate_name}` | `{node}` | `{python}` | `{dotnet}` |",
+            words(domains.len()),
+        )
+    }
+
     pub fn domains(&self) -> Vec<(&Chapter, Vec<&Capability>)> {
         self.chapters
             .iter()
@@ -742,6 +794,7 @@ impl Catalog {
         let arg = words.next();
         match (kind, arg) {
             ("chapters", None) => Ok(self.chapters_table()),
+            ("grains", None) => Ok(self.grains_table()),
             ("crates", None) => Ok(self.crates_table(crate_descriptions, false)),
             ("crates", Some("engine")) => Ok(self.crates_table(crate_descriptions, true)),
             ("packages", Some(language @ ("rust" | "node" | "python" | "dotnet"))) => {
@@ -912,7 +965,10 @@ impl Catalog {
             .into_iter()
             .map(|(chapter, _members)| {
                 let command = match language {
-                    "rust" => format!("cargo add pamoja --features {}", chapter.key),
+                    "rust" => format!(
+                        "cargo add pamoja --no-default-features --features std,{}",
+                        chapter.key
+                    ),
                     "node" => format!("npm install @pamoja/{}", chapter.key),
                     "python" => format!("pip install pamoja-{}", chapter.key),
                     _ => format!(
@@ -1312,7 +1368,7 @@ impl Language {
     fn domain_install(&self, chapter: &str) -> String {
         match self.domain_package(chapter) {
             Some(package) => self.install(&package),
-            None => format!("cargo add pamoja --features {chapter}"),
+            None => format!("cargo add pamoja --no-default-features --features std,{chapter}"),
         }
     }
 }
@@ -1755,6 +1811,16 @@ fn declared_types(source: &str) -> Vec<String> {
     names
 }
 
+// A small count written out, as prose does, and larger ones as numerals.
+fn words(count: usize) -> String {
+    const WORDS: [&str; 11] = [
+        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    ];
+    WORDS
+        .get(count)
+        .map_or_else(|| count.to_string(), |word| (*word).to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1961,7 +2027,9 @@ crate = "pamoja"
         assert!(node.contains("<a class=\"pkg-btn api node\" href=\"https://pamoja.molex.cloud/docs/reference/node.html#field-io\">API reference</a><a class=\"pkg-btn ext\" href=\"https://www.npmjs.com/package/@pamoja/field-io\">npm</a></div></div>"), "{node}");
 
         let rust = catalog.render("install rust", &descriptions).unwrap();
-        assert!(rust.contains("<code class=\"cmd\">cargo add pamoja --features field-io</code>"));
+        assert!(rust.contains(
+            "<code class=\"cmd\">cargo add pamoja --no-default-features --features std,field-io</code>"
+        ));
         assert!(
             rust.contains("<a class=\"pkg-title\" href=\"https://pamoja.molex.cloud/docs/reference/rust.html#field-io\">Field I/O</a></div>"),
             "a feature has no registry page and no import of its own"

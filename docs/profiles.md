@@ -3,9 +3,10 @@
 A profile is a node written down as data: what it publishes on, which policy it
 applies to each reading, how often it samples as its battery drains, and how a
 dashboard should draw it. The [device profiles guide](guides/profile.md) loads one
-and runs it in the four languages. This page is the catalog of the profiles the
-project and its community share. Each is a JSON file under `profiles/` in the
-repository, read by the same parser a device uses, which refuses a manifest no node
+and decides readings with it in the four languages. This page is the catalog: the
+four presets the library ships and four worked examples written for it, with room
+for the profiles people share from nodes that have run. Each is a JSON file under
+`profiles/` in the repository, read by the same parser a device uses, which refuses a manifest no node
 could run, checked in CI against the catalog's own conventions as well, and kept in
 the form the library itself writes, so a change to one shows as a change of meaning
 and nothing else.

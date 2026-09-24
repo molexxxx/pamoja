@@ -433,7 +433,7 @@ impl Home {
         descriptions: &BTreeMap<String, String>,
     ) -> Result<String, String> {
         let mut out = String::from("<main class=\"home sheet\" id=\"content\">\n");
-        out.push_str(&self.front(catalog, lib_crates));
+        out.push_str(&self.front(root, catalog, lib_crates)?);
         out.push_str(&quickstart(root)?);
         out.push_str(&covers(catalog, descriptions));
         out.push_str(&self.runs());
@@ -446,17 +446,29 @@ impl Home {
     // The sheet's first page: the title, the description, the features and specifications
     // columns, and beside them the typical application figure, the ordering table, and
     // the doors into the documentation.
-    fn front(&self, catalog: &Catalog, lib_crates: &[String]) -> String {
+    fn front(
+        &self,
+        root: &Path,
+        catalog: &Catalog,
+        lib_crates: &[String],
+    ) -> Result<String, String> {
         let title: Vec<String> = self.hero.title.iter().map(|line| escape(line)).collect();
         let mut what = escape(&self.hero.eyebrow);
         if let Some(first) = what.get(..1) {
             what.replace_range(..1, &first.to_uppercase());
         }
-        let guides = catalog
+        let packaged = catalog
             .capabilities
             .iter()
-            .filter(|capability| capability.guide.is_some())
+            .filter(|capability| !capability.crates.is_empty())
             .count();
+        let guides: usize = catalog
+            .capabilities
+            .iter()
+            .map(|capability| usize::from(capability.guide.is_some()) + capability.guides.len())
+            .sum();
+        let bare = bare_metal(root, lib_crates)?;
+        let (external, compiled) = one_capability_build(root)?;
         let stage = self.scenarios.first();
         let stage_key = stage
             .map(|scenario| scenario.key.as_str())
@@ -478,7 +490,7 @@ impl Home {
                 )
             })
             .collect();
-        format!(
+        Ok(format!(
             "<section class=\"front\" aria-labelledby=\"sheet-title\">\n\
              <div class=\"front-id\">\n\
              <h1 class=\"sheet-title\" id=\"sheet-title\">{}</h1>\n\
@@ -504,8 +516,8 @@ impl Home {
              <section class=\"sec\" aria-labelledby=\"features-title\">\n\
              <h2 id=\"features-title\"><span class=\"num\">1</span>Features</h2>\n\
              <ul class=\"features\">\n\
-             <li>{} capabilities, each a crate in Rust and a package in TypeScript, Python, and C#</li>\n\
-             <li>{} crates over one core, most of them <code>no_std</code>, every one cross-compiled for a Cortex-M4F in CI</li>\n\
+             <li>{packaged} capabilities, each a crate in Rust and a package in TypeScript, Python, and C#</li>\n\
+             <li>{} crates over one core; the {bare} that are <code>no_std</code> are cross-compiled for a Cortex-M4F in CI</li>\n\
              <li>{guides} guides, each showing the same example in four languages, spliced from the tests that run it</li>\n\
              <li>Offline first: store and forward, compact codecs, LoRa, LoRaWAN, and mesh as first-class links</li>\n\
              <li>Device identity, a secured session, signed updates with rollback, and a tamper-evident log</li>\n\
@@ -518,11 +530,11 @@ impl Home {
              <table class=\"specs\">\n\
              <tbody>\n\
              <tr><th scope=\"row\">Languages</th><td>Rust, TypeScript, Python, C#</td></tr>\n\
-             <tr><th scope=\"row\">Capabilities</th><td>{}</td></tr>\n\
+             <tr><th scope=\"row\">Capabilities</th><td>{packaged}</td></tr>\n\
              <tr><th scope=\"row\">Crates in the workspace</th><td>{}</td></tr>\n\
              <tr><th scope=\"row\">Guides</th><td>{guides}, each in four languages</td></tr>\n\
              <tr><th scope=\"row\">Smallest target</th><td>Cortex-M4F, <code>no_std</code></td></tr>\n\
-             <tr><th scope=\"row\">Third-party code</th><td>None in a one-capability Rust build</td></tr>\n\
+             <tr><th scope=\"row\">Third-party code</th><td>{external} of the {compiled} crates a one-capability Rust build compiles</td></tr>\n\
              <tr><th scope=\"row\">Registries</th><td>crates.io, npm, PyPI, NuGet</td></tr>\n\
              <tr><th scope=\"row\">License</th><td>MIT</td></tr>\n\
              </tbody>\n\
@@ -532,11 +544,9 @@ impl Home {
              </section>\n",
             title.join("<br>"),
             escape(&self.hero.lead),
-            catalog.capabilities.len(),
             lib_crates.len(),
-            catalog.capabilities.len(),
             lib_crates.len(),
-        )
+        ))
     }
 
     // The typical applications: the scenario tabs, and each scenario as a figure with the
@@ -983,6 +993,62 @@ fn strings(table: &dyn toml_edit::TableLike, key: &str, at: &str) -> Result<Vec<
                 .ok_or_else(|| format!("{at}: `{key}` must hold only strings"))
         })
         .collect()
+}
+
+// How many library crates declare `no_std`, refusing a count CI does not back: every one of
+// them has to be named in the workflow step that cross-compiles for bare metal.
+fn bare_metal(root: &Path, lib_crates: &[String]) -> Result<usize, String> {
+    let workflow = std::fs::read_to_string(root.join(".github/workflows/ci.yml"))
+        .map_err(|e| format!("reading .github/workflows/ci.yml: {e}"))?;
+    let step = workflow
+        .split("- name: ")
+        .find(|step| step.starts_with("Cross-compile the no_std crates"))
+        .ok_or("ci.yml has no step that cross-compiles the no_std crates")?;
+    let mut bare = 0;
+    let mut missing = Vec::new();
+    for krate in lib_crates {
+        let lib = root.join("crates").join(krate).join("src/lib.rs");
+        let Ok(source) = std::fs::read_to_string(&lib) else {
+            continue;
+        };
+        let declares = source
+            .lines()
+            .any(|line| line.trim_start().starts_with("#![") && line.contains("no_std"));
+        if !declares {
+            continue;
+        }
+        bare += 1;
+        if !step.contains(&format!("-p {krate} ")) && !step.contains(&format!("-p {krate}\n")) {
+            missing.push(krate.as_str());
+        }
+    }
+    if missing.is_empty() {
+        Ok(bare)
+    } else {
+        Err(format!(
+            "these no_std crates are not cross-compiled in CI, so the home page cannot say they are: {}",
+            missing.join(", ")
+        ))
+    }
+}
+
+// The third-party crates and the whole count of the one-capability build, read from the
+// measured table `cargo xtask docs` keeps in docs/install.md.
+fn one_capability_build(root: &Path) -> Result<(usize, usize), String> {
+    let install = std::fs::read_to_string(root.join("docs/install.md"))
+        .map_err(|e| format!("reading docs/install.md: {e}"))?;
+    let row = install
+        .lines()
+        .find(|line| line.starts_with("| One capability |"))
+        .ok_or("docs/install.md has no measured one-capability build")?;
+    let cells: Vec<&str> = row.split('|').map(str::trim).collect();
+    let number = |at: usize| {
+        cells
+            .get(at)
+            .and_then(|cell| cell.parse::<usize>().ok())
+            .ok_or_else(|| format!("docs/install.md: the one-capability row is malformed: {row}"))
+    };
+    Ok((number(5)?, number(3)?))
 }
 
 #[cfg(test)]
