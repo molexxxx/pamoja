@@ -4,7 +4,7 @@
 import asyncio
 
 from pamoja.loopback import LoopbackBroker
-from pamoja.profile import RuleActionKind, RuleEvaluator
+from pamoja.profile import RuleActionKind, RuleEngine
 
 # A rule is a file: the topic it watches, the line a reading crosses, the release band that
 # stops it firing over and over, and what to do on the way down and on the way back. Two
@@ -22,12 +22,6 @@ file = """{ "rules": [
     "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }"""
 
-# The evaluator judges each reading and says what the rules call for; the program moves the
-# messages and holds the valve, which is the engine's work in Rust.
-evaluator = RuleEvaluator.from_json(file)
-print(f"watches   {', '.join(evaluator.topics)}, and drives {', '.join(evaluator.actuators)}")
-
-
 def described(action) -> str:
     """Says what one action does, in the words the output uses."""
     if action.kind == RuleActionKind.DRIVE:
@@ -35,39 +29,37 @@ def described(action) -> str:
     return f"publish {action.payload} to {action.topic}"
 
 
-async def main() -> tuple[list[str], list[bool]]:
-    # Three parties on one broker: the node that reads the bed, the program that holds the
+async def main() -> tuple[list[str], list[bool], RuleEngine]:
+    # Three parties on one broker: the node that reads the bed, the engine that holds the
     # valve, and a watcher on the topics the rules publish to.
     broker = LoopbackBroker()
     probe = broker.link()
-    link = broker.link()
     watcher = broker.link()
+    link = broker.link()
     await probe.connect()
-    await link.connect()
     await watcher.connect()
+    await link.connect()
     await watcher.subscribe("garden/bed-1/valve")
     await watcher.subscribe("garden/alarm")
-    for topic in evaluator.topics:
-        await link.subscribe(topic)
 
+    # The engine runs the file off its link: it listens on every topic a rule watches,
+    # switches the outputs it was given by the names the file uses, and publishes over the
+    # same link. Here the valve is a list of the settings it was given.
     valve: list[bool] = []
+    engine = RuleEngine(file, link, actuators={"bed-valve": valve.append})
+    await engine.listen()
+    print(f"watches   {', '.join(engine.topics)}, and drives {', '.join(engine.actuators)}")
 
     # The bed dries out, is watered, and floods. A rule fires only as its condition sets or
     # clears, and the readings in between change nothing. At 65 two rules fire on one
     # reading, in the order the file lists them.
     for reading in [42, 31, 28, 33, 65, 50]:
         await probe.send("garden/bed-1/moisture", str(reading))
-        message = await link.recv()
-        fired = evaluator.evaluate(message.topic, message.number)
+        fired = await engine.step()
         at = f"{reading:<10}"
         if not fired:
             print(f"{at}nothing fired")
         for one in fired:
-            for action in one.actions:
-                if action.kind == RuleActionKind.DRIVE:
-                    valve.append(action.on)
-                else:
-                    await link.send(action.topic, action.payload)
             if not one.actions:
                 print(f"{at}{one.rule} {one.edge}, with nothing to do")
             else:
@@ -77,22 +69,26 @@ async def main() -> tuple[list[str], list[bool]]:
     heard = [(await watcher.recv()).text for _ in range(3)]
     print(f"heard     {', '.join(heard)}")
     print(f"valve     switched {len(valve)} times, and it is {'on' if valve[-1] else 'off'}")
-    return heard, valve
+    return heard, valve, engine
 
 
-heard, valve = asyncio.run(main())
+heard, valve, engine = asyncio.run(main())
 # ANCHOR_END: example
 
 assert heard == ["open", "closed", "waterlogged"]
 assert valve == [True, False]
-assert evaluator.is_set("water-when-dry") is False
+assert engine.is_set("water-when-dry") is False
 
 # ANCHOR: wrong
 from pamoja.core import PamojaError
+from pamoja.profile import RuleEvaluator
+
+# A program that moves its own messages hands each reading to an evaluator, the engine's
+# deciding half on its own, and carries out what it says.
+judge = RuleEvaluator.from_json(file)
 
 # A reading that is not a number, such as the NaN a failed probe reports, is refused on a
 # watched topic rather than leaving every rule as it was with nothing to say why.
-judge = RuleEvaluator.from_json(file)
 try:
     judge.evaluate("garden/bed-1/moisture", float("nan"))
     print("a reading of NaN was judged, which should never happen")

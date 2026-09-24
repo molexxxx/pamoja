@@ -37,7 +37,7 @@ namespace Pamoja.Mqtt;
 /// }
 /// </code>
 /// </example>
-public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable, IDisposable
+public sealed class MqttClient : ILink, IAsyncEnumerable<MqttMessage>, IAsyncDisposable, IDisposable
 {
     private static readonly TimeSpan CancellationCheck = TimeSpan.FromMilliseconds(250);
 
@@ -94,6 +94,30 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(payload);
         return PublishAsync(topic, System.Text.Encoding.UTF8.GetBytes(payload), options);
     }
+
+    /// <summary>Publishes a payload to a topic at the client's default quality of service.</summary>
+    /// <remarks>
+    /// This is the <c>SendAsync</c> every link has, so a profile's node or a rule engine
+    /// publishes over an MQTT client the way it publishes over any other link.
+    /// </remarks>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="payload">The message body.</param>
+    /// <returns>A task that completes once the payload is queued for the broker.</returns>
+    /// <exception cref="PamojaException">The payload could not be sent.</exception>
+    public Task SendAsync(string topic, ReadOnlyMemory<byte> payload) => PublishAsync(topic, payload);
+
+    /// <summary>Publishes a UTF-8 string payload to a topic at the client's default quality of service.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="text">The message body, encoded as UTF-8.</param>
+    /// <returns>A task that completes once the payload is queued for the broker.</returns>
+    /// <exception cref="PamojaException">The payload could not be sent.</exception>
+    public Task SendAsync(string topic, string text) => PublishAsync(topic, text);
+
+    /// <inheritdoc/>
+    async Task<TransportMessage?> ILink.ReceiveAsync(TimeSpan timeout) =>
+        await RecvAsync(timeout).ConfigureAwait(false) is { } message
+            ? new TransportMessage(message.Topic, message.Payload.ToArray())
+            : null;
 
     /// <summary>Publishes a payload to a topic and waits for the broker to acknowledge it.</summary>
     /// <remarks>

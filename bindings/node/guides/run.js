@@ -8,6 +8,9 @@ const { spawnSync } = require("node:child_process");
 // An argument names one guide to run; without one every guide runs, which is what CI does.
 const only = process.argv[2];
 const dir = join(__dirname, "..", "build", "guides");
+// Every guide runs from the repository root, as a clone runs it, so a guide reads a shipped
+// file such as profiles/brooder-heater.json by the path a reader would type.
+const root = join(__dirname, "..", "..", "..");
 const guides = readdirSync(dir)
   .filter((name) => name.endsWith(".js"))
   .filter((name) => !only || name === `${only}.js`)
@@ -21,7 +24,7 @@ if (guides.length === 0) {
 }
 
 for (const guide of guides) {
-  const result = spawnSync(process.execPath, [join(dir, guide)], { stdio: "inherit" });
+  const result = spawnSync(process.execPath, [join(dir, guide)], { stdio: "inherit", cwd: root });
   if (result.status !== 0) {
     console.error(`guide ${guide} failed`);
     process.exit(result.status ?? 1);

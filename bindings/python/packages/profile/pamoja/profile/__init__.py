@@ -11,9 +11,16 @@ the reading crossed a threshold worth raising. The presentation a dashboard
 reads travels inside the manifest JSON and is read and built here as a typed
 :class:`Presentation` of :class:`ElementSpec` entries, drawn with a :class:`Viz`.
 
-A rule file decides between nodes: a :class:`RuleEvaluator` judges each reading a
-program hands it with the topic it arrived on, and says which rules set or cleared
-and what each calls for, which the program then carries out.
+A :class:`Node` runs a profile: each tick reads, lets the profile's policy decide,
+switches the output, and publishes the reading over a link, and :meth:`Node.run`
+repeats that at the cadence the battery allows. A :class:`PolicyRegistry` resolves
+a control kind the library never shipped to the program's own code, which returns
+a :class:`Decision`.
+
+A rule file decides between nodes: a :class:`RuleEngine` runs it off a link,
+switching outputs by name and publishing as rules set and clear, and a
+:class:`RuleEvaluator` is its deciding half for a program that moves its own
+messages.
 """
 
 from __future__ import annotations
@@ -36,23 +43,35 @@ from pamoja._native import (
     Theme,
 )
 
+from ._engine import ReceivingLink, RuleEngine
+from ._node import CustomAlert, Decision, Link, Node, Policy, PolicyRegistry, Tick
+
 __all__ = [
     "AlertKind",
     "AlertReport",
     "ControlKind",
     "ControlPolicy",
     "Controller",
+    "CustomAlert",
+    "Decision",
     "ElementSpec",
+    "Link",
+    "Node",
+    "Policy",
+    "PolicyRegistry",
     "PowerScheduleSpec",
     "Presentation",
     "Profile",
     "Reaction",
     "Reads",
+    "ReceivingLink",
     "RuleAction",
     "RuleActionKind",
+    "RuleEngine",
     "RuleEvaluator",
     "RuleFired",
     "Theme",
+    "Tick",
     "Viz",
 ]
 

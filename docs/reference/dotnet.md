@@ -492,7 +492,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-rules">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">Pamoja.Profile</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">Pamoja.Profile</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link in every language, or judged reading by reading</p></div>
 <div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profile</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profile" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

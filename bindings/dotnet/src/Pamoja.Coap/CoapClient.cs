@@ -91,7 +91,7 @@ internal delegate TResult NativeConfigAction<out TResult>(ref PamojaCoapConfig c
 /// Calls on one endpoint run one at a time, so a send made while a receive is
 /// waiting runs once the receive returns.
 /// </remarks>
-public sealed class CoapClient : IDisposable
+public sealed class CoapClient : ILink, IDisposable
 {
     private readonly NativeHandle _handle;
 

@@ -1,5 +1,6 @@
 using Pamoja;
-using Pamoja.Power;
+using Pamoja.Core;
+using Pamoja.Loopback;
 using Pamoja.Profile;
 
 using static System.FormattableString;
@@ -11,85 +12,87 @@ namespace Guides;
 public static class ProfileGuide
 {
     /// <summary>Runs the example.</summary>
-    public static void Run()
+    /// <returns>A task that completes once the example has run.</returns>
+    public static async Task RunAsync()
     {
         // ANCHOR: example
-        // A profile is plain data, so a fleet ships one as a file rather than as code.
-        // This manifest names no battery thresholds, so the documented defaults apply.
-        const string manifest = """
-        {
-            "name": "brooder-heater",
-            "topic": "poultry/brooder/temperature",
-            "control": {
-                "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-                "cooling": false, "safe_band": 4.0
-            },
-            "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-        }
-        """;
-        using var profile = Profile.FromJson(manifest);
-        Console.WriteLine($"profile   {profile.Name} reports on {profile.Topic}");
-        Console.WriteLine(Invariant(
-            $"defaults  the file names no battery thresholds, so saver starts below {profile.Power.SaverBelow * 100:F0}% and critical below {profile.Power.CriticalBelow * 100:F0}%"));
+        // A profile is a file. This one ships in the catalog under profiles/: it holds a
+        // brooder at 32 C by switching a heat lamp, says what it reads, and says how a
+        // dashboard draws it.
+        string text = File.ReadAllText("profiles/brooder-heater.json");
+        using var profile = Profile.FromJson(text);
+        Reads reads = profile.Reads!.Value;
+        Console.WriteLine($"profile   {profile.Name} reads {reads.Quantity} in {reads.Unit} and reports on {profile.Topic}");
 
-        // The schedule becomes a power plan, which says what mode a charge puts the node
-        // in and how long it waits between samples there, in microseconds.
-        PowerPlan plan = profile.PowerPlan;
+        // A node is the profile and the parts that make it run: a sensor, an output, and a
+        // link. A morning of readings stands in for the probe, and a dashboard listens on the
+        // same broker.
+        using var broker = new LoopbackBroker();
+        using var link = broker.Link();
+        using var dashboard = broker.Link();
+        await link.ConnectAsync();
+        await dashboard.ConnectAsync();
+        await dashboard.SubscribeAsync(profile.Topic);
+        var morning = new Queue<float>([27.5f, 31.8f, 32.6f, 32.1f, 31.4f]);
+        bool lamp = false;
+        using var node = new Node(
+            profile,
+            () => ValueTask.FromResult(morning.Dequeue()),
+            link,
+            drive: on =>
+            {
+                lamp = on;
+                return ValueTask.CompletedTask;
+            });
+
+        // Each tick reads, decides, switches the lamp, and publishes the reading. The lamp
+        // comes on at 31.5 C or below and goes off at 32.5 C or above, and in between it stays
+        // as it was; a reading more than 4 C from 32 raises an alert as well.
+        bool was = false;
+        for (int at = 0; at < 5; at++)
+        {
+            Tick tick = await node.TickAsync();
+            bool on = tick.Reaction.Actuator == true;
+            string change = on ? (was ? "lamp stays on" : "lamp on") : was ? "lamp off" : "lamp stays off";
+            string alert = tick.Reaction.Alert is { } raised ? $", alert {raised.Kind}" : string.Empty;
+            Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}{change}{alert}"));
+            was = on;
+        }
+
+        // The dashboard heard every reading the node published.
+        var heard = new List<string>();
+        for (int at = 0; at < 5; at++)
+        {
+            TransportMessage? message = await dashboard.ReceiveAsync(TimeSpan.FromSeconds(5));
+            heard.Add(Invariant($"{message!.Number}"));
+        }
+
+        Console.WriteLine($"heard     {string.Join(", ", heard)} on {profile.Topic}");
+
+        // Between ticks the node waits as long as its battery allows: often on a healthy
+        // charge, sparingly on a low one. RunAsync does this until cancelled, waiting each
+        // interval.
         foreach (float charge in new[] { 0.8f, 0.3f, 0.1f })
         {
-            Console.WriteLine(Invariant(
-                $"battery   at {charge * 100:F0}% it runs {plan.Mode(charge)} and samples every {plan.IntervalUs(charge) / 1_000_000} s"));
+            (var mode, TimeSpan wait) = node.Schedule(charge);
+            Console.WriteLine(Invariant($"battery   at {charge * 100:F0}% it runs {mode} and waits {wait.TotalSeconds} s"));
         }
 
-        // One controller runs for the life of the node, because it remembers whether the
-        // lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above,
-        // the setpoint less and plus the hysteresis, and in between it stays as it was. A
-        // reading more than 4 C from the setpoint raises an alert as well.
-        using Controller controller = profile.Controller();
-        bool lamp = false;
-        foreach (float reading in new[] { 27.5f, 31.8f, 32.6f, 32.1f, 31.4f })
-        {
-            Reaction reaction = controller.Evaluate(reading);
-            bool on = reaction.Actuator == true;
-            string change = on
-                ? lamp ? "lamp stays on" : "lamp on"
-                : lamp ? "lamp off" : "lamp stays off";
-            string alert = reaction.Alert is { } raised ? $", alert {raised.Kind}" : "";
-            string at = Invariant($"{reading} C");
-            Console.WriteLine($"{at,-10}{change}{alert}");
-            lamp = on;
-        }
-
-        // Written back out, the manifest names the thresholds the file left to their
-        // defaults, so the next reader has nothing to infer, and it loads as the same
-        // profile.
-        string shared = profile.ToJson();
-        using (var reloaded = Profile.FromJson(shared))
-        {
-            if (shared.Contains("saver_below") && reloaded.ToJson() == shared)
-            {
-                Console.WriteLine("shared    written back out, it names saver_below and loads as the same profile");
-            }
-        }
-
-        // The manifest also carries how a dashboard draws the node: one element here, the
-        // brooder's temperature on a thermometer with the band the chicks are safe in.
-        using var drawn = profile.WithPresentation(new Presentation(
-        [
-            new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
-            {
-                Band = [28f, 36f],
-            },
-        ]));
-        ElementSpec element = drawn.Presentation!.Elements[0];
+        // The same file says how a dashboard draws the node.
+        ElementSpec element = profile.Presentation!.Elements[0];
         string graphic = element.Viz.ToString().ToLowerInvariant();
         Console.WriteLine(Invariant(
             $"draws     {element.Key} in {element.Unit} on a {graphic}, safe from {element.Band![0]} to {element.Band[1]}"));
         // ANCHOR_END: example
 
         Expect(lamp, "the morning ends with the lamp on");
-        Expect(profile.Power.SaverBelow == 0.5f, "the saver threshold defaults to half");
+        Kinds();
+        await CustomAsync(text);
+        Wrong(text, profile);
+    }
 
+    private static void Kinds()
+    {
         // ANCHOR: kinds
         // A level warns before a tank or a well runs dry. The shipped well profile counts
         // 0.5 m as dry and warns once the last fall puts dry six samples away or nearer.
@@ -104,9 +107,9 @@ public static class ProfileGuide
             }
         }
 
-        // A surge warns when a reading moves too far in one sample. The shipped flood
-        // sensor warns when a river rises more than 0.3 m between two readings.
-        using (var floodSensor = Profile.FloodSensor())
+        // A surge warns when a reading moves too far in one sample. The shipped flood sensor
+        // warns when a river rises more than 0.3 m between two readings.
+        using var floodSensor = Profile.FloodSensor();
         using (Controller river = floodSensor.Controller())
         {
             foreach (float gauge in new[] { 1.2f, 1.35f, 1.9f })
@@ -117,16 +120,66 @@ public static class ProfileGuide
             }
         }
         // ANCHOR_END: kinds
+    }
 
+    // ANCHOR: custom
+    /// <summary>
+    /// A policy of the program's own: the lamp on below the setpoint, and a condition of its
+    /// own when the chicks are chilled.
+    /// </summary>
+    private sealed class BrooderGuard(IReadOnlyDictionary<string, object> parameters) : IPolicy
+    {
+        private readonly float _setpoint = Convert.ToSingle(parameters["setpoint"]);
+        private readonly float _chilledBelow = Convert.ToSingle(parameters["setpoint"]) - Convert.ToSingle(parameters["safe_band"]);
+
+        public Reaction Evaluate(float reading) => new(
+            reading < _setpoint,
+            reading < _chilledBelow ? new Alert(AlertKind.Custom, null, null, null, "Chilled", reading) : null);
+    }
+
+    private static async Task CustomAsync(string text)
+    {
+        // A manifest may name a control kind the library never shipped, with its parameters
+        // beside it. The program registers the code that decides it under that name, and the
+        // node runs whichever kind the file names.
+        using var guarded = Profile.FromJson(text.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
+        var registry = new PolicyRegistry().Register("brooder_guard", parameters => new BrooderGuard(parameters));
+        Console.WriteLine($"custom    {guarded.Control.CustomKind} is decided by the program's own code, registered under its name");
+        using var broker = new LoopbackBroker();
+        using var link = broker.Link();
+        await link.ConnectAsync();
+        bool lamp = false;
+        using var node = new Node(
+            guarded,
+            () => ValueTask.FromResult(27.5f),
+            link,
+            drive: on =>
+            {
+                lamp = on;
+                return ValueTask.CompletedTask;
+            },
+            policy: registry.Resolve(guarded));
+        Tick tick = await node.TickAsync();
+        string alert = tick.Reaction.Alert?.Code ?? tick.Reaction.Alert?.Kind.ToString() ?? "none";
+        Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}lamp {(lamp ? "on" : "off")}, alert {alert}"));
+    }
+    // ANCHOR_END: custom
+
+    private static void Wrong(string text, Profile profile)
+    {
         // ANCHOR: wrong
         // A probe that fails reports a reading that is not a number. The controller raises
         // it rather than going quiet, and the lamp holds its state; what off means for the
         // chicks is the node's call.
-        Reaction failed = controller.Evaluate(float.NaN);
-        if (failed.Alert is { } invalid)
+        using (Controller controller = profile.Controller())
         {
-            string holds = failed.Actuator == true ? "on" : "off";
-            Console.WriteLine($"probe     a reading of NaN raises {invalid.Kind}, and the lamp holds {holds}");
+            controller.Evaluate(27.5f);
+            Reaction failed = controller.Evaluate(float.NaN);
+            if (failed.Alert is { } invalid)
+            {
+                string holds = failed.Actuator == true ? "on" : "off";
+                Console.WriteLine($"probe     a reading of NaN raises {invalid.Kind}, and the lamp holds {holds}");
+            }
         }
 
         // A controller built again for each reading forgets the lamp was on, so inside the
@@ -149,13 +202,13 @@ public static class ProfileGuide
         }
 
         // A manifest no node could run is refused as it loads, with the reason. So is a
-        // misspelled field, with the one it was probably meant to be, rather than leaving
-        // the default in its place without a word.
+        // misspelled field, with the one it was probably meant to be and where it sits,
+        // rather than leaving the default in its place without a word.
         foreach (string edited in new[]
         {
-            manifest.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
-            manifest.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
-            manifest.Replace("\"critical_secs\": 1800 }", "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }"),
+            text.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
+            text.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+            text.Replace("\"saver_below\"", "\"saver_bellow\""),
         })
         {
             try
@@ -170,12 +223,12 @@ public static class ProfileGuide
         }
 
         // A kind the library does not ship loads with its parameters, but no built-in
-        // controller decides it, so asking for one is refused rather than handing back a
-        // node that would never switch the lamp.
-        using var custom = Profile.FromJson(manifest.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
+        // controller decides it, so a node without a registry that knows it is refused
+        // rather than running one that never switches the lamp.
+        using var unknown = Profile.FromJson(text.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
         try
         {
-            using Controller inert = custom.Controller();
+            using Controller inert = unknown.Controller();
             Console.WriteLine("a custom kind ran without its policy, which should never happen");
         }
         catch (PamojaException error)

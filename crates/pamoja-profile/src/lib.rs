@@ -327,7 +327,7 @@ mod rules;
 
 pub use control::{Alert, BoxedPolicy, Controller, Policy, PolicyRegistry, Reaction};
 pub use format::FORMAT;
-pub use node::{NoActuator, Node};
+pub use node::{NoActuator, Node, Tick};
 pub use params::{Param, Params};
 pub use presentation::{ElementSpec, LocalizedText, Presentation, Scope, Theme, Viz};
 pub use profile::{ControlSpec, PowerSchedule, Profile, Reads};

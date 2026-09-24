@@ -174,7 +174,7 @@ async fn main() -> Result<()> {
     let mut held = 0;
     for (hour, &(reading, charge)) in NIGHT.iter().enumerate() {
         // One tick: read the probe, decide with the profile, switch the lamp, publish.
-        let reaction = node.tick().await?;
+        let reaction = node.tick().await?.reaction;
 
         let lamp = if reaction.actuator == Some(true) {
             "lamp on "

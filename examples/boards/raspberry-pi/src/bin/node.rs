@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // relay, and publishes the reading.
     let mut node = Node::new(profile, sensor, output, link, JsonCodec)?;
     loop {
-        let reaction = node.tick().await?;
+        let reaction = node.tick().await?.reaction;
         if let Some(alert) = reaction.alert {
             println!("alert: {}", alert.kind());
         }

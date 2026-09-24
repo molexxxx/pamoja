@@ -145,6 +145,7 @@ RelayedReach();
 TrustAndOperation();
 await AsyncTransports();
 ProfilesAndRobotics();
+await ProfileRuns();
 
 Console.WriteLine("ok");
 
@@ -344,6 +345,186 @@ static byte[] Repeat(byte value, int length)
 
 // Reaching the network when no single link always works, and testing all of it
 // with nothing plugged in.
+static async Task ProfileRuns()
+{
+    using var brooder = Profile.FromJson("""
+        { "name": "brooder",
+          "reads": { "quantity": "temperature", "unit": "celsius" },
+          "topic": "poultry/brooder/temperature",
+          "control": { "kind": "setpoint", "setpoint": 32, "hysteresis": 0.5, "cooling": false, "safe_band": 4 },
+          "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 } }
+        """);
+    using var frost = Profile.FromJson("""
+        { "name": "orchard-frost", "topic": "orchard/air/temperature",
+          "control": { "kind": "frost_guard", "warn_below": 2 },
+          "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 } }
+        """);
+
+    var empty = new PolicyRegistry();
+    using (var builtIn = (Controller)empty.Resolve(brooder))
+    {
+        Assert(builtIn.Evaluate(27.5f).Actuator == true, "a built-in kind resolves to its controller");
+    }
+
+    Assert(
+        Catch<PamojaException>(() => empty.Resolve(frost)).Message.Contains("PolicyRegistry that registers it"),
+        "an unregistered kind is refused");
+    var registry = new PolicyRegistry().Register("frost_guard", parameters => new FrostGuard((double)parameters["warn_below"]));
+    Assert(registry.Kinds.SequenceEqual(["frost_guard"]), "the registered kinds");
+    Assert(registry.Resolve(frost).Evaluate(1f).Alert?.Code == "FrostRisk", "a custom kind resolves to its factory");
+    using (var typo = Profile.FromJson(frost.ToJson().Replace("frost_guard", "frost_gaurd")))
+    {
+        Assert(
+            Catch<PamojaException>(() => registry.Resolve(typo)).Message.Contains("did you mean `frost_guard`?"),
+            "a misspelled kind names the one it meant");
+    }
+
+    using var broker = new LoopbackBroker();
+    using var link = broker.Link();
+    using var watcher = broker.Link();
+    await link.ConnectAsync();
+    await watcher.ConnectAsync();
+    await watcher.SubscribeAsync("poultry/brooder/temperature");
+
+    Assert(
+        Catch<PamojaException>(() => new Node(brooder, () => ValueTask.FromResult(30f), link)).Message
+            .Contains("switches an output, so the node needs `drive`"),
+        "a setpoint node needs an output");
+    var readings = new Queue<float>([27.5f, 31.8f, 32.6f, 32.1f]);
+    var lamp = new List<bool>();
+    using var node = new Node(
+        brooder,
+        () => ValueTask.FromResult(readings.Dequeue()),
+        link,
+        drive: on =>
+        {
+            lamp.Add(on);
+            return ValueTask.CompletedTask;
+        });
+    Tick first = await node.TickAsync();
+    Assert(first.Reading == 27.5f && first.Reaction.Actuator == true, "cold: the lamp comes on");
+    Assert(first.Reaction.Alert?.Kind == AlertKind.OutOfRange, "and the reading is out of range");
+    Assert((await watcher.ReceiveAsync(TimeSpan.FromSeconds(5)))?.Number == 27.5, "the reading is published");
+
+    var waits = new List<TimeSpan>();
+    var heard = new List<float>();
+    await node.RunAsync(
+        battery: () => ValueTask.FromResult((0.3f, false)),
+        onTick: tick =>
+        {
+            heard.Add(tick.Reading);
+            return ValueTask.CompletedTask;
+        },
+        ticks: 3,
+        wait: (interval, _) =>
+        {
+            waits.Add(interval);
+            return Task.CompletedTask;
+        });
+    Assert(heard.SequenceEqual([31.8f, 32.6f, 32.1f]), "each tick is heard");
+    Assert(lamp.SequenceEqual([true, true, false, false]), "the lamp holds through the deadband");
+    Assert(waits.SequenceEqual([TimeSpan.FromSeconds(600), TimeSpan.FromSeconds(600)]), "a 30% charge waits at the saver cadence");
+    Assert(node.PowerMode == PowerMode.Saver, "the mode the node chose");
+    Assert(node.Schedule(0.9f) == (PowerMode.Active, TimeSpan.FromSeconds(120)), "a full battery samples at the active cadence");
+
+    int calls = 0;
+    var errors = new List<string>();
+    using (var flaky = new Node(
+        frost,
+        () =>
+        {
+            calls++;
+            return calls == 1 ? throw new InvalidOperationException("probe unplugged") : ValueTask.FromResult(5f);
+        },
+        link,
+        drive: _ => ValueTask.CompletedTask,
+        policy: registry.Resolve(frost)))
+    {
+        await flaky.RunAsync(
+            onError: error =>
+            {
+                errors.Add(error.Message);
+                return ValueTask.CompletedTask;
+            },
+            ticks: 2,
+            wait: (_, _) => Task.CompletedTask);
+    }
+
+    Assert(errors.SequenceEqual(["probe unplugged"]), "a failed tick is heard and the loop goes on");
+
+    const string rules = """
+        { "rules": [ { "name": "water-when-dry",
+          "when": { "topic": "garden/bed-1/moisture", "below": 30, "hysteresis": 5 },
+          "then": [ { "drive": "bed-valve", "on": true }, { "publish": "garden/bed-1/valve", "payload": "open" } ],
+          "otherwise": [ { "drive": "bed-valve", "on": false } ] } ] }
+        """;
+    using var probe = broker.Link();
+    using var engineLink = broker.Link();
+    using var listener = broker.Link();
+    await probe.ConnectAsync();
+    await engineLink.ConnectAsync();
+    await listener.ConnectAsync();
+    await listener.SubscribeAsync("garden/bed-1/valve");
+    using (var unarmed = new RuleEngine(rules, engineLink))
+    {
+        try
+        {
+            await unarmed.ListenAsync();
+            throw new InvalidOperationException("an engine without its outputs listened");
+        }
+        catch (PamojaException error)
+        {
+            Assert(error.Message.Contains("the engine was not given under `actuators`"), error.Message);
+        }
+    }
+
+    var valve = new List<bool>();
+    using var engine = new RuleEngine(
+        rules,
+        engineLink,
+        new Dictionary<string, Func<bool, ValueTask>>
+        {
+            ["bed-valve"] = on =>
+            {
+                valve.Add(on);
+                return ValueTask.CompletedTask;
+            },
+        });
+    await engine.ListenAsync();
+    Assert(engine.Topics.SequenceEqual(["garden/bed-1/moisture"]), "the topic the engine listens on");
+    await probe.SendAsync("garden/bed-1/moisture", "28");
+    IReadOnlyList<RuleFired>? fired = await engine.StepAsync(TimeSpan.FromSeconds(5));
+    Assert(fired is [{ Rule: "water-when-dry", Edge: Edge.Set }], "the dry reading waters the bed");
+    Assert((await listener.ReceiveAsync(TimeSpan.FromSeconds(5)))?.Text == "open", "the rule published over the link");
+    Assert(await engine.StepAsync(TimeSpan.FromMilliseconds(50)) is null, "nothing arrived in time");
+    foreach (string reading in new[] { "33", "36", "not a number" })
+    {
+        await probe.SendAsync("garden/bed-1/moisture", reading);
+    }
+
+    var seen = new List<Edge>();
+    var refusals = new List<string>();
+    await engine.RunAsync(
+        onFired: one =>
+        {
+            seen.Add(one[0].Edge);
+            return ValueTask.CompletedTask;
+        },
+        onError: error =>
+        {
+            refusals.Add(error.Message);
+            return ValueTask.CompletedTask;
+        },
+        messages: 3);
+    Assert(seen.SequenceEqual([Edge.Cleared]), "the wet reading clears the rule");
+    Assert(valve.SequenceEqual([true, false]), "the valve opened and closed");
+    Assert(refusals is [var refusal] && refusal.Contains("not a finite number"), "a reading that is not a number is refused");
+    Assert(engine.IsSet("water-when-dry") == false, "the rule has cleared");
+
+    await using var mqtt = new MqttClient(new MqttClientOptions { ClientId = "cs-link", Host = "127.0.0.1", Port = 1883 });
+    Assert(mqtt is ILink, "an MQTT client is a link like any other");
+}
+
 static async Task AsyncTransports()
 {
     // An in-process broker: publish on one link, receive on another.
@@ -9045,4 +9226,14 @@ sealed class RefusingLink : ITransportHandlers
 sealed class Unplugged : IOutputLine
 {
     public void Drive(PinLevel level) => throw new InvalidOperationException("line unplugged");
+}
+
+/// <summary>A policy of the program's own: switch the heater on and raise its own alert below a line.</summary>
+sealed class FrostGuard(double warnBelow) : IPolicy
+{
+    public Reaction Evaluate(float reading)
+    {
+        bool cold = reading < warnBelow;
+        return new Reaction(cold, cold ? new Alert(AlertKind.Custom, null, null, null, "FrostRisk", reading) : null);
+    }
 }

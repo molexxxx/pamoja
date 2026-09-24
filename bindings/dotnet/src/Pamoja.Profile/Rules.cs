@@ -50,8 +50,8 @@ public sealed record RuleFired(
 /// <remarks>
 /// The program moves the messages and drives the outputs: it hands each reading over
 /// with the topic it arrived on, and learns which rules set or cleared and what each
-/// calls for. This is the deciding half of the Rust <c>RuleEngine</c>, which owns a link
-/// and outputs and so stays in Rust; the two decide alike.
+/// calls for. This is the deciding half of a <see cref="RuleEngine"/>, which owns a link
+/// and outputs; the two decide alike.
 /// </remarks>
 public sealed class RuleEvaluator : IDisposable
 {

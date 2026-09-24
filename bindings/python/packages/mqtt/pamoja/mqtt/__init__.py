@@ -127,6 +127,18 @@ class MqttClient:
         qos_value = qos.value if isinstance(qos, Qos) else qos
         await self._native.publish(topic, data, qos=qos_value, retain=retain)
 
+    async def send(self, topic: str, payload: Union[str, bytes]) -> None:
+        """Publish a payload to a topic at the client's default quality of service.
+
+        This is the ``send`` every link has, so a profile's :class:`~pamoja.profile.Node`
+        or a :class:`~pamoja.profile.RuleEngine` publishes over an MQTT client the way it
+        publishes over any other link.
+
+        :param topic: The destination topic.
+        :param payload: The message body; ``str`` payloads are encoded as UTF-8.
+        """
+        await self.publish(topic, payload)
+
     async def publish_confirmed(
         self,
         topic: str,

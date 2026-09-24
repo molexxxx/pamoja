@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Pamoja;
 using Pamoja.Core;
 using Pamoja.Loopback;
@@ -34,29 +36,34 @@ public static class RulesGuide
             ] }
             """;
 
-        // The evaluator judges each reading and says what the rules call for; the program
-        // moves the messages and holds the valve, which is the engine's work in Rust.
-        using var evaluator = RuleEvaluator.FromJson(file);
-        Console.WriteLine(
-            $"watches   {string.Join(", ", evaluator.Topics)}, and drives {string.Join(", ", evaluator.Actuators)}");
-
-        // Three parties on one broker: the node that reads the bed, the program that holds
+        // Three parties on one broker: the node that reads the bed, the engine that holds
         // the valve, and a watcher on the topics the rules publish to.
         using var broker = new LoopbackBroker();
         using LoopbackTransport probe = broker.Link();
-        using LoopbackTransport link = broker.Link();
         using LoopbackTransport watcher = broker.Link();
+        using LoopbackTransport link = broker.Link();
         await probe.ConnectAsync();
-        await link.ConnectAsync();
         await watcher.ConnectAsync();
+        await link.ConnectAsync();
         await watcher.SubscribeAsync("garden/bed-1/valve");
         await watcher.SubscribeAsync("garden/alarm");
-        foreach (string topic in evaluator.Topics)
-        {
-            await link.SubscribeAsync(topic);
-        }
 
+        // The engine runs the file off its link: it listens on every topic a rule watches,
+        // switches the outputs it was given by the names the file uses, and publishes over
+        // the same link. Here the valve is a list of the settings it was given.
         var valve = new List<bool>();
+        using var engine = new RuleEngine(file, link, new Dictionary<string, Func<bool, ValueTask>>
+        {
+            ["bed-valve"] = on =>
+            {
+                valve.Add(on);
+                return ValueTask.CompletedTask;
+            },
+        });
+        await engine.ListenAsync();
+        Console.WriteLine(
+            $"watches   {string.Join(", ", engine.Topics)}, and drives {string.Join(", ", engine.Actuators)}");
+
         static string Described(RuleAction action) => action.Kind == RuleActionKind.Drive
             ? $"drive {action.Actuator} {(action.On == true ? "on" : "off")}"
             : $"publish {action.Payload} to {action.Topic}";
@@ -66,9 +73,8 @@ public static class RulesGuide
         // on one reading, in the order the file lists them.
         foreach (int reading in new[] { 42, 31, 28, 33, 65, 50 })
         {
-            await probe.SendAsync("garden/bed-1/moisture", reading.ToString());
-            TransportMessage message = (await link.ReceiveAsync())!;
-            IReadOnlyList<RuleFired> fired = evaluator.Evaluate(message.Topic, (float)message.Number!);
+            await probe.SendAsync("garden/bed-1/moisture", reading.ToString(CultureInfo.InvariantCulture));
+            IReadOnlyList<RuleFired> fired = (await engine.StepAsync(TimeSpan.FromSeconds(5)))!;
             string at = $"{reading,-10}";
             if (fired.Count == 0)
             {
@@ -77,18 +83,6 @@ public static class RulesGuide
 
             foreach (RuleFired one in fired)
             {
-                foreach (RuleAction action in one.Actions)
-                {
-                    if (action.Kind == RuleActionKind.Drive)
-                    {
-                        valve.Add(action.On == true);
-                    }
-                    else
-                    {
-                        await link.SendAsync(action.Topic!, action.Payload!);
-                    }
-                }
-
                 string edge = one.Edge == Pamoja.Kit.Edge.Set ? "set" : "cleared";
                 Console.WriteLine(one.Actions.Count == 0
                     ? $"{at}{one.Rule} {edge}, with nothing to do"
@@ -109,13 +103,15 @@ public static class RulesGuide
 
         Expect(heard.SequenceEqual(["open", "closed", "waterlogged"]), "the watcher heard every edge");
         Expect(valve.SequenceEqual([true, false]), "the valve opened and closed once");
-        Expect(evaluator.IsSet("water-when-dry") == false, "and the rule has cleared");
-
+        Expect(engine.IsSet("water-when-dry") == false, "and the rule has cleared");
         // ANCHOR: wrong
+        // A program that moves its own messages hands each reading to an evaluator, the
+        // engine's deciding half on its own, and carries out what it says.
+        using var judge = RuleEvaluator.FromJson(file);
+
         // A reading that is not a number, such as the NaN a failed probe reports, is
         // refused on a watched topic rather than leaving every rule as it was with nothing
         // to say why.
-        using var judge = RuleEvaluator.FromJson(file);
         try
         {
             judge.Evaluate("garden/bed-1/moisture", float.NaN);

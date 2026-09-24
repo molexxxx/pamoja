@@ -9,6 +9,28 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- A profile runs as a node, and a rule file runs as an engine, in TypeScript, Python, and
+  C# as in Rust.
+  - `Node` takes the profile, a `read`, a `drive`, and a link. `tick` reads, decides,
+    switches the output, and publishes the reading, and returns the reading with the
+    reaction. `schedule` gives the power mode and wait for a charge. `run` repeats the
+    tick at the battery's cadence until stopped: an `AbortSignal` in TypeScript, task
+    cancellation in Python, a `CancellationToken` in C#. An `onError` hears a failed
+    tick and the loop carries on, and a wait can be replaced, so a test runs at once.
+  - `PolicyRegistry` maps a control kind the library never shipped to the program's own
+    code, with the same refusal as Rust, naming the kind it was probably meant to be.
+    In C#, `Controller` is an `IPolicy`, and Python's policies return a `Decision`.
+  - `RuleEngine` takes the rule file and a link. `listen` refuses an output it was not
+    given and subscribes to each watched topic. `step` handles one message, switching
+    outputs by name and publishing over the link, and `run` repeats it until stopped.
+  - Every link takes part, including MQTT. `MqttClient` gains `send` in TypeScript and
+    Python and `SendAsync` in C#. In C#, `ILink` in `Pamoja.Core` is implemented by the
+    loopback, MQTT, CoAP, ladder, and host transports.
+  - In Rust, `Node::tick` returns a `Tick` with the reading and the reaction, and
+    `Node::run` repeats the tick with the runtime's own sleep until a tick fails.
+- The profile guide loads `profiles/brooder-heater.json`, runs it as a node, and resolves
+  a control kind of the program's own through a registry. The rules guide runs its file
+  through the engine in every language, and every guide runs from the repository root.
 - Profile manifests and rule files have a published JSON Schema each,
   [`profile-1.json`](https://pamoja.molex.cloud/schema/profile-1.json) and
   [`rules-1.json`](https://pamoja.molex.cloud/schema/rules-1.json), served from the site

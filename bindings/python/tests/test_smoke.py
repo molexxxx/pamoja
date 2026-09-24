@@ -2572,3 +2572,163 @@ def test_a_firmware_image_reaches_a_whole_field_of_devices():
 
     with pytest.raises(PamojaError):
         package_parse(1, False, bytes(1))
+
+
+def test_a_profile_runs_as_a_node_and_a_rule_file_runs_as_an_engine():
+    import json
+
+    from pamoja import profile
+    from pamoja.loopback import LoopbackBroker
+
+    brooder = profile.Profile.from_json(
+        json.dumps(
+            {
+                "name": "brooder",
+                "reads": {"quantity": "temperature", "unit": "celsius"},
+                "topic": "poultry/brooder/temperature",
+                "control": {
+                    "kind": "setpoint",
+                    "setpoint": 32,
+                    "hysteresis": 0.5,
+                    "cooling": False,
+                    "safe_band": 4,
+                },
+                "power": {"active_secs": 120, "saver_secs": 600, "critical_secs": 1800},
+            }
+        )
+    )
+    frost = profile.Profile.from_json(
+        json.dumps(
+            {
+                "name": "orchard-frost",
+                "topic": "orchard/air/temperature",
+                "control": {"kind": "frost_guard", "warn_below": 2},
+                "power": {"active_secs": 60, "saver_secs": 300, "critical_secs": 900},
+            }
+        )
+    )
+
+    class FrostGuard:
+        def __init__(self, params):
+            self.warn_below = params["warn_below"]
+
+        def evaluate(self, reading):
+            cold = reading < self.warn_below
+            alert = profile.CustomAlert("FrostRisk", reading) if cold else None
+            return profile.Decision(actuator=cold, alert=alert)
+
+    empty = profile.PolicyRegistry()
+    assert empty.resolve(brooder).evaluate(27.5).actuator is True
+    with pytest.raises(PamojaError, match="PolicyRegistry that registers it"):
+        empty.resolve(frost)
+    registry = profile.PolicyRegistry().register("frost_guard", FrostGuard)
+    assert registry.kinds == ["frost_guard"]
+    assert registry.resolve(frost).evaluate(1.0).alert.code == "FrostRisk"
+    typo = profile.Profile.from_json(frost.to_json().replace("frost_guard", "frost_gaurd"))
+    with pytest.raises(PamojaError, match=r"did you mean `frost_guard`\?"):
+        registry.resolve(typo)
+    stranger = profile.Profile.from_json(frost.to_json().replace("frost_guard", "hail_net"))
+    with pytest.raises(PamojaError, match="the registry knows `frost_guard`"):
+        registry.resolve(stranger)
+
+    async def run():
+        broker = LoopbackBroker()
+        link, watcher, probe, engine_link, listener = (broker.link() for _ in range(5))
+        for each in (link, watcher, probe, engine_link, listener):
+            await each.connect()
+        await watcher.subscribe("poultry/brooder/temperature")
+
+        with pytest.raises(PamojaError, match="switches an output, so the node needs `drive`"):
+            profile.Node(brooder, read=lambda: 30.0, link=link)
+        readings = [27.5, 31.8, 32.6, 32.1]
+        lamp = []
+
+        async def read():
+            return readings.pop(0)
+
+        node = profile.Node(brooder, read=read, link=link, drive=lamp.append)
+        first = await node.tick()
+        assert first.reading == 27.5
+        assert first.reaction.actuator is True
+        assert first.reaction.alert.kind == "OutOfRange"
+        assert (await asyncio.wait_for(watcher.recv(), 5)).number == 27.5
+
+        waits, heard = [], []
+
+        async def pause(seconds):
+            waits.append(seconds)
+
+        await node.run(
+            ticks=3,
+            battery=lambda: (0.3, False),
+            on_tick=lambda tick: heard.append(tick.reading),
+            wait=pause,
+        )
+        assert heard == [31.8, 32.6, 32.1]
+        assert lamp == [True, True, False, False]
+        assert waits == [600.0, 600.0]
+        assert node.power_mode == "Saver"
+        assert node.schedule(0.9) == ("Active", 120.0)
+
+        calls = []
+
+        def flaky_read():
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("probe unplugged")
+            return 5.0
+
+        errors = []
+        flaky = profile.Node(frost, read=flaky_read, link=link, drive=lambda on: None, policy=registry)
+        await flaky.run(ticks=2, on_error=lambda error: errors.append(str(error)), wait=pause)
+        assert errors == ["probe unplugged"]
+
+        def gone():
+            raise RuntimeError("gone")
+
+        with pytest.raises(RuntimeError, match="gone"):
+            await profile.Node(frost, read=gone, link=link, policy=registry).run(ticks=1)
+
+        rules = json.dumps(
+            {
+                "rules": [
+                    {
+                        "name": "water-when-dry",
+                        "when": {"topic": "garden/bed-1/moisture", "below": 30, "hysteresis": 5},
+                        "then": [
+                            {"drive": "bed-valve", "on": True},
+                            {"publish": "garden/bed-1/valve", "payload": "open"},
+                        ],
+                        "otherwise": [{"drive": "bed-valve", "on": False}],
+                    }
+                ]
+            }
+        )
+        valve = []
+        await listener.subscribe("garden/bed-1/valve")
+        with pytest.raises(PamojaError, match="the engine was not given under `actuators`"):
+            await profile.RuleEngine(rules, engine_link).listen()
+        engine = profile.RuleEngine(rules, engine_link, actuators={"bed-valve": valve.append})
+        await engine.listen()
+        assert engine.topics == ["garden/bed-1/moisture"]
+        await probe.send("garden/bed-1/moisture", "28")
+        fired = await engine.step(timeout=5)
+        assert (fired[0].rule, fired[0].edge) == ("water-when-dry", "set")
+        assert (await asyncio.wait_for(listener.recv(), 5)).text == "open"
+        assert await engine.step(timeout=0.05) is None
+        for reading in ("33", "36", "not a number"):
+            await probe.send("garden/bed-1/moisture", reading)
+        seen, refusals = [], []
+        await engine.run(
+            messages=3,
+            on_fired=lambda one: seen.append(one[0].edge),
+            on_error=lambda error: refusals.append(str(error)),
+        )
+        assert seen == ["cleared"]
+        assert valve == [True, False]
+        assert len(refusals) == 1
+        assert engine.is_set("water-when-dry") is False
+
+    asyncio.run(run())
+
+    assert callable(MqttClient(client_id="py-link", host="127.0.0.1", port=1883).send)

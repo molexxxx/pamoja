@@ -9,7 +9,12 @@ import pytest
 
 GUIDES = sorted((pathlib.Path(__file__).resolve().parents[1] / "guides").glob("*.py"))
 
+#: The repository root, which every guide runs from, as a clone runs it, so a guide reads a
+#: shipped file such as ``profiles/brooder-heater.json`` by the path a reader would type.
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+
 
 @pytest.mark.parametrize("guide", GUIDES, ids=[guide.stem for guide in GUIDES])
-def test_guide_runs(guide: pathlib.Path) -> None:
+def test_guide_runs(guide: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(ROOT)
     runpy.run_path(str(guide), run_name="__main__")
