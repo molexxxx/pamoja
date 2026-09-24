@@ -1192,7 +1192,7 @@ in TypeScript, `kind` `busy` in Python, and `LorawanDeviceErrorKind.Busy` in C#:
 | Frame | the frame did not decode |
 | Foreign | the frame is addressed to another device |
 | Replayed | the frame repeats or precedes the last downlink the device took |
-| CounterGap | the frame counter jumped further ahead than 16,384 |
+| CounterGap | the frame counter jumped 16,384 or more ahead, which only LoRaWAN 1.0.3 refuses |
 | Refused | a join accept carries settings the region does not allow |
 | State | a saved state could not be resumed |
 | TooManyChannels | the plan defines more channels than a device keeps |

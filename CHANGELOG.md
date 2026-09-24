@@ -1595,6 +1595,10 @@ released together, so one entry covers all of them.
   the flag were not there. The serialization guide requires such a frame be dropped, since
   the flag can change its layout. `Frame::parse` refuses it now with
   `MavlinkError::UnknownIncompatFlags`, and the streaming parser passes over it.
+- The network side followed a LoRaWAN uplink whose counter ran exactly `MAX_FCNT_GAP`,
+  16,384, ahead of the last one taken. LoRaWAN 1.0.3 section 4.3.1.5 follows a counter only
+  while it stays less than that far ahead, and the device side already refused it. The
+  network refuses it now too, whether the frame comes direct or through a relay.
 
 ## [0.1.18] - 2026-09-10
 
