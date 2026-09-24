@@ -7519,10 +7519,10 @@ fn station_messages(
 
 /// The network side of a site: a join admitted and answered, and an uplink read.
 fn gateway_network() -> Value {
-    use pamoja_gateway::network::{Event, Network, Registration};
+    use pamoja_gateway::network::{Event, Network, Registration, MAX_FCNT_GAP};
     use pamoja_gateway::udp::Rxpk;
     use pamoja_lora::region::Region;
-    use pamoja_lorawan::{Device, Uplink as LorawanUplink};
+    use pamoja_lorawan::{Device, Uplink as LorawanUplink, Version};
 
     let hex = |bytes: &[u8]| {
         bytes
@@ -7576,6 +7576,40 @@ fn gateway_network() -> Value {
         .answer(dev_addr, slot, 2, b"ok")
         .expect("the session is held");
 
+    // A counter that jumps MAX_FCNT_GAP ahead, which a site refuses from a LoRaWAN 1.0.3
+    // device and follows from a 1.0.4 one. A fresh site grants the same address and nonce, so
+    // the same frames serve both.
+    let frame_at = |fcnt: u32| {
+        session
+            .encode_uplink(&LorawanUplink::new(fcnt, 2, b"level"))
+            .expect("it fits one frame")
+            .as_bytes()
+            .to_vec()
+    };
+    let (first, jumped) = (frame_at(1), frame_at(1 + MAX_FCNT_GAP));
+    let revisions =
+        [(Version::V1_0_3, "1.0.3"), (Version::V1_0_4, "1.0.4")].map(|(version, name)| {
+            let mut fresh =
+                Network::new(Region::Eu868.plan(), net_id).with_first_dev_addr(dev_addr);
+            fresh.register(Registration::new(dev_eui, app_eui, app_key).with_version(version));
+            fresh.uplink(&heard).expect("the request verifies");
+            fresh
+                .uplink(&Rxpk::new(868_100_000, link, first.clone()).with_timestamp_us(2_000_000))
+                .expect("the first frame is read");
+            let outcome = fresh
+                .uplink(&Rxpk::new(868_100_000, link, jumped.clone()).with_timestamp_us(3_000_000));
+            match outcome {
+                Ok(Event::Data { fcnt, .. }) => json!({ "version": name, "fcnt": fcnt }),
+                Err(error) => json!({ "version": name, "refused": error.to_string() }),
+                Ok(_) => panic!("a data frame is read or refused"),
+            }
+        });
+    let gap = json!({
+        "first": hex(&first),
+        "jumped": hex(&jumped),
+        "revisions": revisions,
+    });
+
     // Each half is built on its own, because one literal holding them all is deeper than the
     // json macro unfolds.
     let join = json!({
@@ -7614,6 +7648,7 @@ fn gateway_network() -> Value {
         "join": join,
         "uplink": uplink,
         "downlink": answer,
+        "counterGap": gap,
     })
 }
 

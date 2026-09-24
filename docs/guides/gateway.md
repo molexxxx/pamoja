@@ -1856,7 +1856,8 @@ below; the three a gateway sends carry its identifier next.
 | Data | a frame decrypted, with its counter, port, payload, and where an answer goes |
 | Foreign | a frame for an address this site never granted, which is another network's |
 | a counter already seen | a replay, or a device that restarted its counter without joining again |
-| a counter too far ahead | 16384 or more frames past the last one taken |
+| a counter too far ahead | 16384 or more frames past the last one taken, from a device registered as LoRaWAN 1.0.3; a 1.0.4 device is followed however far it jumps |
+| a counter run out | a frame whose counter would pass 32 bits, so the device has to join again |
 | no registered key | a join request no registration verifies |
 | no session | an answer for an address the site holds no session for |
 
@@ -1901,6 +1902,7 @@ below; the three a gateway sends carry its identifier next.
 | describe what was heard | `Rxpk::new(hz, link, payload).with_rssi_dbm(..).with_snr_db(..).with_timestamp_us(..)`, `Stat::new().with_counts(..)` |
 | answer a gateway | `packet.acknowledgment()`, `Txpk::at(tmst, hz, link, payload).with_inverted_polarity(true)` |
 | run a site | `Network::new(plan, net_id)`, `register(Registration::new(..))`, `uplink(&rxpk)`, `answer(dev_addr, slot, port, payload)` |
+| admit a LoRaWAN 1.0.3 device | `Registration::new(..).with_version(Version::V1_0_3)`, 1.0.4 unless told |
 | find a server | `Discovery::new(eui).to_json()`, `Discovery::from_json`, `Router::accepted(router, muxs, uri)`, `Router::from_json` |
 | speak Basics Station | `Message::heard(frame, dr, hz, levels)`, `Message::Version { .. }`, `to_json()`, `Message::from_json` |
 | read a station clock | `Xtime::new(unit, session, micros)`, `value()`, `Xtime::of(xtime)` |
@@ -1913,6 +1915,7 @@ below; the three a gateway sends carry its identifier next.
 | describe what was heard | `{ frequencyHz, payload, link, rssiDbm, snrDb, timestampUs }` |
 | answer a gateway | `acknowledgment(packet)`, `encode({ kind: PacketKind.PullResp, token, transmit })` |
 | run a site | `new Network(plan, netId, windows?, firstDevAddr?)`, `register(devEui, joinEui, appKey)`, `uplink(rxpk)`, `answer(devAddr, slot, port, payload)` |
+| admit a LoRaWAN 1.0.3 device | `register(devEui, joinEui, appKey, 'V1_0_3')`, 1.0.4 unless told |
 | find a server | `stationDiscovery(eui)`, `stationDiscoveryParse(text)`, `stationRouterAccepted(router, muxs, uri)`, `stationRouterParse(text)` |
 | speak Basics Station | `stationHeard(frame, dr, hz, levels)`, `stationEncode({ kind: StationKind.Version, .. })`, `stationParse(text)` |
 | read a station clock | `stationXtime(unit, session, micros)`, `stationXtimeParts(xtime)` |
@@ -1925,6 +1928,7 @@ below; the three a gateway sends carry its identifier next.
 | describe what was heard | `Rxpk(hz, payload, link=.., rssi_dbm=.., snr_db=.., timestamp_us=..)`, `Stat(received=.., ..)` |
 | answer a gateway | `acknowledgment(packet)`, `Packet(PacketKind.PULL_RESP, token, transmit=Txpk(..))` |
 | run a site | `Network(plan, net_id, first_dev_addr=..)`, `register(dev_eui, join_eui, app_key)`, `uplink(rxpk)`, `answer(dev_addr, slot, port, payload)` |
+| admit a LoRaWAN 1.0.3 device | `register(dev_eui, join_eui, app_key, version="1.0.3")`, 1.0.4 unless told |
 | find a server | `station_discovery(eui)`, `station_discovery_parse(text)`, `station_router_accepted(router, muxs, uri)`, `station_router_parse(text)` |
 | speak Basics Station | `station_heard(frame, dr, hz, levels)`, `station_encode(StationMessage(StationKind.VERSION, ..))`, `station_parse(text)` |
 | read a station clock | `station_xtime(unit, session, micros)`, `station_xtime_parts(xtime)` |
@@ -1937,6 +1941,7 @@ below; the three a gateway sends carry its identifier next.
 | describe what was heard | `new GatewayRxpk(hz, payload) { Link, RssiDbm, SnrDb, TimestampMicros }`, `new GatewayStat { Received, .. }` |
 | answer a gateway | `Gateway.Acknowledgment(packet)`, `new GatewayPacket(GatewayPacketKind.PullResp, token) { Transmit }` |
 | run a site | `new GatewayNetwork(plan, netId, firstDevAddr:)`, `Register(devEui, joinEui, appKey)`, `Uplink(rxpk)`, `Answer(devAddr, slot, port, payload)` |
+| admit a LoRaWAN 1.0.3 device | `Register(devEui, joinEui, appKey, LorawanVersion.V1_0_3)`, 1.0.4 unless told |
 | find a server | `GatewayStation.Discovery(eui)`, `DiscoveryParse(text)`, `RouterAccepted(router, muxs, uri)`, `RouterParse(text)` |
 | speak Basics Station | `GatewayStation.Heard(frame, dr, hz, levels)`, `Encode(new GatewayStationMessage(GatewayStationKind.Version) { .. })`, `Parse(text)` |
 | read a station clock | `GatewayStation.Xtime(unit, session, micros)`, `XtimeParts(xtime)` |

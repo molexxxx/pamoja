@@ -567,6 +567,20 @@
     "appEui": "2222222222222222",
     "appKey": "33333333333333333333333333333333",
     "bandwidthHz": 125000,
+    "counterGap": {
+      "first": "400100012600010002aab48528e6cbbaa537",
+      "jumped": "400100012600014002c9e0df26d8635a32d9",
+      "revisions": [
+        {
+          "refused": "frame 16385 from 0x26010001 runs too far ahead of 1",
+          "version": "1.0.3"
+        },
+        {
+          "fcnt": 16385,
+          "version": "1.0.4"
+        }
+      ]
+    },
     "devAddr": 637599745,
     "devEui": "1111111111111111",
     "devNonce": 258,

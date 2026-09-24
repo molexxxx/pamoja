@@ -74,6 +74,7 @@ use pamoja_lorawan::mac::{encode_all, MacCommand, MacCommands, FOPTS_MAX, MAX_CO
 use pamoja_lorawan::relay::{ForwardedUplink, UplinkMetadata, LA_FPORT_RELAY};
 use pamoja_lorawan::{
     Direction, Downlink, FrameHeader, JoinGrant, JoinRequest, LorawanError, MessageType, Session,
+    Version,
 };
 
 use crate::udp::{Rxpk, Txpk};
@@ -292,16 +293,19 @@ impl Default for Windows {
     }
 }
 
-/// A device the network admits, and the key it was provisioned with.
+/// A device the network admits, the key it was provisioned with, and the revision of the
+/// link layer it follows.
 #[derive(Clone, Copy)]
 pub struct Registration {
     dev_eui: [u8; 8],
     app_eui: [u8; 8],
     app_key: [u8; 16],
+    version: Version,
 }
 
 impl Registration {
-    /// Registers a device by its identifiers and its root key.
+    /// Registers a device by its identifiers and its root key, as one that follows
+    /// TS001-1.0.4.
     ///
     /// # Arguments
     ///
@@ -317,7 +321,36 @@ impl Registration {
             dev_eui,
             app_eui,
             app_key,
+            version: Version::V1_0_4,
         }
+    }
+
+    /// Sets the revision of the link layer the device follows.
+    ///
+    /// The network holds a device to its own revision's rules. The one that differs here is
+    /// the uplink counter: LoRaWAN 1.0.3 section 4.3.1.5 refuses a frame [`MAX_FCNT_GAP`] or
+    /// more ahead of the last one accepted, and TS001-1.0.4 asks only that the counter go
+    /// up.
+    ///
+    /// # Arguments
+    ///
+    /// * `version` - the revision the device was built to.
+    ///
+    /// # Returns
+    ///
+    /// The updated registration, for chaining.
+    pub const fn with_version(mut self, version: Version) -> Registration {
+        self.version = version;
+        self
+    }
+
+    /// Returns the revision of the link layer the device follows.
+    ///
+    /// # Returns
+    ///
+    /// The version.
+    pub const fn version(&self) -> Version {
+        self.version
     }
 
     /// Returns the device's identifier.
@@ -345,6 +378,7 @@ impl core::fmt::Debug for Registration {
         f.debug_struct("Registration")
             .field("dev_eui", &self.dev_eui)
             .field("app_eui", &self.app_eui)
+            .field("version", &self.version)
             .finish_non_exhaustive()
     }
 }
@@ -440,8 +474,8 @@ pub enum NetworkError {
         /// The counter it carried.
         fcnt: u32,
     },
-    /// A frame [`MAX_FCNT_GAP`] or more ahead of the counter last seen, which LoRaWAN 1.0.3
-    /// section 4.3.1.5 does not follow.
+    /// A frame from a LoRaWAN 1.0.3 device [`MAX_FCNT_GAP`] or more ahead of the counter
+    /// last seen, which LoRaWAN 1.0.3 section 4.3.1.5 does not follow.
     CounterGap {
         /// The address it claimed.
         dev_addr: u32,
@@ -449,6 +483,12 @@ pub enum NetworkError {
         seen: u32,
         /// The counter it carried.
         carried: u32,
+    },
+    /// A frame whose counter would run past 32 bits, which a session cannot carry: the
+    /// device has to join again.
+    CounterExhausted {
+        /// The address it claimed.
+        dev_addr: u32,
     },
     /// The plan names no data rate for the settings the packet arrived at, so the rate the
     /// first window answers at cannot be worked out.
@@ -485,6 +525,10 @@ impl core::fmt::Display for NetworkError {
                 f,
                 "frame {carried} from {dev_addr:#010x} runs too far ahead of {seen}"
             ),
+            NetworkError::CounterExhausted { dev_addr } => write!(
+                f,
+                "the frame counter of {dev_addr:#010x} has run out; the device must join again"
+            ),
             NetworkError::UnknownDataRate => {
                 f.write_str("the plan names no data rate for the settings heard")
             }
@@ -510,10 +554,43 @@ struct JoinAccepts {
 struct Admitted {
     dev_eui: [u8; 8],
     dev_addr: u32,
+    version: Version,
     session: Session,
     fcnt_up: Option<u32>,
     fcnt_down: u32,
     via_relay: Option<u32>,
+}
+
+impl Admitted {
+    // Works the full uplink counter out from the 16 bits a frame carries. Only the low half
+    // travels, so a value below the one last seen is the device having wrapped past a
+    // multiple of 65536 rather than having gone backwards.
+    fn uplink_counter(&self, carried: u16) -> Result<u32, NetworkError> {
+        let dev_addr = self.dev_addr;
+        let Some(seen) = self.fcnt_up else {
+            return Ok(u32::from(carried));
+        };
+        let mut candidate = (seen & 0xFFFF_0000) | u32::from(carried);
+        if candidate == seen {
+            return Err(NetworkError::Replayed {
+                dev_addr,
+                fcnt: candidate,
+            });
+        }
+        if candidate < seen {
+            candidate = candidate
+                .checked_add(0x0001_0000)
+                .ok_or(NetworkError::CounterExhausted { dev_addr })?;
+        }
+        if self.version == Version::V1_0_3 && candidate - seen >= MAX_FCNT_GAP {
+            return Err(NetworkError::CounterGap {
+                dev_addr,
+                seen,
+                carried: candidate,
+            });
+        }
+        Ok(candidate)
+    }
 }
 
 /// The network side of one site.
@@ -871,6 +948,7 @@ impl Network {
         self.admitted.push(Admitted {
             dev_eui: registration.dev_eui,
             dev_addr,
+            version: registration.version,
             session,
             fcnt_up: None,
             fcnt_down: 0,
@@ -918,32 +996,7 @@ impl Network {
             return Ok(Event::Foreign { dev_addr });
         };
 
-        let fcnt = match held.fcnt_up {
-            None => u32::from(carried),
-            Some(seen) => {
-                let mut candidate = (seen & 0xFFFF_0000) | u32::from(carried);
-                // The counter already accepted, sent again.
-                if candidate == seen {
-                    return Err(NetworkError::Replayed {
-                        dev_addr,
-                        fcnt: candidate,
-                    });
-                }
-                // Only the low sixteen bits travel, so a counter below the one last seen is
-                // the device having wrapped rather than having gone backwards.
-                if candidate < seen {
-                    candidate = candidate.wrapping_add(0x0001_0000);
-                }
-                if candidate - seen >= MAX_FCNT_GAP {
-                    return Err(NetworkError::CounterGap {
-                        dev_addr,
-                        seen,
-                        carried: candidate,
-                    });
-                }
-                candidate
-            }
-        };
+        let fcnt = held.uplink_counter(carried)?;
 
         let data = held
             .session
@@ -1018,29 +1071,7 @@ impl Network {
                 else {
                     return Ok(Event::Foreign { dev_addr });
                 };
-                let fcnt = match held.fcnt_up {
-                    None => u32::from(carried),
-                    Some(seen) => {
-                        let mut candidate = (seen & 0xFFFF_0000) | u32::from(carried);
-                        if candidate == seen {
-                            return Err(NetworkError::Replayed {
-                                dev_addr,
-                                fcnt: candidate,
-                            });
-                        }
-                        if candidate < seen {
-                            candidate = candidate.wrapping_add(0x0001_0000);
-                        }
-                        if candidate - seen >= MAX_FCNT_GAP {
-                            return Err(NetworkError::CounterGap {
-                                dev_addr,
-                                seen,
-                                carried: candidate,
-                            });
-                        }
-                        candidate
-                    }
-                };
+                let fcnt = held.uplink_counter(carried)?;
                 let data = held
                     .session
                     .decode(forwarded.phy_payload, fcnt)
@@ -1367,8 +1398,77 @@ mod tests {
 
     // LoRaWAN 1.0.3 section 4.3.1.5: the receiver follows a counter that has gone up by less
     // than MAX_FCNT_GAP, so one exactly that far ahead is refused, as the device refuses it.
+    // TS001-1.0.4 section 4.3.1.5 asks only that the counter have gone up, so a 1.0.4 device
+    // is followed however far it jumps.
     #[test]
-    fn a_counter_a_whole_gap_ahead_is_refused() {
+    fn a_counter_a_whole_gap_ahead_is_refused_from_a_1_0_3_device_alone() {
+        for version in [Version::V1_0_3, Version::V1_0_4] {
+            let mut network =
+                Network::new(Region::Eu868.plan(), 0x00_00_2A).with_first_dev_addr(0x2601_0001);
+            network.register(Registration::new(DEV_EUI, APP_EUI, APP_KEY).with_version(version));
+            let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
+            let request = device.join_request(0x0102);
+            let Event::Joined { accept, .. } = network
+                .uplink(&heard(request.as_bytes().to_vec(), 1_000_000))
+                .expect("the request verifies")
+            else {
+                panic!("a join request is admitted");
+            };
+            let session = device
+                .accept_join(&accept.payload, 0x0102)
+                .expect("the accept verifies")
+                .session();
+            let frame = |fcnt: u32| {
+                session
+                    .encode_uplink(&pamoja_lorawan::Uplink::new(fcnt, 2, b"level"))
+                    .expect("it fits one frame")
+                    .as_bytes()
+                    .to_vec()
+            };
+
+            network
+                .uplink(&heard(frame(1), 2_000_000))
+                .expect("the first frame is read");
+            let jumped = network.uplink(&heard(frame(1 + MAX_FCNT_GAP), 3_000_000));
+            match version {
+                Version::V1_0_3 => {
+                    assert!(
+                        matches!(
+                            jumped,
+                            Err(NetworkError::CounterGap { seen: 1, carried, .. }) if carried == 1 + MAX_FCNT_GAP
+                        ),
+                        "{jumped:?}"
+                    );
+                    let Event::Data { fcnt, .. } = network
+                        .uplink(&heard(frame(MAX_FCNT_GAP), 4_000_000))
+                        .expect("one short of the gap is followed")
+                    else {
+                        panic!("a data frame is read");
+                    };
+                    assert_eq!(fcnt, MAX_FCNT_GAP);
+                }
+                Version::V1_0_4 => {
+                    let Ok(Event::Data { fcnt, .. }) = jumped else {
+                        panic!("a 1.0.4 counter is followed across the gap: {jumped:?}");
+                    };
+                    assert_eq!(fcnt, 1 + MAX_FCNT_GAP);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_registration_follows_1_0_4_unless_told_otherwise() {
+        let registration = Registration::new(DEV_EUI, APP_EUI, APP_KEY);
+        assert_eq!(registration.version(), Version::V1_0_4);
+        assert_eq!(
+            registration.with_version(Version::V1_0_3).version(),
+            Version::V1_0_3
+        );
+    }
+
+    #[test]
+    fn a_counter_that_would_pass_32_bits_ends_the_session() {
         let mut network = site();
         let device = Device::new(DEV_EUI, APP_EUI, APP_KEY);
         let request = device.join_request(0x0102);
@@ -1382,32 +1482,20 @@ mod tests {
             .accept_join(&accept.payload, 0x0102)
             .expect("the accept verifies")
             .session();
-        let frame = |fcnt: u32| {
-            session
-                .encode_uplink(&pamoja_lorawan::Uplink::new(fcnt, 2, b"level"))
-                .expect("it fits one frame")
-                .as_bytes()
-                .to_vec()
-        };
-
-        network
-            .uplink(&heard(frame(1), 2_000_000))
-            .expect("the first frame is read");
-        let refused = network.uplink(&heard(frame(1 + MAX_FCNT_GAP), 3_000_000));
-        assert!(
-            matches!(
-                refused,
-                Err(NetworkError::CounterGap { seen: 1, carried, .. }) if carried == 1 + MAX_FCNT_GAP
-            ),
-            "{refused:?}"
+        network.admitted[0].fcnt_up = Some(0xFFFF_FFF0);
+        let frame = session
+            .encode_uplink(&pamoja_lorawan::Uplink::new(0x0005, 2, b"level"))
+            .expect("it fits one frame");
+        let error = network
+            .uplink(&heard(frame.as_bytes().to_vec(), 2_000_000))
+            .expect_err("no counter follows 0xFFFFFFF0 with 0x0005 in its low half");
+        assert_eq!(
+            error,
+            NetworkError::CounterExhausted {
+                dev_addr: 0x2601_0001
+            }
         );
-        let Event::Data { fcnt, .. } = network
-            .uplink(&heard(frame(MAX_FCNT_GAP), 4_000_000))
-            .expect("one short of the gap is followed")
-        else {
-            panic!("a data frame is read");
-        };
-        assert_eq!(fcnt, MAX_FCNT_GAP);
+        assert!(error.to_string().contains("must join again"));
     }
 
     #[test]

@@ -8193,10 +8193,15 @@ PamojaStatus pamoja_gateway_network_open(const PamojaLoraPlan *plan,
 // * `dev_eui` - the device identifier, eight bytes.
 // * `app_eui` - the application identifier, eight bytes.
 // * `app_key` - the root key, sixteen bytes.
+// * `version` - the link layer revision the device follows,
+//   [`PAMOJA_LORAWAN_VERSION_1_0_3`](crate::lorawan_link::PAMOJA_LORAWAN_VERSION_1_0_3) or
+//   [`PAMOJA_LORAWAN_VERSION_1_0_4`](crate::lorawan_link::PAMOJA_LORAWAN_VERSION_1_0_4). A
+//   1.0.3 device's frames are refused once their counter runs `MAX_FCNT_GAP` ahead.
 //
 // # Returns
 //
-// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a
+// version that is not one of the two.
 //
 // # Safety
 //
@@ -8205,7 +8210,8 @@ PamojaStatus pamoja_gateway_network_open(const PamojaLoraPlan *plan,
 PamojaStatus pamoja_gateway_network_register(PamojaGatewayNetwork *network,
                                              const uint8_t *dev_eui,
                                              const uint8_t *app_eui,
-                                             const uint8_t *app_key);
+                                             const uint8_t *app_key,
+                                             uint8_t version);
 
 // Reads a packet the gateway forwarded.
 //

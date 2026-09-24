@@ -47,7 +47,8 @@ public static partial class NativeMethods
         IntPtr network,
         ReadOnlySpan<byte> devEui,
         ReadOnlySpan<byte> appEui,
-        ReadOnlySpan<byte> appKey);
+        ReadOnlySpan<byte> appKey,
+        byte version);
 
     /// <summary>Reads a packet the gateway forwarded.</summary>
     [LibraryImport(Library)]

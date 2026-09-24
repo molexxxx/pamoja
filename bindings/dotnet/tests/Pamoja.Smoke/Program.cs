@@ -8553,6 +8553,41 @@ static void ConformGatewayNetwork(JsonElement vector)
     Assert(
         answer.TimestampMicros == downlink.GetProperty("timestampUs").GetUInt32(),
         "when it transmits");
+
+    JsonElement gap = vector.GetProperty("counterGap");
+    foreach (JsonElement revision in gap.GetProperty("revisions").EnumerateArray())
+    {
+        string name = revision.GetProperty("version").GetString()!;
+        using var fresh = new GatewayNetwork(
+            plan, vector.GetProperty("netId").GetUInt32(), firstDevAddr: devAddr);
+        fresh.Register(
+            devEui, appEui, appKey, name == "1.0.3" ? LorawanVersion.V1_0_3 : LorawanVersion.V1_0_4);
+        GatewayNetworkEvent Hear(byte[] payload, uint timestampUs) =>
+            fresh.Uplink(new GatewayRxpk(frequencyHz, payload) { Link = dr, TimestampMicros = timestampUs });
+        Hear(request, join.GetProperty("heardAtUs").GetUInt32());
+        Hear(Convert.FromHexString(gap.GetProperty("first").GetString()!), 2_000_000);
+        byte[] jumped = Convert.FromHexString(gap.GetProperty("jumped").GetString()!);
+        if (revision.TryGetProperty("refused", out JsonElement refused))
+        {
+            try
+            {
+                Hear(jumped, 3_000_000);
+                Fail($"a {name} device's counter a whole gap ahead should be refused");
+            }
+            catch (PamojaException error)
+            {
+                Assert(
+                    error.Message.Contains(refused.GetString()!, StringComparison.Ordinal),
+                    $"the reason a {name} device's gap is refused, got: {error.Message}");
+            }
+        }
+        else
+        {
+            Assert(
+                Hear(jumped, 3_000_000).Fcnt == revision.GetProperty("fcnt").GetUInt32(),
+                $"a {name} device's counter a whole gap ahead is followed");
+        }
+    }
 }
 
 static void ConformGateway(JsonElement vector)

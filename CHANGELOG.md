@@ -9,6 +9,13 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The network side of a site knows which LoRaWAN revision each device follows.
+  `Registration::with_version` names it, 1.0.4 unless told otherwise, and only a device
+  registered as 1.0.3 has its frames refused once the counter runs `MAX_FCNT_GAP` ahead of
+  the last one taken: LoRaWAN 1.0.3 section 4.3.1.5 asks for that, and TS001-1.0.4 asks only
+  that the counter go up. TypeScript's `register` takes an optional `LorawanVersion`,
+  Python's a `version="1.0.3"` keyword, C#'s `Register` a `LorawanVersion`, and the C ABI's
+  `pamoja_gateway_network_register` a `PAMOJA_LORAWAN_VERSION_1_0_3` or `_1_0_4` code.
 - Hysteresis in the power governor, in every language. A charge read from a fuel gauge
   wanders a point or two from one reading to the next, so a node whose charge sat at a
   threshold changed its cadence on every cycle. `PowerPlan::next_mode` and
@@ -945,6 +952,11 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- A site no longer refuses a frame from a TS001-1.0.4 device whose counter jumped 16,384 or
+  more ahead; register the device as 1.0.3 to keep that rule. `pamoja_gateway_network_register`
+  in the C ABI takes the device's version as a fifth argument. The `gateway` feature of the C
+  ABI and the Node and Python bindings carries `lorawan`, which the network side already
+  needed to build.
 - `Node::schedule` takes `&mut self`, since the node now remembers the power mode it chose;
   `Node::power_mode` reads it back. `PowerSchedule` has a `hysteresis` field, so a schedule
   built as a struct literal names it, and a manifest written by `to_json` carries it. The C
@@ -1301,6 +1313,10 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A site that had followed a device's counter to within 65,536 of 2^32 overflowed working
+  out the next one, which panicked in a debug build and wrapped the counter in a release
+  one. The frame is refused now with `the frame counter of 0x26010001 has run out; the device
+  must join again`.
 - Every integer the Node binding takes, as an argument or as a field of an options object,
   is checked now. N-API reads an integer by keeping the bottom 32 bits of the number and
   dropping any fraction, so `-1` reached a `u32` as 4294967295, 4294967296 reached it as 0,

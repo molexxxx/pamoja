@@ -443,7 +443,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">The join accept field positions in tables 44 and 55.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://resources.lora-alliance.org/technical-specifications/ts001-1-0-4-lorawan-l2-1-0-4-specification"><span class="hw-main"><b>The document</b><small>TS001-1.0.4</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L1223"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 1223</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Specification rule</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/network.rs#L1254"><span class="hw-main"><b>The test</b><small><code>network.rs</code> line 1254</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="rp002-1-0-5">

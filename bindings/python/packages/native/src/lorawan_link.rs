@@ -44,7 +44,7 @@ pub const DEFAULTS: [(&str, u32); 10] = [
 ];
 
 /// Reads a revision name, `1.0.3` or `1.0.4`.
-fn version(name: &str) -> PyResult<Version> {
+pub(crate) fn version(name: &str) -> PyResult<Version> {
     match name {
         "1.0.3" => Ok(Version::V1_0_3),
         "1.0.4" => Ok(Version::V1_0_4),

@@ -1162,7 +1162,7 @@ session keys are derived at each end, never sent:
 
 | Counter | Value | What it does |
 | --- | --- | --- |
-| the largest gap a receiver follows | 16,384 | a frame further ahead is refused, so a captured one cannot be replayed early |
+| the largest gap a receiver follows | 16,384 | LoRaWAN 1.0.3 refuses a frame further ahead, so a captured one cannot be replayed early; TS001-1.0.4 dropped the limit |
 | uplinks before asking the network to answer | 64 | the adaptive data rate check |
 | more before stepping the data rate down | 32 | and between each step after that |
 

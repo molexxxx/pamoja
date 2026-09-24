@@ -3095,6 +3095,31 @@ def test_gateway_network_vectors_match():
     assert answer.payload.hex() == vector["downlink"]["frame"]
     assert answer.timestamp_us == vector["downlink"]["timestampUs"]
 
+    gap = vector["counterGap"]
+    for revision in gap["revisions"]:
+        fresh = gateway.Network(
+            lora.plan_for("EU868"), vector["netId"], first_dev_addr=vector["devAddr"]
+        )
+        fresh.register(
+            unhex(vector["devEui"]),
+            unhex(vector["appEui"]),
+            unhex(vector["appKey"]),
+            version=revision["version"],
+        )
+
+        def hear(payload, timestamp_us, fresh=fresh):
+            return fresh.uplink(
+                gateway.Rxpk(vector["frequencyHz"], payload, link=dr, timestamp_us=timestamp_us)
+            )
+
+        hear(request, vector["join"]["heardAtUs"])
+        hear(unhex(gap["first"]), 2_000_000)
+        if "refused" in revision:
+            with pytest.raises(PamojaError, match=re.escape(revision["refused"])):
+                hear(unhex(gap["jumped"]), 3_000_000)
+        else:
+            assert hear(unhex(gap["jumped"]), 3_000_000).fcnt == revision["fcnt"]
+
 
 def test_station_vectors_match():
     vector = VECTORS["station"]

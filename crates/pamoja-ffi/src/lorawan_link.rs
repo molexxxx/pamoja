@@ -79,7 +79,7 @@ pub struct PamojaLorawanBackoff {
 }
 
 /// Reads a revision code that crossed the boundary.
-fn version(code: u8) -> Result<Version, PamojaStatus> {
+pub(crate) fn version(code: u8) -> Result<Version, PamojaStatus> {
     match code {
         PAMOJA_LORAWAN_VERSION_1_0_3 => Ok(Version::V1_0_3),
         PAMOJA_LORAWAN_VERSION_1_0_4 => Ok(Version::V1_0_4),

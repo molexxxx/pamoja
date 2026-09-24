@@ -61,7 +61,7 @@ pub enum LorawanVersion {
 
 impl LorawanVersion {
     /// The Rust revision this names.
-    fn core(self) -> Version {
+    pub(crate) fn core(self) -> Version {
         match self {
             Self::V1_0_3 => Version::V1_0_3,
             Self::V1_0_4 => Version::V1_0_4,

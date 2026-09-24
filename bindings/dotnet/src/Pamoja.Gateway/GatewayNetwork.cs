@@ -176,15 +176,25 @@ public sealed class GatewayNetwork : IDisposable
     /// <param name="devEui">The device identifier, eight bytes.</param>
     /// <param name="appEui">The application identifier, eight bytes.</param>
     /// <param name="appKey">The root key, sixteen bytes.</param>
+    /// <param name="version">The link layer revision the device follows. A 1.0.3 device's
+    /// frames are refused once their counter runs MAX_FCNT_GAP ahead of the last one accepted,
+    /// which TS001-1.0.4 no longer asks.</param>
     /// <exception cref="ArgumentException">An identifier or the key is the wrong length.</exception>
-    public void Register(ReadOnlySpan<byte> devEui, ReadOnlySpan<byte> appEui, ReadOnlySpan<byte> appKey)
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="version"/> is not one of the <see cref="LorawanVersion"/> values.</exception>
+    public void Register(
+        ReadOnlySpan<byte> devEui,
+        ReadOnlySpan<byte> appEui,
+        ReadOnlySpan<byte> appKey,
+        LorawanVersion version = LorawanVersion.V1_0_4)
     {
         FixedWidth.Require(devEui, NativeMethods.LorawanEuiLen, nameof(devEui));
         FixedWidth.Require(appEui, NativeMethods.LorawanEuiLen, nameof(appEui));
         FixedWidth.Require(appKey, NativeMethods.LorawanKeyLen, nameof(appKey));
+        byte revision = (byte)NamedValue.Require(version, nameof(version));
         using NativeLease network = _handle.Lease();
         NativeStatus.ThrowIfError(
-            NativeMethods.pamoja_gateway_network_register(network.Pointer, devEui, appEui, appKey));
+            NativeMethods.pamoja_gateway_network_register(
+                network.Pointer, devEui, appEui, appKey, revision));
     }
 
     /// <summary>Reads a packet the gateway forwarded.</summary>
