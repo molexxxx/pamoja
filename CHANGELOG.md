@@ -1144,6 +1144,13 @@ released together, so one entry covers all of them.
   and fails its code. The page gains a paragraph for each language, tables of the four
   packages, the keys, a session's numbers, the block's code and layout, and what the updater
   refuses, and a section on what goes wrong.
+- The mesh guide says what the duplicate cache did in words, where it printed booleans that
+  read differently in each language. It gains a flood down a valley of six nodes, which
+  counts who took the reading, who relayed it, the echoes dropped, and how far a hop limit
+  of 3 reaches, and two mistakes: a memory too small for the traffic, which relays a late
+  copy again, and a payload too large for a frame. The page gains a paragraph for each
+  language, tables of the frame on the air, the limits, the checksum and its check value,
+  what a node does with a frame, and the refusals, and a section on what goes wrong.
 
 ### Fixed
 
