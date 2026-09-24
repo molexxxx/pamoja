@@ -9,6 +9,24 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- Profile manifests and rule files have a published JSON Schema each,
+  [`profile-1.json`](https://pamoja.molex.cloud/schema/profile-1.json) and
+  [`rules-1.json`](https://pamoja.molex.cloud/schema/rules-1.json), served from the site
+  under `/schema/`. A file names its format with `$schema`, which an editor such as VS Code
+  reads to complete the fields and mark a wrong one as it is typed, and which `to_json`
+  now writes at the top of every file. A file written in a format this build does not
+  read is refused, naming the format. The profile and rules guides gain an "Every field"
+  section whose tables are generated from the schemas, and `cargo xtask` tests hold the
+  schemas and the parser to the same verdict on a corpus of good and bad files.
+- A profile says what it reads: `reads` names the quantity its control decides on and the
+  unit its numbers are in, such as `temperature` in `celsius`. Every preset and every
+  manifest in the catalog carries one, the catalog check requires it, and its cards say
+  it. `Profile::with_reads` and `Reads` in Rust, `reads` and `withReads` in TypeScript,
+  `reads` and `with_reads` in Python, and `Reads` and `WithReads` in C#, over
+  `pamoja_profile_reads_quantity`, `pamoja_profile_reads_unit`, and
+  `pamoja_profile_with_reads` in the C ABI.
+- `Node::resolve` assembles a node whose policy a `PolicyRegistry` resolves from the
+  profile's control kind, so one program runs any manifest its registry covers.
 - The MQTT client confirms delivery, retains messages, leaves a will, signs in, and speaks
   TLS, in every language. `MqttTransport::publish(topic, payload, PublishOptions)` takes a
   quality of service and retain flag for one message and returns a `Delivery` whose
@@ -968,6 +986,25 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- A profile manifest and a rule file refuse a field their format does not have, rather
+  than ignore it, and the reason names the field it was probably meant to be:
+  `` unknown field `saver_bellow`, did you mean `saver_below`? `` with the line and column.
+  A misspelled field used to leave the default in place without a word.
+- Asking a profile whose control kind is custom for a built-in controller is refused,
+  naming the kind and the built-in kind it is probably a misspelling of, rather than
+  handing back a monitor that reports readings and never drives the output the manifest
+  promised. `Profile::controller`, `Controller::from_spec`, `Node::new`, and `Node::monitor`
+  return a `Result`; `controller()` throws in TypeScript, Python, and C#; and
+  `pamoja_profile_controller` returns null with the reason. An unregistered kind resolved
+  through a `PolicyRegistry` is refused as a codec error naming the kinds the registry
+  knows. A custom kind with no name is refused as the manifest loads.
+- A rule file reads as a sentence. A condition names its line with `"below": 30.0` or
+  `"above": 60.0` in place of `compare` and `threshold`, and an action is
+  `{ "drive": "bed-valve", "on": true }` or
+  `{ "publish": "garden/alarm", "payload": "waterlogged" }` in place of the `do` tag.
+  `Rules::from_json` checks the file as it loads, as `Profile::from_json` does, and an
+  action that is both, or neither, or lacks its `on` or `payload`, is refused with the
+  reason. The C ABI crosses fired actions in the same shape.
 - An MQTT receive no longer holds the client in TypeScript, Python, or C#, so a publish runs
   while a receive waits; the C# client stopped running its calls one at a time.
   `publish` takes an optional options argument in each binding, and `PamojaMqttConfig` in the

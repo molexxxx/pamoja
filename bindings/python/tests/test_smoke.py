@@ -1832,9 +1832,8 @@ def test_a_kind_the_library_never_shipped_loads_with_its_parameters():
     assert orchard.control.custom_kind == "frost_guard"
     assert orchard.control.params == {"warn_below": 2.0, "latching": True, "zone": "north"}
     assert profile.Profile.well_level().control.params is None
-    assert orchard.controller().evaluate(-4.0).actuator is None, (
-        "the built-in controller for a custom kind observes only"
-    )
+    with pytest.raises(PamojaError, match="no policy decides the control kind `frost_guard`"):
+        orchard.controller()
     assert '"kind": "frost_guard"' in orchard.to_json()
 
 

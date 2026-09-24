@@ -38,6 +38,7 @@ export type {
   PowerScheduleSpec,
   Presentation,
   Reaction,
+  Reads,
   RuleAction,
   RuleFired,
   Theme,

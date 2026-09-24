@@ -21889,6 +21889,69 @@ PamojaString *pamoja_profile_description(const PamojaProfile *profile);
 PamojaProfile *pamoja_profile_with_description(const PamojaProfile *profile,
                                                const char *description);
 
+// Returns the quantity a profile says it reads, such as `temperature`.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile does not
+// say what it reads or `profile` is null. The two cases are told apart by
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set only
+// for a null handle.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_reads_quantity(const PamojaProfile *profile);
+
+// Returns the unit a profile's numbers are in, such as `celsius`.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+//
+// # Returns
+//
+// A null-terminated UTF-8 string, which the caller must release with
+// [`pamoja_string_free`](crate::pamoja_string_free), or null if the profile does not
+// say what it reads or `profile` is null. The two cases are told apart by
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message), which is set only
+// for a null handle.
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, or null.
+PamojaString *pamoja_profile_reads_unit(const PamojaProfile *profile);
+
+// Returns a copy of a profile that says what it reads.
+//
+// # Arguments
+//
+// * `profile` - the profile.
+// * `quantity` - the quantity its control decides on, such as `temperature`, as
+//   null-terminated UTF-8.
+// * `unit` - the unit its numbers are in, such as `celsius`, as null-terminated UTF-8.
+//
+// # Returns
+//
+// A handle the caller must release with [`pamoja_profile_free`], or null if a pointer
+// is null, a string is not UTF-8, or the quantity or unit is not lowercase words joined
+// by underscores, with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+//
+// # Safety
+//
+// `profile` must be a live handle from a call that produced one, and `quantity` and
+// `unit` must be valid null-terminated UTF-8 strings for the duration of the call; any
+// may be null.
+PamojaProfile *pamoja_profile_with_reads(const PamojaProfile *profile,
+                                         const char *quantity,
+                                         const char *unit);
+
 // Returns how a profile presents itself on a dashboard, as the JSON object its
 // manifest carries under `presentation`.
 //
@@ -22036,7 +22099,9 @@ PamojaStatus pamoja_profile_power_plan(const PamojaProfile *profile, PamojaPower
 // # Returns
 //
 // A handle the caller must release with [`pamoja_controller_free`], or null if
-// `profile` is null.
+// `profile` is null or names a custom control kind, which no built-in controller
+// decides, with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 //
 // # Safety
 //

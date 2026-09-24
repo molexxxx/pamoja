@@ -103,7 +103,6 @@ for gauge in [1.2, 1.35, 1.9]:
 
 # ANCHOR: wrong
 from pamoja.core import PamojaError
-from pamoja.profile import ControlKind
 
 # A probe that fails reports a reading that is not a number. The controller raises it
 # rather than going quiet, and the lamp holds its state; what off means for the chicks is
@@ -120,10 +119,13 @@ then = profile.controller().evaluate(31.8).actuator
 if first is True and then is False:
     print("fresh     built again for each reading, the controller turns the lamp off at 31.8 C")
 
-# A manifest no node could run is refused as it loads, with the reason.
+# A manifest no node could run is refused as it loads, with the reason. So is a misspelled
+# field, with the one it was probably meant to be, rather than leaving the default in its
+# place without a word.
 for edited in [
     manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
     manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
+    manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
 ]:
     try:
         Profile.from_json(edited)
@@ -131,25 +133,13 @@ for edited in [
     except PamojaError as error:
         print(f"refused   {error}")
 
-# A misspelled optional field is not an error: it names no field, so the default stays.
-# Writing the profile back out shows what the node understood.
-misspelled = manifest.replace(
-    '"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'
-)
-understood = Profile.from_json(misspelled)
-print(
-    "typo      saver_bellow names no field, so saver still starts below "
-    f"{understood.power.saver_below * 100:.0f}%"
-)
-
-# A kind the library does not ship loads with its parameters and runs as a monitor until
-# the node supplies the policy, so it drives nothing and raises nothing.
+# A kind the library does not ship loads with its parameters, but no built-in controller
+# decides it, so asking for one is refused rather than handing back a node that would never
+# switch the lamp.
 custom = Profile.from_json(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
-if custom.control.kind == ControlKind.CUSTOM:
-    reaction = custom.controller().evaluate(27.5)
-    if reaction.actuator is None and reaction.alert is None:
-        print(
-            f"custom    {custom.control.custom_kind} loads with {len(custom.control.params)} "
-            "parameters, and with no policy behind it drives nothing"
-        )
+try:
+    custom.controller()
+    print("a custom kind ran without its policy, which should never happen")
+except PamojaError as error:
+    print(f"refused   {error}")
 # ANCHOR_END: wrong

@@ -138,10 +138,10 @@ public sealed class RuleEvaluator : IDisposable
 
     /// <summary>Reads one action as the rule file writes it.</summary>
     private static RuleAction ActionOf(JsonElement action) =>
-        action.GetProperty("do").GetString() == "drive"
+        action.TryGetProperty("drive", out JsonElement actuator)
             ? new RuleAction(
                 RuleActionKind.Drive,
-                action.GetProperty("actuator").GetString(),
+                actuator.GetString(),
                 action.GetProperty("on").GetBoolean(),
                 null,
                 null)
@@ -149,7 +149,7 @@ public sealed class RuleEvaluator : IDisposable
                 RuleActionKind.Publish,
                 null,
                 null,
-                action.GetProperty("topic").GetString(),
+                action.GetProperty("publish").GetString(),
                 action.GetProperty("payload").GetString());
 
     /// <summary>Reads a JSON array of names the native side handed back.</summary>

@@ -222,7 +222,8 @@ link.connect().await?;
 
 // A node reads, decides, drives the valve, and publishes on every tick. The parts are
 // the ones above; only the loop moved into the library.
-let mut node = Node::new(profile, probe, Valve::default(), link, CborCodec);
+let mut node = Node::new(profile, probe, Valve::default(), link, CborCodec)
+    .expect("the profile names a built-in kind");
 let mut reactions = Vec::new();
 for _ in 0..2 {
     let reaction = node.tick().await.expect("a tick");

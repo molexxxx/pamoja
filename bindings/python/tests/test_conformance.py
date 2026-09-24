@@ -2879,8 +2879,8 @@ def test_rules_vectors_match():
     def written(action):
         """Writes an action back in the rule file's own shape, to compare with the vector."""
         if action.kind == profile.RuleActionKind.DRIVE:
-            return {"do": "drive", "actuator": action.actuator, "on": action.on}
-        return {"do": "publish", "topic": action.topic, "payload": action.payload}
+            return {"drive": action.actuator, "on": action.on}
+        return {"publish": action.topic, "payload": action.payload}
 
     for step in vector["steps"]:
         fired = [
@@ -2920,6 +2920,8 @@ def test_profile_vectors_match():
     assert fridge.power.hysteresis == pytest.approx(
         cold_chain["power"]["hysteresis"], abs=TOLERANCE
     )
+    reads = fridge.reads
+    assert {"quantity": reads.quantity, "unit": reads.unit} == cold_chain["reads"]
     _assert_reactions(fridge.controller(), cold_chain["reactions"])
 
     plan = fridge.power_plan()
@@ -2952,7 +2954,8 @@ def test_profile_vectors_match():
     orchard = profile.Profile.from_json(custom["manifest"])
     assert orchard.name == custom["name"]
     _assert_control(orchard.control, custom["control"])
-    _assert_reactions(orchard.controller(), custom["reactions"])
+    with pytest.raises(PamojaError, match=re.escape(custom["refusal"])):
+        orchard.controller()
 
     for built in vector["built"]:
         want = built["control"]
@@ -2975,6 +2978,8 @@ def test_profile_vectors_match():
             hysteresis=power["hysteresis"],
         )
         made = profile.Profile(built["name"], built["topic"], control, schedule)
+        if built["reads"] is not None:
+            made = made.with_reads(built["reads"]["quantity"], built["reads"]["unit"])
         assert made.to_json() == built["manifest"], f"the manifest {built['name']} writes"
 
 

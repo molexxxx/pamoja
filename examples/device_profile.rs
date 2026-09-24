@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     let probe = Replay::new(readings);
     let cooler = RecordingActuator::new();
     let cooler_log = cooler.log();
-    let mut node = Node::new(profile, probe, cooler, link, CborCodec);
+    let mut node = Node::new(profile, probe, cooler, link, CborCodec)?;
 
     // Each cycle the node reads, decides, switches the cooler, and publishes.
     let codec = CborCodec;

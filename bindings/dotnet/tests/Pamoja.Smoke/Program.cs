@@ -1635,10 +1635,7 @@ static void ProfilesAndRobotics()
     Assert(custom.Params?["latching"] is true, "its flags");
     Assert(custom.Params?["zone"] is "north", "and its text");
     Assert(fridge.Control.Params is null, "a built-in kind carries no parameter object");
-    using (Controller inert = orchard.Controller())
-    {
-        Assert(inert.Evaluate(-4.0f).Actuator is null, "the built-in controller for a custom kind observes only");
-    }
+    Catch<PamojaException>(() => orchard.Controller());
 
     Assert(orchard.ToJson().Contains("\"kind\": \"frost_guard\""), "and it writes back under its own name");
 
@@ -1721,12 +1718,12 @@ static void ConformRuleFiles(JsonElement vector)
             foreach (JsonElement action in actions.EnumerateArray())
             {
                 RuleAction got = one.Actions[at++];
-                if (action.GetProperty("do").GetString() == "drive")
+                if (action.TryGetProperty("drive", out JsonElement actuator))
                 {
                     Assert(
                         got == new RuleAction(
                             RuleActionKind.Drive,
-                            action.GetProperty("actuator").GetString(),
+                            actuator.GetString(),
                             action.GetProperty("on").GetBoolean(),
                             null,
                             null),
@@ -1739,7 +1736,7 @@ static void ConformRuleFiles(JsonElement vector)
                             RuleActionKind.Publish,
                             null,
                             null,
-                            action.GetProperty("topic").GetString(),
+                            action.GetProperty("publish").GetString(),
                             action.GetProperty("payload").GetString()),
                         "a publish, in the file's order");
                 }
@@ -1790,6 +1787,11 @@ static void ConformProfile(JsonElement vector, double tolerance)
     Close(fridge.Power.Hysteresis, (float)power.GetProperty("hysteresis").GetDouble(), tolerance,
         "the hysteresis margin");
     Close(fridge.PowerPlan.Hysteresis, fridge.Power.Hysteresis, tolerance, "which the governor keeps");
+    JsonElement presetReads = coldChain.GetProperty("reads");
+    Assert(
+        fridge.Reads == new Reads(
+            presetReads.GetProperty("quantity").GetString()!, presetReads.GetProperty("unit").GetString()!),
+        "what the preset reads");
 
     using (Controller control = fridge.Controller())
     {
@@ -1826,10 +1828,9 @@ static void ConformProfile(JsonElement vector, double tolerance)
     using var orchard = Profile.FromJson(customVector.GetProperty("manifest").GetString()!);
     Assert(orchard.Name == customVector.GetProperty("name").GetString(), "a custom kind's profile name");
     AssertControl(orchard.Control, customVector.GetProperty("control"), tolerance);
-    using (Controller inert = orchard.Controller())
-    {
-        AssertReactions(inert, customVector.GetProperty("reactions"), tolerance);
-    }
+    PamojaException unresolved = Catch<PamojaException>(() => orchard.Controller());
+    string refusal = customVector.GetProperty("refusal").GetString()!;
+    Assert(unresolved.Message.Contains(refusal), $"{unresolved.Message} should say {refusal}");
 
     JsonElement draining = vector.GetProperty("draining");
     using var well = Profile.WellLevel();
@@ -1884,10 +1885,23 @@ static void ConformProfile(JsonElement vector, double tolerance)
             (float)wantPower.GetProperty("saverBelow").GetDouble(),
             (float)wantPower.GetProperty("criticalBelow").GetDouble(),
             (float)wantPower.GetProperty("hysteresis").GetDouble());
-        using var made = new Profile(
+        using var parts = new Profile(
             built.GetProperty("name").GetString()!, built.GetProperty("topic").GetString()!, control, schedule);
+        JsonElement reads = built.GetProperty("reads");
+        string written;
+        if (reads.ValueKind == JsonValueKind.Null)
+        {
+            written = parts.ToJson();
+        }
+        else
+        {
+            using Profile made = parts.WithReads(
+                reads.GetProperty("quantity").GetString()!, reads.GetProperty("unit").GetString()!);
+            written = made.ToJson();
+        }
+
         Assert(
-            made.ToJson() == built.GetProperty("manifest").GetString(),
+            written == built.GetProperty("manifest").GetString(),
             "a profile built from its parts writes the same manifest");
     }
 }

@@ -164,7 +164,9 @@ fn main() -> std::process::ExitCode {
     let mut worker = fleet.clone();
     let worker_profile = prof.clone();
     thread::spawn(move || {
-        let mut control = worker_profile.controller();
+        let mut control = worker_profile
+            .controller()
+            .expect("the irrigation profile is a setpoint");
         let mut tick = 0.0f32;
         let mut step = 0u32;
         loop {

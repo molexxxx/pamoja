@@ -6,7 +6,7 @@ use pamoja_codec::Codec;
 use pamoja_core::{Actuator, Result, Sensor, Transport};
 use pamoja_power::PowerMode;
 
-use crate::{Controller, Policy, Profile, Reaction};
+use crate::{BoxedPolicy, Controller, Policy, PolicyRegistry, Profile, Reaction};
 
 /// An actuator that accepts and ignores commands.
 ///
@@ -70,7 +70,7 @@ impl Actuator for NoActuator {
 /// link.connect().await?;
 ///
 /// // A warm fridge, assembled straight from its profile.
-/// let mut node = Node::new(Profile::vaccine_fridge_monitor(), Probe(9.0), Cooler, link, CborCodec);
+/// let mut node = Node::new(Profile::vaccine_fridge_monitor(), Probe(9.0), Cooler, link, CborCodec)?;
 /// let reaction = node.tick().await?;
 /// assert_eq!(reaction.actuator, Some(true)); // the cooler runs
 /// assert!(reaction.alert.is_some()); // and 9 C is a spoilage excursion
@@ -101,9 +101,93 @@ impl<S, A, T, C> Node<S, A, T, C> {
     /// # Returns
     ///
     /// A node ready to [`tick`](Node::tick).
-    pub fn new(profile: Profile, sensor: S, actuator: A, transport: T, codec: C) -> Self {
-        let controller = profile.controller();
-        Node::with_policy(profile, controller, sensor, actuator, transport, codec)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) when the profile names a custom
+    /// control kind, which no built-in controller decides; [`Node::resolve`] assembles
+    /// one through a [`PolicyRegistry`] that registers it.
+    pub fn new(profile: Profile, sensor: S, actuator: A, transport: T, codec: C) -> Result<Self> {
+        let controller = profile.controller()?;
+        Ok(Node::with_policy(
+            profile, controller, sensor, actuator, transport, codec,
+        ))
+    }
+}
+
+impl<S, A, T, C> Node<S, A, T, C, BoxedPolicy> {
+    /// Assembles a node whose policy a registry resolves from the profile's control kind.
+    ///
+    /// A built-in kind resolves to its controller, and a custom kind to the policy the
+    /// factory registered under its name builds from the parameters beside it, so one
+    /// program runs any manifest its registry covers.
+    ///
+    /// # Arguments
+    ///
+    /// * `profile` - the profile to assemble.
+    /// * `registry` - what resolves the profile's control kind.
+    /// * `sensor` - the source of readings.
+    /// * `actuator` - the output the policy switches.
+    /// * `transport` - the link readings are published over; expected to be connected.
+    /// * `codec` - the wire format readings are encoded with.
+    ///
+    /// # Returns
+    ///
+    /// A node ready to [`tick`](Node::tick).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) naming the kind when it is
+    /// custom and not registered, or whatever the kind's factory returns.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_codec::JsonCodec;
+    /// use pamoja_core::{Error, Result, Sensor, Transport};
+    /// use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+    /// use pamoja_profile::{BoxedPolicy, Controller, NoActuator, Node, PolicyRegistry, Profile};
+    ///
+    /// struct Air(f32);
+    /// impl Sensor for Air {
+    ///     type Reading = f32;
+    ///     async fn read(&mut self) -> Result<f32> {
+    ///         Ok(self.0)
+    ///     }
+    /// }
+    ///
+    /// # async fn run() -> Result<()> {
+    /// let profile = Profile::from_json(r#"{
+    ///     "name": "orchard-frost",
+    ///     "reads": { "quantity": "temperature", "unit": "celsius" },
+    ///     "topic": "orchard/air/temperature",
+    ///     "control": { "kind": "frost_guard", "warn_below": 2.0 },
+    ///     "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 }
+    /// }"#)?;
+    /// let registry = PolicyRegistry::new().register("frost_guard", |params| {
+    ///     let warn_below = params.number("warn_below").ok_or(Error::Unsupported("warn_below"))?;
+    ///     Ok(Box::new(Controller::setpoint(warn_below as f32, 0.5, false, 5.0)) as BoxedPolicy)
+    /// });
+    ///
+    /// let mut link = LoopbackTransport::new(LoopbackBroker::new());
+    /// link.connect().await?;
+    /// let mut node = Node::resolve(profile, &registry, Air(1.0), NoActuator, link, JsonCodec)?;
+    /// assert_eq!(node.tick().await?.actuator, Some(true)); // cold: the heater comes on
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn resolve(
+        profile: Profile,
+        registry: &PolicyRegistry,
+        sensor: S,
+        actuator: A,
+        transport: T,
+        codec: C,
+    ) -> Result<Self> {
+        let policy = registry.resolve(&profile.control)?;
+        Ok(Node::with_policy(
+            profile, policy, sensor, actuator, transport, codec,
+        ))
     }
 }
 
@@ -332,7 +416,12 @@ impl<S, T, C> Node<S, NoActuator, T, C> {
     /// # Returns
     ///
     /// A node ready to [`tick`](Node::tick), with no output to switch.
-    pub fn monitor(profile: Profile, sensor: S, transport: T, codec: C) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) when the profile names a custom
+    /// control kind, as [`Node::new`] does.
+    pub fn monitor(profile: Profile, sensor: S, transport: T, codec: C) -> Result<Self> {
         Node::new(profile, sensor, NoActuator, transport, codec)
     }
 }
@@ -443,7 +532,8 @@ mod tests {
             Recording(commands.clone()),
             link,
             CborCodec,
-        );
+        )
+        .expect("a built-in kind");
 
         let reaction = node.tick().await.expect("tick");
         assert_eq!(reaction.actuator, Some(true));
@@ -464,7 +554,8 @@ mod tests {
             ScriptedSensor::new(vec![3.2]),
             link,
             CborCodec,
-        );
+        )
+        .expect("a built-in kind");
 
         let reaction = node.tick().await.expect("tick");
         assert_eq!(reaction.actuator, None);
@@ -555,7 +646,8 @@ mod tests {
             Recording(Arc::new(Mutex::new(Vec::new()))),
             link,
             CborCodec,
-        );
+        )
+        .expect("a built-in kind");
         spawn_node(node).await.expect("the task finishes");
         let first = gateway.recv().await.expect("recv").expect("a reading");
         let reading: f32 = CborCodec.decode(&first.payload).expect("decode");
@@ -565,7 +657,7 @@ mod tests {
     #[test]
     fn schedule_follows_state_of_charge() {
         // The schedule reads only the profile, so the components can be placeholders.
-        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ());
+        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ()).unwrap();
         assert_eq!(node.power_mode(), None);
         assert_eq!(node.schedule(0.9, false).0, PowerMode::Active);
         assert_eq!(node.schedule(0.1, false).0, PowerMode::Critical);
@@ -577,7 +669,7 @@ mod tests {
 
     #[test]
     fn a_charge_hovering_at_a_threshold_keeps_the_cadence() {
-        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ());
+        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ()).unwrap();
         let modes: Vec<PowerMode> = [0.52, 0.49, 0.51, 0.5, 0.53, 0.56]
             .into_iter()
             .map(|soc| node.schedule(soc, false).0)

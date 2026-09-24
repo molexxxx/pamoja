@@ -209,6 +209,7 @@ __all__ = [
     "RadioDutyCycle",
     "Ramp",
     "Reaction",
+    "Reads",
     "ReceiverStep",
     "RecordingActuatorHandle",
     "Replay",
@@ -9711,6 +9712,12 @@ class Profile:
         What the profile is for, in the words its manifest carries, or `None`.
         """
     @property
+    def reads(self) -> typing.Optional[Reads]:
+        r"""
+        What the profile reads, the quantity and the unit its numbers are in, or `None`
+        when the manifest does not say.
+        """
+    @property
     def presentation(self) -> typing.Optional[Presentation]:
         r"""
         How the profile presents itself on the dashboard, or `None` when it declares
@@ -9768,6 +9775,13 @@ class Profile:
         r"""
         Serializes this profile to its JSON manifest.
         """
+    def with_reads(self, quantity: builtins.str, unit: builtins.str) -> Profile:
+        r"""
+        A copy of this profile that says what it reads.
+        
+        Raises `PamojaError` when the quantity or unit is not lowercase words joined by
+        underscores.
+        """
     def with_description(self, description: builtins.str) -> Profile:
         r"""
         A copy of this profile carrying a description of what it is for.
@@ -9792,6 +9806,9 @@ class Profile:
         Each call builds a new controller, so keep the one it returns for the life of the
         node: one built again for each reading forgets whether its output was on and what
         the reading before was.
+        
+        Raises `PamojaError` when the profile names a custom control kind, which no
+        built-in controller decides.
         """
 
 @typing.final
@@ -10034,6 +10051,23 @@ class Reaction:
     def alert(self) -> typing.Optional[AlertReport]:
         r"""
         The alert the reading raised, or `None` if it crossed nothing.
+        """
+
+@typing.final
+class Reads:
+    r"""
+    What a profile reads: the quantity its control decides on, and the unit its numbers are
+    in, both lowercase words joined by underscores.
+    """
+    @property
+    def quantity(self) -> builtins.str:
+        r"""
+        The quantity, such as `temperature` or `relative_humidity`.
+        """
+    @property
+    def unit(self) -> builtins.str:
+        r"""
+        The unit the profile's numbers are in, such as `celsius` or `percent`.
         """
 
 @typing.final

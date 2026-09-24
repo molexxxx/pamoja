@@ -298,16 +298,32 @@ impl<R, C> PolicyRegistry<R, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Unsupported`] when no factory is registered for the kind, or
+    /// Returns [`Error::Codec`] naming the kind when no factory is registered for it, or
     /// whatever the factory returns when the parameters are not what it needs.
     pub fn custom(&self, kind: &str, params: &Params) -> Result<BoxedPolicy<R, C>> {
         match self.factories.get(kind) {
             Some(factory) => factory(params),
-            None => Err(Error::Unsupported(
-                "the manifest names a control kind no policy is registered for",
-            )),
+            None => Err(unresolved(kind, &self.kinds().collect::<Vec<_>>())),
         }
     }
+}
+
+/// Explains that a custom kind has no policy behind it, naming what it may have meant.
+fn unresolved(kind: &str, registered: &[&str]) -> Error {
+    let known = ControlSpec::BUILT_IN
+        .iter()
+        .copied()
+        .chain(registered.iter().copied());
+    let hint = match crate::format::nearest(kind, known) {
+        Some(nearest) => format!("; did you mean `{nearest}`?"),
+        None if registered.is_empty() => {
+            "; resolve the profile through a PolicyRegistry that registers it".to_owned()
+        }
+        None => format!("; the registry knows `{}`", registered.join("`, `")),
+    };
+    Error::Codec(format!(
+        "no policy decides the control kind `{kind}`, which is not built in{hint}"
+    ))
 }
 
 impl PolicyRegistry<f32, bool> {
@@ -324,12 +340,12 @@ impl PolicyRegistry<f32, bool> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Unsupported`] when the kind is custom and no factory is
+    /// Returns [`Error::Codec`] naming the kind when it is custom and no factory is
     /// registered for it, or whatever the factory returns.
     pub fn resolve(&self, spec: &ControlSpec) -> Result<BoxedPolicy<f32, bool>> {
         match spec {
             ControlSpec::Custom { kind, params } => self.custom(kind, params),
-            built_in => Ok(Box::new(Controller::from_spec(built_in))),
+            built_in => Ok(Box::new(Controller::from_spec(built_in)?)),
         }
     }
 }
@@ -494,10 +510,6 @@ impl Controller {
 
     /// Assembles the controller a manifest's control kind describes.
     ///
-    /// A custom kind has no built-in controller: its policy is the code a
-    /// [`PolicyRegistry`] resolves it to, so for one this returns
-    /// [`monitor`](Controller::monitor), which reports readings and decides nothing.
-    ///
     /// # Arguments
     ///
     /// * `spec` - the control policy a profile carries.
@@ -505,18 +517,26 @@ impl Controller {
     /// # Returns
     ///
     /// A fresh controller with its control state reset.
-    pub fn from_spec(spec: &ControlSpec) -> Self {
-        match *spec {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`] for a custom kind, which has no built-in controller: its
+    /// policy is the code a [`PolicyRegistry`] resolves it to. Running one as a monitor
+    /// instead would leave a node that reports readings and never drives the output its
+    /// manifest promised.
+    pub fn from_spec(spec: &ControlSpec) -> Result<Self> {
+        Ok(match spec {
             ControlSpec::Setpoint {
                 setpoint,
                 hysteresis,
                 cooling,
                 safe_band,
-            } => Controller::setpoint(setpoint, hysteresis, cooling, safe_band),
-            ControlSpec::Level { empty, warn_within } => Controller::level(empty, warn_within),
-            ControlSpec::Surge { rising, limit } => Controller::surge(rising, limit),
-            ControlSpec::Monitor | ControlSpec::Custom { .. } => Controller::monitor(),
-        }
+            } => Controller::setpoint(*setpoint, *hysteresis, *cooling, *safe_band),
+            ControlSpec::Level { empty, warn_within } => Controller::level(*empty, *warn_within),
+            ControlSpec::Surge { rising, limit } => Controller::surge(*rising, *limit),
+            ControlSpec::Monitor => Controller::monitor(),
+            ControlSpec::Custom { kind, .. } => return Err(unresolved(kind, &[])),
+        })
     }
 
     /// Evaluates one reading and returns the action and any alert it calls for.
@@ -756,10 +776,19 @@ mod tests {
             registry.custom("fan", &Params::new()),
             Err(Error::Unsupported(_))
         ));
-        assert!(matches!(
-            registry.custom("heater", &params),
-            Err(Error::Unsupported(_))
-        ));
+        let reason = |result: Result<BoxedPolicy<(f32, f32), u8>>| match result {
+            Err(Error::Codec(reason)) => reason,
+            Err(other) => panic!("expected a codec error, got {other}"),
+            Ok(_) => panic!("expected the kind to be refused"),
+        };
+        assert_eq!(
+            reason(registry.custom("heater", &params)),
+            "no policy decides the control kind `heater`, which is not built in; the registry knows `fan`"
+        );
+        assert_eq!(
+            reason(registry.custom("fam", &params)),
+            "no policy decides the control kind `fam`, which is not built in; did you mean `fan`?"
+        );
 
         let scalar = PolicyRegistry::new();
         let mut monitor = scalar
@@ -770,10 +799,26 @@ mod tests {
             kind: "heater".to_owned(),
             params: Params::new(),
         };
-        assert!(matches!(
-            scalar.resolve(&custom),
-            Err(Error::Unsupported(_))
-        ));
+        assert!(matches!(scalar.resolve(&custom), Err(Error::Codec(_))));
         assert_eq!(format!("{scalar:?}"), "PolicyRegistry { kinds: [] }");
+    }
+
+    #[test]
+    fn a_custom_kind_is_refused_rather_than_run_as_a_monitor() {
+        let refused = |kind: &str| {
+            let spec = ControlSpec::Custom {
+                kind: kind.to_owned(),
+                params: Params::new(),
+            };
+            match Controller::from_spec(&spec) {
+                Err(Error::Codec(reason)) => reason,
+                other => panic!("expected {kind} to be refused, got {other:?}"),
+            }
+        };
+        assert_eq!(
+            refused("brooder_guard"),
+            "no policy decides the control kind `brooder_guard`, which is not built in; resolve the profile through a PolicyRegistry that registers it"
+        );
+        assert!(refused("levle").ends_with("did you mean `level`?"));
     }
 }

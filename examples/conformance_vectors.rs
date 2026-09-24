@@ -63,7 +63,8 @@ use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 use pamoja_profile::{
-    Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, Reaction, RuleEvaluator, Rules,
+    Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, Reaction, Reads, RuleEvaluator,
+    Rules,
 };
 use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
@@ -6712,14 +6713,14 @@ const WELL_READINGS: [f32; 4] = [80.0, 60.0, 40.0, 20.0];
 /// What a profile decides, so every binding reaches the same conclusion.
 fn profile() -> Value {
     let fridge = Profile::vaccine_fridge_monitor();
-    let mut control = fridge.controller();
+    let mut control = fridge.controller().expect("a setpoint");
     let cold_chain: Vec<Value> = FRIDGE_READINGS
         .iter()
         .map(|reading| reaction_value(*reading, control.evaluate(*reading)))
         .collect();
 
     let well = Profile::well_level();
-    let mut level = well.controller();
+    let mut level = well.controller().expect("a level");
     let draining: Vec<Value> = WELL_READINGS
         .iter()
         .map(|reading| reaction_value(*reading, level.evaluate(*reading)))
@@ -6729,18 +6730,20 @@ fn profile() -> Value {
     let observed = reaction_value(21.5, observer.evaluate(21.5));
 
     // A kind the library never shipped: every binding must load it, name it, keep its
-    // parameters, and hand back a controller that observes only.
+    // parameters, and refuse to hand back a built-in controller for it, since one would
+    // report readings and never drive the output the manifest promised.
     let custom_manifest = concat!(
         "{ \"name\": \"orchard-frost\", \"topic\": \"orchard/air/temperature\", ",
         "\"control\": { \"kind\": \"frost_guard\", \"warn_below\": 2.0, \"latching\": true, \"zone\": \"north\" }, ",
         "\"power\": { \"active_secs\": 60, \"saver_secs\": 300, \"critical_secs\": 900 } }"
     );
     let custom = Profile::from_json(custom_manifest).expect("a custom kind parses");
-    let mut inert = custom.controller();
-    let custom_reactions: Vec<Value> = [-4.0, 12.0]
-        .iter()
-        .map(|reading| reaction_value(*reading, inert.evaluate(*reading)))
-        .collect();
+    let unresolved = "no policy decides the control kind `frost_guard`";
+    let refusal = custom
+        .controller()
+        .expect_err("a custom kind has no built-in controller")
+        .to_string();
+    assert!(refusal.contains(unresolved), "{refusal}");
 
     // Profiles built from their parts rather than loaded: every binding must build the
     // same two and write the same manifest bytes for them.
@@ -6765,12 +6768,14 @@ fn profile() -> Value {
         ControlSpec::custom("frost_guard", guard_params).expect("a custom kind"),
         PowerSchedule::new(60, 300, 900).with_thresholds(0.4, 0.1),
     );
+    let drip = drip.with_reads("soil_moisture", "percent");
     let built = |profile: &Profile| {
         json!({
             "name": profile.name,
             "topic": profile.topic,
             "control": control_value(&profile.control),
             "power": schedule_value(profile.power),
+            "reads": profile.reads.as_ref().map(reads_value),
             "manifest": profile.to_json().expect("a profile serializes"),
         })
     };
@@ -6801,6 +6806,7 @@ fn profile() -> Value {
         "coldChain": {
             "name": fridge.name,
             "topic": fridge.topic,
+            "reads": fridge.reads.as_ref().map(reads_value),
             "control": control_value(&fridge.control),
             "power": schedule_value(fridge.power),
             "reactions": cold_chain,
@@ -6821,10 +6827,15 @@ fn profile() -> Value {
             "manifest": custom_manifest,
             "name": custom.name,
             "control": control_value(&custom.control),
-            "reactions": custom_reactions,
+            "refusal": unresolved,
         },
         "built": [built_drip, built_guard],
     })
+}
+
+/// Flattens what a profile says it reads the way each binding exposes it.
+fn reads_value(reads: &Reads) -> Value {
+    json!({ "quantity": reads.quantity, "unit": reads.unit })
 }
 
 /// Flattens a control policy the way each binding exposes it.
@@ -6918,20 +6929,20 @@ fn reaction_value(reading: f32, reaction: Reaction) -> Value {
 /// same actions, and refuse the same files and readings for the same reasons.
 fn rules() -> Value {
     let file = concat!(
-        "{ \"rules\": [ ",
+        "{ \"$schema\": \"https://pamoja.molex.cloud/schema/rules-1.json\", \"rules\": [ ",
         "{ \"name\": \"water-when-dry\", ",
-        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, ",
-        "\"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, ",
-        "{ \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], ",
-        "\"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, ",
-        "{ \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, ",
+        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"below\": 30.0, \"hysteresis\": 5.0 }, ",
+        "\"then\": [ { \"drive\": \"bed-valve\", \"on\": true }, ",
+        "{ \"publish\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], ",
+        "\"otherwise\": [ { \"drive\": \"bed-valve\", \"on\": false }, ",
+        "{ \"publish\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, ",
         "{ \"name\": \"flood-alarm\", ",
-        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, ",
-        "\"then\": [ { \"do\": \"publish\", \"topic\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, ",
+        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"above\": 60.0, \"hysteresis\": 5.0 }, ",
+        "\"then\": [ { \"publish\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, ",
         "{ \"name\": \"frost-cover\", ",
-        "\"when\": { \"topic\": \"garden/air/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, ",
-        "\"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], ",
-        "\"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ",
+        "\"when\": { \"topic\": \"garden/air/temperature\", \"below\": 2.0, \"hysteresis\": 1.5 }, ",
+        "\"then\": [ { \"drive\": \"frost-cover\", \"on\": true } ], ",
+        "\"otherwise\": [ { \"drive\": \"frost-cover\", \"on\": false } ] } ",
         "] }"
     );
     let mut evaluator =
@@ -6984,6 +6995,30 @@ fn rules() -> Value {
         (
             file.replace("\"garden/alarm\"", "\"garden/#\""),
             "a filter rather than a topic",
+        ),
+        (
+            file.replacen("\"hysteresis\"", "\"hysterisis\"", 1),
+            "unknown field `hysterisis`, did you mean `hysteresis`?",
+        ),
+        (
+            file.replacen(
+                "\"below\": 30.0",
+                "\"compare\": \"below\", \"threshold\": 30.0",
+                1,
+            ),
+            "unknown field `compare`",
+        ),
+        (
+            file.replacen(
+                "{ \"drive\": \"bed-valve\", \"on\": true }",
+                "{ \"drive\": \"bed-valve\" }",
+                1,
+            ),
+            "driving `bed-valve` needs `on`",
+        ),
+        (
+            file.replace("rules-1.json", "rules-2.json"),
+            "written in rules format 2",
         ),
     ]
     .into_iter()
@@ -7074,6 +7109,38 @@ fn refused_manifests() -> Vec<Value> {
                 topic,
             ),
             "every sample is a surge",
+        ),
+        (
+            manifest(
+                heater,
+                r#"{ "active_secs": 120, "saver_secs": 600, "critical_secs": 1800, "saver_bellow": 0.3 }"#,
+                topic,
+            ),
+            "unknown field `saver_bellow`, did you mean `saver_below`?",
+        ),
+        (
+            manifest(
+                r#"{ "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": 4.0, "deadband": 1.0 }"#,
+                schedule,
+                topic,
+            ),
+            "unknown field `deadband`",
+        ),
+        (
+            manifest(heater, schedule, topic).replacen(
+                "{ ",
+                r#"{ "$schema": "https://pamoja.molex.cloud/schema/profile-2.json", "#,
+                1,
+            ),
+            "written in profile format 2",
+        ),
+        (
+            manifest(heater, schedule, topic).replacen(
+                "{ ",
+                r#"{ "reads": { "quantity": "Temperature", "unit": "celsius" }, "#,
+                1,
+            ),
+            "must be lowercase words joined by underscores",
         ),
     ];
     cases

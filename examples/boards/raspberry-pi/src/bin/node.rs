@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // That is the node. Each tick reads the probe, decides with the profile, switches the
     // relay, and publishes the reading.
-    let mut node = Node::new(profile, sensor, output, link, JsonCodec);
+    let mut node = Node::new(profile, sensor, output, link, JsonCodec)?;
     loop {
         let reaction = node.tick().await?;
         if let Some(alert) = reaction.alert {

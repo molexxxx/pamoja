@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "irrigation-node",
   "description": "Opens an irrigation valve when soil moisture falls below 30 % and closes it again above 40 %, and alerts when the soil dries below 10 % or is waterlogged above 60 %. Samples slowly, since soil changes over hours and the battery has to last.",
+  "reads": {
+    "quantity": "soil_moisture",
+    "unit": "percent"
+  },
   "topic": "farm/irrigation/soil-moisture",
   "control": {
     "kind": "setpoint",

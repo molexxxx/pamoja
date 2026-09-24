@@ -193,6 +193,7 @@ pub enum Scope {
 /// labeled for people who do not read the key. The snapshot still carries the raw
 /// value under `key`; this names how to show it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ElementSpec {
     /// The stable, language-neutral element key, such as `"water_turbidity"`.
     pub key: String,
@@ -367,7 +368,7 @@ impl ElementSpec {
 /// deployment can carry its own brand accent and status palette. Modest by design: it
 /// tints the existing console rather than restyling it. Colors are any CSS color.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Theme {
     /// The brand/interaction accent (links, focus glow, brand mark), such as `"#3fb1c8"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -473,6 +474,7 @@ impl From<BTreeMap<String, String>> for LocalizedText {
 /// the way the profile intends. The dashboard turns these declarations into the catalog
 /// it serves to the page.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Presentation {
     /// The custom sensors and node stats this profile contributes.
     #[serde(default)]
@@ -514,7 +516,8 @@ impl Presentation {
     /// presentation.
     #[cfg(feature = "json")]
     pub fn from_json(text: &str) -> pamoja_core::Result<Self> {
-        serde_json::from_str(text).map_err(|error| pamoja_core::Error::Codec(error.to_string()))
+        serde_json::from_str(text)
+            .map_err(|error| pamoja_core::Error::Codec(crate::format::explain(&error)))
     }
 
     /// Serializes this presentation to the JSON object a manifest carries.

@@ -7,8 +7,8 @@
 //!
 //! What fired crosses as JSON, an array of objects with the `rule` by name, the `edge`
 //! (`set` or `cleared`), the `reading`, and its `actions`, each written exactly as the
-//! rule file writes an action: `{ "do": "drive", "actuator": ..., "on": ... }` or
-//! `{ "do": "publish", "topic": ..., "payload": ... }`.
+//! rule file writes an action: `{ "drive": ..., "on": ... }` or
+//! `{ "publish": ..., "payload": ... }`.
 
 use std::ffi::c_char;
 use std::ptr;
@@ -311,10 +311,10 @@ mod tests {
 
     const FILE: &str = r#"{ "rules": [ {
         "name": "water-when-dry",
-        "when": { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 },
-        "then": [ { "do": "drive", "actuator": "bed-valve", "on": true } ],
-        "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false },
-                       { "do": "publish", "topic": "garden/bed-1/valve", "payload": "closed" } ]
+        "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+        "then": [ { "drive": "bed-valve", "on": true } ],
+        "otherwise": [ { "drive": "bed-valve", "on": false },
+                       { "publish": "garden/bed-1/valve", "payload": "closed" } ]
     } ] }"#;
 
     /// Reads and releases a string the ABI handed back.
@@ -371,7 +371,7 @@ mod tests {
             assert_eq!(dry[0]["edge"], "set");
             assert_eq!(
                 dry[0]["actions"],
-                json!([{ "do": "drive", "actuator": "bed-valve", "on": true }])
+                json!([{ "drive": "bed-valve", "on": true }])
             );
             let mut set = false;
             assert_eq!(

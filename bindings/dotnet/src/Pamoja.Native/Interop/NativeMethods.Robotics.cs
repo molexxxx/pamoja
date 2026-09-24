@@ -119,6 +119,18 @@ public static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_profile_with_description(IntPtr profile, string description);
 
+    /// <summary>Returns the quantity a profile reads, or null when its manifest does not say.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_reads_quantity(IntPtr profile);
+
+    /// <summary>Returns the unit a profile's numbers are in, or null when its manifest does not say.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_profile_reads_unit(IntPtr profile);
+
+    /// <summary>Returns a copy of a profile that says what it reads.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_profile_with_reads(IntPtr profile, string quantity, string unit);
+
     /// <summary>Returns a profile's dashboard presentation as JSON, or null when it declares none.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_profile_presentation_json(IntPtr profile);

@@ -1,6 +1,11 @@
 {
+  "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
   "name": "vaccine-fridge-monitor",
   "description": "Holds a vaccine fridge at 5 C by switching its cooler, and raises an alert the moment the temperature leaves the 2 to 8 C safe range. Keeps sampling often as the battery drains, since an unnoticed excursion costs more than a flat battery.",
+  "reads": {
+    "quantity": "temperature",
+    "unit": "celsius"
+  },
   "topic": "cold-chain/fridge/temperature",
   "control": {
     "kind": "setpoint",

@@ -344,7 +344,13 @@ fn main() -> std::process::ExitCode {
     thread::spawn(move || {
         let mut controls: BTreeMap<&str, Controller> = SITES
             .iter()
-            .map(|site| (site.profile, sampled[site.profile].controller()))
+            .map(|site| {
+                let control = sampled[site.profile].controller();
+                (
+                    site.profile,
+                    control.expect("every site runs a built-in kind"),
+                )
+            })
             .collect();
         let mut step = 0u32;
         loop {

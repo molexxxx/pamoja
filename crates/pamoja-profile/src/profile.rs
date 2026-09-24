@@ -13,8 +13,52 @@ use serde::de::{self, Deserializer};
 use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 
+use crate::format;
 use crate::presentation::refuse;
 use crate::{Controller, ElementSpec, LocalizedText, Param, Params, Presentation, Viz};
+
+/// What a profile reads: the quantity its control decides on, and the unit its numbers
+/// are in.
+///
+/// A manifest names it so a reader knows what to wire before opening the numbers, and so
+/// a runner can pick the right reading from a part that measures several things, such as
+/// the temperature a BME280 reports beside humidity and pressure. In a manifest it is the
+/// `reads` object:
+///
+/// ```json
+/// { "quantity": "temperature", "unit": "celsius" }
+/// ```
+///
+/// Both are lowercase words joined by underscores. The setpoint, bands, and limits of the
+/// profile's control are in the unit named here.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Reads {
+    /// The quantity, such as `"temperature"`, `"relative_humidity"`, or `"water_level"`.
+    pub quantity: String,
+    /// The unit the profile's numbers are in, such as `"celsius"`, `"percent"`, or
+    /// `"meter"`.
+    pub unit: String,
+}
+
+impl Reads {
+    /// Names what a profile reads.
+    ///
+    /// # Arguments
+    ///
+    /// * `quantity` - the quantity, such as `"temperature"`.
+    /// * `unit` - the unit the profile's numbers are in, such as `"celsius"`.
+    ///
+    /// # Returns
+    ///
+    /// The declaration.
+    pub fn new(quantity: impl Into<String>, unit: impl Into<String>) -> Self {
+        Self {
+            quantity: quantity.into(),
+            unit: unit.into(),
+        }
+    }
+}
 
 /// How a profile turns each reading into control output and alerts.
 ///
@@ -77,6 +121,12 @@ pub enum ControlSpec {
         params: Params,
     },
 }
+
+/// The fields each built-in kind takes, as a manifest names them.
+const SETPOINT_FIELDS: &[&str] = &["kind", "setpoint", "hysteresis", "cooling", "safe_band"];
+const LEVEL_FIELDS: &[&str] = &["kind", "empty", "warn_within"];
+const SURGE_FIELDS: &[&str] = &["kind", "rising", "limit"];
+const MONITOR_FIELDS: &[&str] = &["kind"];
 
 impl ControlSpec {
     /// The kinds the library ships, as a manifest names them.
@@ -230,6 +280,18 @@ impl<'de> Deserialize<'de> for ControlSpec {
                 None => Err(de::Error::missing_field(name)),
             }
         };
+        let allowed = match kind.as_str() {
+            "setpoint" => Some(SETPOINT_FIELDS),
+            "level" => Some(LEVEL_FIELDS),
+            "surge" => Some(SURGE_FIELDS),
+            "monitor" => Some(MONITOR_FIELDS),
+            _ => None,
+        };
+        if let Some(allowed) = allowed {
+            if let Some(extra) = fields.keys().find(|name| !allowed.contains(&name.as_str())) {
+                return Err(de::Error::unknown_field(extra, allowed));
+            }
+        }
         Ok(match kind.as_str() {
             "setpoint" => ControlSpec::Setpoint {
                 setpoint: number("setpoint")?,
@@ -265,6 +327,7 @@ impl<'de> Deserialize<'de> for ControlSpec {
 /// points: a node that fell below a threshold climbs back once the charge is 5% above
 /// it, so a charge hovering at the threshold does not switch the cadence every cycle.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PowerSchedule {
     /// Seconds between samples at a healthy charge.
     pub active_secs: u64,
@@ -379,6 +442,11 @@ impl PowerSchedule {
 /// output, and publishes on its own. Every field is public, so a deployment can
 /// adjust the policy, topic, or power schedule in place.
 ///
+/// A manifest is written in the format [`FORMAT`](crate::FORMAT) names, and may say so
+/// with a `$schema` naming [`Profile::SCHEMA`], which an editor reads to check the file
+/// as it is typed. A field the format does not have is refused, with the nearest one it
+/// does, so a misspelling never leaves a default in place without a word.
+///
 /// # Examples
 ///
 /// ```
@@ -389,14 +457,18 @@ impl PowerSchedule {
 /// assert!(matches!(profile.control, ControlSpec::Setpoint { .. }));
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "ProfileFile", into = "ProfileFile")]
 pub struct Profile {
     /// A stable, human-readable name, such as `"vaccine-fridge-monitor"`.
     pub name: String,
     /// What the profile is for, in a sentence or two: what it watches or holds, and what
     /// it does when a reading crosses a line. A manifest shared in a catalog explains
     /// itself with it; a profile built in code may leave it `None`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// What the profile reads, the quantity and the unit its numbers are in. A profile
+    /// whose node reads a whole measurement through a policy of its own may leave it
+    /// `None`.
+    pub reads: Option<Reads>,
     /// The topic each reading is published to.
     pub topic: String,
     /// The control policy applied to each reading.
@@ -406,13 +478,66 @@ pub struct Profile {
     /// How this profile presents itself on the dashboard - its custom sensors, node
     /// stats, and theme. A profile that introduces no element beyond the dashboard's
     /// built-in set leaves this `None`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub presentation: Option<Presentation>,
 }
 
+/// A profile as its manifest writes it, with the `$schema` that names its format.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProfileFile {
+    #[serde(rename = "$schema", default, skip_serializing_if = "Option::is_none")]
+    schema: Option<String>,
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reads: Option<Reads>,
+    topic: String,
+    control: ControlSpec,
+    power: PowerSchedule,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    presentation: Option<Presentation>,
+}
+
+impl TryFrom<ProfileFile> for Profile {
+    type Error = String;
+
+    fn try_from(file: ProfileFile) -> Result<Self, String> {
+        format::check_schema(file.schema.as_deref(), "profile", Profile::SCHEMA)?;
+        Ok(Profile {
+            name: file.name,
+            description: file.description,
+            reads: file.reads,
+            topic: file.topic,
+            control: file.control,
+            power: file.power,
+            presentation: file.presentation,
+        })
+    }
+}
+
+impl From<Profile> for ProfileFile {
+    fn from(profile: Profile) -> Self {
+        ProfileFile {
+            schema: Some(Profile::SCHEMA.to_owned()),
+            name: profile.name,
+            description: profile.description,
+            reads: profile.reads,
+            topic: profile.topic,
+            control: profile.control,
+            power: profile.power,
+            presentation: profile.presentation,
+        }
+    }
+}
+
 impl Profile {
-    /// Creates a profile of the caller's own from its parts, with no description and no
-    /// presentation.
+    /// The address of the published JSON Schema for the manifest format this build writes,
+    /// which [`to_json`](Profile::to_json) names as the manifest's `$schema`.
+    pub const SCHEMA: &'static str = "https://pamoja.molex.cloud/schema/profile-1.json";
+
+    /// Creates a profile of the caller's own from its parts, with no description, no
+    /// declaration of what it reads, and no presentation.
     ///
     /// # Arguments
     ///
@@ -423,7 +548,8 @@ impl Profile {
     ///
     /// # Returns
     ///
-    /// The profile. [`with_description`](Profile::with_description) and
+    /// The profile. [`with_description`](Profile::with_description),
+    /// [`with_reads`](Profile::with_reads), and
     /// [`with_presentation`](Profile::with_presentation) add the rest.
     ///
     /// # Examples
@@ -436,7 +562,8 @@ impl Profile {
     ///     "garden/bed-1/moisture",
     ///     ControlSpec::Setpoint { setpoint: 37.5, hysteresis: 7.5, cooling: false, safe_band: 15.0 },
     ///     PowerSchedule::new(300, 1800, 3600),
-    /// );
+    /// )
+    /// .with_reads("soil_moisture", "percent");
     /// assert_eq!(drip.name, "raised-bed-drip");
     /// assert_eq!(Profile::from_json(&drip.to_json()?)?, drip);
     /// # Ok::<(), pamoja_core::Error>(())
@@ -450,11 +577,37 @@ impl Profile {
         Self {
             name: name.into(),
             description: None,
+            reads: None,
             topic: topic.into(),
             control,
             power,
             presentation: None,
         }
+    }
+
+    /// Declares what the profile reads.
+    ///
+    /// # Arguments
+    ///
+    /// * `quantity` - the quantity its control decides on, such as `"temperature"`.
+    /// * `unit` - the unit its numbers are in, such as `"celsius"`.
+    ///
+    /// # Returns
+    ///
+    /// The profile, for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::Profile;
+    ///
+    /// let fridge = Profile::vaccine_fridge_monitor();
+    /// let reads = fridge.reads.as_ref().expect("every preset says what it reads");
+    /// assert_eq!((reads.quantity.as_str(), reads.unit.as_str()), ("temperature", "celsius"));
+    /// ```
+    pub fn with_reads(mut self, quantity: impl Into<String>, unit: impl Into<String>) -> Self {
+        self.reads = Some(Reads::new(quantity, unit));
+        self
     }
 
     /// A cold-chain fridge monitor: hold 5 C and alert on a spoilage excursion.
@@ -477,6 +630,7 @@ impl Profile {
                  costs more than a flat battery."
                     .to_owned(),
             ),
+            reads: Some(Reads::new("temperature", "celsius")),
             topic: "cold-chain/fridge/temperature".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 5.0,
@@ -551,6 +705,7 @@ impl Profile {
                  hours and the battery has to last."
                     .to_owned(),
             ),
+            reads: Some(Reads::new("soil_moisture", "percent")),
             topic: "farm/irrigation/soil-moisture".to_owned(),
             control: ControlSpec::Setpoint {
                 setpoint: 35.0,
@@ -595,6 +750,7 @@ impl Profile {
                  before it runs dry."
                     .to_owned(),
             ),
+            reads: Some(Reads::new("water_level", "meter")),
             topic: "water/well/level".to_owned(),
             control: ControlSpec::Level {
                 empty: 0.5,
@@ -636,10 +792,11 @@ impl Profile {
     /// ```
     /// use pamoja_profile::{Alert, Profile};
     ///
-    /// let mut control = Profile::flood_sensor().controller();
+    /// let mut control = Profile::flood_sensor().controller()?;
     /// control.evaluate(1.0); // first fix establishes the level
     /// let reaction = control.evaluate(1.5); // the river jumped 0.5 m
     /// assert!(matches!(reaction.alert, Some(Alert::ChangingFast { .. })));
+    /// # Ok::<(), pamoja_core::Error>(())
     /// ```
     pub fn flood_sensor() -> Self {
         Self {
@@ -650,6 +807,7 @@ impl Profile {
                  since a flood gives little warning."
                     .to_owned(),
             ),
+            reads: Some(Reads::new("water_level", "meter")),
             topic: "water/river/level".to_owned(),
             control: ControlSpec::Surge {
                 rising: true,
@@ -682,15 +840,35 @@ impl Profile {
     /// the reading before was, so a heater never holds through its deadband and a level
     /// or a surge never has a previous reading to measure against.
     ///
-    /// A custom kind has no built-in controller; for one this returns a monitoring
-    /// controller, and a [`PolicyRegistry`](crate::PolicyRegistry) resolves the kind to
-    /// the code that decides it.
-    ///
     /// # Returns
     ///
     /// A fresh controller implementing the profile's policy, with its control state
     /// reset.
-    pub fn controller(&self) -> Controller {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) when the profile names a custom
+    /// kind, which no built-in controller decides: a
+    /// [`PolicyRegistry`](crate::PolicyRegistry) that registers the kind resolves it to
+    /// the code that does. The reason names the kind, and the built-in kind it is
+    /// probably a misspelling of when there is one.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ControlSpec, Params, PowerSchedule, Profile};
+    ///
+    /// let typo = Profile::new(
+    ///     "cellar-heater",
+    ///     "home/cellar/temperature",
+    ///     ControlSpec::custom("setpiont", Params::new())?,
+    ///     PowerSchedule::new(300, 900, 1800),
+    /// );
+    /// let refused = typo.controller().unwrap_err().to_string();
+    /// assert!(refused.contains("did you mean `setpoint`?"), "{refused}");
+    /// # Ok::<(), pamoja_core::Error>(())
+    /// ```
+    pub fn controller(&self) -> pamoja_core::Result<Controller> {
         Controller::from_spec(&self.control)
     }
 
@@ -854,9 +1032,10 @@ impl Profile {
     ///
     /// - an empty name, or a topic that is empty or holds `+` or `#`, which make it a
     ///   filter rather than a place to publish;
+    /// - a `reads` whose quantity or unit is not lowercase words joined by underscores;
     /// - a control value that is not a finite number, a hysteresis of zero or less, a
-    ///   safe band narrower than the hysteresis, a level that warns within no samples, or
-    ///   a surge limit of zero or less;
+    ///   safe band narrower than the hysteresis, a level that warns within no samples, a
+    ///   surge limit of zero or less, or a custom kind with no name;
     /// - a sampling interval of zero, intervals that shorten as the battery drains, a
     ///   saver threshold outside 0 to 1, or a critical threshold that is not between 0 and
     ///   the saver threshold;
@@ -890,6 +1069,15 @@ impl Profile {
             return refuse(format!(
                 "the topic `{topic}` is a filter; a profile publishes to one topic"
             ));
+        }
+        if let Some(reads) = &self.reads {
+            for (field, word) in [("quantity", &reads.quantity), ("unit", &reads.unit)] {
+                if !is_word(word) {
+                    return refuse(format!(
+                        "the `reads` {field} `{word}` must be lowercase words joined by underscores, such as `relative_humidity`"
+                    ));
+                }
+            }
         }
         self.check_control()?;
         self.check_power()?;
@@ -950,6 +1138,9 @@ impl Profile {
                 }
                 Ok(())
             }
+            ControlSpec::Custom { ref kind, .. } if kind.trim().is_empty() => {
+                refuse("a custom control needs a kind to be named by".to_owned())
+            }
             ControlSpec::Monitor | ControlSpec::Custom { .. } => Ok(()),
         }
     }
@@ -988,6 +1179,16 @@ impl Profile {
     }
 }
 
+/// Whether a name is lowercase words joined by single underscores, such as `soil_moisture`.
+fn is_word(name: &str) -> bool {
+    name.split('_').all(|part| {
+        part.starts_with(|c: char| c.is_ascii_lowercase())
+            && part
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    })
+}
+
 #[cfg(feature = "json")]
 impl Profile {
     /// Loads a profile from a JSON manifest.
@@ -1006,8 +1207,10 @@ impl Profile {
     /// # Errors
     ///
     /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `manifest` is not valid
-    /// JSON, does not describe a profile, or describes one [`check`](Profile::check)
-    /// refuses.
+    /// JSON, does not describe a profile, is written in a format this build does not read,
+    /// carries a field the format does not have, or describes a profile
+    /// [`check`](Profile::check) refuses. A misspelled field or value is reported with
+    /// the name it was probably meant to be.
     ///
     /// # Examples
     ///
@@ -1017,7 +1220,9 @@ impl Profile {
     /// // A well-level monitor, shared as a manifest. The power thresholds are
     /// // optional and default when omitted.
     /// let manifest = r#"{
+    ///     "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
     ///     "name": "tank-level",
+    ///     "reads": { "quantity": "water_level", "unit": "meter" },
     ///     "topic": "water/tank/level",
     ///     "control": { "kind": "level", "empty": 0.0, "warn_within": 5 },
     ///     "power": { "active_secs": 600, "saver_secs": 1800, "critical_secs": 3600 }
@@ -1026,13 +1231,19 @@ impl Profile {
     /// let profile = Profile::from_json(manifest).expect("valid manifest");
     /// assert_eq!(profile.name, "tank-level");
     ///
-    /// let mut control = profile.controller();
+    /// let mut control = profile.controller().expect("a built-in kind");
     /// control.evaluate(10.0); // first reading establishes a level
     /// assert!(control.evaluate(2.0).alert.is_some()); // falling fast toward empty
+    ///
+    /// // A misspelled field is refused with the one it was meant to be, rather than
+    /// // leaving the default in its place.
+    /// let typo = manifest.replace("\"warn_within\"", "\"warn_withn\"");
+    /// let refused = Profile::from_json(&typo).unwrap_err().to_string();
+    /// assert!(refused.contains("did you mean `warn_within`?"), "{refused}");
     /// ```
     pub fn from_json(manifest: &str) -> pamoja_core::Result<Self> {
         let profile: Profile = serde_json::from_str(manifest)
-            .map_err(|error| pamoja_core::Error::Codec(error.to_string()))?;
+            .map_err(|error| pamoja_core::Error::Codec(format::explain(&error)))?;
         profile.check()?;
         Ok(profile)
     }
@@ -1056,7 +1267,7 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Alert, Reaction};
+    use crate::Alert;
 
     #[test]
     fn presets_have_stable_names_and_topics() {
@@ -1083,7 +1294,7 @@ mod tests {
 
     #[test]
     fn the_fridge_controller_cools_and_flags_a_spoilage_excursion() {
-        let mut control = Profile::vaccine_fridge_monitor().controller();
+        let mut control = Profile::vaccine_fridge_monitor().controller().unwrap();
         let reaction = control.evaluate(9.0);
         assert_eq!(reaction.actuator, Some(true));
         assert!(matches!(reaction.alert, Some(Alert::OutOfRange { .. })));
@@ -1091,14 +1302,14 @@ mod tests {
 
     #[test]
     fn the_well_controller_observes_without_an_output() {
-        let mut control = Profile::well_level().controller();
+        let mut control = Profile::well_level().controller().unwrap();
         control.evaluate(3.0);
         assert_eq!(control.evaluate(2.0).actuator, None);
     }
 
     #[test]
     fn the_flood_controller_warns_on_a_rapid_rise() {
-        let mut control = Profile::flood_sensor().controller();
+        let mut control = Profile::flood_sensor().controller().unwrap();
         control.evaluate(1.0);
         let reaction = control.evaluate(1.5); // a 0.5 m jump in one sample
         assert!(matches!(reaction.alert, Some(Alert::ChangingFast { .. })));
@@ -1146,8 +1357,9 @@ mod tests {
         assert_eq!(params.text("zone"), Some("north"));
         assert_eq!(params.len(), 3);
 
-        // The built-in controller for a custom kind observes only.
-        assert_eq!(profile.controller().evaluate(-5.0), Reaction::default());
+        // No built-in controller decides a custom kind, so asking for one is refused
+        // rather than handing back a monitor that would never drive the output.
+        assert!(profile.controller().is_err());
 
         // It writes back in the same flat shape, with the kind first.
         let shared = profile.to_json().expect("serializes");
@@ -1190,6 +1402,116 @@ mod tests {
             ["setpoint", "level", "surge", "monitor"]
         );
         assert_eq!(ControlSpec::Monitor.kind(), "monitor");
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn a_field_the_format_does_not_have_is_refused_with_the_one_it_meant() {
+        let brooder = Profile::new(
+            "brooder",
+            "poultry/brooder/temperature",
+            ControlSpec::Setpoint {
+                setpoint: 32.0,
+                hysteresis: 0.5,
+                cooling: false,
+                safe_band: 4.0,
+            },
+            PowerSchedule::new(120, 600, 1800),
+        )
+        .with_reads("temperature", "celsius")
+        .with_presentation(
+            Presentation::new()
+                .with_element(
+                    ElementSpec::new(
+                        "brooder_temperature",
+                        "celsius",
+                        "Brooder",
+                        Viz::Thermometer,
+                    )
+                    .with_band(28.0, 36.0),
+                )
+                .with_theme(crate::Theme {
+                    accent: Some("#c8553d".to_owned()),
+                    ..crate::Theme::default()
+                }),
+        );
+        let shared = brooder.to_json().unwrap();
+        assert!(
+            shared.starts_with(
+                "{\n  \"$schema\": \"https://pamoja.molex.cloud/schema/profile-1.json\",\n  \"name\": \"brooder\",\n  \"reads\": {\n    \"quantity\": \"temperature\",\n    \"unit\": \"celsius\"\n  },\n  \"topic\""
+            ),
+            "{shared}"
+        );
+        assert_eq!(Profile::from_json(&shared).unwrap(), brooder);
+
+        let refused = |from: &str, to: &str| {
+            assert!(shared.contains(from), "{from} is not in {shared}");
+            match Profile::from_json(&shared.replacen(from, to, 1)) {
+                Err(pamoja_core::Error::Codec(reason)) => reason,
+                other => panic!("expected {to} to be refused, got {other:?}"),
+            }
+        };
+        let starts = |from: &str, to: &str, expected: &str| {
+            let reason = refused(from, to);
+            assert!(reason.starts_with(expected), "{reason}");
+        };
+        starts(
+            "\"topic\"",
+            "\"topik\"",
+            "unknown field `topik`, did you mean `topic`?",
+        );
+        starts(
+            "\"critical_secs\"",
+            "\"critical_sec\"",
+            "unknown field `critical_sec`, did you mean `critical_secs`?",
+        );
+        starts(
+            "\"safe_band\"",
+            "\"safe-band\"",
+            "unknown field `safe-band`, did you mean `safe_band`?",
+        );
+        starts(
+            "\"unit\": \"celsius\"\n  }",
+            "\"units\": \"celsius\"\n  }",
+            "unknown field `units`, did you mean `unit`?",
+        );
+        starts(
+            "\"label\"",
+            "\"lable\"",
+            "unknown field `lable`, did you mean `label`?",
+        );
+        starts(
+            "\"accent\"",
+            "\"acent\"",
+            "unknown field `acent`, did you mean `accent`?",
+        );
+        starts(
+            "\"thermometer\"",
+            "\"thermometr\"",
+            "unknown variant `thermometr`, did you mean `thermometer`?",
+        );
+        starts(
+            "\"name\"",
+            "\"colour\": 1, \"name\"",
+            "unknown field `colour`, expected one of",
+        );
+        starts(
+            "\"hysteresis\": 0.5",
+            "\"hysteresis\": 0.5, \"deadband\": 1.0",
+            "unknown field `deadband`, expected one of `kind`, `setpoint`, `hysteresis`, `cooling`, `safe_band`",
+        );
+        assert!(refused("profile-1.json", "profile-2.json").contains("profile format 2"));
+        assert!(refused("\"temperature\"", "\"Temperature\"").contains("lowercase words"));
+        assert!(refused("\"celsius\"\n  }", "\"deg C\"\n  }").contains("lowercase words"));
+
+        let unmarked = shared.replacen(
+            "  \"$schema\": \"https://pamoja.molex.cloud/schema/profile-1.json\",\n",
+            "",
+            1,
+        );
+        assert_eq!(Profile::from_json(&unmarked).unwrap(), brooder);
+        let offline = shared.replacen(Profile::SCHEMA, "./profile-1.json", 1);
+        assert_eq!(Profile::from_json(&offline).unwrap(), brooder);
     }
 
     #[cfg(feature = "json")]

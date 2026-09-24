@@ -564,6 +564,19 @@ pub struct AlertReport {
     value: Option<f32>,
 }
 
+/// What a profile reads: the quantity its control decides on, and the unit its numbers are
+/// in, both lowercase words joined by underscores.
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct Reads {
+    /// The quantity, such as `temperature` or `relative_humidity`.
+    #[pyo3(get)]
+    quantity: String,
+    /// The unit the profile's numbers are in, such as `celsius` or `percent`.
+    #[pyo3(get)]
+    unit: String,
+}
+
 /// What a controller decided about one reading.
 #[gen_stub_pyclass]
 #[pyclass]
@@ -840,6 +853,24 @@ impl Profile {
         self.inner.description.clone()
     }
 
+    /// What the profile reads, the quantity and the unit its numbers are in, or `None`
+    /// when the manifest does not say.
+    #[getter]
+    fn reads(&self) -> Option<Reads> {
+        self.inner.reads.as_ref().map(|reads| Reads {
+            quantity: reads.quantity.clone(),
+            unit: reads.unit.clone(),
+        })
+    }
+
+    /// A copy of this profile that says what it reads.
+    ///
+    /// Raises `PamojaError` when the quantity or unit is not lowercase words joined by
+    /// underscores.
+    fn with_reads(&self, quantity: String, unit: String) -> PyResult<Self> {
+        checked(self.inner.clone().with_reads(quantity, unit))
+    }
+
     /// How the profile presents itself on the dashboard, or `None` when it declares
     /// nothing beyond the built-in set.
     #[getter]
@@ -893,10 +924,16 @@ impl Profile {
     /// Each call builds a new controller, so keep the one it returns for the life of the
     /// node: one built again for each reading forgets whether its output was on and what
     /// the reading before was.
-    fn controller(&self) -> Controller {
-        Controller {
-            inner: Mutex::new(self.inner.controller()),
-        }
+    ///
+    /// Raises `PamojaError` when the profile names a custom control kind, which no
+    /// built-in controller decides.
+    fn controller(&self) -> PyResult<Controller> {
+        self.inner
+            .controller()
+            .map(|inner| Controller {
+                inner: Mutex::new(inner),
+            })
+            .map_err(|error| PamojaError::new_err(error.to_string()))
     }
 }
 

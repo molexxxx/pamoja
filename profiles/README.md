@@ -22,7 +22,10 @@ sampling interval stretches as the battery drains.
 ## Adding one
 
 1. Save the manifest as `<name>.json`, where the file name is the profile's `name`,
-   with a `description` of a sentence or two.
+   with a `description` of a sentence or two and a `reads` naming the quantity and
+   unit. The `$schema` line at the top names
+   [the published schema](https://pamoja.molex.cloud/schema/profile-1.json), so an
+   editor checks the file as it is typed.
 2. Run `cargo xtask profiles`. It reads every file with the parser a device uses,
    checks it for what a hand-written manifest gets wrong, and rewrites it into the
    form `Profile::to_json` writes, so a diff shows a change of meaning and nothing

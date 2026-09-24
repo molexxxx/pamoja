@@ -15,14 +15,14 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // A profile is plain data, so a fleet ships one as a file rather than as code. This
     // manifest names no battery thresholds, so the documented defaults apply.
     let manifest = r#"{
-        "name": "brooder-heater",
-        "topic": "poultry/brooder/temperature",
-        "control": {
-            "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-            "cooling": false, "safe_band": 4.0
-        },
-        "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-    }"#;
+    "name": "brooder-heater",
+    "topic": "poultry/brooder/temperature",
+    "control": {
+        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
+        "cooling": false, "safe_band": 4.0
+    },
+    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+}"#;
     let profile = Profile::from_json(manifest)?;
     println!("profile   {} reports on {}", profile.name, profile.topic);
     println!(
@@ -47,7 +47,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the
     // setpoint less and plus the hysteresis, and in between it stays as it was. A reading
     // more than 4 C from the setpoint raises an alert as well.
-    let mut controller = profile.controller();
+    let mut controller = profile.controller()?;
     let mut lamp = false;
     for reading in [27.5, 31.8, 32.6, 32.1, 31.4] {
         let reaction = controller.evaluate(reading);
@@ -109,7 +109,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // A level warns before a tank or a well runs dry. The shipped well profile counts
     // 0.5 m as dry and warns once the last fall puts dry six samples away or nearer.
-    let mut well = Profile::well_level().controller();
+    let mut well = Profile::well_level().controller()?;
     for depth in [5.0, 4.4, 3.8] {
         match well.evaluate(depth).alert {
             Some(Alert::RunningOut { samples }) => {
@@ -121,7 +121,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // A surge warns when a reading moves too far in one sample. The shipped flood sensor
     // warns when a river rises more than 0.3 m between two readings.
-    let mut river = Profile::flood_sensor().controller();
+    let mut river = Profile::flood_sensor().controller()?;
     for gauge in [1.2, 1.35, 1.9] {
         match river.evaluate(gauge).alert {
             Some(Alert::ChangingFast { rate }) => {
@@ -133,8 +133,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR_END: kinds
 
     // ANCHOR: wrong
-    use pamoja_profile::ControlSpec;
-
     // A probe that fails reports a reading that is not a number. The controller raises
     // it rather than going quiet, and the lamp holds its state; what off means for the
     // chicks is the node's call.
@@ -153,18 +151,24 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // A controller built again for each reading forgets the lamp was on, so inside the
     // deadband it switches the lamp off.
-    let first = profile.controller().evaluate(27.5).actuator;
-    let then = profile.controller().evaluate(31.8).actuator;
+    let first = profile.controller()?.evaluate(27.5).actuator;
+    let then = profile.controller()?.evaluate(31.8).actuator;
     if first == Some(true) && then == Some(false) {
         println!(
             "fresh     built again for each reading, the controller turns the lamp off at 31.8 C"
         );
     }
 
-    // A manifest no node could run is refused as it loads, with the reason.
+    // A manifest no node could run is refused as it loads, with the reason. So is a
+    // misspelled field, with the one it was probably meant to be, rather than leaving
+    // the default in its place without a word.
     for edited in [
         manifest.replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
         manifest.replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+        manifest.replace(
+            "\"critical_secs\": 1800 }",
+            "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }",
+        ),
     ] {
         match Profile::from_json(&edited) {
             Ok(_) => {
@@ -174,31 +178,15 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     }
 
-    // A misspelled optional field is not an error: it names no field, so the default
-    // stays. Writing the profile back out shows what the node understood.
-    let misspelled = manifest.replace(
-        "\"critical_secs\": 1800 }",
-        "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }",
-    );
-    let understood = Profile::from_json(&misspelled)?;
-    println!(
-        "typo      saver_bellow names no field, so saver still starts below {:.0}%",
-        understood.power.saver_below * 100.0
-    );
-
-    // A kind the library does not ship loads with its parameters and runs as a monitor
-    // until the node supplies the policy, so it drives nothing and raises nothing.
+    // A kind the library does not ship loads with its parameters, but no built-in
+    // controller decides it, so asking for one is refused rather than handing back a
+    // node that would never switch the lamp.
     let custom = Profile::from_json(
         &manifest.replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""),
     )?;
-    if let ControlSpec::Custom { kind, params } = &custom.control {
-        let reaction = custom.controller().evaluate(27.5);
-        if reaction.actuator.is_none() && reaction.alert.is_none() {
-            println!(
-                "custom    {kind} loads with {} parameters, and with no policy behind it drives nothing",
-                params.len()
-            );
-        }
+    match custom.controller() {
+        Ok(_) => println!("a custom kind ran without its policy, which should never happen"),
+        Err(error) => println!("refused   {error}"),
     }
     // ANCHOR_END: wrong
 

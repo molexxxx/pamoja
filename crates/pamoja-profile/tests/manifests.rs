@@ -143,7 +143,8 @@ async fn run(profile: Profile) -> (Vec<bool>, Vec<f32>, Vec<Alert>) {
             &mut log,
             link,
             CborCodec,
-        );
+        )
+        .expect("every shipped profile names a built-in kind");
         for _ in 0..readings.len() {
             let reaction = node.tick().await.expect("the node ticks");
             if let Some(alert) = reaction.alert {
@@ -249,7 +250,7 @@ async fn every_shipped_manifest_assembles_into_a_node_that_runs() {
 async fn every_shipped_manifest_slows_down_as_its_battery_drains() {
     for (stem, profile) in shipped() {
         let power = profile.power;
-        let mut node = Node::monitor(profile, (), (), ());
+        let mut node = Node::monitor(profile, (), (), ()).expect("a built-in kind");
 
         for (soc, mode, secs) in [
             (1.0, PowerMode::Active, power.active_secs),

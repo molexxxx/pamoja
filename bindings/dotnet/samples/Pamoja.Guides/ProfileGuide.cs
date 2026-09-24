@@ -148,11 +148,14 @@ public static class ProfileGuide
             Console.WriteLine("fresh     built again for each reading, the controller turns the lamp off at 31.8 C");
         }
 
-        // A manifest no node could run is refused as it loads, with the reason.
+        // A manifest no node could run is refused as it loads, with the reason. So is a
+        // misspelled field, with the one it was probably meant to be, rather than leaving
+        // the default in its place without a word.
         foreach (string edited in new[]
         {
             manifest.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
             manifest.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+            manifest.Replace("\"critical_secs\": 1800 }", "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }"),
         })
         {
             try
@@ -166,30 +169,18 @@ public static class ProfileGuide
             }
         }
 
-        // A misspelled optional field is not an error: it names no field, so the default
-        // stays. Writing the profile back out shows what the node understood.
-        string misspelled = manifest.Replace(
-            "\"critical_secs\": 1800 }",
-            "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }");
-        using (var understood = Profile.FromJson(misspelled))
-        {
-            Console.WriteLine(Invariant(
-                $"typo      saver_bellow names no field, so saver still starts below {understood.Power.SaverBelow * 100:F0}%"));
-        }
-
-        // A kind the library does not ship loads with its parameters and runs as a monitor
-        // until the node supplies the policy, so it drives nothing and raises nothing.
+        // A kind the library does not ship loads with its parameters, but no built-in
+        // controller decides it, so asking for one is refused rather than handing back a
+        // node that would never switch the lamp.
         using var custom = Profile.FromJson(manifest.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
-        ControlPolicy policy = custom.Control;
-        if (policy.Kind == ControlKind.Custom)
+        try
         {
             using Controller inert = custom.Controller();
-            Reaction reaction = inert.Evaluate(27.5f);
-            if (reaction.Actuator is null && reaction.Alert is null)
-            {
-                Console.WriteLine(
-                    $"custom    {policy.CustomKind} loads with {policy.Params!.Count} parameters, and with no policy behind it drives nothing");
-            }
+            Console.WriteLine("a custom kind ran without its policy, which should never happen");
+        }
+        catch (PamojaException error)
+        {
+            Console.WriteLine($"refused   {error.Message}");
         }
         // ANCHOR_END: wrong
     }

@@ -150,9 +150,9 @@ impl Profiles {
     /// Checks every manifest against the catalog's conventions. The parser has already
     /// refused what a device or the dashboard could not make sense of, through
     /// `Profile::check`; this adds what a shared manifest owes its readers: a file named
-    /// for the profile, a kebab-case name no other manifest carries, a description, a
-    /// topic of plain slash-separated words, snake_case keys and kinds, and words for
-    /// every state an element starts in.
+    /// for the profile, a kebab-case name no other manifest carries, a description, what it
+    /// reads, a topic of plain slash-separated words, snake_case keys and kinds, and words
+    /// for every state an element starts in.
     ///
     /// # Arguments
     ///
@@ -199,6 +199,11 @@ impl Profiles {
                 Some(_) => {}
             }
             check_topic(&at, &profile.topic)?;
+            if profile.reads.is_none() {
+                return Err(format!(
+                    "{at}: a shared profile says what it reads, as `reads` with a `quantity` and a `unit`"
+                ));
+            }
             if let ControlSpec::Custom { kind, .. } = &profile.control {
                 if !is_snake_case(kind) {
                     return Err(format!(
@@ -387,10 +392,15 @@ fn card(manifest: &Manifest) -> String {
 // What the manifest does, in the words the guides use, so a reader chooses without opening
 // the file.
 fn facts(profile: &Profile) -> Vec<String> {
-    let mut out = vec![format!(
-        "Publishes on <code>{}</code>.",
-        escape(&profile.topic)
-    )];
+    let mut out = vec![match &profile.reads {
+        Some(reads) => format!(
+            "Reads {} in {}, and publishes on <code>{}</code>.",
+            escape(&reads.quantity.replace('_', " ")),
+            escape(&reads.unit.replace('_', " ")),
+            escape(&profile.topic)
+        ),
+        None => format!("Publishes on <code>{}</code>.", escape(&profile.topic)),
+    }];
     out.push(policy_sentence(&profile.control));
     let power = &profile.power;
     out.push(format!(
@@ -533,6 +543,7 @@ mod tests {
     const MINIMAL: &str = r#"{
   "name": "tank-level",
   "description": "Warns before a rain tank runs dry.",
+  "reads": { "quantity": "water_level", "unit": "meter" },
   "topic": "water/tank/level",
   "control": { "kind": "level", "empty": 0.0, "warn_within": 4 },
   "power": { "active_secs": 600, "saver_secs": 1800, "critical_secs": 3600 }
@@ -597,7 +608,7 @@ mod tests {
             "{rendered}"
         );
         assert!(
-            rendered.contains("<li>Publishes on <code>water/tank/level</code>.</li>"),
+            rendered.contains("<li>Reads water level in meter, and publishes on <code>water/tank/level</code>.</li>"),
             "{rendered}"
         );
         assert!(rendered.contains("<li>Watches a falling level and warns once it is on course to reach 0 within 4 more samples.</li>"), "{rendered}");
@@ -639,6 +650,7 @@ mod tests {
         let text = r#"{
   "name": "soil-bed",
   "description": "Waters a raised bed.",
+  "reads": { "quantity": "soil_moisture", "unit": "percent" },
   "topic": "garden/bed/moisture",
   "control": { "kind": "monitor" },
   "power": { "active_secs": 60, "saver_secs": 300, "critical_secs": 900 },

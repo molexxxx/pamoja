@@ -25,10 +25,11 @@ const MODULES: [&str; 2] = ["js/home.js", "js/consoles.js"];
 
 /// The directories copied whole, as (source, destination, the extensions taken, or none
 /// for every file).
-const DIRECTORIES: [(&str, &str, &[&str]); 3] = [
+const DIRECTORIES: [(&str, &str, &[&str]); 4] = [
     ("web/assets", "assets", &["svg"]),
     ("docs/assets", "docs/assets", &["svg"]),
     ("web/fonts", "fonts", &[]),
+    ("schema", "schema", &["json"]),
 ];
 
 /// Read every static file.

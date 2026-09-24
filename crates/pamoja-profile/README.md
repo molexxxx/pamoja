@@ -56,7 +56,7 @@ The quickest path is a named preset. Hand its controller a reading and it decide
 ```rust
 use pamoja_profile::{Alert, Profile};
 
-let mut control = Profile::vaccine_fridge_monitor().controller();
+let mut control = Profile::vaccine_fridge_monitor().controller()?;
 
 // A warm fridge: the cooler runs and a spoilage excursion is flagged.
 let reaction = control.evaluate(9.0);
@@ -68,13 +68,18 @@ assert!(matches!(reaction.alert, Some(Alert::OutOfRange { .. })));
 
 A profile is just data, so a community can write one as JSON, store it in a file, and
 share it - no code. `Profile::from_json` loads it and `Profile::to_json` writes it
-back; the power thresholds are optional and default when omitted.
+back; the power thresholds are optional and default when omitted. The `$schema` line
+names the format the file is written in (`FORMAT`), which an editor reads to check
+the file as it is typed, and `reads` says what the node measures. A field the format
+does not have is refused, with the one it was probably meant to be.
 
 ```rust
 use pamoja_profile::Profile;
 
 let manifest = r#"{
+    "$schema": "https://pamoja.molex.cloud/schema/profile-1.json",
     "name": "rain-tank",
+    "reads": { "quantity": "water_level", "unit": "meter" },
     "topic": "water/tank/level",
     "control": { "kind": "level", "empty": 0.0, "warn_within": 5 },
     "power": { "active_secs": 600, "saver_secs": 1800, "critical_secs": 3600 }
@@ -106,12 +111,13 @@ use pamoja_profile::{ControlSpec, PowerSchedule, Profile};
 let profile = Profile {
     name: "drip-node".to_owned(),
     description: None,
+    reads: None,
     topic: "farm/soil-moisture".to_owned(),
     control: ControlSpec::Setpoint { setpoint: 35.0, hysteresis: 5.0, cooling: false, safe_band: 25.0 },
     power: PowerSchedule::new(300, 1800, 3600),
     presentation: None,
 };
-let mut control = profile.controller();
+let mut control = profile.controller()?;
 assert_eq!(control.evaluate(28.0).actuator, Some(true)); // dry: the valve opens
 ```
 
@@ -203,9 +209,9 @@ impl Actuator for Valve {
 
 let rules = Rules::from_json(r#"{ "rules": [ {
     "name": "water-when-dry",
-    "when": { "topic": "garden/bed-1/moisture", "compare": "below", "threshold": 30.0, "hysteresis": 5.0 },
-    "then": [ { "do": "drive", "actuator": "bed-valve", "on": true } ],
-    "otherwise": [ { "do": "drive", "actuator": "bed-valve", "on": false } ]
+    "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+    "then": [ { "drive": "bed-valve", "on": true } ],
+    "otherwise": [ { "drive": "bed-valve", "on": false } ]
 } ] }"#)?;
 
 let broker = LoopbackBroker::new();

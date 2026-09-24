@@ -120,6 +120,14 @@ public readonly record struct PowerSchedule(
     float CriticalBelow = 0.2f,
     float Hysteresis = PowerPlan.DefaultHysteresis);
 
+/// <summary>
+/// What a profile reads: the quantity its control decides on, and the unit its numbers are
+/// in, both lowercase words joined by underscores.
+/// </summary>
+/// <param name="Quantity">The quantity, such as <c>temperature</c> or <c>relative_humidity</c>.</param>
+/// <param name="Unit">The unit the profile's numbers are in, such as <c>celsius</c> or <c>percent</c>.</param>
+public readonly record struct Reads(string Quantity, string Unit);
+
 /// <summary>A named, ready-to-run node assembled from pamoja capabilities.</summary>
 /// <remarks>
 /// A profile is a pre-wired bundle: a control policy, a publish topic, and a
@@ -291,11 +299,32 @@ public sealed class Profile : IDisposable
         return json is null ? null : Pamoja.Profile.Presentation.FromJson(json);
     });
 
+    /// <summary>
+    /// Gets what the profile reads, the quantity and the unit its numbers are in, or
+    /// <c>null</c> when the manifest does not say.
+    /// </summary>
+    public Reads? Reads => _handle.Use(p =>
+    {
+        string? quantity = OwnedString.ReadOrNull(NativeMethods.pamoja_profile_reads_quantity(p));
+        string? unit = OwnedString.ReadOrNull(NativeMethods.pamoja_profile_reads_unit(p));
+        return quantity is null || unit is null ? (Reads?)null : new Reads(quantity, unit);
+    });
+
     /// <summary>Returns a copy of this profile carrying a description of what it is for.</summary>
     /// <param name="description">The description, a sentence or two.</param>
     /// <returns>The profile, which the caller disposes.</returns>
     public Profile WithDescription(string description) =>
         _handle.Use(p => new Profile(NativeMethods.pamoja_profile_with_description(p, description), "profile"));
+
+    /// <summary>Returns a copy of this profile that says what it reads.</summary>
+    /// <param name="quantity">The quantity its control decides on, such as <c>temperature</c>.</param>
+    /// <param name="unit">The unit its numbers are in, such as <c>celsius</c>.</param>
+    /// <returns>The profile, which the caller disposes.</returns>
+    /// <exception cref="PamojaException">
+    /// The quantity or unit is not lowercase words joined by underscores.
+    /// </exception>
+    public Profile WithReads(string quantity, string unit) =>
+        _handle.Use(p => new Profile(NativeMethods.pamoja_profile_with_reads(p, quantity, unit), "profile"));
 
     /// <summary>Returns a copy of this profile carrying a dashboard presentation.</summary>
     /// <param name="presentation">How the profile presents itself.</param>
@@ -379,6 +408,9 @@ public sealed class Profile : IDisposable
 
     /// <summary>Builds the decision logic this profile describes.</summary>
     /// <returns>The controller, which the caller disposes.</returns>
+    /// <exception cref="PamojaException">
+    /// The profile names a custom control kind, which no built-in controller decides.
+    /// </exception>
     public Controller Controller() =>
         _handle.Use(p => Pamoja.Profile.Controller.FromNative(NativeMethods.pamoja_profile_controller(p)));
 
