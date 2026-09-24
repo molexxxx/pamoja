@@ -142,6 +142,38 @@ async function custom(): Promise<void> {
 }
 // ANCHOR_END: custom
 
+// ANCHOR: network
+import { DeviceIdentity, verifyMessage } from '@pamoja/security'
+
+async function network(): Promise<Profile> {
+  // A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+  // publishes to, or as the body of an HTTP response. The gateway signs what it sends and each
+  // node holds only the gateway's public key, so a profile is checked before it is read, and
+  // one from anywhere else never runs.
+  const gateway = DeviceIdentity.fromSeed(Buffer.alloc(32, 7))
+  const trusted = gateway.publicKey()
+  const broker = new LoopbackBroker()
+  const uplink = broker.link()
+  const downlink = broker.link()
+  await uplink.connect()
+  await downlink.connect()
+  const fleet = 'fleet/brooders/profile'
+  await downlink.subscribe(fleet)
+
+  await uplink.send(fleet, gateway.signMessage(text))
+  const signed = verifyMessage(trusted, (await downlink.recv())!.payload)
+  const delivered = Profile.fromJson(signed!.toString('utf8'))
+  console.log(`network   ${delivered.name} arrived on ${fleet}, signed by the gateway, and loads`)
+
+  const stranger = DeviceIdentity.fromSeed(Buffer.alloc(32, 9))
+  await uplink.send(fleet, stranger.signMessage(text))
+  if (verifyMessage(trusted, (await downlink.recv())!.payload) === null) {
+    console.log('network   one signed by any other key is refused before it is read')
+  }
+  return delivered
+}
+// ANCHOR_END: network
+
 // ANCHOR: wrong
 function wrong(): void {
   // A probe that fails reports a reading that is not a number. The controller raises it
@@ -197,6 +229,8 @@ async function main(): Promise<void> {
   assert.equal(lamp, true, 'the morning ends with the lamp on')
   kinds()
   await custom()
+  const delivered = await network()
+  assert.equal(delivered.toJson(), profile.toJson(), 'the signed profile is the one sent')
   wrong()
 }
 

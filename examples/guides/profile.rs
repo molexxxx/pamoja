@@ -228,6 +228,47 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     );
     // ANCHOR_END: custom
 
+    // ANCHOR: network
+    use pamoja_security::DeviceIdentity;
+
+    // A profile can arrive over a link as well as from a disk: on an MQTT topic the gateway
+    // publishes to, or as the body of an HTTP response. The gateway signs what it sends and
+    // each node holds only the gateway's public key, so a profile is checked before it is
+    // read, and one from anywhere else never runs.
+    let gateway = DeviceIdentity::from_seed(&[7u8; 32]);
+    let trusted = gateway.public();
+    let broker = LoopbackBroker::new();
+    let mut uplink = LoopbackTransport::new(broker.clone());
+    let mut downlink = LoopbackTransport::new(broker);
+    uplink.connect().await?;
+    downlink.connect().await?;
+    let fleet = "fleet/brooders/profile";
+    downlink.subscribe(fleet).await?;
+
+    uplink
+        .send(fleet, &gateway.sign_message(text.as_bytes()))
+        .await?;
+    let message = downlink.recv().await?.expect("a profile");
+    let signed = trusted.verify_message(&message.payload)?;
+    let delivered = Profile::from_json(std::str::from_utf8(signed)?)?;
+    println!(
+        "network   {} arrived on {fleet}, signed by the gateway, and loads",
+        delivered.name
+    );
+
+    let stranger = DeviceIdentity::from_seed(&[9u8; 32]);
+    uplink
+        .send(fleet, &stranger.sign_message(text.as_bytes()))
+        .await?;
+    let message = downlink.recv().await?.expect("a profile");
+    if trusted.verify_message(&message.payload).is_err() {
+        println!("network   one signed by any other key is refused before it is read");
+    }
+    // ANCHOR_END: network
+
+    assert_eq!(delivered.to_json()?, Profile::from_json(&text)?.to_json()?);
+    assert!(trusted.verify_message(&message.payload).is_err());
+
     // ANCHOR: wrong
     // A probe that fails reports a reading that is not a number. The controller raises
     // it rather than going quiet, and the lamp holds its state; what off means for the

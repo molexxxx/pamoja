@@ -124,7 +124,7 @@
   font: 700 var(--t-2xs) var(--sans); font-stretch: var(--cond); text-transform: uppercase; letter-spacing: var(--track);
   color: var(--paper); background: var(--accent); border-radius: var(--r);
 }
-.lane-count { display: block; margin-top: 0.45rem; font: 500 var(--t-2xs) var(--mono); color: var(--ink-soft); }
+.lane-count { display: block; margin-top: 0.45rem; font: 500 var(--t-xs) var(--mono); color: var(--ink-soft); }
 .marks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.95rem; margin: 0; padding: 0; list-style: none; font-size: var(--t-xs); line-height: 1.45; }
 .marks li { position: relative; padding-left: 0.8rem; color: var(--ink); }
 .marks li::before { content: ""; position: absolute; left: 0; top: 0.42em; width: 6px; height: 6px; box-sizing: border-box; }

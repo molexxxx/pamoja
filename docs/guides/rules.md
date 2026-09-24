@@ -1,34 +1,39 @@
 # Rules
 
-A profile decides at the node that reads. A rule decides between nodes: it watches
-one node's topic for a reading crossing a line and, the moment it does, drives an
-actuator on another node or publishes a message, over the same link. Rules are
-data. A rule file names the topic, the line, the release band that keeps the rule
-from firing over and over as a reading hovers at the line, and what to do on the
-way down and on the way back, so a fleet retunes a rule the way it retunes a
-profile: a file that ships, not a firmware build.
+A profile decides at the node that reads. A rule decides between nodes: when one
+node's reading crosses a line, it switches an output on another node or publishes a
+message. A rule file is data like a profile, so a fleet retunes a rule by shipping a
+file:
 
-The condition is the kit's trigger, a threshold with hysteresis that reports the
-moment it is crossed and the moment the reading has come back far enough to
-count, and nothing in between. In every language a rule engine runs the whole
-file off any link that can receive: it listens on each rule's topic, reads each
-reading from the message, switches the outputs it was given by the names the file
-uses, and publishes over the same link. A rule evaluator is the engine's deciding
-half on its own, for a program that moves its own messages: it hands each reading
-over with the topic it arrived on, learns which rules set or cleared and what each
-calls for, and carries that out itself. The two decide alike, because the engine
-runs on one.
+```json
+{ "rules": [
+  { "name": "water-when-dry",
+    "when": { "topic": "garden/bed-1/moisture", "below": 30.0, "hysteresis": 5.0 },
+    "then": [ { "drive": "bed-valve", "on": true } ],
+    "otherwise": [ { "drive": "bed-valve", "on": false } ] }
+] }
+```
+
+The valve opens when the bed dries below 30 and closes once it is wetter than 35. The
+`hysteresis` is the release band that stops a reading hovering at 30 from firing the
+rule on every sample. Each rule fires only as its condition sets or clears, and nothing
+in between.
+
+| To | Use |
+| --- | --- |
+| Run a rule file off a link | `RuleEngine`: it subscribes to each watched topic, reads each message, switches the outputs you hand it by the names the file uses, and publishes over the same link. |
+| Decide in a program that moves its own messages | `RuleEvaluator`, the engine's deciding half: hand it each reading with its topic, and it says which rules set or cleared and what each calls for. |
+
+Both are in every language, and they decide alike, because the engine runs on an
+evaluator.
 
 ## What the example does
 
-It loads a file of two rules on one raised bed. One waters the bed when the soil
-dries below 30 and stops once it is wetter than 35. The other raises an alarm when
-the bed is soaked past 60 and clears once it drops below 55. A probe on one link
-sends six readings, and a watcher on another hears what the rules publish. The
-engine runs the file off the broker and holds the valve.
-
-The second part is what goes wrong: a reading that is not a number, a topic no
-rule watches, two files no engine could run, and a rule with no release band.
+It runs a file of two rules on one raised bed: the watering rule above, which also
+publishes the valve's state, and an alarm when the bed is soaked past 60. A probe sends
+six readings, the engine holds the valve, and a watcher hears what the rules publish.
+Then it shows what goes wrong: a reading that is not a number, a topic no rule watches,
+two files no engine could run, and a rule with no release band.
 
 It proves:
 

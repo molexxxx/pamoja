@@ -1,34 +1,23 @@
 # Profiles
 
-A profile is a node written down as data: what it publishes on, which policy it
-applies to each reading, how often it samples as its battery drains, and how a
-dashboard should draw it. The [device profiles guide](guides/profile.md) loads one
-and decides readings with it in the four languages. This page is the catalog: the
-four presets the library ships and four worked examples written for it, with room
-for the profiles people share from nodes that have run. Each is a JSON file under
-`profiles/` in the repository, read by the same parser a device uses, which refuses a manifest no node
-could run, checked in CI against the catalog's own conventions as well, and kept in
-the form the library itself writes, so a change to one shows as a change of meaning
-and nothing else.
+A profile is a node written down as data: what it reads, when it switches its output,
+where it reports, how often it samples as its battery drains, and how a dashboard draws
+it. These are the profiles that ship: the four presets the library builds in and four
+written for the catalog. Each is a JSON file under `profiles/`, loaded in CI by the
+parser a device uses and kept in the form the library writes, so a change to one is a
+change of meaning and nothing else.
 
 ## Using one
 
-Download the file, or copy its text, and load it where the node runs:
-`Profile::from_json`, `fromJson`, `from_json`, or `FromJson` reads it, and a `Node`
-runs it over a reading, an output, and a link of your own, in any of the four
-languages, as the [guide](guides/profile.md) shows. With no program at all,
-[`pamoja-node`](run.md) runs it from a wiring file that names the site's part, relay
-line, and broker. The numbers are a starting point: a
-manifest is meant to be edited to the bed, the fridge, or the river in front of
-you, and shared back once it has run.
+The numbers are a starting point, meant to be edited to the bed, the fridge, or the
+river in front of you.
 
-## Sharing yours
-
-A profile that has run on a real node is worth sharing. The
-[community page](community.md#share-a-profile) says how: one file, one pull
-request, no Rust. `cargo xtask profiles` checks it the way CI will, and the four
-presets the library ships are here in the same form, so a manifest and the code
-that would have built it cannot drift apart.
+| To | Do this |
+| --- | --- |
+| Run it with no program | Write a [wiring file](run.md) naming the site's part, output line, and broker, and run `pamoja-node`. |
+| Run it in a program | Load it with `Profile::from_json`, `fromJson`, `from_json`, or `FromJson`, and hand it to a `Node` with your own parts, as the [guide](guides/profile.md) shows. |
+| Tune it | Edit the file. Its `$schema` line lets an editor check each field as you type, and the [field tables](guides/profile.md#every-field) say what each one does. |
+| Share yours | One file and one pull request, no Rust: the [community page](community.md#share-a-profile) has the steps and what CI checks. |
 
 <!-- table: profiles -->
 <div class="pkgs">

@@ -1024,6 +1024,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- The README's node section shows a profile file, the same profile run by `pamoja-node`
+  from a wiring file, and the whole Raspberry Pi node as a program, which now runs with
+  `Node::run` and reads `brooder-heater.json` from its working directory. The profile
+  guide opens with what a profile holds against what code holds and where a profile comes
+  from, and in all four languages shows a profile the gateway signed arriving over a link
+  and one signed by another key refused. The rules, profile catalog, and community pages
+  are shorter, with tables in place of long paragraphs.
 - A profile manifest and a rule file refuse a field their format does not have, rather
   than ignore it, and the reason names the field it was probably meant to be:
   `` unknown field `saver_bellow`, did you mean `saver_below`? `` with the line and column.
