@@ -21,8 +21,15 @@ public enum PowerMode
 public readonly record struct DutyCycle(ulong ActiveUs, ulong SleepUs)
 {
     /// <summary>Creates a duty cycle that spends a fraction of a period awake.</summary>
+    /// <remarks>
+    /// The time awake is rounded down to a whole microsecond and the rest of the period is
+    /// spent asleep, so the two always add up to the period.
+    /// </remarks>
     /// <param name="periodUs">The whole period, in microseconds.</param>
-    /// <param name="fraction">The share spent awake, clamped to 0 through 1.</param>
+    /// <param name="fraction">
+    /// The share spent awake, clamped to 0 through 1. A fraction that is not a number keeps
+    /// the node asleep for the whole period.
+    /// </param>
     /// <returns>The duty cycle.</returns>
     public static DutyCycle FromFraction(ulong periodUs, float fraction)
     {
@@ -96,6 +103,10 @@ public readonly record struct PowerPlan(
     }
 
     /// <summary>Returns the mode this plan calls for at a state of charge.</summary>
+    /// <remarks>
+    /// A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+    /// as critical.
+    /// </remarks>
     /// <param name="soc">The battery state of charge, from 0 through 1.</param>
     /// <returns>The mode the node should run in.</returns>
     public PowerMode Mode(float soc) =>

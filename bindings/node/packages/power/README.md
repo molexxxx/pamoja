@@ -36,10 +36,29 @@ for (const charge of [0.8, 0.35, 0.12]) {
   )
 }
 
-// A panel that is delivering buys back one mode, so the same flat battery keeps reporting
-// on the ten-minute saver cadence while the sun is on it.
+// A panel that is delivering buys back one mode. The interval for a charge knows nothing of
+// the panel, so the cadence comes from the mode the panel bought.
 const charging = plan.modeWhileCharging(0.12, true)
-console.log(`the same flat battery, while charging: ${charging}`)
+const chargingEvery = plan.intervalForUs(charging) / 1_000_000
+console.log(`at 12% charge while charging: ${charging}, sampling every ${chargingEvery}s`)
+
+// A charge worked out from a fuel gauge that did not answer is not a number. The plan takes
+// it as critical, so a node that cannot tell what it has left does the least until it can.
+const unknown = Number.NaN
+const unknownEvery = plan.intervalUs(unknown) / 1_000_000
+console.log(
+  `with no reading from the gauge: ${plan.mode(unknown)}, sampling every ${unknownEvery}s`,
+)
+
+// The thresholds say how long the battery must carry the node without sun. Winter nights
+// are long, so a winter plan starts saving sooner and goes critical sooner.
+const winter = plan.withThresholds(0.7, 0.3)
+const saver = (winter.saverBelow * 100).toFixed(0)
+const critical = (winter.criticalBelow * 100).toFixed(0)
+console.log(`the winter plan saves below ${saver}% and goes critical below ${critical}%`)
+const cold = winter.mode(0.6)
+const mild = plan.mode(0.6)
+console.log(`at 60% charge: ${cold} in winter, ${mild} by default`)
 
 // The work is the same two seconds whichever mode the node is in; stretching the cycle is
 // what saves the energy. The duty fraction is the proxy for average draw, so the hourly
@@ -50,9 +69,20 @@ const flat = new DutyCycle(awakeUs, plan.intervalUs(0.12) - awakeUs)
 console.log(`awake ${(healthy.fraction * 100).toFixed(2)}% of the time when healthy`)
 console.log(`awake ${(flat.fraction * 100).toFixed(3)}% of the time when flat`)
 
-// Stating the budget as a fraction instead gives the awake time directly.
-const quarter = DutyCycle.fromFraction(1_000_000, 0.25)
-console.log(`a quarter-duty second is ${quarter.activeUs / 1000}ms awake`)
+// A node that lives on its panel can stay awake for the share of the time the harvest pays
+// for. Asleep it draws next to nothing, so that share is the harvest over what it draws
+// awake, and the duty cycle turns it into time.
+const minuteUs = 60_000_000
+const awakeMw = 120
+const cloudy = DutyCycle.fromFraction(minuteUs, 12 / awakeMw)
+console.log(`a 12 mW harvest pays for ${cloudy.activeUs / 1000}ms awake in each minute`)
+
+// The share is clamped, so a harvest above the draw keeps the node awake throughout, and a
+// harvest the meter could not read keeps it asleep until one can be.
+const sunny = DutyCycle.fromFraction(minuteUs, 150 / awakeMw)
+const unread = DutyCycle.fromFraction(minuteUs, Number.NaN)
+console.log(`a 150 mW harvest keeps it awake all ${sunny.activeUs / 1000}ms`)
+console.log(`an unread harvest keeps it asleep all ${unread.sleepUs / 1000}ms`)
 ```
 
 ## The same capability in every language

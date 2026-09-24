@@ -20444,10 +20444,15 @@ PamojaDutyCycle pamoja_duty_cycle_new(uint64_t active_us, uint64_t sleep_us);
 
 // Creates a duty cycle that spends a fraction of each period awake.
 //
+// The time awake is rounded down to a whole microsecond and the rest of the period is
+// spent asleep, so the two always add up to the period and the awake share never runs
+// over the fraction.
+//
 // # Arguments
 //
 // * `period_us` - the whole period, in microseconds.
-// * `fraction` - the share of the period spent awake, clamped to 0.0 through 1.0.
+// * `fraction` - the share of the period spent awake, clamped to 0.0 through 1.0. A
+//   fraction that is not a number keeps the node asleep for the whole period.
 //
 // # Returns
 //
@@ -20508,6 +20513,9 @@ PamojaPowerPlan pamoja_power_plan_with_thresholds(PamojaPowerPlan plan,
                                                   float critical_below);
 
 // Returns the mode a plan calls for at a state of charge.
+//
+// A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+// as critical.
 //
 // # Arguments
 //

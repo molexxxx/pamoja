@@ -2730,6 +2730,10 @@ class DutyCycle:
     def from_fraction(period_us: builtins.int, fraction: builtins.float) -> DutyCycle:
         r"""
         Creates a duty cycle that spends `fraction` of `period_us` awake.
+        
+        The fraction is clamped to 0 through 1, and one that is not a number keeps the node
+        asleep for the whole period. The time awake is rounded down to a whole microsecond
+        and the rest of the period is spent asleep, so the two always add up to the period.
         """
 
 @typing.final
@@ -9280,6 +9284,9 @@ class PowerPlan:
     def mode(self, soc: builtins.float) -> builtins.str:
         r"""
         Returns the mode this plan calls for at a state of charge, by name.
+        
+        A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+        as critical.
         """
     def mode_while_charging(self, soc: builtins.float, charging: builtins.bool) -> builtins.str:
         r"""

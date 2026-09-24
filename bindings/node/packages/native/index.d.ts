@@ -620,7 +620,13 @@ export declare class DutyCycle {
    * microseconds.
    */
   constructor(activeUs: number, sleepUs: number)
-  /** Creates a duty cycle that spends `fraction` of `periodUs` awake. */
+  /**
+   * Creates a duty cycle that spends `fraction` of `periodUs` awake.
+   *
+   * The fraction is clamped to 0 through 1, and one that is not a number keeps the node
+   * asleep for the whole period. The time awake is rounded down to a whole microsecond
+   * and the rest of the period is spent asleep, so the two always add up to the period.
+   */
   static fromFraction(periodUs: number, fraction: number): DutyCycle
   /** How long the node stays awake each period, in microseconds. */
   get activeUs(): number
@@ -2546,7 +2552,12 @@ export declare class PowerPlan {
   get saverBelow(): number
   /** The charge below which the plan enters critical mode. */
   get criticalBelow(): number
-  /** Returns the mode this plan calls for at a state of charge. */
+  /**
+   * Returns the mode this plan calls for at a state of charge.
+   *
+   * A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+   * as critical.
+   */
   mode(soc: number): PowerMode
   /** Returns the mode, eased one step toward full duty while charging. */
   modeWhileCharging(soc: number, charging: boolean): PowerMode

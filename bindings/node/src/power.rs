@@ -34,18 +34,26 @@ impl DutyCycle {
     /// Creates a duty cycle from the time awake and the time asleep, in
     /// microseconds.
     #[napi(constructor)]
-    pub fn new(active_us: f64, sleep_us: f64) -> Self {
-        Self {
-            inner: CoreDutyCycle::new(duration(active_us), duration(sleep_us)),
-        }
+    pub fn new(active_us: f64, sleep_us: f64) -> napi::Result<Self> {
+        Ok(Self {
+            inner: CoreDutyCycle::new(
+                duration(active_us, "activeUs")?,
+                duration(sleep_us, "sleepUs")?,
+            ),
+        })
     }
 
     /// Creates a duty cycle that spends `fraction` of `periodUs` awake.
+    ///
+    /// The fraction is clamped to 0 through 1, and one that is not a number keeps the node
+    /// asleep for the whole period. The time awake is rounded down to a whole microsecond
+    /// and the rest of the period is spent asleep, so the two always add up to the period.
     #[napi(factory)]
-    pub fn from_fraction(period_us: f64, fraction: f64) -> Self {
-        Self {
-            inner: CoreDutyCycle::from_fraction(duration(period_us), fraction as f32),
-        }
+    pub fn from_fraction(period_us: f64, fraction: f64) -> napi::Result<Self> {
+        let period = duration(period_us, "periodUs")?;
+        Ok(Self {
+            inner: whole(CoreDutyCycle::from_fraction(period, fraction as f32)),
+        })
     }
 
     /// How long the node stays awake each period, in microseconds.
@@ -84,14 +92,14 @@ impl PowerPlan {
     /// Creates a plan from its three work intervals in microseconds, entering
     /// saver mode below 50% charge and critical below 20%.
     #[napi(constructor)]
-    pub fn new(active_us: f64, saver_us: f64, critical_us: f64) -> Self {
-        Self {
+    pub fn new(active_us: f64, saver_us: f64, critical_us: f64) -> napi::Result<Self> {
+        Ok(Self {
             inner: CorePlan::new(
-                duration(active_us),
-                duration(saver_us),
-                duration(critical_us),
+                duration(active_us, "activeUs")?,
+                duration(saver_us, "saverUs")?,
+                duration(critical_us, "criticalUs")?,
             ),
-        }
+        })
     }
 
     /// Returns a copy of this plan with the state-of-charge thresholds moved.
@@ -117,6 +125,9 @@ impl PowerPlan {
     }
 
     /// Returns the mode this plan calls for at a state of charge.
+    ///
+    /// A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+    /// as critical.
     #[napi]
     pub fn mode(&self, soc: f64) -> PowerMode {
         mode(self.inner.mode(soc as f32))
@@ -141,9 +152,23 @@ impl PowerPlan {
     }
 }
 
-/// Reads a microsecond count as a duration.
-fn duration(micros: f64) -> Duration {
-    Duration::from_micros(micros.max(0.0) as u64)
+/// Reads a microsecond count as a duration, refusing one that is not a whole,
+/// non-negative number a JavaScript number holds exactly.
+fn duration(micros: f64, name: &str) -> napi::Result<Duration> {
+    const SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+    if micros.fract() != 0.0 || !(0.0..=SAFE_INTEGER).contains(&micros) {
+        return Err(napi::Error::from_reason(format!(
+            "{name} must be a whole number of microseconds, not {micros}"
+        )));
+    }
+    Ok(Duration::from_micros(micros as u64))
+}
+
+/// Rounds the awake half of a split down to a whole microsecond and gives the rest of the
+/// period to sleep, so the halves that cross add up to the period.
+fn whole(split: CoreDutyCycle) -> CoreDutyCycle {
+    let active = Duration::from_micros(split.active().as_micros() as u64);
+    CoreDutyCycle::new(active, split.period() - active)
 }
 
 /// Narrows a duration to the microseconds a JavaScript number carries.

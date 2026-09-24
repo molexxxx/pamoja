@@ -3325,6 +3325,19 @@ function powerVectors() {
   const duty = power.DutyCycle.fromFraction(vector.duty.periodUs, vector.duty.fraction);
   assert.strictEqual(duty.activeUs, vector.duty.activeUs, "the time awake");
   assert.strictEqual(duty.sleepUs, vector.duty.sleepUs, "the time asleep");
+
+  const tenth = power.DutyCycle.fromFraction(vector.tenth.periodUs, vector.tenth.fraction);
+  assert.strictEqual(tenth.activeUs, vector.tenth.activeUs, "a tenth awake");
+  assert.strictEqual(tenth.sleepUs, vector.tenth.sleepUs, "the rest asleep");
+  assert.strictEqual(tenth.periodUs, vector.tenth.periodUs, "adding up to the period");
+
+  const unreadable = vector.unreadable;
+  assert.strictEqual(plan.mode(Number.NaN), unreadable.mode, "an unreadable charge");
+  assert.strictEqual(plan.modeWhileCharging(Number.NaN, true), unreadable.charging, "it charging");
+  assert.strictEqual(plan.intervalUs(Number.NaN), unreadable.intervalUs, "its interval");
+  const asleep = power.DutyCycle.fromFraction(vector.duty.periodUs, Number.NaN);
+  assert.strictEqual(asleep.activeUs, unreadable.dutyActiveUs, "an unreadable fraction");
+  assert.strictEqual(asleep.sleepUs, unreadable.dutySleepUs, "its sleep");
 }
 
 // What a reporter ships and what it drops once the link gets expensive.

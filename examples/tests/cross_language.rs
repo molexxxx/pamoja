@@ -3232,6 +3232,47 @@ fn power_vectors_match() {
         duty.sleep().as_micros() as u64,
         duty_want["sleepUs"].as_u64().expect("the sleep time")
     );
+
+    let tenth_want = &vector["tenth"];
+    let tenth_period = tenth_want["periodUs"].as_u64().expect("the period");
+    let tenth_active = tenth_want["activeUs"].as_u64().expect("the awake time");
+    let tenth = DutyCycle::from_fraction(
+        core::time::Duration::from_micros(tenth_period),
+        tenth_want["fraction"].as_f64().expect("the fraction") as f32,
+    );
+    assert_eq!(tenth.active().as_micros() as u64, tenth_active);
+    assert_eq!(tenth.period().as_micros() as u64, tenth_period);
+    assert_eq!(
+        tenth_active + tenth_want["sleepUs"].as_u64().expect("the sleep time"),
+        tenth_period,
+        "the halves that cross a binding add up to the period"
+    );
+
+    let unreadable = &vector["unreadable"];
+    assert_eq!(
+        power_mode_name(plan.mode(f32::NAN)),
+        unreadable["mode"].as_str().expect("the mode")
+    );
+    assert_eq!(
+        power_mode_name(plan.mode_while_charging(f32::NAN, true)),
+        unreadable["charging"].as_str().expect("the mode")
+    );
+    assert_eq!(
+        plan.interval(f32::NAN).as_micros() as u64,
+        unreadable["intervalUs"].as_u64().expect("the interval")
+    );
+    let asleep = DutyCycle::from_fraction(
+        core::time::Duration::from_micros(duty_want["periodUs"].as_u64().expect("the period")),
+        f32::NAN,
+    );
+    assert_eq!(
+        asleep.active().as_micros() as u64,
+        unreadable["dutyActiveUs"].as_u64().expect("the awake time")
+    );
+    assert_eq!(
+        asleep.sleep().as_micros() as u64,
+        unreadable["dutySleepUs"].as_u64().expect("the sleep time")
+    );
 }
 
 /// Names a power mode the way the vectors record it.

@@ -1051,6 +1051,11 @@ released together, so one entry covers all of them.
   docstrings, and they read the same way now.
 - The bus, loopback, store-and-forward, sensor, and actuator crates open with an example,
   where they had none, and the first three run rather than only compile.
+- The power guide takes the charging node's cadence from the mode the panel bought, asks
+  a plan about a fuel gauge that did not answer, moves the thresholds for winter, and
+  sizes a duty cycle from what a panel harvests. It prints the same twelve lines in every
+  language, and the page gains a paragraph for each language, tables of the modes, the
+  duty cycle, and the calls, and a section on what goes wrong.
 
 ### Fixed
 
@@ -1287,6 +1292,21 @@ released together, so one entry covers all of them.
   `now must be a whole number of seconds, not NaN`.
 - The TypeScript `signManifest` had no documentation, because its comment sat above
   `imageDigest` instead.
+- A power plan read a state of charge that was not a number, such as one worked out from a
+  fuel gauge that failed to answer, as a healthy battery and ran the node at full duty. It
+  takes such a charge as critical now, in every language.
+- `DutyCycle::from_fraction` panicked on a fraction that was not a number, which aborted the
+  process when the call came through C# or the C ABI, and it overflowed on the longest
+  period. Such a fraction keeps the node asleep for the whole period now. `DutyCycle::period`
+  panicked when its two halves added up past `Duration::MAX`, and holds at the maximum now.
+- A duty cycle split from a fraction in TypeScript, Python, C#, or C rounded each half down
+  to a whole microsecond on its own, so a tenth of a minute came back one microsecond short
+  of a minute in C# and C, and its halves did not add up to its period in TypeScript and
+  Python. The awake time is rounded down and the rest of the period is asleep now.
+- The TypeScript `DutyCycle` and `PowerPlan` constructors and `DutyCycle.fromFraction` read
+  a negative duration or one that was not a number as 0 and cut a fractional one to its
+  whole part, so a job that ran longer than its interval slept not at all without a word.
+  They refuse such a duration now: `sleepUs must be a whole number of microseconds, not -1`.
 
 ## [0.1.18] - 2026-09-10
 

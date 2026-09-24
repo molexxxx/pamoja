@@ -21,27 +21,39 @@ will flap back and forth across a threshold. Smooth it first, with a `Smoother` 
 
 It runs a solar node through a draining battery. One plan holds three cadences, and
 the example prints the mode and the sampling interval at a healthy charge, a low
-one and a nearly flat one, then asks again with the panel delivering.
+one and a nearly flat one, then asks again with the panel delivering, and once more
+with a fuel gauge that did not answer.
+
+A second plan is the first with its thresholds moved for winter, when the battery
+has to carry the node through long nights. The example reads the thresholds back
+from it and compares the two plans at the same charge.
 
 The work window stays two seconds throughout. The sleep half of each duty cycle is
 the plan's own interval less that window, so the two fractions weigh the same job
-at the cadence the governor picked rather than at a period typed in by hand. A last
-cycle states the budget as a fraction of a second instead of as two durations.
+at the cadence the governor picked rather than at a period typed in by hand. The
+last cycles are sized from what a panel harvests instead: the share of a minute the
+harvest pays for, in cloud, in full sun, and from a meter that could not be read.
 
 It proves:
 
 - With the default thresholds, 80% charge is active, 35% is saver and 12% is
-  critical.
-- The interval follows the mode, so a battery at 12% is asked for one reading an
-  hour where a healthy one gives sixty.
+  critical, and the interval follows the mode, so a battery at 12% is asked for one
+  reading an hour where a healthy one gives sixty.
 - A delivering panel eases the governor off by one mode and no further, so the flat
-  battery reports on the saver cadence rather than the active one.
+  battery reports on the saver cadence rather than the active one. `interval_for`
+  gives the cadence for that mode; the interval for a charge alone would still be
+  the hourly one.
+- A charge that is not a number is taken as critical, so a node that cannot tell
+  what it has left samples hourly until it can.
+- Moving the thresholds to 70% and 30% puts a 60% battery in saver mode, where the
+  default plan keeps it active.
 - Two seconds of work is one part in thirty at the minute cadence and one part in
-  1800 at the hourly one, the sixtyfold cut in average draw the stretch buys.
-- The fraction is the awake share of the whole period, so two seconds awake and 58
+  1800 at the hourly one, the sixtyfold cut in average draw the stretch buys. The
+  fraction is the awake share of the whole period, so two seconds awake and 58
   asleep is one in thirty, not one in twenty-nine.
-- `from_fraction` divides the period it is given, so a quarter-duty second is 250ms
-  awake and 750ms asleep.
+- A 12 mW harvest against a 120 mW draw pays for a tenth of a minute, 6000ms. A
+  harvest above the draw clamps to the whole minute awake, and one that is not a
+  number to the whole minute asleep.
 
 Durations are a `Duration` in Rust and microseconds across the three bindings, so
 the same intervals appear scaled by a million in the other three snippets.
@@ -62,13 +74,23 @@ repository:
 
 ## Rust
 
+In Rust, `pamoja-power` is `no_std` and allocation-free, and both types are `Copy`.
+`PowerPlan::new` takes the three intervals as `Duration`s and starts with the default
+thresholds; `thresholds` returns a copy with them moved, and `saver_below` and
+`critical_below` read them back. `mode` and `interval` answer for a charge,
+`mode_while_charging` for a charge and the panel, and `interval_for` for a mode
+already chosen. A charge is an `f32` from 0.0 to 1.0. `DutyCycle::new` takes the two
+halves and `DutyCycle::from_fraction` splits a period; `active`, `sleep`, `period`,
+and `fraction` read one back, and `period` holds at `Duration::MAX` rather than
+overflow.
+
 <!-- snippet: examples/guides/power.rs#example -->
 From [`examples/guides/power.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/power.rs):
 
 ```rust
 use core::time::Duration;
 
-use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
+use pamoja_power::{DutyCycle, PowerPlan};
 
 // A solar node samples every minute while the charge is healthy, stretches to ten
 // minutes to conserve, and to an hour once the battery is nearly flat.
@@ -86,10 +108,27 @@ for charge in [0.80, 0.35, 0.12] {
     println!("at {percent:.0}% charge: {mode:?}, sampling every {every}s");
 }
 
-// A panel that is delivering buys back one mode, so the same flat battery keeps
-// reporting on the ten-minute saver cadence while the sun is on it.
+// A panel that is delivering buys back one mode. The interval for a charge knows
+// nothing of the panel, so the cadence comes from the mode the panel bought.
 let charging = plan.mode_while_charging(0.12, true);
-println!("the same flat battery, while charging: {charging:?}");
+let every = plan.interval_for(charging).as_secs();
+println!("at 12% charge while charging: {charging:?}, sampling every {every}s");
+
+// A charge worked out from a fuel gauge that did not answer is not a number. The
+// plan takes it as critical, so a node that cannot tell what it has left does the
+// least until it can.
+let unknown = f32::NAN;
+let (mode, every) = (plan.mode(unknown), plan.interval(unknown).as_secs());
+println!("with no reading from the gauge: {mode:?}, sampling every {every}s");
+
+// The thresholds say how long the battery must carry the node without sun. Winter
+// nights are long, so a winter plan starts saving sooner and goes critical sooner.
+let winter = plan.thresholds(0.70, 0.30);
+let saver = winter.saver_below() * 100.0;
+let critical = winter.critical_below() * 100.0;
+println!("the winter plan saves below {saver:.0}% and goes critical below {critical:.0}%");
+let (cold, mild) = (winter.mode(0.60), plan.mode(0.60));
+println!("at 60% charge: {cold:?} in winter, {mild:?} by default");
 
 // The work is the same two seconds whichever mode the node is in; stretching the cycle
 // is what saves the energy. The duty fraction is the proxy for average draw, so the
@@ -101,13 +140,36 @@ let (healthy_duty, flat_duty) = (healthy.fraction() * 100.0, flat.fraction() * 1
 println!("awake {healthy_duty:.2}% of the time when healthy");
 println!("awake {flat_duty:.3}% of the time when flat");
 
-// Stating the budget as a fraction instead gives the awake time directly.
-let quarter = DutyCycle::from_fraction(Duration::from_secs(1), 0.25);
-println!("a quarter-duty second is {:?} awake", quarter.active());
+// A node that lives on its panel can stay awake for the share of the time the harvest
+// pays for. Asleep it draws next to nothing, so that share is the harvest over what it
+// draws awake, and the duty cycle turns it into time.
+let minute = Duration::from_secs(60);
+let awake_mw = 120.0;
+let cloudy = DutyCycle::from_fraction(minute, 12.0 / awake_mw);
+let paid = cloudy.active().as_millis();
+println!("a 12 mW harvest pays for {paid}ms awake in each minute");
+
+// The share is clamped, so a harvest above the draw keeps the node awake throughout,
+// and a harvest the meter could not read keeps it asleep until one can be.
+let sunny = DutyCycle::from_fraction(minute, 150.0 / awake_mw);
+let unread = DutyCycle::from_fraction(minute, f32::NAN);
+let awake_all = sunny.active().as_millis();
+let asleep_all = unread.sleep().as_millis();
+println!("a 150 mW harvest keeps it awake all {awake_all}ms");
+println!("an unread harvest keeps it asleep all {asleep_all}ms");
 ```
 <!-- end -->
 
 ## TypeScript
+
+In TypeScript, `@pamoja/power` exports `PowerPlan`, `DutyCycle`, and `PowerMode`, an
+object whose values are the mode names that `mode` returns. Every duration is a whole
+number of microseconds in a `number`, and a constructor or `fromFraction` throws on
+one that is negative, fractional, or past `Number.MAX_SAFE_INTEGER`.
+`withThresholds` returns a new plan, and `saverBelow` and `criticalBelow` are
+properties; `mode`, `modeWhileCharging`, `intervalUs`, and `intervalForUs` are
+methods. A `DutyCycle` has `activeUs`, `sleepUs`, `periodUs`, and `fraction` as
+properties.
 
 <!-- snippet: bindings/node/guides/power.ts#example -->
 From [`bindings/node/guides/power.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/power.ts):
@@ -128,10 +190,29 @@ for (const charge of [0.8, 0.35, 0.12]) {
   )
 }
 
-// A panel that is delivering buys back one mode, so the same flat battery keeps reporting
-// on the ten-minute saver cadence while the sun is on it.
+// A panel that is delivering buys back one mode. The interval for a charge knows nothing of
+// the panel, so the cadence comes from the mode the panel bought.
 const charging = plan.modeWhileCharging(0.12, true)
-console.log(`the same flat battery, while charging: ${charging}`)
+const chargingEvery = plan.intervalForUs(charging) / 1_000_000
+console.log(`at 12% charge while charging: ${charging}, sampling every ${chargingEvery}s`)
+
+// A charge worked out from a fuel gauge that did not answer is not a number. The plan takes
+// it as critical, so a node that cannot tell what it has left does the least until it can.
+const unknown = Number.NaN
+const unknownEvery = plan.intervalUs(unknown) / 1_000_000
+console.log(
+  `with no reading from the gauge: ${plan.mode(unknown)}, sampling every ${unknownEvery}s`,
+)
+
+// The thresholds say how long the battery must carry the node without sun. Winter nights
+// are long, so a winter plan starts saving sooner and goes critical sooner.
+const winter = plan.withThresholds(0.7, 0.3)
+const saver = (winter.saverBelow * 100).toFixed(0)
+const critical = (winter.criticalBelow * 100).toFixed(0)
+console.log(`the winter plan saves below ${saver}% and goes critical below ${critical}%`)
+const cold = winter.mode(0.6)
+const mild = plan.mode(0.6)
+console.log(`at 60% charge: ${cold} in winter, ${mild} by default`)
 
 // The work is the same two seconds whichever mode the node is in; stretching the cycle is
 // what saves the energy. The duty fraction is the proxy for average draw, so the hourly
@@ -142,13 +223,32 @@ const flat = new DutyCycle(awakeUs, plan.intervalUs(0.12) - awakeUs)
 console.log(`awake ${(healthy.fraction * 100).toFixed(2)}% of the time when healthy`)
 console.log(`awake ${(flat.fraction * 100).toFixed(3)}% of the time when flat`)
 
-// Stating the budget as a fraction instead gives the awake time directly.
-const quarter = DutyCycle.fromFraction(1_000_000, 0.25)
-console.log(`a quarter-duty second is ${quarter.activeUs / 1000}ms awake`)
+// A node that lives on its panel can stay awake for the share of the time the harvest pays
+// for. Asleep it draws next to nothing, so that share is the harvest over what it draws
+// awake, and the duty cycle turns it into time.
+const minuteUs = 60_000_000
+const awakeMw = 120
+const cloudy = DutyCycle.fromFraction(minuteUs, 12 / awakeMw)
+console.log(`a 12 mW harvest pays for ${cloudy.activeUs / 1000}ms awake in each minute`)
+
+// The share is clamped, so a harvest above the draw keeps the node awake throughout, and a
+// harvest the meter could not read keeps it asleep until one can be.
+const sunny = DutyCycle.fromFraction(minuteUs, 150 / awakeMw)
+const unread = DutyCycle.fromFraction(minuteUs, Number.NaN)
+console.log(`a 150 mW harvest keeps it awake all ${sunny.activeUs / 1000}ms`)
+console.log(`an unread harvest keeps it asleep all ${unread.sleepUs / 1000}ms`)
 ```
 <!-- end -->
 
 ## Python
+
+In Python, `pamoja.power` exports `PowerPlan` and `DutyCycle`, the `power_plan` and
+`duty_cycle` builders, and `PowerMode`, a string enum. Durations are `int`
+microseconds: a negative one raises `OverflowError` and a `float` raises `TypeError`.
+A mode comes back as its name, a `str` that compares equal to its `PowerMode`
+member, and `interval_for_us` raises `PamojaError` for a name that is not a mode.
+`with_thresholds` returns a new plan, and `saver_below` and `critical_below` are
+properties. A `DutyCycle` has `active_us`, `sleep_us`, `period_us`, and `fraction`.
 
 <!-- snippet: bindings/python/guides/power.py#example -->
 From [`bindings/python/guides/power.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/power.py):
@@ -166,10 +266,25 @@ for charge in (0.80, 0.35, 0.12):
     every = plan.interval_us(charge) // 1_000_000
     print(f"at {charge * 100:.0f}% charge: {plan.mode(charge)}, sampling every {every}s")
 
-# A panel that is delivering buys back one mode, so the same flat battery keeps reporting
-# on the ten-minute saver cadence while the sun is on it.
+# A panel that is delivering buys back one mode. The interval for a charge knows nothing of
+# the panel, so the cadence comes from the mode the panel bought.
 charging = plan.mode_while_charging(0.12, True)
-print(f"the same flat battery, while charging: {charging}")
+every = plan.interval_for_us(charging) // 1_000_000
+print(f"at 12% charge while charging: {charging}, sampling every {every}s")
+
+# A charge worked out from a fuel gauge that did not answer is not a number. The plan takes
+# it as critical, so a node that cannot tell what it has left does the least until it can.
+unknown = float("nan")
+every = plan.interval_us(unknown) // 1_000_000
+print(f"with no reading from the gauge: {plan.mode(unknown)}, sampling every {every}s")
+
+# The thresholds say how long the battery must carry the node without sun. Winter nights
+# are long, so a winter plan starts saving sooner and goes critical sooner.
+winter = plan.with_thresholds(0.70, 0.30)
+saver, critical = winter.saver_below * 100, winter.critical_below * 100
+print(f"the winter plan saves below {saver:.0f}% and goes critical below {critical:.0f}%")
+cold, mild = winter.mode(0.60), plan.mode(0.60)
+print(f"at 60% charge: {cold} in winter, {mild} by default")
 
 # The work is the same two seconds whichever mode the node is in; stretching the cycle is
 # what saves the energy. The duty fraction is the proxy for average draw, so the hourly
@@ -180,13 +295,32 @@ flat = DutyCycle(awake_us, plan.interval_us(0.12) - awake_us)
 print(f"awake {healthy.fraction * 100:.2f}% of the time when healthy")
 print(f"awake {flat.fraction * 100:.3f}% of the time when flat")
 
-# Stating the budget as a fraction instead gives the awake time directly.
-quarter = DutyCycle.from_fraction(1_000_000, 0.25)
-print(f"a quarter-duty second is {quarter.active_us / 1000:.0f}ms awake")
+# A node that lives on its panel can stay awake for the share of the time the harvest pays
+# for. Asleep it draws next to nothing, so that share is the harvest over what it draws
+# awake, and the duty cycle turns it into time.
+minute_us = 60_000_000
+awake_mw = 120
+cloudy = DutyCycle.from_fraction(minute_us, 12 / awake_mw)
+print(f"a 12 mW harvest pays for {cloudy.active_us // 1000}ms awake in each minute")
+
+# The share is clamped, so a harvest above the draw keeps the node awake throughout, and a
+# harvest the meter could not read keeps it asleep until one can be.
+sunny = DutyCycle.from_fraction(minute_us, 150 / awake_mw)
+unread = DutyCycle.from_fraction(minute_us, float("nan"))
+print(f"a 150 mW harvest keeps it awake all {sunny.active_us // 1000}ms")
+print(f"an unread harvest keeps it asleep all {unread.sleep_us // 1000}ms")
 ```
 <!-- end -->
 
 ## C#
+
+In C#, `Pamoja.Power` holds `PowerPlan` and `DutyCycle`, both readonly record
+structs, and the `PowerMode` enum. Durations are `ulong` microseconds.
+`PowerPlan.Create` starts with the default thresholds, which the record carries as
+`SaverBelow` and `CriticalBelow`, and `WithThresholds` returns a new plan. `Mode`,
+`ModeWhileCharging`, `IntervalUs`, and `IntervalForUs` are methods. A `DutyCycle` is
+its `ActiveUs` and `SleepUs`, with `PeriodUs` and `Fraction` worked out from them,
+and `DutyCycle.FromFraction` splits a period.
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/PowerGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/PowerGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/PowerGuide.cs):
@@ -201,14 +335,33 @@ PowerPlan plan = PowerPlan.Create(60_000_000, 600_000_000, 3_600_000_000);
 foreach (float charge in new[] { 0.80f, 0.35f, 0.12f })
 {
     ulong every = plan.IntervalUs(charge) / 1_000_000;
-    Console.WriteLine(
-        $"at {charge * 100:F0}% charge: {plan.Mode(charge)}, sampling every {every}s");
+    Console.WriteLine(Invariant(
+        $"at {charge * 100:F0}% charge: {plan.Mode(charge)}, sampling every {every}s"));
 }
 
-// A panel that is delivering buys back one mode, so the same flat battery keeps
-// reporting on the ten-minute saver cadence while the sun is on it.
+// A panel that is delivering buys back one mode. The interval for a charge knows
+// nothing of the panel, so the cadence comes from the mode the panel bought.
 PowerMode charging = plan.ModeWhileCharging(0.12f, true);
-Console.WriteLine($"the same flat battery, while charging: {charging}");
+ulong chargingEvery = plan.IntervalForUs(charging) / 1_000_000;
+Console.WriteLine(
+    $"at 12% charge while charging: {charging}, sampling every {chargingEvery}s");
+
+// A charge worked out from a fuel gauge that did not answer is not a number. The
+// plan takes it as critical, so a node that cannot tell what it has left does the
+// least until it can.
+float unknown = float.NaN;
+ulong unknownEvery = plan.IntervalUs(unknown) / 1_000_000;
+Console.WriteLine(
+    $"with no reading from the gauge: {plan.Mode(unknown)}, sampling every {unknownEvery}s");
+
+// The thresholds say how long the battery must carry the node without sun. Winter
+// nights are long, so a winter plan starts saving sooner and goes critical sooner.
+PowerPlan winter = plan.WithThresholds(0.70f, 0.30f);
+Console.WriteLine(Invariant(
+    $"the winter plan saves below {winter.SaverBelow * 100:F0}% and goes critical below {winter.CriticalBelow * 100:F0}%"));
+PowerMode cold = winter.Mode(0.60f);
+PowerMode mild = plan.Mode(0.60f);
+Console.WriteLine($"at 60% charge: {cold} in winter, {mild} by default");
 
 // The work is the same two seconds whichever mode the node is in; stretching the
 // cycle is what saves the energy. The duty fraction is the proxy for average draw,
@@ -216,14 +369,150 @@ Console.WriteLine($"the same flat battery, while charging: {charging}");
 const ulong AwakeUs = 2_000_000;
 var healthy = new DutyCycle(AwakeUs, plan.IntervalUs(0.80f) - AwakeUs);
 var flat = new DutyCycle(AwakeUs, plan.IntervalUs(0.12f) - AwakeUs);
-Console.WriteLine($"awake {healthy.Fraction * 100:F2}% of the time when healthy");
-Console.WriteLine($"awake {flat.Fraction * 100:F3}% of the time when flat");
+Console.WriteLine(Invariant($"awake {healthy.Fraction * 100:F2}% of the time when healthy"));
+Console.WriteLine(Invariant($"awake {flat.Fraction * 100:F3}% of the time when flat"));
 
-// Stating the budget as a fraction instead gives the awake time directly.
-DutyCycle quarter = DutyCycle.FromFraction(1_000_000, 0.25f);
-Console.WriteLine($"a quarter-duty second is {quarter.ActiveUs / 1000}ms awake");
+// A node that lives on its panel can stay awake for the share of the time the
+// harvest pays for. Asleep it draws next to nothing, so that share is the harvest
+// over what it draws awake, and the duty cycle turns it into time.
+const ulong MinuteUs = 60_000_000;
+const float AwakeMw = 120f;
+DutyCycle cloudy = DutyCycle.FromFraction(MinuteUs, 12f / AwakeMw);
+Console.WriteLine($"a 12 mW harvest pays for {cloudy.ActiveUs / 1000}ms awake in each minute");
+
+// The share is clamped, so a harvest above the draw keeps the node awake
+// throughout, and a harvest the meter could not read keeps it asleep until one
+// can be.
+DutyCycle sunny = DutyCycle.FromFraction(MinuteUs, 150f / AwakeMw);
+DutyCycle unread = DutyCycle.FromFraction(MinuteUs, float.NaN);
+Console.WriteLine($"a 150 mW harvest keeps it awake all {sunny.ActiveUs / 1000}ms");
+Console.WriteLine($"an unread harvest keeps it asleep all {unread.SleepUs / 1000}ms");
 ```
 <!-- end -->
+
+## Values at a glance
+
+**The modes,** from the most work to the least. A threshold is the lower bound of
+the mode above it, so a battery at exactly 50% is still active:
+
+| Mode | Entered when the charge is | Interval in the example |
+| --- | --- | --- |
+| Active | at or above the saver threshold, 0.5 by default | 60 s |
+| Saver | below the saver threshold, at or above the critical one | 600 s |
+| Critical | below the critical threshold, 0.2 by default, or not a number | 3600 s |
+
+**While the panel is delivering,** the mode moves one step toward full duty:
+
+| Mode by charge alone | Mode while charging |
+| --- | --- |
+| Critical | Saver |
+| Saver | Active |
+| Active | Active |
+
+**A duty cycle's parts:**
+
+| Part | What it is |
+| --- | --- |
+| active | how long the node is awake each period |
+| sleep | how long it is asleep each period |
+| period | active plus sleep |
+| fraction | active over period, from 0 to 1, and 0 for a zero-length period |
+
+**What `from_fraction` makes of the fraction it is given:**
+
+| Fraction | Awake | Asleep |
+| --- | --- | --- |
+| between 0 and 1 | that share of the period | the rest |
+| 1 or more | the whole period | none |
+| 0 or less | none | the whole period |
+| not a number | none | the whole period |
+
+Across the bindings the awake time is rounded down to a whole microsecond and the
+rest of the period is asleep, so the two always add up to the period and the awake
+share never runs over the budget.
+
+**The calls in each language:**
+
+### Rust
+
+| To | Call |
+| --- | --- |
+| make a plan | `PowerPlan::new(active, saver, critical)` |
+| move the thresholds | `thresholds(saver_below, critical_below)`; `saver_below()`, `critical_below()` |
+| choose a mode | `mode(soc)`, `mode_while_charging(soc, charging)` |
+| look up an interval | `interval(soc)`, `interval_for(mode)` |
+| make a duty cycle | `DutyCycle::new(active, sleep)`, `DutyCycle::from_fraction(period, fraction)` |
+| read a duty cycle | `active()`, `sleep()`, `period()`, `fraction()` |
+
+### TypeScript
+
+| To | Call |
+| --- | --- |
+| make a plan | `new PowerPlan(activeUs, saverUs, criticalUs)` |
+| move the thresholds | `withThresholds(saverBelow, criticalBelow)`; `saverBelow`, `criticalBelow` |
+| choose a mode | `mode(soc)`, `modeWhileCharging(soc, charging)` |
+| look up an interval | `intervalUs(soc)`, `intervalForUs(mode)` |
+| make a duty cycle | `new DutyCycle(activeUs, sleepUs)`, `DutyCycle.fromFraction(periodUs, fraction)` |
+| read a duty cycle | `activeUs`, `sleepUs`, `periodUs`, `fraction` |
+
+### Python
+
+| To | Call |
+| --- | --- |
+| make a plan | `power_plan(active_us, saver_us, critical_us)` |
+| move the thresholds | `with_thresholds(saver_below, critical_below)`; `saver_below`, `critical_below` |
+| choose a mode | `mode(soc)`, `mode_while_charging(soc, charging)` |
+| look up an interval | `interval_us(soc)`, `interval_for_us(mode)` |
+| make a duty cycle | `duty_cycle(active_us, sleep_us)`, `DutyCycle.from_fraction(period_us, fraction)` |
+| read a duty cycle | `active_us`, `sleep_us`, `period_us`, `fraction` |
+
+### C#
+
+| To | Call |
+| --- | --- |
+| make a plan | `PowerPlan.Create(activeUs, saverUs, criticalUs)` |
+| move the thresholds | `WithThresholds(saverBelow, criticalBelow)`; `SaverBelow`, `CriticalBelow` |
+| choose a mode | `Mode(soc)`, `ModeWhileCharging(soc, charging)` |
+| look up an interval | `IntervalUs(soc)`, `IntervalForUs(mode)` |
+| make a duty cycle | `new DutyCycle(activeUs, sleepUs)`, `DutyCycle.FromFraction(periodUs, fraction)` |
+| read a duty cycle | `ActiveUs`, `SleepUs`, `PeriodUs`, `Fraction` |
+
+<!-- languages end -->
+
+## When it goes wrong
+
+Neither type refuses a charge or a fraction. Each has an answer for every value, so
+a mistake shows up as a node that behaves oddly rather than one that stops. The
+mistakes that cost an afternoon:
+
+- **The node never leaves active mode.** A charge is a fraction from 0 to 1, not a
+  percentage. A gauge that reports 35 for 35% reads as more than full; divide by 100
+  before the plan sees it.
+- **The cadence stays slow while the panel is charging.** `interval` looks at the
+  charge alone. Take the mode from `mode_while_charging` and ask `interval_for` for
+  its cadence, as the example does.
+- **The mode flips back and forth.** A raw state of charge is noisy, and one that
+  hovers at 50% crosses the saver threshold on every sample. Smooth it first, with a
+  `Smoother` or a `Median` from `pamoja-kit`, and give the plan the filtered value.
+- **Saver mode never comes.** The thresholds are the wrong way round: a critical
+  threshold above the saver one takes the node straight from active to critical.
+  Keep the critical threshold below the saver one.
+- **Readings drift later every cycle.** The interval runs from one start of work to
+  the next. A node that sleeps the whole interval after its work adds the work to
+  every cycle, so a two-second job on a minute's cadence reports every 62 seconds.
+  Sleep for the interval less the work, as the example's duty cycles do.
+- **The sleep comes out absurdly long, or the program stops.** The work took longer
+  than the interval, and the subtraction went below zero. Rust's `Duration` panics,
+  TypeScript's constructors throw and Python's raise `OverflowError`, but C#'s
+  `ulong` wraps to about 585,000 years unless the code is `checked`. Compare the two
+  before subtracting.
+- **The node sleeps through every period.** The fraction handed to `from_fraction`
+  was zero, negative, or not a number. A budget worked out from an energy meter that
+  did not answer is not a number, and a harvest below the sleep draw leaves nothing
+  to spend.
+- **A TypeScript constructor throws.** Durations are whole microseconds:
+  `activeUs must be a whole number of microseconds, not 1.5`. Multiply seconds by a
+  million and round before building the plan.
 
 ## Where next
 

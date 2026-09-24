@@ -77,10 +77,15 @@ pub extern "C" fn pamoja_duty_cycle_new(active_us: u64, sleep_us: u64) -> Pamoja
 
 /// Creates a duty cycle that spends a fraction of each period awake.
 ///
+/// The time awake is rounded down to a whole microsecond and the rest of the period is
+/// spent asleep, so the two always add up to the period and the awake share never runs
+/// over the fraction.
+///
 /// # Arguments
 ///
 /// * `period_us` - the whole period, in microseconds.
-/// * `fraction` - the share of the period spent awake, clamped to 0.0 through 1.0.
+/// * `fraction` - the share of the period spent awake, clamped to 0.0 through 1.0. A
+///   fraction that is not a number keeps the node asleep for the whole period.
 ///
 /// # Returns
 ///
@@ -91,9 +96,10 @@ pub extern "C" fn pamoja_duty_cycle_from_fraction(
     fraction: f32,
 ) -> PamojaDutyCycle {
     let duty = DutyCycle::from_fraction(Duration::from_micros(period_us), fraction);
+    let active_us = micros(duty.active());
     PamojaDutyCycle {
-        active_us: micros(duty.active()),
-        sleep_us: micros(duty.sleep()),
+        active_us,
+        sleep_us: period_us - active_us,
     }
 }
 
@@ -179,6 +185,9 @@ pub extern "C" fn pamoja_power_plan_with_thresholds(
 }
 
 /// Returns the mode a plan calls for at a state of charge.
+///
+/// A charge that is not a number, such as a fuel gauge that failed to answer, is taken
+/// as critical.
 ///
 /// # Arguments
 ///
@@ -293,6 +302,14 @@ fn rust_mode(mode: PamojaPowerMode) -> PowerMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_split_that_is_not_whole_microseconds_still_adds_up_to_the_period() {
+        let duty = pamoja_duty_cycle_from_fraction(60_000_000, 0.1);
+        assert_eq!(duty.active_us, 6_000_000);
+        assert_eq!(duty.sleep_us, 54_000_000);
+        assert_eq!(pamoja_duty_cycle_period_us(duty), 60_000_000);
+    }
 
     #[test]
     fn a_fraction_splits_the_period() {

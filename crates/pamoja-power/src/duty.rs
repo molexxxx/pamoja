@@ -48,13 +48,20 @@ impl DutyCycle {
     ///
     /// * `period` - the full wake-plus-sleep period.
     /// * `fraction` - the share of the period to stay awake, clamped to
-    ///   `[0.0, 1.0]`.
+    ///   `[0.0, 1.0]`. A fraction that is not a number keeps the node asleep for the
+    ///   whole period, since a budget worked out from a failed reading is no budget.
     ///
     /// # Returns
     ///
     /// A duty cycle whose awake time is `fraction` of `period`.
     pub fn from_fraction(period: Duration, fraction: f32) -> Self {
-        let active = period.mul_f32(unit_interval(fraction));
+        let active = if fraction >= 1.0 {
+            period
+        } else if fraction > 0.0 {
+            period.mul_f64(f64::from(fraction))
+        } else {
+            Duration::ZERO
+        };
         Self {
             active,
             sleep: period - active,
@@ -71,9 +78,10 @@ impl DutyCycle {
         self.sleep
     }
 
-    /// Returns the full period, awake plus asleep.
+    /// Returns the full period, awake plus asleep, held at [`Duration::MAX`] rather
+    /// than overflowing.
     pub fn period(&self) -> Duration {
-        self.active + self.sleep
+        self.active.saturating_add(self.sleep)
     }
 
     /// Returns the share of each period spent awake, in `[0.0, 1.0]`.
@@ -88,18 +96,6 @@ impl DutyCycle {
         } else {
             self.active.as_secs_f32() / period.as_secs_f32()
         }
-    }
-}
-
-// `f32::clamp` lives in `std`, so this `no_std` crate clamps by hand.
-#[allow(clippy::manual_clamp)]
-fn unit_interval(value: f32) -> f32 {
-    if value < 0.0 {
-        0.0
-    } else if value > 1.0 {
-        1.0
-    } else {
-        value
     }
 }
 
@@ -140,5 +136,27 @@ mod tests {
 
         let all_asleep = DutyCycle::from_fraction(Duration::from_secs(10), -1.0);
         assert_eq!(all_asleep.active(), Duration::ZERO);
+    }
+
+    #[test]
+    fn a_fraction_that_is_not_a_number_keeps_the_node_asleep() {
+        let cycle = DutyCycle::from_fraction(Duration::from_secs(10), f32::NAN);
+        assert_eq!(cycle.active(), Duration::ZERO);
+        assert_eq!(cycle.sleep(), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn the_longest_period_splits_without_overflowing() {
+        let whole = DutyCycle::from_fraction(Duration::MAX, 1.0);
+        assert_eq!(whole.active(), Duration::MAX);
+        let nearly = DutyCycle::from_fraction(Duration::MAX, 1.0 - f32::EPSILON);
+        assert!(nearly.active() < Duration::MAX);
+    }
+
+    #[test]
+    fn the_longest_halves_report_their_period_without_overflowing() {
+        let cycle = DutyCycle::new(Duration::MAX, Duration::from_secs(1));
+        assert_eq!(cycle.period(), Duration::MAX);
+        assert!((cycle.fraction() - 1.0).abs() < 1e-6);
     }
 }
