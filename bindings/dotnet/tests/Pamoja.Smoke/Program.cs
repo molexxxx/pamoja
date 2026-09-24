@@ -1661,6 +1661,32 @@ static void ConformProfile(JsonElement vector, double tolerance)
         AssertReactions(control, coldChain.GetProperty("reactions"), tolerance);
     }
 
+    PowerPlan plan = fridge.PowerPlan;
+    foreach (JsonElement charge in coldChain.GetProperty("plan").EnumerateArray())
+    {
+        float soc = charge.GetProperty("soc").GetSingle();
+        Assert(plan.Mode(soc).ToString() == charge.GetProperty("mode").GetString(), $"the mode at {soc}");
+        Assert(plan.IntervalUs(soc) == charge.GetProperty("intervalUs").GetUInt64(), $"the interval at {soc}");
+    }
+
+    JsonElement failed = vector.GetProperty("failedProbe").GetProperty("control");
+    using (Controller heater = Controller.Setpoint(
+        failed.GetProperty("setpoint").GetSingle(),
+        failed.GetProperty("hysteresis").GetSingle(),
+        failed.GetProperty("cooling").GetBoolean(),
+        failed.GetProperty("safeBand").GetSingle()))
+    {
+        AssertReactions(heater, vector.GetProperty("failedProbe").GetProperty("reactions"), tolerance);
+    }
+
+    foreach (JsonElement refused in vector.GetProperty("refused").EnumerateArray())
+    {
+        PamojaException error = Catch<PamojaException>(
+            () => Profile.FromJson(refused.GetProperty("manifest").GetString()!));
+        string reason = refused.GetProperty("reason").GetString()!;
+        Assert(error.Message.Contains(reason), $"{error.Message} should say {reason}");
+    }
+
     JsonElement customVector = vector.GetProperty("custom");
     using var orchard = Profile.FromJson(customVector.GetProperty("manifest").GetString()!);
     Assert(orchard.Name == customVector.GetProperty("name").GetString(), "a custom kind's profile name");
@@ -1734,7 +1760,10 @@ static void AssertReactions(Controller control, JsonElement reactions, double to
 {
     foreach (JsonElement want in reactions.EnumerateArray())
     {
-        double reading = want.GetProperty("reading").GetDouble();
+        JsonElement written = want.GetProperty("reading");
+        double reading = written.ValueKind == JsonValueKind.String
+            ? double.Parse(written.GetString()!, System.Globalization.CultureInfo.InvariantCulture)
+            : written.GetDouble();
         Reaction reaction = control.Evaluate((float)reading);
 
         JsonElement actuator = want.GetProperty("actuator");
@@ -1775,6 +1804,11 @@ static void AssertReactions(Controller control, JsonElement reactions, double to
                     (float)alert.GetProperty("rate").GetDouble(),
                     tolerance,
                     "the rate of change");
+                break;
+            case "InvalidReading":
+                Assert(
+                    float.IsNaN(reaction.Alert.Value.Reading ?? 0f) == double.IsNaN(reading),
+                    "the reading as it arrived");
                 break;
             case "Custom":
                 Assert(

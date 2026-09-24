@@ -114,6 +114,8 @@ pub enum PamojaAlertKind {
     ChangingFast = 3,
     /// A condition a policy of the host's own raised, named by `code`.
     Custom = 4,
+    /// A reading that is not a finite number, such as the NaN a failed probe produces.
+    InvalidReading = 5,
 }
 
 /// What a controller decided about one reading.
@@ -131,7 +133,8 @@ pub struct PamojaReaction {
     pub actuator: bool,
     /// Which threshold the reading crossed.
     pub alert: PamojaAlertKind,
-    /// The offending reading, for [`PamojaAlertKind::OutOfRange`].
+    /// The offending reading, for [`PamojaAlertKind::OutOfRange`] and
+    /// [`PamojaAlertKind::InvalidReading`].
     pub reading: f32,
     /// The estimated samples until empty, for [`PamojaAlertKind::RunningOut`].
     pub samples: u32,
@@ -225,6 +228,10 @@ impl PamojaReaction {
             Some(Alert::ChangingFast { rate }) => {
                 flat.alert = PamojaAlertKind::ChangingFast;
                 flat.rate = rate;
+            }
+            Some(Alert::InvalidReading { reading }) => {
+                flat.alert = PamojaAlertKind::InvalidReading;
+                flat.reading = reading;
             }
             Some(Alert::Custom { code, value }) => {
                 flat.alert = PamojaAlertKind::Custom;
@@ -339,9 +346,10 @@ pub unsafe extern "C" fn pamoja_profile_from_json(manifest: *const c_char) -> *m
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_profile_free`], or null if a
-/// pointer is null, a string is not UTF-8, or the control kind is custom or not one
-/// this library knows, with the reason available from
-/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+/// pointer is null, a string is not UTF-8, the control kind is custom or not one this
+/// library knows, or the profile is one no node could run, such as a hysteresis of
+/// zero or intervals that shorten as the battery drains, with the reason available
+/// from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 ///
 /// # Safety
 ///
@@ -371,7 +379,18 @@ pub unsafe extern "C" fn pamoja_profile_new(
             return ptr::null_mut();
         }
     };
-    PamojaProfile::into_raw(Profile::new(name, topic, control, schedule_of(*power)))
+    checked(Profile::new(name, topic, control, schedule_of(*power)))
+}
+
+/// Hands a profile to the caller once it passes its check, or records why it does not.
+fn checked(profile: Profile) -> *mut PamojaProfile {
+    match profile.check() {
+        Ok(()) => PamojaProfile::into_raw(profile),
+        Err(error) => {
+            set_last_error(error.to_string());
+            ptr::null_mut()
+        }
+    }
 }
 
 /// Creates a profile of the host's own whose control is a kind the library does not
@@ -389,9 +408,10 @@ pub unsafe extern "C" fn pamoja_profile_new(
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_profile_free`], or null if a
-/// pointer is null, a string is not UTF-8, `params` is not such an object, or the kind
-/// is empty, names a built-in kind, or `params` holds a field named `kind`, with the
-/// reason available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+/// pointer is null, a string is not UTF-8, `params` is not such an object, the kind is
+/// empty, names a built-in kind, or `params` holds a field named `kind`, or the name,
+/// topic, or schedule is one no node could run, with the reason available from
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 ///
 /// # Safety
 ///
@@ -419,9 +439,7 @@ pub unsafe extern "C" fn pamoja_profile_new_custom(
     }
     let control = Params::from_json(params).and_then(|params| ControlSpec::custom(kind, params));
     match control {
-        Ok(control) => {
-            PamojaProfile::into_raw(Profile::new(name, topic, control, schedule_of(*power)))
-        }
+        Ok(control) => checked(Profile::new(name, topic, control, schedule_of(*power))),
         Err(error) => {
             set_last_error(error.to_string());
             ptr::null_mut()
@@ -665,8 +683,10 @@ pub unsafe extern "C" fn pamoja_profile_presentation_json(
 /// # Returns
 ///
 /// A handle the caller must release with [`pamoja_profile_free`], or null if
-/// either pointer is null or the JSON is not a presentation, with the reason
-/// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+/// either pointer is null, the JSON is not a presentation, or the presentation holds
+/// something the dashboard could not draw, such as a band whose low end comes second,
+/// with the reason available from
+/// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 ///
 /// # Safety
 ///
@@ -685,9 +705,7 @@ pub unsafe extern "C" fn pamoja_profile_with_presentation_json(
         return ptr::null_mut();
     };
     match Presentation::from_json(presentation) {
-        Ok(presentation) => {
-            PamojaProfile::into_raw(profile.inner.clone().with_presentation(presentation))
-        }
+        Ok(presentation) => checked(profile.inner.clone().with_presentation(presentation)),
         Err(error) => {
             set_last_error(error.to_string());
             ptr::null_mut()
@@ -1158,6 +1176,50 @@ mod tests {
             cooling: false,
             safe_band: 15.0,
         })
+    }
+
+    #[test]
+    fn a_profile_no_node_could_run_is_refused_with_the_reason() {
+        let name = CString::new("raised-bed-drip").unwrap();
+        let topic = CString::new("garden/bed-1/moisture").unwrap();
+        let backwards = PamojaPowerSchedule::from(PowerSchedule::new(300, 60, 3600));
+        // Safety: every pointer is valid for the call.
+        let profile =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), &drip_band(), &backwards) };
+        assert!(profile.is_null());
+        assert!(last_error().contains("must not shorten"));
+
+        let schedule = PamojaPowerSchedule::from(PowerSchedule::new(300, 1800, 3600));
+        let mut chattering = drip_band();
+        chattering.hysteresis = 0.0;
+        // Safety: every pointer is valid for the call.
+        let profile =
+            unsafe { pamoja_profile_new(name.as_ptr(), topic.as_ptr(), &chattering, &schedule) };
+        assert!(profile.is_null());
+        assert!(last_error().contains("chatters"));
+
+        let upside_down = CString::new(
+            r#"{ "elements": [{ "key": "soil", "unit": "percent", "label": "Soil", "viz": "droplet", "band": [60.0, 10.0] }] }"#,
+        )
+        .unwrap();
+        // Safety: the handle is released here and the strings are valid.
+        unsafe {
+            let drip = pamoja_profile_irrigation_node();
+            assert!(pamoja_profile_with_presentation_json(drip, upside_down.as_ptr()).is_null());
+            assert!(last_error().contains("the low end comes first"));
+            pamoja_profile_free(drip);
+        }
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_crosses_as_its_own_alert() {
+        let flat = PamojaReaction::flatten(pamoja_profile::Reaction {
+            actuator: Some(true),
+            alert: Some(Alert::InvalidReading { reading: f32::NAN }),
+        });
+        assert_eq!(flat.alert, PamojaAlertKind::InvalidReading);
+        assert!(flat.reading.is_nan());
+        assert!(flat.has_actuator && flat.actuator);
     }
 
     #[test]

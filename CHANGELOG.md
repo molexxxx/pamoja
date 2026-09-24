@@ -874,6 +874,17 @@ released together, so one entry covers all of them.
   TypeScript and Python, `Routes()` in C#, and `pamoja_router_route_at` in C. `Router<N>`
   gains `capacity()`, as the table sized at run time has. In Python, a `Route` and a
   `ForwardDecision` print their fields.
+- `Profile::check` refuses what a manifest can say that no node could run, with the field
+  and the reason: an empty name, a topic that is empty or holds `+` or `#`, a control
+  value that is not a finite number, a hysteresis of zero, a safe band narrower than the
+  hysteresis, a level that warns within no samples, a surge limit of zero, a zero
+  interval or intervals that shorten as the battery drains, thresholds out of order, and
+  a dashboard element or message the dashboard could not draw. `Presentation::check` runs
+  the dashboard half on its own. `cargo xtask profiles` leaves these to the parser and
+  keeps the catalog's own conventions.
+- A profile's power governor in every language: `powerPlan()` in TypeScript and
+  `power_plan()` in Python, as `PowerPlan` in C# and `power.plan()` in Rust, so a program
+  asks what mode a charge puts the node in and how long it waits there.
 
 ### Changed
 
@@ -1165,6 +1176,21 @@ released together, so one entry covers all of them.
   takes 2 sends where a flood of it takes 6. The page gains a paragraph for each language,
   tables of what a report does to the table, what a packet gets, the table's size and
   memory, and the costs the site learned, and a section on what goes wrong.
+- `Profile::from_json` runs `Profile::check` on every manifest it loads, and in
+  TypeScript, Python, and C# so do the profile constructor and `withPresentation`, where
+  each accepted a profile no node could run and let it run wrong.
+- The Python profile binding raises `PamojaError` for a manifest or a custom kind the
+  core refuses, as the rest of the binding does, where it raised `ValueError`, which stays
+  for an argument of the wrong shape.
+- The device profiles guide walks one controller through a morning of readings. It built
+  a new controller for each reading, so its lamp read off at 32.2 C inside the deadband
+  while the comment above said it stayed on, and it printed booleans that read differently
+  in each language. It gains the power plan's modes, the level and surge policies on the
+  shipped presets, and a part on what goes wrong: a failed probe, a controller built again
+  for each reading, two refused manifests, a misspelled field, and a custom kind with no
+  policy. The page gains a paragraph for each language, tables of a manifest's fields, the
+  control kinds, the alerts, the power schedule, and the refusals, and a section on what
+  goes wrong.
 
 ### Fixed
 
@@ -1453,6 +1479,11 @@ released together, so one entry covers all of them.
   the largest native size and TypeScript wrapped it to four billion routes, and neither
   allocation could be made. C# throws `ArgumentOutOfRangeException` now, and TypeScript
   refuses it, or a fraction, with `a capacity must be a whole number from 0 up, not -1`.
+- A reading that is not a finite number, such as the NaN a failed probe produces, raised
+  nothing under any profile policy, so a node whose sensor had failed looked like one whose
+  readings were fine. The setpoint, level, and surge policies raise `InvalidReading` for it
+  now, in every language, and change nothing else: a setpoint's output holds its last
+  state, and a level or a surge carries on from the last good reading.
 
 ## [0.1.18] - 2026-09-10
 

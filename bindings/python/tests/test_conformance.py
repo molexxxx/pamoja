@@ -6,6 +6,7 @@ Rust, Node, and .NET.
 """
 
 import json
+import math
 import re
 import pathlib
 
@@ -2800,9 +2801,13 @@ def _assert_control(policy, want: dict) -> None:
 
 
 def _assert_reactions(control, reactions: list[dict]) -> None:
-    """Walks a controller through a recorded run and checks every decision."""
+    """Walks a controller through a recorded run and checks every decision.
+
+    A reading JSON cannot hold, such as NaN, is written as text.
+    """
     for want in reactions:
-        reaction = control.evaluate(want["reading"])
+        reading = float(want["reading"])
+        reaction = control.evaluate(reading)
         assert reaction.actuator == want["actuator"], (
             f"the output setting at {want['reading']}"
         )
@@ -2827,6 +2832,8 @@ def _assert_reactions(control, reactions: list[dict]) -> None:
             assert reaction.alert.rate == pytest.approx(
                 want["alert"]["rate"], abs=TOLERANCE
             )
+        elif kind == "InvalidReading":
+            assert math.isnan(reaction.alert.reading) == math.isnan(reading)
 
 
 def test_profile_vectors_match():
@@ -2842,6 +2849,21 @@ def test_profile_vectors_match():
         cold_chain["power"]["saverBelow"], abs=TOLERANCE
     )
     _assert_reactions(fridge.controller(), cold_chain["reactions"])
+
+    plan = fridge.power_plan()
+    for charge in cold_chain["plan"]:
+        assert plan.mode(charge["soc"]) == charge["mode"]
+        assert plan.interval_us(charge["soc"]) == charge["intervalUs"]
+
+    failed = vector["failedProbe"]["control"]
+    heater = profile.Controller.setpoint(
+        failed["setpoint"], failed["hysteresis"], failed["cooling"], failed["safeBand"]
+    )
+    _assert_reactions(heater, vector["failedProbe"]["reactions"])
+
+    for case in vector["refused"]:
+        with pytest.raises(PamojaError, match=re.escape(case["reason"])):
+            profile.Profile.from_json(case["manifest"])
 
     draining = vector["draining"]
     well = profile.Profile.well_level()

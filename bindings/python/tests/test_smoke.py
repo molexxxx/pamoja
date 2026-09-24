@@ -1710,7 +1710,7 @@ def test_a_profile_manifest_round_trips():
     assert reloaded.control.kind == original.control.kind
     assert reloaded.power.active_secs == original.power.active_secs
 
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         profile.Profile.from_json("{")
 
 
@@ -1735,9 +1735,11 @@ def test_a_profile_is_built_from_its_parts():
     with pytest.raises(ValueError, match="a Setpoint control needs hysteresis"):
         missing = profile.ControlPolicy(profile.ControlKind.SETPOINT, setpoint=1.0)
         profile.Profile("x", "t", missing, hourly)
-    with pytest.raises(ValueError, match="level is a built-in control kind"):
+    with pytest.raises(PamojaError, match="level is a built-in control kind"):
         built_in = profile.ControlPolicy(profile.ControlKind.CUSTOM, custom_kind="level")
         profile.Profile("x", "t", built_in, hourly)
+    with pytest.raises(PamojaError, match="must not shorten"):
+        profile.Profile("x", "t", band, profile.PowerScheduleSpec(300, 60, 3600))
     with pytest.raises(ValueError, match='kind must be "Setpoint"'):
         profile.ControlPolicy("Sideways")
     with pytest.raises(ValueError, match="parameter zones must be a number"):

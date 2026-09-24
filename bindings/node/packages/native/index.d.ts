@@ -2585,8 +2585,9 @@ export declare class Profile {
    *   read, and `cooling` and `rising` are false unless given.
    * @param power - how often the node samples as the battery drains.
    * @throws when the control lacks a field its kind needs, a custom kind is empty,
-   *   built in, or has a parameter named `kind`, or a schedule's seconds are not a
-   *   whole number.
+   *   built in, or has a parameter named `kind`, a schedule's seconds are not a
+   *   whole number, or the profile is one no node could run, such as a hysteresis of
+   *   zero or intervals that shorten as the battery drains.
    */
   constructor(name: string, topic: string, control: ControlPolicy, power: PowerScheduleSettings)
   /** A cold-chain fridge monitor, which holds 5 C and flags an excursion. */
@@ -2600,7 +2601,7 @@ export declare class Profile {
   /**
    * Loads a profile from its JSON manifest.
    *
-   * Throws if the manifest is malformed.
+   * Throws if the manifest is malformed, or describes a profile no node could run.
    */
   static fromJson(manifest: string): Profile
   /** Serializes this profile to its JSON manifest. */
@@ -2621,14 +2622,26 @@ export declare class Profile {
   /**
    * A copy of this profile carrying a dashboard presentation.
    *
-   * Throws if a band is not two numbers.
+   * Throws if a band is not two numbers, or the presentation holds something the
+   * dashboard could not draw, such as a band whose low end comes second.
    */
   withPresentation(presentation: Presentation): Profile
   /** The control policy applied to each reading. */
   get control(): ControlPolicy
   /** The sampling schedule kept as the battery drains. */
   get power(): PowerScheduleSpec
-  /** Builds the decision logic this profile describes. */
+  /**
+   * The schedule assembled into the power governor, which says what mode a charge puts
+   * the node in and how long it waits between samples there.
+   */
+  powerPlan(): PowerPlan
+  /**
+   * Builds the decision logic this profile describes.
+   *
+   * Each call builds a new controller, so keep the one it returns for the life of the
+   * node: one built again for each reading forgets whether its output was on and what
+   * the reading before was.
+   */
   controller(): Controller
 }
 
@@ -3813,6 +3826,12 @@ export declare const enum AlertKind {
   RunningOut = 'RunningOut',
   /** A reading is changing faster than its safe rate. */
   ChangingFast = 'ChangingFast',
+  /**
+   * A reading that is not a finite number, such as the NaN a failed probe produces.
+   * It changes nothing: a setpoint's output holds, and a level or a surge carries on
+   * from the last good reading.
+   */
+  InvalidReading = 'InvalidReading',
   /** A condition a policy of the program's own raised, named by `code`. */
   Custom = 'Custom',
 }
@@ -3821,7 +3840,7 @@ export declare const enum AlertKind {
 export interface AlertReport {
   /** Which threshold the reading crossed. */
   kind: AlertKind
-  /** The offending reading, for an out-of-range alert. */
+  /** The offending reading, for an out-of-range or invalid-reading alert. */
   reading?: number
   /** The estimated samples until empty, for a running-out alert. */
   samples?: number

@@ -29,6 +29,8 @@ use pamoja_profile::{
     Profile as CoreProfile, Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz as CoreViz,
 };
 
+use crate::power::PowerPlan;
+
 /// One parameter of a custom control kind: a number, a flag, or text.
 type ParamValue = Either3<f64, bool, String>;
 
@@ -214,6 +216,10 @@ pub enum AlertKind {
     RunningOut,
     /// A reading is changing faster than its safe rate.
     ChangingFast,
+    /// A reading that is not a finite number, such as the NaN a failed probe produces.
+    /// It changes nothing: a setpoint's output holds, and a level or a surge carries on
+    /// from the last good reading.
+    InvalidReading,
     /// A condition a policy of the program's own raised, named by `code`.
     Custom,
 }
@@ -223,7 +229,7 @@ pub enum AlertKind {
 pub struct AlertReport {
     /// Which threshold the reading crossed.
     pub kind: AlertKind,
-    /// The offending reading, for an out-of-range alert.
+    /// The offending reading, for an out-of-range or invalid-reading alert.
     pub reading: Option<f64>,
     /// The estimated samples until empty, for a running-out alert.
     pub samples: Option<u32>,
@@ -561,6 +567,14 @@ fn reaction_of(reaction: CoreReaction) -> Reaction {
                 code: None,
                 value: None,
             },
+            CoreAlert::InvalidReading { reading } => AlertReport {
+                kind: AlertKind::InvalidReading,
+                reading: Some(f64::from(reading)),
+                samples: None,
+                rate: None,
+                code: None,
+                value: None,
+            },
             CoreAlert::Custom { code, value } => AlertReport {
                 kind: AlertKind::Custom,
                 reading: None,
@@ -590,8 +604,9 @@ impl Profile {
     ///   read, and `cooling` and `rising` are false unless given.
     /// @param power - how often the node samples as the battery drains.
     /// @throws when the control lacks a field its kind needs, a custom kind is empty,
-    ///   built in, or has a parameter named `kind`, or a schedule's seconds are not a
-    ///   whole number.
+    ///   built in, or has a parameter named `kind`, a schedule's seconds are not a
+    ///   whole number, or the profile is one no node could run, such as a hysteresis of
+    ///   zero or intervals that shorten as the battery drains.
     #[napi(constructor)]
     pub fn new(
         name: String,
@@ -599,9 +614,12 @@ impl Profile {
         control: ControlPolicy,
         power: PowerScheduleSettings,
     ) -> napi::Result<Self> {
-        Ok(Self {
-            inner: CoreProfile::new(name, topic, spec_of(control)?, schedule_from(power)?),
-        })
+        checked(CoreProfile::new(
+            name,
+            topic,
+            spec_of(control)?,
+            schedule_from(power)?,
+        ))
     }
 
     /// A cold-chain fridge monitor, which holds 5 C and flags an excursion.
@@ -638,7 +656,7 @@ impl Profile {
 
     /// Loads a profile from its JSON manifest.
     ///
-    /// Throws if the manifest is malformed.
+    /// Throws if the manifest is malformed, or describes a profile no node could run.
     #[napi(factory)]
     pub fn from_json(manifest: String) -> napi::Result<Self> {
         CoreProfile::from_json(&manifest)
@@ -687,15 +705,15 @@ impl Profile {
 
     /// A copy of this profile carrying a dashboard presentation.
     ///
-    /// Throws if a band is not two numbers.
+    /// Throws if a band is not two numbers, or the presentation holds something the
+    /// dashboard could not draw, such as a band whose low end comes second.
     #[napi]
     pub fn with_presentation(&self, presentation: Presentation) -> napi::Result<Profile> {
-        Ok(Profile {
-            inner: self
-                .inner
+        checked(
+            self.inner
                 .clone()
                 .with_presentation(core_presentation(presentation)?),
-        })
+        )
     }
 
     /// The control policy applied to each reading.
@@ -710,13 +728,30 @@ impl Profile {
         schedule_of(self.inner.power)
     }
 
+    /// The schedule assembled into the power governor, which says what mode a charge puts
+    /// the node in and how long it waits between samples there.
+    #[napi]
+    pub fn power_plan(&self) -> PowerPlan {
+        PowerPlan::of(self.inner.power.plan())
+    }
+
     /// Builds the decision logic this profile describes.
+    ///
+    /// Each call builds a new controller, so keep the one it returns for the life of the
+    /// node: one built again for each reading forgets whether its output was on and what
+    /// the reading before was.
     #[napi]
     pub fn controller(&self) -> Controller {
         Controller {
             inner: self.inner.controller(),
         }
     }
+}
+
+/// Hands a profile to JavaScript once it passes its check, or says why it does not.
+fn checked(inner: CoreProfile) -> napi::Result<Profile> {
+    inner.check().map_err(to_napi)?;
+    Ok(Profile { inner })
 }
 
 /// The decision logic a profile assembles.

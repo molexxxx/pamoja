@@ -980,12 +980,13 @@ class AlertReport:
     def kind(self) -> builtins.str:
         r"""
         Which threshold the reading crossed: `OutOfRange`, `RunningOut`,
-        `ChangingFast`, or `Custom` for a condition the program's own policy raised.
+        `ChangingFast`, `InvalidReading` for a reading that is not a finite number, or
+        `Custom` for a condition the program's own policy raised.
         """
     @property
     def reading(self) -> typing.Optional[builtins.float]:
         r"""
-        The offending reading, for an out-of-range alert.
+        The offending reading, for an out-of-range or invalid-reading alert.
         """
     @property
     def samples(self) -> typing.Optional[builtins.int]:
@@ -9620,8 +9621,10 @@ class Profile:
         Creates a profile of the program's own from its parts, with no description and
         no presentation.
         
-        Raises `ValueError` if the control lacks a field its kind needs, or a custom kind
-        is empty, built in, or has a parameter named `kind`.
+        Raises `ValueError` if the control lacks a field its kind needs, and
+        `PamojaError` if a custom kind is empty, built in, or has a parameter named
+        `kind`, or the profile is one no node could run, such as a hysteresis of zero or
+        intervals that shorten as the battery drains.
         """
     @staticmethod
     def vaccine_fridge_monitor() -> Profile:
@@ -9648,7 +9651,8 @@ class Profile:
         r"""
         Loads a profile from its JSON manifest.
         
-        Raises `ValueError` if the manifest is malformed.
+        Raises `PamojaError` if the manifest is malformed, or describes a profile no node
+        could run.
         """
     def to_json(self) -> builtins.str:
         r"""
@@ -9662,11 +9666,22 @@ class Profile:
         r"""
         A copy of this profile carrying a dashboard presentation.
         
-        Raises `ValueError` if an element names a graphic the dashboard does not draw.
+        Raises `ValueError` if an element names a graphic the dashboard does not draw, and
+        `PamojaError` if the presentation holds something else the dashboard could not
+        draw, such as a band whose low end comes second.
+        """
+    def power_plan(self) -> PowerPlan:
+        r"""
+        The schedule assembled into the power governor, which says what mode a charge puts
+        the node in and how long it waits between samples there.
         """
     def controller(self) -> Controller:
         r"""
         Builds the decision logic this profile describes.
+        
+        Each call builds a new controller, so keep the one it returns for the life of the
+        node: one built again for each reading forgets whether its output was on and what
+        the reading before was.
         """
 
 @typing.final

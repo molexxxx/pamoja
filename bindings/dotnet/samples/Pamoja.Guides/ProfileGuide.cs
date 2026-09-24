@@ -1,5 +1,8 @@
+using Pamoja;
+using Pamoja.Power;
 using Pamoja.Profile;
 
+using static System.FormattableString;
 using static Guides.Guide;
 
 namespace Guides;
@@ -11,8 +14,8 @@ public static class ProfileGuide
     public static void Run()
     {
         // ANCHOR: example
-        // A profile is plain data, so a fleet ships one as a file rather than as code. The
-        // two power thresholds are optional and fall back to the documented defaults.
+        // A profile is plain data, so a fleet ships one as a file rather than as code.
+        // This manifest names no battery thresholds, so the documented defaults apply.
         const string manifest = """
         {
             "name": "brooder-heater",
@@ -24,31 +27,53 @@ public static class ProfileGuide
             "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
         }
         """;
-
         using var profile = Profile.FromJson(manifest);
-        Console.WriteLine($"{profile.Name} reports on {profile.Topic}");
-        Console.WriteLine(
-            $"wakes every {profile.Power.ActiveSecs}s while the battery is healthy");
-        Console.WriteLine($"saver mode below {profile.Power.SaverBelow * 100:F0}% charge");
+        Console.WriteLine($"profile   {profile.Name} reports on {profile.Topic}");
+        Console.WriteLine(Invariant(
+            $"defaults  the file names no battery thresholds, so saver starts below {profile.Power.SaverBelow * 100:F0}% and critical below {profile.Power.CriticalBelow * 100:F0}%"));
 
-        // The manifest is the whole control loop. At 27.5 C the reading is below the
-        // deadband, so the lamp switches on, and it is more than 4 C from target, so the
-        // chicks are cold.
-        Reaction cold = profile.Controller().Evaluate(27.5f);
-        Console.WriteLine($"at 27.5 C: lamp {cold.Actuator}, alert {cold.Alert?.Kind}");
+        // The schedule becomes a power plan, which says what mode a charge puts the node
+        // in and how long it waits between samples there, in microseconds.
+        PowerPlan plan = profile.PowerPlan;
+        foreach (float charge in new[] { 0.8f, 0.3f, 0.1f })
+        {
+            Console.WriteLine(Invariant(
+                $"battery   at {charge * 100:F0}% it runs {plan.Mode(charge)} and samples every {plan.IntervalUs(charge) / 1_000_000} s"));
+        }
 
-        // Back inside the deadband the lamp is left as it was, and nothing is raised.
-        Reaction settled = profile.Controller().Evaluate(32.2f);
-        string quiet = settled.Alert?.Kind.ToString() ?? "none";
-        Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
+        // One controller runs for the life of the node, because it remembers whether the
+        // lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above,
+        // the setpoint less and plus the hysteresis, and in between it stays as it was. A
+        // reading more than 4 C from the setpoint raises an alert as well.
+        using Controller controller = profile.Controller();
+        bool lamp = false;
+        foreach (float reading in new[] { 27.5f, 31.8f, 32.6f, 32.1f, 31.4f })
+        {
+            Reaction reaction = controller.Evaluate(reading);
+            bool on = reaction.Actuator == true;
+            string change = on
+                ? lamp ? "lamp stays on" : "lamp on"
+                : lamp ? "lamp off" : "lamp stays off";
+            string alert = reaction.Alert is { } raised ? $", alert {raised.Kind}" : "";
+            string at = Invariant($"{reading} C");
+            Console.WriteLine($"{at,-10}{change}{alert}");
+            lamp = on;
+        }
 
-        // Serializing writes the defaulted fields out in full, so a profile edited on a
-        // device and shared back carries no value the next reader has to infer.
+        // Written back out, the manifest names the thresholds the file left to their
+        // defaults, so the next reader has nothing to infer, and it loads as the same
+        // profile.
         string shared = profile.ToJson();
-        Console.WriteLine($"shared form names its defaults: {shared.Contains("saver_below")}");
+        using (var reloaded = Profile.FromJson(shared))
+        {
+            if (shared.Contains("saver_below") && reloaded.ToJson() == shared)
+            {
+                Console.WriteLine("shared    written back out, it names saver_below and loads as the same profile");
+            }
+        }
 
         // The manifest also carries how a dashboard draws the node: one element here, the
-        // brooder's temperature as a thermometer with the band the chicks are safe in.
+        // brooder's temperature on a thermometer with the band the chicks are safe in.
         using var drawn = profile.WithPresentation(new Presentation(
         [
             new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
@@ -57,21 +82,115 @@ public static class ProfileGuide
             },
         ]));
         ElementSpec element = drawn.Presentation!.Elements[0];
-        Console.WriteLine(
-            $"draws {element.Key} in {element.Unit} with a safe band of {element.Band![0]} to {element.Band![1]}");
+        string graphic = element.Viz.ToString().ToLowerInvariant();
+        Console.WriteLine(Invariant(
+            $"draws     {element.Key} in {element.Unit} on a {graphic}, safe from {element.Band![0]} to {element.Band[1]}"));
         // ANCHOR_END: example
 
-        Expect(profile.Control.Kind == ControlKind.Setpoint, "the control policy is a setpoint");
-        Expect(profile.Control.Setpoint == 32.0f, "held at 32 C");
-        Expect(profile.Control.Cooling == false, "by heating rather than cooling");
-        Expect(profile.Power.ActiveSecs == 120, "it samples every two minutes at charge");
-        Expect(profile.Power.SaverBelow == 0.5f, "and the default saver threshold applies");
-        Expect(cold.Actuator == true, "below the deadband the lamp comes on");
-        Expect(cold.Alert?.Kind == AlertKind.OutOfRange, "and the drift is reported");
-        Expect(settled.Alert is null, "inside it nothing is raised");
-        Expect(shared.Contains("saver_below"), "the shared form names its defaults");
-        Expect(element.Viz == Viz.Thermometer, "the graphic comes back typed");
-        Expect(element.Band is [28f, 36f], "and so does the band");
-        Expect(drawn.ToJson().Contains("\"viz\": \"thermometer\""), "the manifest names the graphic");
+        Expect(lamp, "the morning ends with the lamp on");
+        Expect(profile.Power.SaverBelow == 0.5f, "the saver threshold defaults to half");
+
+        // ANCHOR: kinds
+        // A level warns before a tank or a well runs dry. The shipped well profile counts
+        // 0.5 m as dry and warns once the last fall puts dry six samples away or nearer.
+        using (var wellLevel = Profile.WellLevel())
+        using (Controller well = wellLevel.Controller())
+        {
+            foreach (float depth in new[] { 5.0f, 4.4f, 3.8f })
+            {
+                Console.WriteLine(well.Evaluate(depth).Alert is { Kind: AlertKind.RunningOut } alert
+                    ? Invariant($"well      {depth} m: dry in {alert.Samples} samples at this rate, RunningOut")
+                    : Invariant($"well      {depth} m: no warning yet"));
+            }
+        }
+
+        // A surge warns when a reading moves too far in one sample. The shipped flood
+        // sensor warns when a river rises more than 0.3 m between two readings.
+        using (var floodSensor = Profile.FloodSensor())
+        using (Controller river = floodSensor.Controller())
+        {
+            foreach (float gauge in new[] { 1.2f, 1.35f, 1.9f })
+            {
+                Console.WriteLine(river.Evaluate(gauge).Alert is { Kind: AlertKind.ChangingFast } alert
+                    ? Invariant($"river     {gauge} m: up {alert.Rate:F2} m in one sample, ChangingFast")
+                    : Invariant($"river     {gauge} m: no warning"));
+            }
+        }
+        // ANCHOR_END: kinds
+
+        // ANCHOR: wrong
+        // A probe that fails reports a reading that is not a number. The controller raises
+        // it rather than going quiet, and the lamp holds its state; what off means for the
+        // chicks is the node's call.
+        Reaction failed = controller.Evaluate(float.NaN);
+        if (failed.Alert is { } invalid)
+        {
+            string holds = failed.Actuator == true ? "on" : "off";
+            Console.WriteLine($"probe     a reading of NaN raises {invalid.Kind}, and the lamp holds {holds}");
+        }
+
+        // A controller built again for each reading forgets the lamp was on, so inside the
+        // deadband it switches the lamp off.
+        bool? first;
+        bool? then;
+        using (Controller once = profile.Controller())
+        {
+            first = once.Evaluate(27.5f).Actuator;
+        }
+
+        using (Controller again = profile.Controller())
+        {
+            then = again.Evaluate(31.8f).Actuator;
+        }
+
+        if (first == true && then == false)
+        {
+            Console.WriteLine("fresh     built again for each reading, the controller turns the lamp off at 31.8 C");
+        }
+
+        // A manifest no node could run is refused as it loads, with the reason.
+        foreach (string edited in new[]
+        {
+            manifest.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
+            manifest.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+        })
+        {
+            try
+            {
+                using var accepted = Profile.FromJson(edited);
+                Console.WriteLine("a manifest no node could run was accepted, which should never happen");
+            }
+            catch (PamojaException error)
+            {
+                Console.WriteLine($"refused   {error.Message}");
+            }
+        }
+
+        // A misspelled optional field is not an error: it names no field, so the default
+        // stays. Writing the profile back out shows what the node understood.
+        string misspelled = manifest.Replace(
+            "\"critical_secs\": 1800 }",
+            "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }");
+        using (var understood = Profile.FromJson(misspelled))
+        {
+            Console.WriteLine(Invariant(
+                $"typo      saver_bellow names no field, so saver still starts below {understood.Power.SaverBelow * 100:F0}%"));
+        }
+
+        // A kind the library does not ship loads with its parameters and runs as a monitor
+        // until the node supplies the policy, so it drives nothing and raises nothing.
+        using var custom = Profile.FromJson(manifest.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
+        ControlPolicy policy = custom.Control;
+        if (policy.Kind == ControlKind.Custom)
+        {
+            using Controller inert = custom.Controller();
+            Reaction reaction = inert.Evaluate(27.5f);
+            if (reaction.Actuator is null && reaction.Alert is null)
+            {
+                Console.WriteLine(
+                    $"custom    {policy.CustomKind} loads with {policy.Params!.Count} parameters, and with no policy behind it drives nothing");
+            }
+        }
+        // ANCHOR_END: wrong
     }
 }

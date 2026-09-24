@@ -13,6 +13,7 @@ use serde::de::{self, Deserializer};
 use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 
+use crate::presentation::refuse;
 use crate::{Controller, ElementSpec, LocalizedText, Param, Params, Presentation, Viz};
 
 /// How a profile turns each reading into control output and alerts.
@@ -650,6 +651,11 @@ impl Profile {
 
     /// Assembles this profile's [`ControlSpec`] into a live [`Controller`].
     ///
+    /// Each call builds a new controller, so keep the one it returns for the life of the
+    /// node. One built again for each reading forgets whether its output was on and what
+    /// the reading before was, so a heater never holds through its deadband and a level
+    /// or a surge never has a previous reading to measure against.
+    ///
     /// A custom kind has no built-in controller; for one this returns a monitoring
     /// controller, and a [`PolicyRegistry`](crate::PolicyRegistry) resolves the kind to
     /// the code that decides it.
@@ -804,6 +810,150 @@ impl Profile {
         self.description = Some(description.into());
         self
     }
+
+    /// Checks the profile for what a manifest can say that a node or a dashboard could not
+    /// make sense of.
+    ///
+    /// A manifest is written by hand and shared, so [`from_json`](Profile::from_json) runs
+    /// this on every one it loads, and each language's constructor runs it on the parts it
+    /// is given. A profile built in Rust can run it too.
+    ///
+    /// # Returns
+    ///
+    /// Nothing when the profile is usable.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) naming the first problem:
+    ///
+    /// - an empty name, or a topic that is empty or holds `+` or `#`, which make it a
+    ///   filter rather than a place to publish;
+    /// - a control value that is not a finite number, a hysteresis of zero or less, a
+    ///   safe band narrower than the hysteresis, a level that warns within no samples, or
+    ///   a surge limit of zero or less;
+    /// - a sampling interval of zero, intervals that shorten as the battery drains, a
+    ///   saver threshold outside 0 to 1, or a critical threshold that is not between 0 and
+    ///   the saver threshold;
+    /// - anything [`Presentation::check`] refuses in the presentation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ControlSpec, PowerSchedule, Profile};
+    ///
+    /// // A deadband of zero switches the output on and off on every reading near the
+    /// // setpoint, which wears out a relay.
+    /// let chattering = Profile::new(
+    ///     "cellar-heater",
+    ///     "home/cellar/temperature",
+    ///     ControlSpec::Setpoint { setpoint: 8.0, hysteresis: 0.0, cooling: false, safe_band: 5.0 },
+    ///     PowerSchedule::new(300, 900, 1800),
+    /// );
+    /// let refused = chattering.check().unwrap_err().to_string();
+    /// assert!(refused.contains("the output chatters at the setpoint"));
+    /// ```
+    pub fn check(&self) -> pamoja_core::Result<()> {
+        if self.name.trim().is_empty() {
+            return refuse("`name` must not be empty".to_owned());
+        }
+        let topic = &self.topic;
+        if topic.is_empty() {
+            return refuse("the topic is empty".to_owned());
+        }
+        if topic.contains(['+', '#']) {
+            return refuse(format!(
+                "the topic `{topic}` is a filter; a profile publishes to one topic"
+            ));
+        }
+        self.check_control()?;
+        self.check_power()?;
+        match &self.presentation {
+            Some(presentation) => presentation.check(),
+            None => Ok(()),
+        }
+    }
+
+    /// Checks the control policy's values, which the deserializer reads by type alone.
+    fn check_control(&self) -> pamoja_core::Result<()> {
+        let finite = |name: &str, value: f32| {
+            if value.is_finite() {
+                Ok(())
+            } else {
+                refuse(format!("`{name}` must be a finite number, not {value}"))
+            }
+        };
+        match self.control {
+            ControlSpec::Setpoint {
+                setpoint,
+                hysteresis,
+                safe_band,
+                ..
+            } => {
+                finite("setpoint", setpoint)?;
+                finite("hysteresis", hysteresis)?;
+                finite("safe_band", safe_band)?;
+                if hysteresis <= 0.0 {
+                    return refuse(
+                        "`hysteresis` must be above zero, or the output chatters at the setpoint"
+                            .to_owned(),
+                    );
+                }
+                if safe_band < hysteresis {
+                    return refuse(format!(
+                        "`safe_band` ({safe_band}) is narrower than `hysteresis` ({hysteresis}), so an alert would fire inside the deadband"
+                    ));
+                }
+                Ok(())
+            }
+            ControlSpec::Level { empty, warn_within } => {
+                finite("empty", empty)?;
+                if warn_within == 0 {
+                    return refuse(
+                        "`warn_within` must be at least one sample, or the warning never comes"
+                            .to_owned(),
+                    );
+                }
+                Ok(())
+            }
+            ControlSpec::Surge { limit, .. } => {
+                finite("limit", limit)?;
+                if limit <= 0.0 {
+                    return refuse(
+                        "`limit` must be above zero, or every sample is a surge".to_owned(),
+                    );
+                }
+                Ok(())
+            }
+            ControlSpec::Monitor | ControlSpec::Custom { .. } => Ok(()),
+        }
+    }
+
+    /// Checks that the schedule slows down as the battery drains.
+    fn check_power(&self) -> pamoja_core::Result<()> {
+        let power = &self.power;
+        if power.active_secs == 0 {
+            return refuse("`active_secs` must be at least one second".to_owned());
+        }
+        if !(power.active_secs <= power.saver_secs && power.saver_secs <= power.critical_secs) {
+            return refuse(format!(
+                "the intervals must not shorten as the battery drains: active {} s, saver {} s, critical {} s",
+                power.active_secs, power.saver_secs, power.critical_secs
+            ));
+        }
+        if !(power.saver_below > 0.0 && power.saver_below <= 1.0) {
+            return refuse(format!(
+                "`saver_below` must be a state of charge above 0 and at most 1, not {}",
+                power.saver_below
+            ));
+        }
+        if !(power.critical_below > 0.0 && power.critical_below < power.saver_below) {
+            return refuse(format!(
+                "`critical_below` must sit between 0 and `saver_below` ({}), not {}",
+                power.saver_below, power.critical_below
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "json")]
@@ -824,7 +974,8 @@ impl Profile {
     /// # Errors
     ///
     /// Returns [`Error::Codec`](pamoja_core::Error::Codec) if `manifest` is not valid
-    /// JSON or does not describe a profile.
+    /// JSON, does not describe a profile, or describes one [`check`](Profile::check)
+    /// refuses.
     ///
     /// # Examples
     ///
@@ -848,7 +999,10 @@ impl Profile {
     /// assert!(control.evaluate(2.0).alert.is_some()); // falling fast toward empty
     /// ```
     pub fn from_json(manifest: &str) -> pamoja_core::Result<Self> {
-        serde_json::from_str(manifest).map_err(|error| pamoja_core::Error::Codec(error.to_string()))
+        let profile: Profile = serde_json::from_str(manifest)
+            .map_err(|error| pamoja_core::Error::Codec(error.to_string()))?;
+        profile.check()?;
+        Ok(profile)
     }
 
     /// Serializes this profile to a JSON manifest a community can share.
@@ -1028,5 +1182,111 @@ mod tests {
         let shared = described.to_json().unwrap();
         assert!(shared.contains("\"description\": \"Warns before a rain tank runs dry.\""));
         assert_eq!(Profile::from_json(&shared).unwrap(), described);
+    }
+
+    #[test]
+    fn every_preset_passes_its_own_check() {
+        for preset in [
+            Profile::vaccine_fridge_monitor(),
+            Profile::irrigation_node(),
+            Profile::well_level(),
+            Profile::flood_sensor(),
+        ] {
+            preset
+                .check()
+                .unwrap_or_else(|error| panic!("{}: {error}", preset.name));
+        }
+    }
+
+    #[test]
+    fn a_profile_no_node_could_run_is_refused_with_the_reason() {
+        let base = || {
+            Profile::new(
+                "brooder",
+                "poultry/brooder/temperature",
+                ControlSpec::Setpoint {
+                    setpoint: 32.0,
+                    hysteresis: 0.5,
+                    cooling: false,
+                    safe_band: 4.0,
+                },
+                PowerSchedule::new(120, 600, 1800),
+            )
+        };
+        base().check().expect("the base profile is usable");
+        let refused = |profile: Profile| profile.check().unwrap_err().to_string();
+
+        let mut unnamed = base();
+        unnamed.name = " ".to_owned();
+        assert!(refused(unnamed).contains("`name` must not be empty"));
+        let mut filter = base();
+        filter.topic = "poultry/+/temperature".to_owned();
+        assert!(refused(filter).contains("is a filter"));
+
+        let setpoint = |hysteresis: f32, safe_band: f32| {
+            let mut profile = base();
+            profile.control = ControlSpec::Setpoint {
+                setpoint: 32.0,
+                hysteresis,
+                cooling: false,
+                safe_band,
+            };
+            profile
+        };
+        assert!(refused(setpoint(0.0, 4.0)).contains("chatters"));
+        assert!(refused(setpoint(2.0, 1.0)).contains("inside the deadband"));
+        assert!(refused(setpoint(f32::NAN, 4.0)).contains("`hysteresis` must be a finite number"));
+
+        let mut never = base();
+        never.control = ControlSpec::Level {
+            empty: 0.0,
+            warn_within: 0,
+        };
+        assert!(refused(never).contains("never comes"));
+        let mut always = base();
+        always.control = ControlSpec::Surge {
+            rising: true,
+            limit: 0.0,
+        };
+        assert!(refused(always).contains("every sample is a surge"));
+
+        let schedule = |power: PowerSchedule| {
+            let mut profile = base();
+            profile.power = power;
+            profile
+        };
+        assert!(refused(schedule(PowerSchedule::new(0, 600, 1800))).contains("at least one second"));
+        assert!(refused(schedule(PowerSchedule::new(120, 60, 1800))).contains("must not shorten"));
+        let inverted = PowerSchedule::new(120, 600, 1800).with_thresholds(0.2, 0.5);
+        assert!(refused(schedule(inverted)).contains("`critical_below` must sit between"));
+        let over = PowerSchedule::new(120, 600, 1800).with_thresholds(50.0, 0.2);
+        assert!(refused(schedule(over)).contains("not 50"));
+
+        let drawn = base().with_element(
+            ElementSpec::new(
+                "brooder_temperature",
+                "celsius",
+                "Brooder",
+                Viz::Thermometer,
+            )
+            .with_band(36.0, 28.0),
+        );
+        assert!(refused(drawn).contains("the low end comes first"));
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn a_manifest_is_checked_as_it_loads() {
+        let manifest = r#"{
+            "name": "brooder",
+            "topic": "poultry/brooder/temperature",
+            "control": { "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": -4.0 },
+            "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
+        }"#;
+        let refused = Profile::from_json(manifest).unwrap_err().to_string();
+        assert!(
+            refused.contains("`safe_band` (-4) is narrower than `hysteresis` (0.5)"),
+            "{refused}"
+        );
     }
 }

@@ -5,9 +5,10 @@ applies to each reading, how often it samples as its battery drains, and how a
 dashboard should draw it. The [device profiles guide](guides/profile.md) loads one
 and runs it in the four languages. This page is the catalog of the profiles the
 project and its community share. Each is a JSON file under `profiles/` in the
-repository, read by the same parser a device uses, checked in CI for the mistakes a
-hand-written manifest makes, and kept in the form the library itself writes, so a
-change to one shows as a change of meaning and nothing else.
+repository, read by the same parser a device uses, which refuses a manifest no node
+could run, checked in CI against the catalog's own conventions as well, and kept in
+the form the library itself writes, so a change to one shows as a change of meaning
+and nothing else.
 
 ## Using one
 

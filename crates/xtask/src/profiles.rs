@@ -147,8 +147,12 @@ impl Profiles {
         Ok(Profiles { manifests })
     }
 
-    /// Checks every manifest for what the parser accepts but a device or the dashboard
-    /// would not make sense of.
+    /// Checks every manifest against the catalog's conventions. The parser has already
+    /// refused what a device or the dashboard could not make sense of, through
+    /// `Profile::check`; this adds what a shared manifest owes its readers: a file named
+    /// for the profile, a kebab-case name no other manifest carries, a description, a
+    /// topic of plain slash-separated words, snake_case keys and kinds, and words for
+    /// every state an element starts in.
     ///
     /// # Arguments
     ///
@@ -195,8 +199,13 @@ impl Profiles {
                 Some(_) => {}
             }
             check_topic(&at, &profile.topic)?;
-            check_control(&at, &profile.control)?;
-            check_power(&at, profile)?;
+            if let ControlSpec::Custom { kind, .. } = &profile.control {
+                if !is_snake_case(kind) {
+                    return Err(format!(
+                        "{at}: the control kind `{kind}` must be lowercase words joined by underscores"
+                    ));
+                }
+            }
             if let Some(presentation) = &profile.presentation {
                 check_presentation(&at, presentation, &shipped)?;
             }
@@ -317,101 +326,12 @@ fn is_snake_case(key: &str) -> bool {
 }
 
 fn check_topic(at: &str, topic: &str) -> Result<(), String> {
-    if topic.is_empty() {
-        return Err(format!("{at}: the topic is empty"));
-    }
     if topic.chars().any(char::is_whitespace) {
         return Err(format!("{at}: the topic `{topic}` contains whitespace"));
-    }
-    if topic.contains(['+', '#']) {
-        return Err(format!(
-            "{at}: the topic `{topic}` is a filter; a profile publishes to one topic"
-        ));
     }
     if topic.starts_with('/') || topic.ends_with('/') || topic.contains("//") {
         return Err(format!(
             "{at}: the topic `{topic}` has an empty segment; separate non-empty words with single slashes"
-        ));
-    }
-    Ok(())
-}
-
-fn check_control(at: &str, control: &ControlSpec) -> Result<(), String> {
-    let finite = |name: &str, value: f32| {
-        if value.is_finite() {
-            Ok(())
-        } else {
-            Err(format!("{at}: `{name}` must be a finite number"))
-        }
-    };
-    match *control {
-        ControlSpec::Setpoint {
-            setpoint,
-            hysteresis,
-            safe_band,
-            ..
-        } => {
-            finite("setpoint", setpoint)?;
-            finite("hysteresis", hysteresis)?;
-            finite("safe_band", safe_band)?;
-            if hysteresis <= 0.0 {
-                return Err(format!(
-                    "{at}: `hysteresis` must be above zero, or the output chatters at the setpoint"
-                ));
-            }
-            if safe_band < hysteresis {
-                return Err(format!(
-                    "{at}: `safe_band` ({safe_band}) is narrower than `hysteresis` ({hysteresis}), so an alert would fire inside the deadband"
-                ));
-            }
-        }
-        ControlSpec::Level { empty, warn_within } => {
-            finite("empty", empty)?;
-            if warn_within == 0 {
-                return Err(format!(
-                    "{at}: `warn_within` must be at least one sample, or the warning never comes"
-                ));
-            }
-        }
-        ControlSpec::Surge { limit, .. } => {
-            finite("limit", limit)?;
-            if limit <= 0.0 {
-                return Err(format!(
-                    "{at}: `limit` must be above zero, or every sample is a surge"
-                ));
-            }
-        }
-        ControlSpec::Monitor => {}
-        ControlSpec::Custom { ref kind, .. } => {
-            if !is_snake_case(kind) {
-                return Err(format!(
-                    "{at}: the control kind `{kind}` must be lowercase words joined by underscores"
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn check_power(at: &str, profile: &Profile) -> Result<(), String> {
-    let power = &profile.power;
-    if power.active_secs == 0 {
-        return Err(format!("{at}: `active_secs` must be at least one second"));
-    }
-    if !(power.active_secs <= power.saver_secs && power.saver_secs <= power.critical_secs) {
-        return Err(format!(
-            "{at}: the intervals must not shorten as the battery drains: active {} s, saver {} s, critical {} s",
-            power.active_secs, power.saver_secs, power.critical_secs
-        ));
-    }
-    if !(power.saver_below > 0.0 && power.saver_below <= 1.0) {
-        return Err(format!(
-            "{at}: `saver_below` is a state of charge between 0 and 1"
-        ));
-    }
-    if !(power.critical_below > 0.0 && power.critical_below < power.saver_below) {
-        return Err(format!(
-            "{at}: `critical_below` must sit between 0 and `saver_below`"
         ));
     }
     Ok(())
@@ -422,49 +342,8 @@ fn check_presentation(
     presentation: &Presentation,
     shipped: &BTreeSet<String>,
 ) -> Result<(), String> {
-    let mut keys = BTreeSet::new();
     for element in &presentation.elements {
         check_element(at, element, shipped, &presentation.messages)?;
-        if !keys.insert(element.key.as_str()) {
-            return Err(format!(
-                "{at}: the element `{}` is declared twice",
-                element.key
-            ));
-        }
-    }
-    for (code, text) in &presentation.messages {
-        if !(code.starts_with("state.") || code.starts_with("event.")) {
-            return Err(format!(
-                "{at}: the message `{code}` is neither a `state.` nor an `event.` code"
-            ));
-        }
-        match text {
-            LocalizedText::Plain(text) if text.trim().is_empty() => {
-                return Err(format!("{at}: the message `{code}` is empty"));
-            }
-            LocalizedText::PerLocale(map) if !map.contains_key("en") => {
-                return Err(format!(
-                    "{at}: the message `{code}` gives no `en` text, which every other locale falls back to"
-                ));
-            }
-            _ => {}
-        }
-    }
-    if let Some(theme) = &presentation.theme {
-        for (name, color) in [
-            ("accent", &theme.accent),
-            ("ok", &theme.ok),
-            ("warn", &theme.warn),
-            ("alarm", &theme.alarm),
-            ("track", &theme.track),
-        ] {
-            if color
-                .as_deref()
-                .is_some_and(|color| color.trim().is_empty())
-            {
-                return Err(format!("{at}: the theme's `{name}` color is empty"));
-            }
-        }
     }
     Ok(())
 }
@@ -481,35 +360,7 @@ fn check_element(
             "{at}: the element key `{key}` must be lowercase words joined by underscores"
         ));
     }
-    if element.unit.trim().is_empty() {
-        return Err(format!("{at}: the element `{key}` has no unit"));
-    }
-    if element.label.trim().is_empty() {
-        return Err(format!("{at}: the element `{key}` has no label"));
-    }
-    if let Some([low, high]) = element.band {
-        if !(low.is_finite() && high.is_finite() && low < high) {
-            return Err(format!(
-                "{at}: the element `{key}` has a band of {low} to {high}; the low end comes first"
-            ));
-        }
-    }
-    if element.value.is_some_and(|value| !value.is_finite()) {
-        return Err(format!(
-            "{at}: the element `{key}` has a starting value that is not a finite number"
-        ));
-    }
     if let Some(state) = &element.state {
-        if element.value.is_some() {
-            return Err(format!(
-                "{at}: the element `{key}` starts with both a value and a state; a reading is one or the other"
-            ));
-        }
-        if !state.starts_with("state.") {
-            return Err(format!(
-                "{at}: the element `{key}` starts in `{state}`, which is not a `state.` code"
-            ));
-        }
         if !shipped.contains(state) && !messages.contains_key(state) {
             return Err(format!(
                 "{at}: the element `{key}` starts in `{state}`, a code the dashboard has no words for; add it under `messages`"
@@ -694,9 +545,14 @@ mod tests {
     }
 
     fn error_of(stem: &str, text: &str) -> String {
-        manifest(stem, text)
+        match Manifest::parse(stem, text) {
+            Err(refused) => refused,
+            Ok(parsed) => Profiles {
+                manifests: vec![parsed],
+            }
             .check(&repo_root())
-            .expect_err("the manifest is rejected")
+            .expect_err("the manifest is rejected"),
+        }
     }
 
     #[test]

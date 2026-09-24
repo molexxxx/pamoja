@@ -105,5 +105,9 @@ class AlertKind(str, enum.Enum):
     RUNNING_OUT = "RunningOut"
     #: A reading is changing faster than its safe rate.
     CHANGING_FAST = "ChangingFast"
+    #: A reading that is not a finite number, such as the NaN a failed probe produces.
+    #: It changes nothing: a setpoint's output holds, and a level or a surge carries on
+    #: from the last good reading.
+    INVALID_READING = "InvalidReading"
     #: A condition a policy of the program's own raised, named by ``code``.
     CUSTOM = "Custom"

@@ -2145,6 +2145,8 @@ typedef enum {
   PamojaAlertKind_ChangingFast = 3,
   // A condition a policy of the host's own raised, named by `code`.
   PamojaAlertKind_Custom = 4,
+  // A reading that is not a finite number, such as the NaN a failed probe produces.
+  PamojaAlertKind_InvalidReading = 5,
 } PamojaAlertKind;
 
 // The mode an SX126x reports in its status byte.
@@ -4799,7 +4801,8 @@ typedef struct {
   bool actuator;
   // Which threshold the reading crossed.
   PamojaAlertKind alert;
-  // The offending reading, for [`PamojaAlertKind::OutOfRange`].
+  // The offending reading, for [`PamojaAlertKind::OutOfRange`] and
+  // [`PamojaAlertKind::InvalidReading`].
   float reading;
   // The estimated samples until empty, for [`PamojaAlertKind::RunningOut`].
   uint32_t samples;
@@ -21450,9 +21453,10 @@ PamojaProfile *pamoja_profile_from_json(const char *manifest);
 // # Returns
 //
 // A handle the caller must release with [`pamoja_profile_free`], or null if a
-// pointer is null, a string is not UTF-8, or the control kind is custom or not one
-// this library knows, with the reason available from
-// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+// pointer is null, a string is not UTF-8, the control kind is custom or not one this
+// library knows, or the profile is one no node could run, such as a hysteresis of
+// zero or intervals that shorten as the battery drains, with the reason available
+// from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 //
 // # Safety
 //
@@ -21478,9 +21482,10 @@ PamojaProfile *pamoja_profile_new(const char *name,
 // # Returns
 //
 // A handle the caller must release with [`pamoja_profile_free`], or null if a
-// pointer is null, a string is not UTF-8, `params` is not such an object, or the kind
-// is empty, names a built-in kind, or `params` holds a field named `kind`, with the
-// reason available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+// pointer is null, a string is not UTF-8, `params` is not such an object, the kind is
+// empty, names a built-in kind, or `params` holds a field named `kind`, or the name,
+// topic, or schedule is one no node could run, with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 //
 // # Safety
 //
@@ -21613,8 +21618,10 @@ PamojaString *pamoja_profile_presentation_json(const PamojaProfile *profile);
 // # Returns
 //
 // A handle the caller must release with [`pamoja_profile_free`], or null if
-// either pointer is null or the JSON is not a presentation, with the reason
-// available from [`pamoja_last_error_message`](crate::pamoja_last_error_message).
+// either pointer is null, the JSON is not a presentation, or the presentation holds
+// something the dashboard could not draw, such as a band whose low end comes second,
+// with the reason available from
+// [`pamoja_last_error_message`](crate::pamoja_last_error_message).
 //
 // # Safety
 //
