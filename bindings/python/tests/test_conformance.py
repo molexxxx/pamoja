@@ -2693,6 +2693,14 @@ def test_power_vectors_match():
         assert plan.mode_while_charging(soc, True) == vector["charging"][at]
         assert plan.interval_us(soc) == vector["intervalsUs"][at]
 
+    assert plan.hysteresis == pytest.approx(vector["plan"]["hysteresis"], abs=TOLERANCE)
+    walk = vector["walk"]
+    for governor, want in ((plan, walk["modes"]), (plan.with_hysteresis(0), walk["flatModes"])):
+        mode = walk["start"]
+        for at, soc in enumerate(walk["charges"]):
+            mode = governor.next_mode_while_charging(mode, soc, walk["charging"][at])
+            assert mode == want[at], f"step {at} of the walk, at {soc}"
+
     duty = power.DutyCycle.from_fraction(
         vector["duty"]["periodUs"], vector["duty"]["fraction"]
     )
@@ -2909,6 +2917,9 @@ def test_profile_vectors_match():
     assert fridge.power.saver_below == pytest.approx(
         cold_chain["power"]["saverBelow"], abs=TOLERANCE
     )
+    assert fridge.power.hysteresis == pytest.approx(
+        cold_chain["power"]["hysteresis"], abs=TOLERANCE
+    )
     _assert_reactions(fridge.controller(), cold_chain["reactions"])
 
     plan = fridge.power_plan()
@@ -2961,6 +2972,7 @@ def test_profile_vectors_match():
             power["criticalSecs"],
             saver_below=power["saverBelow"],
             critical_below=power["criticalBelow"],
+            hysteresis=power["hysteresis"],
         )
         made = profile.Profile(built["name"], built["topic"], control, schedule)
         assert made.to_json() == built["manifest"], f"the manifest {built['name']} writes"

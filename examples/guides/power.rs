@@ -10,7 +10,7 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use core::time::Duration;
 
-    use pamoja_power::{DutyCycle, PowerPlan};
+    use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 
     // A solar node samples every minute while the charge is healthy, stretches to ten
     // minutes to conserve, and to an hour once the battery is nearly flat.
@@ -50,6 +50,28 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     let (cold, mild) = (winter.mode(0.60), plan.mode(0.60));
     println!("at 60% charge: {cold:?} in winter, {mild:?} by default");
 
+    // A fuel gauge wanders a point or two between readings, so a charge sitting at a
+    // threshold would change the cadence on every cycle. `next_mode` takes the mode the
+    // node is in: it drops as soon as the charge falls below a threshold, and climbs
+    // back only once the charge is the plan's hysteresis margin clear of it.
+    let wandering = [0.49, 0.51, 0.50, 0.53, 0.48, 0.52];
+    let walk = |governor: PowerPlan| {
+        let mut mode = PowerMode::Active;
+        let mut modes = Vec::new();
+        for charge in wandering {
+            mode = governor.next_mode(mode, charge);
+            modes.push(format!("{mode:?}"));
+        }
+        modes.join(", ")
+    };
+    let flapping = walk(plan.with_hysteresis(0.0));
+    println!("a charge wandering around 50% with no margin: {flapping}");
+    let margin = plan.hysteresis() * 100.0;
+    let settled = walk(plan);
+    println!("and with the {margin:.0} point margin: {settled}");
+    let back = plan.next_mode(PowerMode::Saver, 0.56);
+    println!("at 56% the charge has cleared the margin: {back:?}");
+
     // The work is the same two seconds whichever mode the node is in; stretching the cycle
     // is what saves the energy. The duty fraction is the proxy for average draw, so the
     // hourly cadence costs a sixtieth of what the one-minute cadence does.
@@ -79,8 +101,6 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     println!("an unread harvest keeps it asleep all {asleep_all}ms");
     // ANCHOR_END: example
 
-    use pamoja_power::PowerMode;
-
     assert_eq!(plan.mode(0.80), PowerMode::Active);
     assert_eq!(plan.interval(0.80), Duration::from_secs(60));
     assert_eq!(plan.mode(0.35), PowerMode::Saver);
@@ -92,6 +112,9 @@ fn main() -> std::result::Result<(), Box<dyn Error>> {
     assert_eq!(plan.interval(unknown), Duration::from_secs(3600));
     assert_eq!(cold, PowerMode::Saver);
     assert_eq!(mild, PowerMode::Active);
+    assert_eq!(flapping, "Saver, Active, Active, Active, Saver, Active");
+    assert_eq!(settled, "Saver, Saver, Saver, Saver, Saver, Saver");
+    assert_eq!(back, PowerMode::Active);
     assert!((healthy.fraction() - 2.0 / 60.0).abs() < 1e-6);
     assert!((flat.fraction() - 2.0 / 3600.0).abs() < 1e-6);
     assert_eq!(paid, 6000);

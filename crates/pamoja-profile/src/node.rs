@@ -84,6 +84,7 @@ pub struct Node<S, A, T, C, P = Controller> {
     actuator: A,
     transport: T,
     codec: C,
+    mode: Option<PowerMode>,
 }
 
 impl<S, A, T, C> Node<S, A, T, C> {
@@ -201,6 +202,7 @@ impl<S, A, T, C, P> Node<S, A, T, C, P> {
             actuator,
             transport,
             codec,
+            mode: None,
         }
     }
 
@@ -278,10 +280,12 @@ impl<S, A, T, C, P> Node<S, A, T, C, P> {
     ///
     /// This assembles the profile's [`PowerSchedule`](crate::PowerSchedule) into a
     /// `pamoja-power` governor: as the battery drains the interval stretches, and a
-    /// charging panel eases the node back toward its active cadence. The node never
-    /// sleeps; the caller waits the
-    /// returned [`Duration`] before the next [`tick`](Node::tick), so timing stays
-    /// outside the node and the decision logic remains synchronous and testable.
+    /// charging panel eases the node back toward its active cadence. The node remembers
+    /// the mode it chose, so a charge hovering at a threshold keeps it in the lower mode
+    /// until the charge clears the schedule's hysteresis margin. The node never sleeps;
+    /// the caller waits the returned [`Duration`] before the next [`tick`](Node::tick),
+    /// so timing stays outside the node and the decision logic remains synchronous and
+    /// testable.
     ///
     /// # Arguments
     ///
@@ -291,10 +295,23 @@ impl<S, A, T, C, P> Node<S, A, T, C, P> {
     /// # Returns
     ///
     /// The [`PowerMode`] to run in and how long to wait before the next cycle.
-    pub fn schedule(&self, soc: f32, charging: bool) -> (PowerMode, Duration) {
+    pub fn schedule(&mut self, soc: f32, charging: bool) -> (PowerMode, Duration) {
         let plan = self.profile.power.plan();
-        let mode = plan.mode_while_charging(soc, charging);
+        let mode = match self.mode {
+            Some(current) => plan.next_mode_while_charging(current, soc, charging),
+            None => plan.mode_while_charging(soc, charging),
+        };
+        self.mode = Some(mode);
         (mode, plan.interval_for(mode))
+    }
+
+    /// Returns the power mode the last [`schedule`](Node::schedule) chose.
+    ///
+    /// # Returns
+    ///
+    /// The mode, or `None` before the first schedule.
+    pub fn power_mode(&self) -> Option<PowerMode> {
+        self.mode
     }
 }
 
@@ -548,11 +565,33 @@ mod tests {
     #[test]
     fn schedule_follows_state_of_charge() {
         // The schedule reads only the profile, so the components can be placeholders.
-        let node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ());
+        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ());
+        assert_eq!(node.power_mode(), None);
         assert_eq!(node.schedule(0.9, false).0, PowerMode::Active);
         assert_eq!(node.schedule(0.1, false).0, PowerMode::Critical);
         // A charging panel eases off by one mode.
         assert_eq!(node.schedule(0.1, true).0, PowerMode::Saver);
         assert_eq!(node.schedule(0.9, false).1, Duration::from_secs(60));
+        assert_eq!(node.power_mode(), Some(PowerMode::Active));
+    }
+
+    #[test]
+    fn a_charge_hovering_at_a_threshold_keeps_the_cadence() {
+        let mut node = Node::monitor(Profile::vaccine_fridge_monitor(), (), (), ());
+        let modes: Vec<PowerMode> = [0.52, 0.49, 0.51, 0.5, 0.53, 0.56]
+            .into_iter()
+            .map(|soc| node.schedule(soc, false).0)
+            .collect();
+        assert_eq!(
+            modes,
+            [
+                PowerMode::Active,
+                PowerMode::Saver,
+                PowerMode::Saver,
+                PowerMode::Saver,
+                PowerMode::Saver,
+                PowerMode::Active,
+            ]
+        );
     }
 }

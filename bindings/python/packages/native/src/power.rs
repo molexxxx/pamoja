@@ -92,7 +92,8 @@ impl PowerPlan {
 #[pymethods]
 impl PowerPlan {
     /// Creates a plan from its three work intervals in microseconds, entering
-    /// saver mode below 50% charge and critical below 20%.
+    /// saver mode below 50% charge and critical below 20%, and leaving each lower mode
+    /// once the charge is five points above the threshold that brought it on.
     #[new]
     fn new(active_us: u64, saver_us: u64, critical_us: u64) -> Self {
         PowerPlan {
@@ -109,6 +110,22 @@ impl PowerPlan {
         PowerPlan {
             inner: self.inner.thresholds(saver_below, critical_below),
         }
+    }
+
+    /// Returns a copy of this plan with the hysteresis margin moved: how far above a
+    /// threshold the charge must climb before the plan leaves the lower mode. `0` switches
+    /// at the thresholds themselves; a margin below zero or not a number is taken as `0`.
+    fn with_hysteresis(&self, margin: f32) -> Self {
+        PowerPlan {
+            inner: self.inner.with_hysteresis(margin),
+        }
+    }
+
+    /// How far above a threshold the charge must climb before the plan leaves the lower
+    /// mode.
+    #[getter]
+    fn hysteresis(&self) -> f32 {
+        self.inner.hysteresis()
     }
 
     /// The charge below which the plan enters saver mode.
@@ -134,6 +151,29 @@ impl PowerPlan {
     /// Returns the mode, eased one step toward full duty while charging.
     fn mode_while_charging(&self, soc: f32, charging: bool) -> String {
         name(self.inner.mode_while_charging(soc, charging))
+    }
+
+    /// Returns the mode a node in `current` moves to at a new charge, by name. It drops to
+    /// a lower mode as soon as the charge falls below that mode's threshold, and climbs
+    /// back only once the charge reaches the threshold plus the hysteresis margin, so a
+    /// charge wandering around a threshold keeps the node where it is.
+    fn next_mode(&self, current: &str, soc: f32) -> PyResult<String> {
+        Ok(name(self.inner.next_mode(core_mode(current)?, soc)))
+    }
+
+    /// Returns the mode a node in `current` moves to, eased one step toward full duty while
+    /// charging. `current` is the mode this returned last time.
+    fn next_mode_while_charging(
+        &self,
+        current: &str,
+        soc: f32,
+        charging: bool,
+    ) -> PyResult<String> {
+        Ok(name(self.inner.next_mode_while_charging(
+            core_mode(current)?,
+            soc,
+            charging,
+        )))
     }
 
     /// Returns the work interval for a named mode, in microseconds.

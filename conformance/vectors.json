@@ -13487,6 +13487,7 @@
       "activeUs": 60000000,
       "criticalBelow": 0.20000000298023224,
       "criticalUs": 3600000000,
+      "hysteresis": 0.05000000074505806,
       "saverBelow": 0.5,
       "saverUs": 300000000
     },
@@ -13502,6 +13503,69 @@
       "dutySleepUs": 1000000,
       "intervalUs": 3600000000,
       "mode": "Critical"
+    },
+    "walk": {
+      "charges": [
+        0.5199999809265137,
+        0.49000000953674316,
+        0.5099999904632568,
+        0.5,
+        0.5299999713897705,
+        0.5600000023841858,
+        0.20999999344348907,
+        0.1899999976158142,
+        0.23999999463558197,
+        0.25999999046325684,
+        0.2199999988079071,
+        0.18000000715255737,
+        0.30000001192092896
+      ],
+      "charging": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ],
+      "flatModes": [
+        "Active",
+        "Saver",
+        "Active",
+        "Active",
+        "Active",
+        "Active",
+        "Saver",
+        "Critical",
+        "Saver",
+        "Saver",
+        "Active",
+        "Saver",
+        "Saver"
+      ],
+      "modes": [
+        "Active",
+        "Saver",
+        "Saver",
+        "Saver",
+        "Saver",
+        "Active",
+        "Saver",
+        "Critical",
+        "Critical",
+        "Saver",
+        "Saver",
+        "Saver",
+        "Saver"
+      ],
+      "start": "Active"
     }
   },
   "profile": {
@@ -13514,12 +13578,13 @@
           "safeBand": 15.0,
           "setpoint": 37.5
         },
-        "manifest": "{\n  \"name\": \"raised-bed-drip\",\n  \"topic\": \"garden/bed-1/moisture\",\n  \"control\": {\n    \"kind\": \"setpoint\",\n    \"setpoint\": 37.5,\n    \"hysteresis\": 7.5,\n    \"cooling\": false,\n    \"safe_band\": 15.0\n  },\n  \"power\": {\n    \"active_secs\": 300,\n    \"saver_secs\": 1800,\n    \"critical_secs\": 3600,\n    \"saver_below\": 0.5,\n    \"critical_below\": 0.2\n  }\n}",
+        "manifest": "{\n  \"name\": \"raised-bed-drip\",\n  \"topic\": \"garden/bed-1/moisture\",\n  \"control\": {\n    \"kind\": \"setpoint\",\n    \"setpoint\": 37.5,\n    \"hysteresis\": 7.5,\n    \"cooling\": false,\n    \"safe_band\": 15.0\n  },\n  \"power\": {\n    \"active_secs\": 300,\n    \"saver_secs\": 1800,\n    \"critical_secs\": 3600,\n    \"saver_below\": 0.5,\n    \"critical_below\": 0.2,\n    \"hysteresis\": 0.05\n  }\n}",
         "name": "raised-bed-drip",
         "power": {
           "activeSecs": 300,
           "criticalBelow": 0.20000000298023224,
           "criticalSecs": 3600,
+          "hysteresis": 0.05000000074505806,
           "saverBelow": 0.5,
           "saverSecs": 1800
         },
@@ -13535,12 +13600,13 @@
             "zone": "north"
           }
         },
-        "manifest": "{\n  \"name\": \"orchard-frost\",\n  \"topic\": \"orchard/air/temperature\",\n  \"control\": {\n    \"kind\": \"frost_guard\",\n    \"latching\": true,\n    \"warn_below\": 2.0,\n    \"zone\": \"north\"\n  },\n  \"power\": {\n    \"active_secs\": 60,\n    \"saver_secs\": 300,\n    \"critical_secs\": 900,\n    \"saver_below\": 0.4,\n    \"critical_below\": 0.1\n  }\n}",
+        "manifest": "{\n  \"name\": \"orchard-frost\",\n  \"topic\": \"orchard/air/temperature\",\n  \"control\": {\n    \"kind\": \"frost_guard\",\n    \"latching\": true,\n    \"warn_below\": 2.0,\n    \"zone\": \"north\"\n  },\n  \"power\": {\n    \"active_secs\": 60,\n    \"saver_secs\": 300,\n    \"critical_secs\": 900,\n    \"saver_below\": 0.4,\n    \"critical_below\": 0.1,\n    \"hysteresis\": 0.05\n  }\n}",
         "name": "orchard-frost",
         "power": {
           "activeSecs": 60,
           "criticalBelow": 0.10000000149011612,
           "criticalSecs": 900,
+          "hysteresis": 0.05000000074505806,
           "saverBelow": 0.4000000059604645,
           "saverSecs": 300
         },
@@ -13577,6 +13643,7 @@
         "activeSecs": 60,
         "criticalBelow": 0.20000000298023224,
         "criticalSecs": 900,
+        "hysteresis": 0.05000000074505806,
         "saverBelow": 0.5,
         "saverSecs": 300
       },

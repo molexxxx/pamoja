@@ -2554,11 +2554,23 @@ export declare class Pid {
 export declare class PowerPlan {
   /**
    * Creates a plan from its three work intervals in microseconds, entering
-   * saver mode below 50% charge and critical below 20%.
+   * saver mode below 50% charge and critical below 20%, and leaving each lower mode
+   * once the charge is five points above the threshold that brought it on.
    */
   constructor(activeUs: number, saverUs: number, criticalUs: number)
   /** Returns a copy of this plan with the state-of-charge thresholds moved. */
   withThresholds(saverBelow: number, criticalBelow: number): PowerPlan
+  /**
+   * Returns a copy of this plan with the hysteresis margin moved: how far above a
+   * threshold the charge must climb before the plan leaves the lower mode. `0` switches
+   * at the thresholds themselves; a margin below zero or not a number is taken as `0`.
+   */
+  withHysteresis(margin: number): PowerPlan
+  /**
+   * How far above a threshold the charge must climb before the plan leaves the lower
+   * mode.
+   */
+  get hysteresis(): number
   /** The charge below which the plan enters saver mode. */
   get saverBelow(): number
   /** The charge below which the plan enters critical mode. */
@@ -2572,6 +2584,18 @@ export declare class PowerPlan {
   mode(soc: number): PowerMode
   /** Returns the mode, eased one step toward full duty while charging. */
   modeWhileCharging(soc: number, charging: boolean): PowerMode
+  /**
+   * Returns the mode a node in `current` moves to at a new charge. It drops to a lower
+   * mode as soon as the charge falls below that mode's threshold, and climbs back only
+   * once the charge reaches the threshold plus the hysteresis margin, so a charge
+   * wandering around a threshold keeps the node where it is.
+   */
+  nextMode(current: PowerMode, soc: number): PowerMode
+  /**
+   * Returns the mode a node in `current` moves to, eased one step toward full duty while
+   * charging. `current` is the mode this returned last time.
+   */
+  nextModeWhileCharging(current: PowerMode, soc: number, charging: boolean): PowerMode
   /** Returns the work interval for a mode, in microseconds. */
   intervalForUs(mode: PowerMode): number
   /** Returns the work interval at a state of charge, in microseconds. */
@@ -8485,7 +8509,8 @@ export declare const enum PowerMode {
 
 /**
  * The sampling schedule a new profile keeps, in whole seconds. The thresholds default
- * to entering the saver cadence below 50% charge and the critical cadence below 20%.
+ * to entering the saver cadence below 50% charge and the critical cadence below 20%, and
+ * the node leaves each lower cadence once the charge is five points above its threshold.
  */
 export interface PowerScheduleSettings {
   /** Seconds between samples at a healthy charge. */
@@ -8498,6 +8523,11 @@ export interface PowerScheduleSettings {
   saverBelow?: number
   /** Enter the critical cadence below this state of charge; 0.2 unless given. */
   criticalBelow?: number
+  /**
+   * How far above a threshold the charge must climb to leave the lower cadence; 0.05
+   * unless given.
+   */
+  hysteresis?: number
 }
 
 /** How often a node samples as its battery drains, in whole seconds. */
@@ -8512,6 +8542,8 @@ export interface PowerScheduleSpec {
   saverBelow: number
   /** Enter the critical cadence below this state of charge. */
   criticalBelow: number
+  /** How far above a threshold the charge must climb to leave the lower cadence. */
+  hysteresis: number
 }
 
 /**

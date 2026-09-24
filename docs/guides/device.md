@@ -741,6 +741,7 @@ profiles guide shows. In the bindings, `cooling` and `rising` are false unless g
 | a setpoint control | `ControlSpec::Setpoint { setpoint, hysteresis, cooling, safe_band }` |
 | a custom control | `ControlSpec::custom(kind, Params::new().with(name, value))` |
 | other thresholds | `PowerSchedule::new(..).with_thresholds(saver_below, critical_below)` |
+| another margin | `PowerSchedule::new(..).with_hysteresis(margin)` |
 | run the parts under it | `Node::new(profile, sensor, actuator, link, codec)`, then `tick()` gives a `Reaction` |
 | decide by hand | `profile.controller()`, then `evaluate(reading)` gives a `Reaction` |
 
@@ -752,6 +753,7 @@ profiles guide shows. In the bindings, `cooling` and `rising` are false unless g
 | a setpoint control | `{ kind: ControlKind.Setpoint, setpoint, hysteresis, cooling?, safeBand }` |
 | a custom control | `{ kind: ControlKind.Custom, customKind, params: { name: value } }` |
 | other thresholds | `{ ..., saverBelow, criticalBelow }` in the power schedule |
+| another margin | `{ ..., hysteresis }` in the power schedule |
 | decide | `profile.controller()`, then `evaluate(reading)` gives `{ actuator, alert }` |
 
 ### Python
@@ -762,6 +764,7 @@ profiles guide shows. In the bindings, `cooling` and `rising` are false unless g
 | a setpoint control | `ControlPolicy(ControlKind.SETPOINT, setpoint=..., hysteresis=..., cooling=False, safe_band=...)` |
 | a custom control | `ControlPolicy(ControlKind.CUSTOM, custom_kind=..., params={...})` |
 | other thresholds | `PowerScheduleSpec(active, saver, critical, saver_below=..., critical_below=...)` |
+| another margin | `PowerScheduleSpec(active, saver, critical, hysteresis=...)` |
 | decide | `profile.controller()`, then `evaluate(reading)` gives a `Reaction` with `actuator` and `alert` |
 
 ### C#
@@ -772,6 +775,7 @@ profiles guide shows. In the bindings, `cooling` and `rising` are false unless g
 | a setpoint control | `new ControlPolicy(ControlKind.Setpoint, Setpoint: .., Hysteresis: .., SafeBand: ..)` |
 | a custom control | `new ControlPolicy(ControlKind.Custom, CustomKind: .., Params: new Dictionary<string, object> { .. })` |
 | other thresholds | `new PowerSchedule(active, saver, critical, SaverBelow: .., CriticalBelow: ..)` |
+| another margin | `new PowerSchedule(active, saver, critical, Hysteresis: ..)` |
 | decide | `profile.Controller()`, then `Evaluate(reading)` gives a `Reaction` with `Actuator` and `Alert` |
 
 <!-- languages end -->

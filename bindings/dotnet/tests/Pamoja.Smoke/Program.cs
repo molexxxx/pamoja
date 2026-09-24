@@ -1734,6 +1734,9 @@ static void ConformProfile(JsonElement vector, double tolerance)
         "the active cadence");
     Close(fridge.Power.SaverBelow, (float)power.GetProperty("saverBelow").GetDouble(), tolerance,
         "the saver threshold");
+    Close(fridge.Power.Hysteresis, (float)power.GetProperty("hysteresis").GetDouble(), tolerance,
+        "the hysteresis margin");
+    Close(fridge.PowerPlan.Hysteresis, fridge.Power.Hysteresis, tolerance, "which the governor keeps");
 
     using (Controller control = fridge.Controller())
     {
@@ -1826,7 +1829,8 @@ static void ConformProfile(JsonElement vector, double tolerance)
             wantPower.GetProperty("saverSecs").GetUInt64(),
             wantPower.GetProperty("criticalSecs").GetUInt64(),
             (float)wantPower.GetProperty("saverBelow").GetDouble(),
-            (float)wantPower.GetProperty("criticalBelow").GetDouble());
+            (float)wantPower.GetProperty("criticalBelow").GetDouble(),
+            (float)wantPower.GetProperty("hysteresis").GetDouble());
         using var made = new Profile(
             built.GetProperty("name").GetString()!, built.GetProperty("topic").GetString()!, control, schedule);
         Assert(
@@ -7662,6 +7666,22 @@ static void ConformPower(JsonElement vector)
         Assert(
             plan.IntervalUs(soc) == intervals[at].GetUInt64(),
             $"the interval at {soc}");
+    }
+
+    Close(plan.Hysteresis, want.GetProperty("hysteresis").GetSingle(), 1e-6, "the hysteresis margin");
+    JsonElement walk = vector.GetProperty("walk");
+    foreach ((PowerPlan governor, string key) in new[] { (plan, "modes"), (plan.WithHysteresis(0f), "flatModes") })
+    {
+        PowerMode mode = Enum.Parse<PowerMode>(walk.GetProperty("start").GetString()!);
+        JsonElement steps = walk.GetProperty("charges");
+        for (int at = 0; at < steps.GetArrayLength(); at++)
+        {
+            float soc = steps[at].GetSingle();
+            mode = governor.NextModeWhileCharging(mode, soc, walk.GetProperty("charging")[at].GetBoolean());
+            Assert(
+                mode.ToString() == walk.GetProperty(key)[at].GetString(),
+                $"step {at} of the walk, at {soc}");
+        }
     }
 
     JsonElement dutyWant = vector.GetProperty("duty");

@@ -3478,6 +3478,17 @@ function powerVectors() {
     assert.strictEqual(plan.intervalUs(soc), vector.intervalsUs[at], `the interval at ${soc}`);
   });
 
+  close(plan.hysteresis, vector.plan.hysteresis, "the hysteresis margin");
+  const walk = (governor, want) => {
+    let mode = vector.walk.start;
+    vector.walk.charges.forEach((soc, at) => {
+      mode = governor.nextModeWhileCharging(mode, soc, vector.walk.charging[at]);
+      assert.strictEqual(mode, want[at], `step ${at} of the walk, at ${soc}`);
+    });
+  };
+  walk(plan, vector.walk.modes);
+  walk(plan.withHysteresis(0), vector.walk.flatModes);
+
   const duty = power.DutyCycle.fromFraction(vector.duty.periodUs, vector.duty.fraction);
   assert.strictEqual(duty.activeUs, vector.duty.activeUs, "the time awake");
   assert.strictEqual(duty.sleepUs, vector.duty.sleepUs, "the time asleep");
@@ -3662,9 +3673,11 @@ function profileVectors() {
   assertControl(fridge.control, coldChain.control);
   close(fridge.power.activeSecs, coldChain.power.activeSecs, "the active cadence");
   close(fridge.power.saverBelow, coldChain.power.saverBelow, "the saver threshold");
+  close(fridge.power.hysteresis, coldChain.power.hysteresis, "the hysteresis margin");
   assertReactions(fridge.controller(), coldChain.reactions);
 
   const plan = fridge.powerPlan();
+  close(plan.hysteresis, coldChain.power.hysteresis, "which the governor keeps");
   for (const charge of coldChain.plan) {
     assert.strictEqual(plan.mode(charge.soc), charge.mode, `the mode at ${charge.soc}`);
     assert.strictEqual(plan.intervalUs(charge.soc), charge.intervalUs, `the interval at ${charge.soc}`);

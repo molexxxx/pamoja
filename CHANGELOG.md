@@ -16,6 +16,21 @@ released together, so one entry covers all of them.
   that the counter go up. TypeScript's `register` takes an optional `LorawanVersion`,
   Python's a `version="1.0.3"` keyword, C#'s `Register` a `LorawanVersion`, and the C ABI's
   `pamoja_gateway_network_register` a `PAMOJA_LORAWAN_VERSION_1_0_3` or `_1_0_4` code.
+- Hysteresis in the power governor, in every language. A charge read from a fuel gauge
+  wanders a point or two from one reading to the next, so a node whose charge sat at a
+  threshold changed its cadence on every cycle. `PowerPlan::next_mode` and
+  `next_mode_while_charging` take the mode the node is in: it drops a mode as soon as the
+  charge falls below a threshold, as before, and climbs back only once the charge is a
+  margin above it, five points unless `with_hysteresis` sets another (`DEFAULT_HYSTERESIS`,
+  and `0.0` for the old behavior). A profile's schedule carries the margin as `hysteresis`,
+  which a manifest may leave out, and a profile's `Node` remembers the mode it chose, so
+  `schedule` now keeps a hovering charge on one cadence. TypeScript gets `nextMode`,
+  `nextModeWhileCharging`, `withHysteresis`, and `hysteresis`; Python the snake_case names
+  and a `hysteresis` keyword on `PowerScheduleSpec`; C# `NextMode`, `NextModeWhileCharging`,
+  `WithHysteresis`, and a `Hysteresis` member on `PowerPlan` and `PowerSchedule`; the C ABI
+  `pamoja_power_plan_with_hysteresis`, `pamoja_power_plan_next_mode`, and
+  `pamoja_power_plan_next_mode_while_charging`. The power guide walks a wandering charge
+  with and without the margin.
 - One I2C bus that a program and every driver on it share, in every language.
   `pamoja_hal::bus::I2cBus` in Rust (the `std` feature) is a handle that clones into each
   driver, over the kernel's adapter (`I2cBus::open`, the `linux` feature), simulated
@@ -942,6 +957,12 @@ released together, so one entry covers all of them.
   in the C ABI takes the device's version as a fifth argument. The `gateway` feature of the C
   ABI and the Node and Python bindings carries `lorawan`, which the network side already
   needed to build.
+- `Node::schedule` takes `&mut self`, since the node now remembers the power mode it chose;
+  `Node::power_mode` reads it back. `PowerSchedule` has a `hysteresis` field, so a schedule
+  built as a struct literal names it, and a manifest written by `to_json` carries it. The C
+  ABI's `PamojaPowerPlan` and `PamojaPowerSchedule` end with a `hysteresis` field, so a C
+  caller rebuilds against the new header. The shipped manifests under `profiles/` state the
+  default margin.
 - `Quantizer::encode` returns a `Result` in Rust, and throws in the other languages, for a
   reading that is not a number, is infinite, or is too large for the scale, such as
   `codec error: reading 1 is NaN, which cannot be quantized`. A scale that is not a positive,

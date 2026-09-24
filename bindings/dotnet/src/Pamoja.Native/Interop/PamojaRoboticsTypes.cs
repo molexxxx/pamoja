@@ -132,6 +132,9 @@ public struct PamojaPowerSchedule
 
     /// <summary>Enter the critical cadence below this state of charge.</summary>
     public float CriticalBelow;
+
+    /// <summary>How far above a threshold the charge must climb to leave the lower cadence.</summary>
+    public float Hysteresis;
 }
 
 /// <summary>What a controller decided about one reading.</summary>

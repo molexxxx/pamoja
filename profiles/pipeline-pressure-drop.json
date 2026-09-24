@@ -12,7 +12,8 @@
     "saver_secs": 120,
     "critical_secs": 600,
     "saver_below": 0.4,
-    "critical_below": 0.15
+    "critical_below": 0.15,
+    "hysteresis": 0.05
   },
   "presentation": {
     "elements": [

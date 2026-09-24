@@ -452,7 +452,7 @@ decides which ones it hands back. The mistakes that cost an afternoon:
 ## Where next
 
 <!-- table: next telemetry -->
-- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains.
+- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge.
 - [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
 - [Rules](rules.md): Rules between nodes as a file.
 - Also in Trust and operation: [Audit log](audit.md), [Secured session](session.md), [Signed updates](update.md).
