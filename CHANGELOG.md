@@ -1434,6 +1434,11 @@ minor version is for the calls whose signatures changed, listed under Changed.
 
 ### Fixed
 
+- `pamoja::gateway` exists. The `pamoja` crate's `gateway` feature, on by default, built
+  `pamoja-gateway` without re-exporting it, so `cargo add pamoja` compiled the gateway and
+  gave no way to reach it; the crate's table of features and its `radio` group left it out
+  too. `cargo xtask docs --check` now refuses a capability crate the bundle does not
+  re-export or list. The crate's examples name `version = "0.2"`.
 - The README, the landing page, and the install page said things that were not true, and
   now say what the build measures:
   - The Rust command for a domain was `cargo add pamoja --features radio`, which still
