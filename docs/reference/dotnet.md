@@ -492,12 +492,12 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="dotnet-rules">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">Pamoja.Kit</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link</p></div>
-<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Kit</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Kit" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">Pamoja.Profile</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language</p></div>
+<div class="pkg-get"><code class="cmd">dotnet add package Pamoja.Profile</code><button class="copy" type="button" data-copy="dotnet add package Pamoja.Profile" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
-<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Kit">NuGet</a></div>
-<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/kit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-kit">Python</a></p>
+<div class="pkg-btns"><a class="pkg-btn api dotnet" href="https://pamoja.molex.cloud/docs/reference/dotnet/api/Pamoja.Profile.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#c">Worked example</a><a class="pkg-btn ext" href="https://www.nuget.org/packages/Pamoja.Profile">NuGet</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/profile">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-profile">Python</a></p>
 </div>
 </div>
 <div class="pkg" id="dotnet-motion">

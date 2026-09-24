@@ -52,7 +52,9 @@ use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::Pdu;
 use pamoja_modbus::{crc16, Adu};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
-use pamoja_profile::{Alert, ControlSpec, Controller, Params, PowerSchedule, Profile};
+use pamoja_profile::{
+    Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, RuleEvaluator, Rules,
+};
 use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
@@ -3973,6 +3975,67 @@ fn alert_name(alert: Option<&Alert>) -> &'static str {
         Some(Alert::InvalidReading { .. }) => "InvalidReading",
         Some(Alert::Custom { .. }) => "Custom",
     }
+}
+
+#[test]
+fn rules_vectors_match() {
+    let vectors = vectors();
+    let case = &vectors["rules"];
+    let text = |value: &Value| value.as_str().expect("text").to_owned();
+
+    let mut evaluator = Rules::from_json(&text(&case["file"]))
+        .and_then(RuleEvaluator::new)
+        .expect("usable rules");
+    assert_eq!(serde_json::json!(evaluator.topics()), case["topics"]);
+    assert_eq!(serde_json::json!(evaluator.actuators()), case["actuators"]);
+
+    for step in case["steps"].as_array().expect("the steps") {
+        let topic = text(&step["topic"]);
+        let fired: Vec<Value> = evaluator
+            .evaluate(&topic, float(&step["reading"]))
+            .expect("a finite reading")
+            .into_iter()
+            .map(|one| {
+                serde_json::json!({
+                    "rule": one.rule,
+                    "edge": match one.edge {
+                        TriggerEdge::Set => "set",
+                        TriggerEdge::Cleared => "cleared",
+                    },
+                    "actions": one.actions,
+                })
+            })
+            .collect();
+        assert_eq!(Value::Array(fired), step["fired"], "what {topic} fired");
+    }
+    for state in case["states"].as_array().expect("the states") {
+        assert_eq!(
+            evaluator.is_set(&text(&state["rule"])),
+            state["set"].as_bool(),
+            "the state of {}",
+            state["rule"]
+        );
+    }
+
+    for refused in case["refused"].as_array().expect("the refused files") {
+        let error = Rules::from_json(&text(&refused["file"]))
+            .and_then(RuleEvaluator::new)
+            .err()
+            .expect("the file is refused")
+            .to_string();
+        assert!(error.contains(&text(&refused["reason"])), "{error}");
+    }
+
+    let invalid = &case["notANumber"];
+    let error = evaluator
+        .evaluate(&text(&invalid["topic"]), f32::NAN)
+        .expect_err("a reading that is not a number is refused")
+        .to_string();
+    assert!(error.contains(&text(&invalid["reason"])), "{error}");
+    assert!(evaluator
+        .evaluate(&text(&invalid["unwatched"]), f32::NAN)
+        .expect("a topic no rule watches is not judged")
+        .is_empty());
 }
 
 #[test]

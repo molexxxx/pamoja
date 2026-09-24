@@ -13123,6 +13123,167 @@
       "offered": 10
     }
   },
+  "rules": {
+    "actuators": [
+      "bed-valve",
+      "frost-cover"
+    ],
+    "file": "{ \"rules\": [ { \"name\": \"water-when-dry\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, { \"name\": \"flood-alarm\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"publish\", \"topic\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, { \"name\": \"frost-cover\", \"when\": { \"topic\": \"garden/air/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ] }",
+    "notANumber": {
+      "reason": "not a finite number",
+      "topic": "garden/bed-1/moisture",
+      "unwatched": "garden/bed-2/moisture"
+    },
+    "refused": [
+      {
+        "file": "{ \"rules\": [ { \"name\": \"water-when-dry\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, { \"name\": \"flood-alarm\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"publish\", \"topic\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, { \"name\": \"frost-cover\", \"when\": { \"topic\": \"garden/+/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ] }",
+        "reason": "a rule watches one topic exactly"
+      },
+      {
+        "file": "{ \"rules\": [ { \"name\": \"water-when-dry\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, { \"name\": \"water-when-dry\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"publish\", \"topic\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, { \"name\": \"frost-cover\", \"when\": { \"topic\": \"garden/air/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ] }",
+        "reason": "two rules share the name `water-when-dry`"
+      },
+      {
+        "file": "{ \"rules\": [ { \"name\": \"water-when-dry\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, { \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, { \"name\": \"flood-alarm\", \"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, \"then\": [ { \"do\": \"publish\", \"topic\": \"garden/#\", \"payload\": \"waterlogged\" } ] }, { \"name\": \"frost-cover\", \"when\": { \"topic\": \"garden/air/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, \"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], \"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ] }",
+        "reason": "a filter rather than a topic"
+      }
+    ],
+    "states": [
+      {
+        "rule": "water-when-dry",
+        "set": false
+      },
+      {
+        "rule": "flood-alarm",
+        "set": false
+      },
+      {
+        "rule": "frost-cover",
+        "set": false
+      }
+    ],
+    "steps": [
+      {
+        "fired": [],
+        "reading": 42.0,
+        "topic": "garden/bed-1/moisture"
+      },
+      {
+        "fired": [
+          {
+            "actions": [
+              {
+                "actuator": "bed-valve",
+                "do": "drive",
+                "on": true
+              },
+              {
+                "do": "publish",
+                "payload": "open",
+                "topic": "garden/bed-1/valve"
+              }
+            ],
+            "edge": "set",
+            "rule": "water-when-dry"
+          }
+        ],
+        "reading": 28.0,
+        "topic": "garden/bed-1/moisture"
+      },
+      {
+        "fired": [],
+        "reading": 33.0,
+        "topic": "garden/bed-1/moisture"
+      },
+      {
+        "fired": [
+          {
+            "actions": [
+              {
+                "actuator": "bed-valve",
+                "do": "drive",
+                "on": false
+              },
+              {
+                "do": "publish",
+                "payload": "closed",
+                "topic": "garden/bed-1/valve"
+              }
+            ],
+            "edge": "cleared",
+            "rule": "water-when-dry"
+          },
+          {
+            "actions": [
+              {
+                "do": "publish",
+                "payload": "waterlogged",
+                "topic": "garden/alarm"
+              }
+            ],
+            "edge": "set",
+            "rule": "flood-alarm"
+          }
+        ],
+        "reading": 65.0,
+        "topic": "garden/bed-1/moisture"
+      },
+      {
+        "fired": [
+          {
+            "actions": [
+              {
+                "actuator": "frost-cover",
+                "do": "drive",
+                "on": true
+              }
+            ],
+            "edge": "set",
+            "rule": "frost-cover"
+          }
+        ],
+        "reading": 1.0,
+        "topic": "garden/air/temperature"
+      },
+      {
+        "fired": [
+          {
+            "actions": [],
+            "edge": "cleared",
+            "rule": "flood-alarm"
+          }
+        ],
+        "reading": 50.0,
+        "topic": "garden/bed-1/moisture"
+      },
+      {
+        "fired": [],
+        "reading": 5.0,
+        "topic": "garden/bed-2/moisture"
+      },
+      {
+        "fired": [
+          {
+            "actions": [
+              {
+                "actuator": "frost-cover",
+                "do": "drive",
+                "on": false
+              }
+            ],
+            "edge": "cleared",
+            "rule": "frost-cover"
+          }
+        ],
+        "reading": 4.0,
+        "topic": "garden/air/temperature"
+      }
+    ],
+    "topics": [
+      "garden/air/temperature",
+      "garden/bed-1/moisture"
+    ]
+  },
   "sensors": {
     "ads1115": {
       "configReset": 34179,

@@ -2868,6 +2868,41 @@ export declare class Router {
   get capacity(): number
 }
 
+/**
+ * The decisions a rule file makes, reading by reading, with no link and no outputs of
+ * its own.
+ */
+export declare class RuleEvaluator {
+  /**
+   * Loads a rule file and arms its rules, every condition starting cleared.
+   *
+   * Throws if the text is not a rule file, or holds a rule no engine could run, such
+   * as one that watches a filter or has nothing to do.
+   */
+  static fromJson(text: string): RuleEvaluator
+  /** Writes the rules back out as the file a fleet shares. */
+  toJson(): string
+  /**
+   * Judges one reading from one topic against every rule that watches it, and returns
+   * what fired in the order the rules are listed: empty when no rule watches the topic
+   * or the reading changed nothing.
+   *
+   * Throws if a rule watches the topic and the reading is not a finite number.
+   */
+  evaluate(topic: string, reading: number): Array<RuleFired>
+  /** Whether any rule watches a topic, so the program knows whether to decode a message. */
+  watches(topic: string): boolean
+  /** The topics the rules watch, each once, in name order: the topics to subscribe to. */
+  get topics(): Array<string>
+  /**
+   * The actuators the rules drive, each once, in name order: the outputs the program
+   * has to have.
+   */
+  get actuators(): Array<string>
+  /** Whether a rule's condition currently holds, or `null` for a name no rule has. */
+  isSet(rule: string): boolean | null
+}
+
 /** The gate every motion command passes through: an e-stop, a watchdog, and limits. */
 export declare class SafetyGate {
   /** Creates a gate from limits, copied as they stand, and a watchdog timeout. */
@@ -8593,6 +8628,46 @@ export interface Route {
 
 /** A reasonable routing table size for a caller with no reason to choose one. */
 export declare const ROUTING_DEFAULT_CAPACITY: number
+
+/**
+ * One thing a rule calls for, as the rule file writes it. Only the fields belonging to
+ * `kind` are set.
+ */
+export interface RuleAction {
+  /** Whether to switch an output or publish a message. */
+  kind: RuleActionKind
+  /** The output to switch, for a drive. */
+  actuator?: string
+  /** The setting to switch it to, for a drive. */
+  on?: boolean
+  /** The topic to publish to, for a publish. */
+  topic?: string
+  /** The text to publish, for a publish. */
+  payload?: string
+}
+
+/** What a rule calls for when its condition sets or clears. */
+export declare const enum RuleActionKind {
+  /** Switch the output the program holds under `actuator`. */
+  Drive = 'drive',
+  /** Publish `payload` to `topic`. */
+  Publish = 'publish',
+}
+
+/** What one rule did with one reading. */
+export interface RuleFired {
+  /** The rule's name. */
+  rule: string
+  /** Whether its condition set or cleared. */
+  edge: Edge
+  /** The reading that did it. */
+  reading: number
+  /**
+   * What the rule calls for on this edge: its `then` actions when it set and its
+   * `otherwise` actions when it cleared, in the order the file gives them.
+   */
+  actions: Array<RuleAction>
+}
 
 /** Reports whether an SCD4x accepts a command while it is measuring. */
 export declare function scd4xAllowedDuringMeasurement(command: number): boolean

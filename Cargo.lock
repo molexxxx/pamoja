@@ -3152,6 +3152,7 @@ dependencies = [
  "pamoja-telemetry",
  "pamoja-update",
  "pamoja-zenoh",
+ "serde_json",
  "sha2 0.11.0",
  "tokio",
 ]

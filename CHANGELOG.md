@@ -885,6 +885,15 @@ released together, so one entry covers all of them.
 - A profile's power governor in every language: `powerPlan()` in TypeScript and
   `power_plan()` in Python, as `PowerPlan` in C# and `power.plan()` in Rust, so a program
   asks what mode a charge puts the node in and how long it waits there.
+- `RuleEvaluator` judges a rule file reading by reading with no link: given a topic and a
+  reading, it says which rules set or cleared and what each calls for, and it lists the
+  topics to subscribe to and the actuators to hold. It is the deciding half of
+  `RuleEngine`, which now runs on one, and it reaches every language: `RuleEvaluator`,
+  `RuleFired`, and `RuleAction` in `@pamoja/profile`, `pamoja.profile`, and
+  `Pamoja.Profile`, and `pamoja_rule_evaluator_*` in C. Rules had no binding before, so
+  the other languages read the file with their own JSON and rebuilt the engine by hand.
+  `Fired` carries the actions a rule called for, and `RuleEngine` gains `topics()` and
+  `actuators()`.
 
 ### Changed
 
@@ -1191,6 +1200,17 @@ released together, so one entry covers all of them.
   policy. The page gains a paragraph for each language, tables of a manifest's fields, the
   control kinds, the alerts, the power schedule, and the refusals, and a section on what
   goes wrong.
+- `Rules::check` reports each problem as `Error::Codec` naming the rule, such as
+  `two rules share the name water-when-dry`, where it returned `Error::Unsupported`, which
+  printed as `unsupported capability: two rules share a name`.
+- The rules guide runs a file of two rules on one bed, so one reading fires two rules in
+  the order the file lists them, and in TypeScript, Python, and C# it runs on
+  `RuleEvaluator` where it rebuilt the engine from the kit's trigger. It prints in a label
+  column and gains a part on what goes wrong: a reading that is not a number, a topic no
+  rule watches, a file watching a filter and one repeating a name, and a rule with no
+  release band. The page gains a paragraph for each language, tables of the file, when a
+  condition moves, what fired, the refusals, and the calls, and a section on what goes
+  wrong.
 
 ### Fixed
 
@@ -1484,6 +1504,13 @@ released together, so one entry covers all of them.
   readings were fine. The setpoint, level, and surge policies raise `InvalidReading` for it
   now, in every language, and change nothing else: a setpoint's output holds its last
   state, and a level or a surge carries on from the last good reading.
+- A rule watching a topic with `+` or `#` was accepted, and the engine subscribed to it
+  and then compared each message's topic with the filter exactly, so the rule never
+  fired. `Rules::check` refuses it now, and a publish to a filter.
+- A reading that is not a finite number on a topic a rule watches left every rule as it
+  was with nothing to say why, since the trigger ignores one. `RuleEvaluator::evaluate`
+  and `RuleEngine::step` refuse it now with `Error::Codec`, as they do a payload that does
+  not decode.
 
 ## [0.1.18] - 2026-09-10
 

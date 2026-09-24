@@ -46,6 +46,42 @@ public static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_profile_from_json(string manifest);
 
+    /// <summary>Loads a rule file and arms its rules.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_rule_evaluator_from_json(string text);
+
+    /// <summary>Writes the rules back out as a rule file.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_rule_evaluator_to_json(IntPtr rules);
+
+    /// <summary>Judges one reading from one topic, returning what fired as JSON.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_rule_evaluator_evaluate(IntPtr rules, string topic, float reading);
+
+    /// <summary>Reports whether any rule watches a topic.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_rule_evaluator_watches(IntPtr rules, string topic);
+
+    /// <summary>Lists the topics the rules watch, as a JSON array.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_rule_evaluator_topics_json(IntPtr rules);
+
+    /// <summary>Lists the actuators the rules drive, as a JSON array.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_rule_evaluator_actuators_json(IntPtr rules);
+
+    /// <summary>Reports whether a rule's condition currently holds.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_rule_evaluator_is_set(
+        IntPtr rules,
+        string rule,
+        [MarshalAs(UnmanagedType.U1)] out bool outSet);
+
+    /// <summary>Releases a rule evaluator.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_rule_evaluator_free(IntPtr rules);
+
     /// <summary>Creates a profile of the caller's own from its parts.</summary>
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_profile_new(

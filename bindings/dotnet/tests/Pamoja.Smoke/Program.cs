@@ -1641,6 +1641,85 @@ static void ProfilesAndRobotics()
 }
 
 
+static void ConformRuleFiles(JsonElement vector)
+{
+    using var evaluator = RuleEvaluator.FromJson(vector.GetProperty("file").GetString()!);
+    string[] Strings(JsonElement list) => list.EnumerateArray().Select(item => item.GetString()!).ToArray();
+    Assert(evaluator.Topics.SequenceEqual(Strings(vector.GetProperty("topics"))), "the topics to subscribe to");
+    Assert(evaluator.Actuators.SequenceEqual(Strings(vector.GetProperty("actuators"))), "the outputs to hold");
+
+    foreach (JsonElement step in vector.GetProperty("steps").EnumerateArray())
+    {
+        string topic = step.GetProperty("topic").GetString()!;
+        IReadOnlyList<RuleFired> fired = evaluator.Evaluate(topic, step.GetProperty("reading").GetSingle());
+        JsonElement want = step.GetProperty("fired");
+        Assert(fired.Count == want.GetArrayLength(), $"how many rules {topic} fired");
+        int index = 0;
+        foreach (JsonElement expected in want.EnumerateArray())
+        {
+            RuleFired one = fired[index++];
+            Assert(one.Rule == expected.GetProperty("rule").GetString(), "the rule that fired");
+            Assert(
+                one.Edge == (expected.GetProperty("edge").GetString() == "set" ? Edge.Set : Edge.Cleared),
+                "which way it moved");
+            JsonElement actions = expected.GetProperty("actions");
+            Assert(one.Actions.Count == actions.GetArrayLength(), "how many actions it calls for");
+            int at = 0;
+            foreach (JsonElement action in actions.EnumerateArray())
+            {
+                RuleAction got = one.Actions[at++];
+                if (action.GetProperty("do").GetString() == "drive")
+                {
+                    Assert(
+                        got == new RuleAction(
+                            RuleActionKind.Drive,
+                            action.GetProperty("actuator").GetString(),
+                            action.GetProperty("on").GetBoolean(),
+                            null,
+                            null),
+                        "a drive, in the file's order");
+                }
+                else
+                {
+                    Assert(
+                        got == new RuleAction(
+                            RuleActionKind.Publish,
+                            null,
+                            null,
+                            action.GetProperty("topic").GetString(),
+                            action.GetProperty("payload").GetString()),
+                        "a publish, in the file's order");
+                }
+            }
+        }
+    }
+
+    foreach (JsonElement state in vector.GetProperty("states").EnumerateArray())
+    {
+        Assert(
+            evaluator.IsSet(state.GetProperty("rule").GetString()!) == state.GetProperty("set").GetBoolean(),
+            "the state a rule holds");
+    }
+
+    Assert(evaluator.IsSet("nowhere") is null, "a name no rule has");
+
+    foreach (JsonElement refused in vector.GetProperty("refused").EnumerateArray())
+    {
+        PamojaException error = Catch<PamojaException>(
+            () => RuleEvaluator.FromJson(refused.GetProperty("file").GetString()!));
+        string reason = refused.GetProperty("reason").GetString()!;
+        Assert(error.Message.Contains(reason), $"{error.Message} should say {reason}");
+    }
+
+    JsonElement invalid = vector.GetProperty("notANumber");
+    PamojaException nan = Catch<PamojaException>(
+        () => evaluator.Evaluate(invalid.GetProperty("topic").GetString()!, float.NaN));
+    Assert(nan.Message.Contains(invalid.GetProperty("reason").GetString()!), nan.Message);
+    Assert(
+        evaluator.Evaluate(invalid.GetProperty("unwatched").GetString()!, float.NaN).Count == 0,
+        "a topic no rule watches is not judged");
+}
+
 static void ConformProfile(JsonElement vector, double tolerance)
 {
     JsonElement coldChain = vector.GetProperty("coldChain");
@@ -2568,6 +2647,7 @@ static void Conformance()
     ConformLadder(vectors.GetProperty("ladder")).GetAwaiter().GetResult();
     ConformSimulation(vectors.GetProperty("simulation")).GetAwaiter().GetResult();
     ConformProfile(vectors.GetProperty("profile"), tolerance);
+    ConformRuleFiles(vectors.GetProperty("rules"));
     ConformRos2(vectors.GetProperty("ros2"), tolerance);
     ConformZenoh(vectors.GetProperty("zenoh"));
 

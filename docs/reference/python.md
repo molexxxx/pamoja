@@ -484,12 +484,12 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="python-rules">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">pamoja.kit</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link</p></div>
-<div class="pkg-get"><code class="cmd">pip install pamoja-kit</code><button class="copy" type="button" data-copy="pip install pamoja-kit" aria-label="Copy the install command">copy</button></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">pamoja.profile</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language</p></div>
+<div class="pkg-get"><code class="cmd">pip install pamoja-profile</code><button class="copy" type="button" data-copy="pip install pamoja-profile" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
-<div class="pkg-btns"><a class="pkg-btn api python" href="https://pamoja.molex.cloud/docs/reference/python/pamoja/kit.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#python">Worked example</a><a class="pkg-btn ext" href="https://pypi.org/project/pamoja-kit/">PyPI</a></div>
-<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/kit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Kit">C#</a></p>
+<div class="pkg-btns"><a class="pkg-btn api python" href="https://pamoja.molex.cloud/docs/reference/python/pamoja/profile.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#python">Worked example</a><a class="pkg-btn ext" href="https://pypi.org/project/pamoja-profile/">PyPI</a></div>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/rust.html#rust-rules" title="pamoja-core">Rust</a> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/profile">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Profile">C#</a></p>
 </div>
 </div>
 <div class="pkg" id="python-motion">

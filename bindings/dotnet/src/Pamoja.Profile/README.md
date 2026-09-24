@@ -16,7 +16,7 @@ dotnet add package Pamoja.Profile
 using Pamoja.Profile;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Power`. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Kit` and `Pamoja.Power`. `dotnet add package Pamoja` is the whole framework in one package.
 
 ## Example
 

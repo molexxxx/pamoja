@@ -62,7 +62,9 @@ use pamoja_mavlink::{
 use pamoja_mesh::{crc16 as mesh_crc16, DynamicSeenCache, Frame as MeshFrame};
 use pamoja_modbus::{crc16, Adu, Pdu, Response};
 use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
-use pamoja_profile::{Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, Reaction};
+use pamoja_profile::{
+    Alert, ControlSpec, Controller, Params, PowerSchedule, Profile, Reaction, RuleEvaluator, Rules,
+};
 use pamoja_radios::duty::DutyCycle as RadioDutyCycle;
 use pamoja_radios::sx126x::{
     command as sx126x_command, config as sx126x_config, irq as sx126x_irq, status as sx126x_status,
@@ -189,6 +191,7 @@ fn main() {
         "ladder": ladder(),
         "simulation": simulation(),
         "profile": profile(),
+        "rules": rules(),
         "ros2": ros2(),
         "zenoh": zenoh(),
     });
@@ -6811,6 +6814,112 @@ fn reaction_value(reading: f32, reaction: Reaction) -> Value {
         "reading": reading,
         "actuator": reaction.actuator,
         "alert": alert,
+    })
+}
+
+/// Rules between nodes judged reading by reading: every binding must arm the same file,
+/// list the same topics and actuators, fire the same rules in the same order with the
+/// same actions, and refuse the same files and readings for the same reasons.
+fn rules() -> Value {
+    let file = concat!(
+        "{ \"rules\": [ ",
+        "{ \"name\": \"water-when-dry\", ",
+        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"below\", \"threshold\": 30.0, \"hysteresis\": 5.0 }, ",
+        "\"then\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": true }, ",
+        "{ \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"open\" } ], ",
+        "\"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"bed-valve\", \"on\": false }, ",
+        "{ \"do\": \"publish\", \"topic\": \"garden/bed-1/valve\", \"payload\": \"closed\" } ] }, ",
+        "{ \"name\": \"flood-alarm\", ",
+        "\"when\": { \"topic\": \"garden/bed-1/moisture\", \"compare\": \"above\", \"threshold\": 60.0, \"hysteresis\": 5.0 }, ",
+        "\"then\": [ { \"do\": \"publish\", \"topic\": \"garden/alarm\", \"payload\": \"waterlogged\" } ] }, ",
+        "{ \"name\": \"frost-cover\", ",
+        "\"when\": { \"topic\": \"garden/air/temperature\", \"compare\": \"below\", \"threshold\": 2.0, \"hysteresis\": 1.5 }, ",
+        "\"then\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": true } ], ",
+        "\"otherwise\": [ { \"do\": \"drive\", \"actuator\": \"frost-cover\", \"on\": false } ] } ",
+        "] }"
+    );
+    let mut evaluator =
+        RuleEvaluator::new(Rules::from_json(file).expect("a rule file")).expect("usable rules");
+    let messages = [
+        ("garden/bed-1/moisture", 42.0f32),
+        ("garden/bed-1/moisture", 28.0),
+        ("garden/bed-1/moisture", 33.0),
+        ("garden/bed-1/moisture", 65.0),
+        ("garden/air/temperature", 1.0),
+        ("garden/bed-1/moisture", 50.0),
+        ("garden/bed-2/moisture", 5.0),
+        ("garden/air/temperature", 4.0),
+    ];
+    let steps: Vec<Value> = messages
+        .iter()
+        .map(|&(topic, reading)| {
+            let fired: Vec<Value> = evaluator
+                .evaluate(topic, reading)
+                .expect("a finite reading")
+                .into_iter()
+                .map(|one| {
+                    json!({
+                        "rule": one.rule,
+                        "edge": match one.edge {
+                            pamoja_kit::Edge::Set => "set",
+                            pamoja_kit::Edge::Cleared => "cleared",
+                        },
+                        "actions": one.actions,
+                    })
+                })
+                .collect();
+            json!({ "topic": topic, "reading": reading, "fired": fired })
+        })
+        .collect();
+    let states: Vec<Value> = ["water-when-dry", "flood-alarm", "frost-cover"]
+        .iter()
+        .map(|rule| json!({ "rule": rule, "set": evaluator.is_set(rule) }))
+        .collect();
+
+    let refused: Vec<Value> = [
+        (
+            file.replace("garden/air/temperature", "garden/+/temperature"),
+            "a rule watches one topic exactly",
+        ),
+        (
+            file.replace("\"flood-alarm\"", "\"water-when-dry\""),
+            "two rules share the name `water-when-dry`",
+        ),
+        (
+            file.replace("\"garden/alarm\"", "\"garden/#\""),
+            "a filter rather than a topic",
+        ),
+    ]
+    .into_iter()
+    .map(|(text, reason)| {
+        let error = Rules::from_json(&text)
+            .and_then(RuleEvaluator::new)
+            .err()
+            .expect("the file is refused")
+            .to_string();
+        assert!(error.contains(reason), "{error}");
+        json!({ "file": text, "reason": reason })
+    })
+    .collect();
+
+    let invalid = evaluator
+        .evaluate("garden/bed-1/moisture", f32::NAN)
+        .expect_err("a reading that is not a number is refused")
+        .to_string();
+    assert!(invalid.contains("not a finite number"), "{invalid}");
+
+    json!({
+        "file": file,
+        "topics": evaluator.topics(),
+        "actuators": evaluator.actuators(),
+        "steps": steps,
+        "states": states,
+        "refused": refused,
+        "notANumber": {
+            "topic": "garden/bed-1/moisture",
+            "reason": "not a finite number",
+            "unwatched": "garden/bed-2/moisture",
+        },
     })
 }
 

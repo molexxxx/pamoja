@@ -483,12 +483,12 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-rules">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">pamoja-core</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/rules.html">Rules</a><code class="pkg-import">pamoja-core</code><p>Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-core</code><button class="copy" type="button" data-copy="cargo add pamoja-core" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">
 <div class="pkg-btns"><a class="pkg-btn api rust" href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_core/index.html">API reference</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html">Guide</a><a class="pkg-btn" href="https://pamoja.molex.cloud/docs/guides/rules.html#rust">Worked example</a><a class="pkg-btn ext" href="https://crates.io/crates/pamoja-core">crates.io</a><a class="pkg-btn ext" href="https://docs.rs/pamoja-core">docs.rs</a></div>
-<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/kit">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-kit">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Kit">C#</a></p>
+<p class="pkg-else"><span>Also in</span> <a href="https://pamoja.molex.cloud/docs/reference/node.html#node-rules" title="@pamoja/profile">TypeScript</a> <a href="https://pamoja.molex.cloud/docs/reference/python.html#python-rules" title="pamoja-profile">Python</a> <a href="https://pamoja.molex.cloud/docs/reference/dotnet.html#dotnet-rules" title="Pamoja.Profile">C#</a></p>
 </div>
 </div>
 <div class="pkg" id="rust-motion">

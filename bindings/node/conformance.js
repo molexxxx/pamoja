@@ -3557,6 +3557,52 @@ async function simulationVectors() {
   }
 }
 
+// Rules between nodes judged reading by reading: the same rules fire in the same order
+// with the same actions, and the same files and readings are refused.
+function rulesVectors() {
+  const vector = VECTORS.rules;
+  const evaluator = profile.RuleEvaluator.fromJson(vector.file);
+  assert.deepStrictEqual(evaluator.topics, vector.topics, "the topics to subscribe to");
+  assert.deepStrictEqual(evaluator.actuators, vector.actuators, "the outputs to hold");
+
+  // Each action written back in the rule file's own shape, to compare with the vector.
+  const written = (action) =>
+    action.kind === profile.RuleActionKind.Drive
+      ? { do: "drive", actuator: action.actuator, on: action.on }
+      : { do: "publish", topic: action.topic, payload: action.payload };
+  for (const step of vector.steps) {
+    const fired = evaluator.evaluate(step.topic, step.reading).map((one) => ({
+      rule: one.rule,
+      edge: one.edge,
+      actions: one.actions.map(written),
+    }));
+    assert.deepStrictEqual(fired, step.fired, `what ${step.topic} at ${step.reading} fired`);
+  }
+  for (const { rule, set } of vector.states) {
+    assert.strictEqual(evaluator.isSet(rule), set, `the state of ${rule}`);
+  }
+  assert.strictEqual(evaluator.isSet("nowhere"), null, "a name no rule has");
+
+  for (const { file, reason } of vector.refused) {
+    assert.throws(() => profile.RuleEvaluator.fromJson(file), (error) => {
+      assert.ok(error.message.includes(reason), `${error.message} should say ${reason}`);
+      return true;
+    });
+  }
+
+  const invalid = vector.notANumber;
+  assert.throws(() => evaluator.evaluate(invalid.topic, Number.NaN), (error) => {
+    assert.ok(error.message.includes(invalid.reason), error.message);
+    return true;
+  });
+  assert.deepStrictEqual(evaluator.evaluate(invalid.unwatched, Number.NaN), []);
+  assert.deepStrictEqual(
+    JSON.parse(profile.RuleEvaluator.fromJson(evaluator.toJson()).toJson()),
+    JSON.parse(evaluator.toJson()),
+    "the file written back loads as the same rules",
+  );
+}
+
 // What a profile decides, so every binding reaches the same conclusion.
 function profileVectors() {
   const vector = VECTORS.profile;
@@ -3919,6 +3965,7 @@ updateVectors();
 powerVectors();
 telemetryVectors();
 profileVectors();
+rulesVectors();
 ros2Vectors();
 zenohVectors();
 
