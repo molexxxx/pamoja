@@ -48,6 +48,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     /// <param name="options">The broker connection settings.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     /// <exception cref="PamojaException">The native client could not be created.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The QoS is not one of the <see cref="Qos"/> values.</exception>
     public MqttClient(MqttClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -63,7 +64,7 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                 Port = options.Port,
                 KeepAliveSecs = options.KeepAliveSecs ?? 0,
                 Capacity = options.Capacity ?? 0,
-                Qos = (PamojaQos)(int)(options.Qos ?? Qos.AtLeastOnce),
+                Qos = (PamojaQos)NamedValue.Require(options.Qos ?? Qos.AtLeastOnce, nameof(options.Qos)),
                 MaxPacketSize = options.MaxPacketSize ?? 0,
             };
 

@@ -19,6 +19,10 @@
 //!   each with its matching `*_free` function.
 //! - All strings crossing the boundary are UTF-8. Inputs are borrowed for the
 //!   duration of the call; returned pointers document their own lifetime.
+//! - An enum the caller passes in, as an argument or as a field of a struct, must hold
+//!   one of the values the enum declares. The library reads it as one of those values,
+//!   and any other value is undefined behavior; the .NET binding refuses one before the
+//!   call.
 //!
 //! # Choosing what the library carries
 //!

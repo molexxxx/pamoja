@@ -3646,9 +3646,13 @@ mod tests {
             let held = pamoja_i2c_bus_part(bus, 0x45);
             assert_eq!(pamoja_i2c_part_received_count(held), 4);
             let first = pamoja_i2c_part_received(held, 0);
+            let written = std::slice::from_raw_parts(
+                crate::pamoja_buffer_data(first),
+                crate::pamoja_buffer_len(first),
+            );
             assert_eq!(
-                *crate::pamoja_buffer_data(first),
-                sht3x::command::SOFT_RESET.to_be_bytes()[0],
+                written,
+                &sht3x::command::SOFT_RESET.to_be_bytes()[..],
                 "the reset went first"
             );
             crate::pamoja_buffer_free(first);

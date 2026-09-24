@@ -130,10 +130,11 @@ public sealed class Stepper : IDisposable
     /// <summary>Creates a stepper at the start of a pattern, with its position at zero.</summary>
     /// <param name="drive">The coil pattern to walk.</param>
     /// <exception cref="PamojaException">The native stepper could not be created.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="drive"/> is not one of the <see cref="StepDrive"/> values.</exception>
     public Stepper(StepDrive drive)
     {
         _handle = NativeHandle.Create(
-            NativeMethods.pamoja_stepper_new((PamojaStepDrive)drive),
+            NativeMethods.pamoja_stepper_new((PamojaStepDrive)NamedValue.Require(drive, nameof(drive))),
             NativeMethods.pamoja_stepper_free,
             "stepper");
     }
@@ -147,8 +148,10 @@ public sealed class Stepper : IDisposable
     /// <summary>Returns how many steps one electrical cycle of a pattern takes.</summary>
     /// <param name="drive">The coil pattern.</param>
     /// <returns><c>4</c> for wave and full-step, <c>8</c> for half-step.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="drive"/> is not one of the <see cref="StepDrive"/> values.</exception>
     public static int StepCount(StepDrive drive) =>
-        checked((int)NativeMethods.pamoja_stepper_step_count((PamojaStepDrive)drive));
+        checked((int)NativeMethods.pamoja_stepper_step_count(
+            (PamojaStepDrive)NamedValue.Require(drive, nameof(drive))));
 
     /// <summary>Returns how many steps a rotation of an angle takes on a motor.</summary>
     /// <param name="degrees">The angle to turn through.</param>
@@ -162,8 +165,10 @@ public sealed class Stepper : IDisposable
     /// <returns>
     /// The coil pattern; the most significant of the four bits is the first coil.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="direction"/> is not one of the <see cref="StepDirection"/> values.</exception>
     public byte Step(StepDirection direction) =>
-        _handle.Use(handle => NativeMethods.pamoja_stepper_step(handle, (PamojaStepDirection)direction));
+        _handle.Use(handle => NativeMethods.pamoja_stepper_step(
+            handle, (PamojaStepDirection)NamedValue.Require(direction, nameof(direction))));
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();

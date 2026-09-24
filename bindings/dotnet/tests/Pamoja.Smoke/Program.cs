@@ -71,6 +71,7 @@ Assert(!await client.IsConnectedAsync(), "a failed connect should leave the clie
 
 Identity();
 NativeSafety();
+NamedValues();
 Codecs();
 Helpers();
 Motion();
@@ -812,6 +813,129 @@ static void NativeSafety()
     catch (ObjectDisposedException)
     {
     }
+}
+
+// An enum value its type does not name is refused before it crosses, since the native
+// library reads an enum as one of the values it declares.
+static void NamedValues()
+{
+    ExpectArgument(
+        () => PowerPlan.Create(1, 2, 3).IntervalForUs((PowerMode)7),
+        "mode must be one of the PowerMode values",
+        "a mode no plan has");
+
+    ExpectArgument(
+        () => new Stepper((StepDrive)9).Dispose(),
+        "drive must be one of the StepDrive values",
+        "a coil pattern that does not exist");
+    ExpectArgument(
+        () => Stepper.StepCount((StepDrive)9),
+        "drive must be one of the StepDrive values",
+        "nor its step count");
+    using (var stepper = new Stepper(StepDrive.Wave))
+    {
+        ExpectArgument(
+            () => stepper.Step((StepDirection)2),
+            "direction must be one of the StepDirection values",
+            "a step neither way");
+    }
+
+    ExpectArgument(
+        () => Pin.Invert((PinLevel)2),
+        "level must be one of the PinLevel values",
+        "a level that is neither low nor high");
+    ExpectArgument(
+        () => Pin.Triggers((PinEdge)9, PinLevel.Low, PinLevel.High),
+        "edge must be one of the PinEdge values",
+        "an edge that is none of the three");
+    ExpectArgument(
+        () => Pin.Triggers(PinEdge.Rising, PinLevel.Low, (PinLevel)2),
+        "to must be one of the PinLevel values",
+        "a transition to no level");
+    ExpectArgument(
+        () => Pin.LevelFor((PinPolarity)2, true),
+        "polarity must be one of the PinPolarity values",
+        "wiring that is neither active high nor low");
+    ExpectArgument(
+        () => Pin.IsAsserted(PinPolarity.ActiveHigh, (PinLevel)2),
+        "level must be one of the PinLevel values",
+        "a reading of no level");
+    ExpectArgument(
+        () => GpioLine.OpenOutput("gpiochip0", 17, (PinLevel)2).Dispose(),
+        "initial must be one of the PinLevel values",
+        "a line opened at no level, on any platform");
+
+    ExpectArgument(
+        () => Ros2.PrefixFor((EntityKind)9),
+        "kind must be one of the EntityKind values",
+        "a subsystem ROS 2 does not have");
+    ExpectArgument(
+        () => Ros2.DdsTopic("/chatter", (EntityKind)9),
+        "kind must be one of the EntityKind values",
+        "nor a topic for it");
+
+    ExpectArgument(
+        () => LorawanMacCommand.Parse((LorawanDirection)9, []),
+        "direction must be one of the LorawanDirection values",
+        "a frame traveling neither way");
+    ExpectArgument(
+        () => new LorawanMacCommand { Cid = 0x02, Direction = (LorawanDirection)9 }.ToNative(),
+        "Direction must be one of the LorawanDirection values",
+        "a command traveling neither way");
+
+    using var node = new AgreementKey(Repeat(0x01, 32));
+    using var gateway = new AgreementKey(Repeat(0x02, 32));
+    ExpectArgument(
+        () => new Session(node, gateway.PublicKey, Repeat(0x09, 16), (SessionRole)9).Dispose(),
+        "role must be one of the SessionRole values",
+        "a session role that is neither side");
+
+    ExpectArgument(
+        () => new Reporter((TelemetryLevel)9).Dispose(),
+        "threshold must be one of the TelemetryLevel values",
+        "a reporter starting at no level");
+    ExpectArgument(
+        () => Reporter.ThresholdFor((LinkCost)9),
+        "cost must be one of the LinkCost values",
+        "a link that costs none of the four");
+    using var reporter = new Reporter();
+    ExpectArgument(
+        () => reporter.Threshold = (TelemetryLevel)9,
+        "value must be one of the TelemetryLevel values",
+        "a threshold moved to no level");
+    ExpectArgument(
+        () => reporter.AdaptTo((LinkCost)9),
+        "cost must be one of the LinkCost values",
+        "adapting to no cost");
+    ExpectArgument(
+        () => reporter.Record(new TelemetryEvent((TelemetryLevel)9, "loop.tick")),
+        "telemetryEvent must be one of the TelemetryLevel values",
+        "an event at no level");
+    ExpectArgument(
+        () => reporter.Count((TelemetryLevel)9),
+        "level must be one of the TelemetryLevel values",
+        "counting at no level");
+    Assert(reporter.Total == 0, "and nothing refused was counted");
+
+    CoapClientOptions coap = new() { Host = "127.0.0.1", Port = 5683, Reliability = (Reliability)9 };
+    ExpectArgument(
+        () => new CoapClient(coap).Dispose(),
+        "Reliability must be one of the Reliability values",
+        "a CoAP exchange that is neither confirmable nor not");
+    ExpectArgument(
+        () => CoapTransport.Open(coap).Dispose(),
+        "Reliability must be one of the Reliability values",
+        "nor a CoAP rung");
+
+    MqttClientOptions mqtt = new() { ClientId = "smoke", Host = "127.0.0.1", Port = 1883, Qos = (Qos)9 };
+    ExpectArgument(
+        () => _ = new MqttClient(mqtt),
+        "Qos must be one of the Qos values",
+        "an MQTT QoS past exactly once");
+    ExpectArgument(
+        () => MqttTransport.Open(mqtt).Dispose(),
+        "Qos must be one of the Qos values",
+        "nor an MQTT rung");
 }
 
 // Runs a call that must refuse a wrong-length argument, and checks what it says.

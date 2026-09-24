@@ -182,32 +182,46 @@ public static class Pin
     /// <summary>Returns the opposite level.</summary>
     /// <param name="level">The level to invert.</param>
     /// <returns>The other level.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is not one of the <see cref="PinLevel"/> values.</exception>
     public static PinLevel Invert(PinLevel level) =>
-        (PinLevel)NativeMethods.pamoja_pin_level_inverted((PamojaPinLevel)level);
+        (PinLevel)NativeMethods.pamoja_pin_level_inverted(
+            (PamojaPinLevel)NamedValue.Require(level, nameof(level)));
 
     /// <summary>Reports whether a transition fires an interrupt trigger.</summary>
     /// <param name="edge">The trigger configured on the pin.</param>
     /// <param name="from">The level before the change.</param>
     /// <param name="to">The level after it.</param>
     /// <returns>Whether the trigger fires.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="edge"/>, <paramref name="from"/>, or <paramref name="to"/> is not one of its
+    /// type's values.
+    /// </exception>
     public static bool Triggers(PinEdge edge, PinLevel from, PinLevel to) =>
         NativeMethods.pamoja_pin_edge_triggered_by(
-            (PamojaPinEdge)edge, (PamojaPinLevel)from, (PamojaPinLevel)to);
+            (PamojaPinEdge)NamedValue.Require(edge, nameof(edge)),
+            (PamojaPinLevel)NamedValue.Require(from, nameof(from)),
+            (PamojaPinLevel)NamedValue.Require(to, nameof(to)));
 
     /// <summary>Returns the physical level that represents a logical state.</summary>
     /// <param name="polarity">How the signal is wired.</param>
     /// <param name="asserted">Whether the signal should be asserted.</param>
     /// <returns>The level to drive, inverted for active-low wiring.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="polarity"/> is not one of the <see cref="PinPolarity"/> values.</exception>
     public static PinLevel LevelFor(PinPolarity polarity, bool asserted) =>
-        (PinLevel)NativeMethods.pamoja_pin_polarity_level((PamojaPinPolarity)polarity, asserted);
+        (PinLevel)NativeMethods.pamoja_pin_polarity_level(
+            (PamojaPinPolarity)NamedValue.Require(polarity, nameof(polarity)), asserted);
 
     /// <summary>Reports whether a physical level means the signal is asserted.</summary>
     /// <param name="polarity">How the signal is wired.</param>
     /// <param name="level">The level read on the pin.</param>
     /// <returns>Whether the signal is asserted.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="polarity"/> or <paramref name="level"/> is not one of its type's values.
+    /// </exception>
     public static bool IsAsserted(PinPolarity polarity, PinLevel level) =>
         NativeMethods.pamoja_pin_polarity_is_asserted(
-            (PamojaPinPolarity)polarity, (PamojaPinLevel)level);
+            (PamojaPinPolarity)NamedValue.Require(polarity, nameof(polarity)),
+            (PamojaPinLevel)NamedValue.Require(level, nameof(level)));
 }
 
 /// <summary>
@@ -397,11 +411,12 @@ public sealed class GpioLine : IOutputLine, IInputLine, IDisposable
     /// <returns>The line.</returns>
     /// <exception cref="PlatformNotSupportedException">The platform is not Linux.</exception>
     /// <exception cref="PamojaException">The chip or the line could not be opened.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="initial"/> is not one of the <see cref="PinLevel"/> values.</exception>
     public static GpioLine OpenOutput(string chip, uint line, PinLevel initial)
     {
         ArgumentNullException.ThrowIfNull(chip);
         PamojaStatus status = NativeMethods.pamoja_gpio_line_open_output(
-            chip, line, (PamojaPinLevel)initial, out IntPtr opened);
+            chip, line, (PamojaPinLevel)NamedValue.Require(initial, nameof(initial)), out IntPtr opened);
         return Opened(status, opened, chip, line);
     }
 
@@ -421,9 +436,11 @@ public sealed class GpioLine : IOutputLine, IInputLine, IDisposable
     /// <summary>Drives the line to a level. The line must have been opened as an output.</summary>
     /// <param name="level">The level to drive.</param>
     /// <exception cref="PamojaException">The kernel refused the write, which an input line does.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is not one of the <see cref="PinLevel"/> values.</exception>
     public void Drive(PinLevel level) =>
         Status.ThrowIfError(
-            _handle.Use(line => NativeMethods.pamoja_gpio_line_drive(line, (PamojaPinLevel)level)));
+            _handle.Use(line => NativeMethods.pamoja_gpio_line_drive(
+                line, (PamojaPinLevel)NamedValue.Require(level, nameof(level)))));
 
     /// <summary>Reads the level on the line now.</summary>
     /// <returns>The level.</returns>
