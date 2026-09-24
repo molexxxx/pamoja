@@ -15,8 +15,8 @@ use pamoja_lora::LinkSettings;
 ///
 /// Build one with [`pamoja_lora_link_default`] and adjust the fields that differ
 /// from the defaults. Values outside the ranges LoRa defines are clamped when the
-/// link is used: the spreading factor to 5-12 and the coding-rate denominator to
-/// 5-8.
+/// link is used: the spreading factor to 5-12, the coding-rate denominator to 5-8,
+/// and a bandwidth of 0 to one hertz.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PamojaLoraLink {
@@ -42,7 +42,7 @@ pub struct PamojaLoraLink {
 /// # Arguments
 ///
 /// * `spreading_factor` - the spreading factor, clamped to 5-12.
-/// * `bandwidth_hz` - the channel bandwidth in hertz.
+/// * `bandwidth_hz` - the channel bandwidth in hertz; `0` counts as one hertz.
 ///
 /// # Returns
 ///
@@ -77,6 +77,24 @@ pub extern "C" fn pamoja_lora_symbol_time_us(link: PamojaLoraLink) -> u64 {
     settings(link).symbol_time_us()
 }
 
+/// Reports whether a link uses low data rate optimization.
+///
+/// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+/// SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+/// turn it on too.
+///
+/// # Arguments
+///
+/// * `link` - the link settings.
+///
+/// # Returns
+///
+/// `true` when the symbol time exceeds 16 ms.
+#[no_mangle]
+pub extern "C" fn pamoja_lora_low_data_rate_optimization(link: PamojaLoraLink) -> bool {
+    settings(link).low_data_rate_optimization()
+}
+
 /// Returns the time on air of a payload, in microseconds.
 ///
 /// This is the channel occupancy a transmission costs: how long the radio holds
@@ -90,7 +108,7 @@ pub extern "C" fn pamoja_lora_symbol_time_us(link: PamojaLoraLink) -> u64 {
 ///
 /// # Returns
 ///
-/// The time on air in microseconds.
+/// The time on air in microseconds, held at `UINT64_MAX` rather than overflowing.
 #[no_mangle]
 pub extern "C" fn pamoja_lora_airtime_us(link: PamojaLoraLink, payload_len: usize) -> u64 {
     settings(link).airtime_us(payload_len)
@@ -106,8 +124,8 @@ pub extern "C" fn pamoja_lora_airtime_us(link: PamojaLoraLink, payload_len: usiz
 ///
 /// # Returns
 ///
-/// The required off time in microseconds, or `UINT64_MAX` if the limit is zero,
-/// which forbids transmitting at all.
+/// The required off time in microseconds: `UINT64_MAX` if the limit is zero, which
+/// forbids transmitting at all, and `0` for a limit of 1000 or more.
 #[no_mangle]
 pub extern "C" fn pamoja_lora_min_off_time_us(
     link: PamojaLoraLink,
@@ -115,6 +133,28 @@ pub extern "C" fn pamoja_lora_min_off_time_us(
     duty_cycle_permille: u32,
 ) -> u64 {
     settings(link).min_off_time_us(payload_len, duty_cycle_permille)
+}
+
+/// Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
+///
+/// A transmission really costs its airtime plus the silence the limit forces after it.
+///
+/// # Arguments
+///
+/// * `link` - the link settings.
+/// * `payload_len` - the payload length in bytes.
+/// * `duty_cycle_permille` - the limit in parts per thousand, so `10` is 1%.
+///
+/// # Returns
+///
+/// The number of whole transmissions an hour, or `0` when the limit is zero.
+#[no_mangle]
+pub extern "C" fn pamoja_lora_messages_per_hour(
+    link: PamojaLoraLink,
+    payload_len: usize,
+    duty_cycle_permille: u32,
+) -> u64 {
+    settings(link).messages_per_hour(payload_len, duty_cycle_permille)
 }
 
 /// The gains and losses of a LoRa link, from the transmitting radio to the receiving one.
@@ -481,6 +521,36 @@ mod tests {
     fn a_zero_duty_cycle_forbids_transmitting() {
         let link = pamoja_lora_link_default(7, 125_000);
         assert_eq!(pamoja_lora_min_off_time_us(link, 20, 0), u64::MAX);
+        assert_eq!(pamoja_lora_messages_per_hour(link, 20, 0), 0);
+    }
+
+    #[test]
+    fn an_hour_holds_thirty_six_ten_byte_readings_at_sf12_and_one_percent() {
+        let link = pamoja_lora_link_default(12, 125_000);
+        assert_eq!(pamoja_lora_messages_per_hour(link, 10, 10), 36);
+    }
+
+    #[test]
+    fn only_symbols_longer_than_sixteen_milliseconds_need_the_optimization() {
+        assert!(pamoja_lora_low_data_rate_optimization(
+            pamoja_lora_link_default(12, 125_000)
+        ));
+        assert!(pamoja_lora_low_data_rate_optimization(
+            pamoja_lora_link_default(11, 125_000)
+        ));
+        assert!(!pamoja_lora_low_data_rate_optimization(
+            pamoja_lora_link_default(10, 125_000)
+        ));
+        assert!(pamoja_lora_low_data_rate_optimization(
+            pamoja_lora_link_default(12, 250_000)
+        ));
+    }
+
+    #[test]
+    fn a_zero_bandwidth_is_one_hertz_rather_than_a_division_by_zero() {
+        let link = pamoja_lora_link_default(12, 0);
+        assert_eq!(link.bandwidth_hz, 1);
+        assert_eq!(pamoja_lora_symbol_time_us(link), 4_096_000_000);
     }
 
     #[test]

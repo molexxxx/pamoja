@@ -34,7 +34,7 @@ Console.WriteLine($"{plan.Name} DR0 is SF{link.SpreadingFactor} at 125 kHz");
 // The time on air for that setting, coding rate 4/5, an eight-symbol preamble, an
 // explicit header and CRC on, carrying a ten-byte reading.
 ulong airtime = link.AirtimeMicros(10);
-Console.WriteLine($"airtime   {airtime / 1e6:F2} s for ten bytes");
+Console.WriteLine(Invariant($"airtime   {airtime / 1e6:F2} s for ten bytes"));
 
 // 868.1 MHz falls in a sub-band capped at 1% of the time and 16 dBm, so every
 // transmission buys ninety-nine times its own length in silence.
@@ -44,7 +44,7 @@ Console.WriteLine(
     $"channel   {permille} per mille duty cycle, {plan.MaxEirpDbm(Channel)} dBm");
 
 ulong offTime = link.MinOffTimeMicros(10, permille)!.Value;
-Console.WriteLine($"silence   {offTime / 1e6:F1} s owed after each reading");
+Console.WriteLine(Invariant($"silence   {offTime / 1e6:F1} s owed after each reading"));
 
 // The airtime plus that silence is what one reading really costs, which is the
 // budget a deployment plans against.
@@ -53,7 +53,10 @@ Console.WriteLine($"budget    {link.MessagesPerHour(10, permille)} readings an h
 // A frequency in no sub-band the plan describes has no duty cycle to budget
 // against. That is a limit published elsewhere, not permission to transmit.
 uint? outside = plan.DutyCyclePermille(700_000_000);
-Console.WriteLine($"700 MHz  is outside this plan, so it budgets nothing: {outside is null}");
+string elsewhere = outside is null
+    ? "in no sub-band of this plan, so its limit is published elsewhere"
+    : $"limited to {outside} per mille";
+Console.WriteLine($"700 MHz   {elsewhere}");
 ```
 
 ## The same capability in every language

@@ -1594,6 +1594,9 @@ def test_lora_vectors_match():
     for described in vector["links"]:
         link = _link_of(described)
         assert link.symbol_time_us() == described["symbolTimeUs"], described["name"]
+        assert (
+            link.low_data_rate_optimization() == described["lowDataRateOptimization"]
+        ), described["name"]
 
         for airtime in described["airtimes"]:
             assert link.airtime_us(airtime["payloadLen"]) == airtime["airtimeUs"], (
@@ -1605,6 +1608,10 @@ def test_lora_vectors_match():
                 link.min_off_time_us(budget["payloadLen"], budget["permille"])
                 == budget["offTimeUs"]
             ), f"off time at {budget['permille']} permille on {described['name']}"
+            assert (
+                lora.messages_per_hour(link, budget["payloadLen"], budget["permille"])
+                == budget["messagesPerHour"]
+            ), f"messages an hour at {budget['permille']} permille on {described['name']}"
 
     for clamp in vector["clamped"]:
         assert lora.link(clamp["asked"], 125_000).spreading_factor == clamp["used"]
@@ -1619,6 +1626,22 @@ def test_lora_vectors_match():
         link.min_off_time_us(forbidden["payloadLen"], forbidden["permille"]) is None
     )
     assert lora.messages_per_hour(link, forbidden["payloadLen"], forbidden["permille"]) == 0
+
+    edges = vector["edges"]
+    zero = edges["zeroBandwidth"]
+    unset = lora.link(zero["spreadingFactor"], zero["bandwidthHz"])
+    assert unset.bandwidth_hz == zero["usedBandwidthHz"]
+    assert unset.symbol_time_us() == zero["symbolTimeUs"]
+    assert unset.airtime_us(zero["payloadLen"]) == zero["airtimeUs"]
+    past = edges["pastOneFrame"]
+    sf12 = _link_of(next(entry for entry in vector["links"] if entry["name"] == past["link"]))
+    assert sf12.airtime_us(past["payloadLen"]) == past["airtimeUs"]
+    for whole in edges["wholeTime"]:
+        assert sf12.min_off_time_us(whole["payloadLen"], whole["permille"]) == whole["offTimeUs"]
+        assert (
+            lora.messages_per_hour(sf12, whole["payloadLen"], whole["permille"])
+            == whole["messagesPerHour"]
+        )
 
 
 def test_mesh_vectors_match():

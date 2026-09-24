@@ -55,6 +55,16 @@ pub fn lora_symbol_time_us(link: LoraLink) -> f64 {
     settings(&link).symbol_time_us() as f64
 }
 
+/// Reports whether a link uses low data rate optimization.
+///
+/// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+/// SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+/// turn it on too.
+#[napi]
+pub fn lora_low_data_rate_optimization(link: LoraLink) -> bool {
+    settings(&link).low_data_rate_optimization()
+}
+
 /// Returns the time on air of a payload, in microseconds.
 ///
 /// This is the channel occupancy a transmission costs, which sets both the
@@ -68,7 +78,8 @@ pub fn lora_airtime_us(link: LoraLink, payload_len: u32) -> f64 {
 ///
 /// The limit is in parts per thousand, so `10` is 1%. A limit of `0` forbids
 /// transmitting at all, which comes back as `null` rather than as a silence no
-/// caller could ever wait out.
+/// caller could ever wait out, and one of 1000 or more, the whole of the time, owes
+/// no silence.
 #[napi]
 pub fn lora_min_off_time_us(
     link: LoraLink,
@@ -79,6 +90,15 @@ pub fn lora_min_off_time_us(
         return None;
     }
     Some(settings(&link).min_off_time_us(payload_len as usize, duty_cycle_permille) as f64)
+}
+
+/// Returns how many transmissions of a payload fit in an hour under a duty-cycle limit.
+///
+/// A transmission really costs its airtime plus the silence the limit forces after it. A
+/// limit of `0` forbids transmitting, which comes back as `0`.
+#[napi]
+pub fn lora_messages_per_hour(link: LoraLink, payload_len: u32, duty_cycle_permille: u32) -> f64 {
+    settings(&link).messages_per_hour(payload_len as usize, duty_cycle_permille) as f64
 }
 
 /// Describes link settings the way JavaScript holds them.

@@ -1974,6 +1974,14 @@ fn lora_vectors_match() {
             "symbol time for {}",
             described["name"]
         );
+        assert_eq!(
+            link.low_data_rate_optimization(),
+            described["lowDataRateOptimization"]
+                .as_bool()
+                .expect("a flag"),
+            "low data rate optimization for {}",
+            described["name"]
+        );
 
         for airtime in described["airtimes"].as_array().expect("an array") {
             let payload_len = airtime["payloadLen"].as_u64().expect("a length") as usize;
@@ -1992,6 +2000,12 @@ fn lora_vectors_match() {
                 link.min_off_time_us(payload_len, permille),
                 budget["offTimeUs"].as_u64().expect("an off time"),
                 "off time at {permille} permille on {}",
+                described["name"]
+            );
+            assert_eq!(
+                link.messages_per_hour(payload_len, permille),
+                budget["messagesPerHour"].as_u64().expect("a count"),
+                "messages an hour at {permille} permille on {}",
                 described["name"]
             );
         }
@@ -2021,6 +2035,44 @@ fn lora_vectors_match() {
         u64::MAX,
         "a zero duty cycle forbids transmitting"
     );
+
+    let edges = &case["edges"];
+    let zero = &edges["zeroBandwidth"];
+    let unset = LinkSettings::new(
+        zero["spreadingFactor"].as_u64().expect("a factor") as u8,
+        zero["bandwidthHz"].as_u64().expect("a bandwidth") as u32,
+    );
+    assert_eq!(
+        u64::from(unset.bandwidth_hz()),
+        zero["usedBandwidthHz"].as_u64().expect("a bandwidth")
+    );
+    assert_eq!(
+        unset.symbol_time_us(),
+        zero["symbolTimeUs"].as_u64().expect("a symbol time")
+    );
+    assert_eq!(
+        unset.airtime_us(zero["payloadLen"].as_u64().expect("a length") as usize),
+        zero["airtimeUs"].as_u64().expect("an airtime")
+    );
+    let past = &edges["pastOneFrame"];
+    let sf12 = link_of(named(case, past["link"].as_str().expect("a link name")));
+    assert_eq!(
+        sf12.airtime_us(past["payloadLen"].as_u64().expect("a length") as usize),
+        past["airtimeUs"].as_u64().expect("an airtime"),
+        "a payload past one frame keeps counting"
+    );
+    for whole in edges["wholeTime"].as_array().expect("an array") {
+        let payload_len = whole["payloadLen"].as_u64().expect("a length") as usize;
+        let permille = whole["permille"].as_u64().expect("a limit") as u32;
+        assert_eq!(
+            sf12.min_off_time_us(payload_len, permille),
+            whole["offTimeUs"].as_u64().expect("an off time")
+        );
+        assert_eq!(
+            sf12.messages_per_hour(payload_len, permille),
+            whole["messagesPerHour"].as_u64().expect("a count")
+        );
+    }
 }
 
 /// Rebuilds the link a vector describes.

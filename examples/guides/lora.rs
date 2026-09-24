@@ -49,15 +49,16 @@ fn what_one_reading_costs_on_a_european_band() -> std::result::Result<(), Box<dy
 
     // The airtime plus that silence is what one reading really costs, which is the budget
     // a deployment plans against.
-    let per_hour = 3_600_000_000 / (airtime + off_time);
+    let per_hour = link.messages_per_hour(10, permille);
     println!("budget    {per_hour} readings an hour");
 
     // A frequency in no sub-band the plan describes has no duty cycle to budget against.
     // That is a limit published elsewhere, not permission to transmit.
-    match plan.duty_cycle_permille(700_000_000) {
-        Some(limit) => println!("700 MHz reported a {limit} per mille limit, which it has none of"),
-        None => println!("700 MHz  is outside this plan, so it budgets nothing: true"),
-    }
+    let elsewhere = match plan.duty_cycle_permille(700_000_000) {
+        Some(permille) => format!("limited to {permille} per mille"),
+        None => "in no sub-band of this plan, so its limit is published elsewhere".to_string(),
+    };
+    println!("700 MHz   {elsewhere}");
     // ANCHOR_END: example
 
     assert_eq!(plan.name, "EU863-870");
@@ -146,6 +147,24 @@ fn how_far_a_reading_reaches() -> std::result::Result<(), Box<dyn Error>> {
         .max_conducted_dbm(Decibels::from_db(9))
         .expect("64 hopping channels have a limit");
     println!("fcc       a 9 dBi Yagi on 64 hopping channels may carry {limit} dBm");
+
+    // Each step down in spreading factor halves the time on air and gives up 2.5 dB of
+    // reach: the trade between how often a node speaks and how far it is heard.
+    let duty_cycle = eu868
+        .duty_cycle_permille(frequency)
+        .expect("868.1 MHz is inside a limited sub-band");
+    let mut trade = Vec::new();
+    for data_rate in 0..=5 {
+        let link = eu868.link_settings(data_rate).expect("DR0 to DR5 are LoRa");
+        let sf = link.spreading_factor();
+        let ms = link.airtime_us(10) as f64 / 1000.0;
+        let readings = link.messages_per_hour(10, duty_cycle);
+        let reach = node.max_path_loss_db(link);
+        println!(
+            "DR{data_rate} SF{sf:<2}  {ms:>5.1} ms, {readings:>3} an hour, {reach} dB of path loss"
+        );
+        trade.push((readings, reach));
+    }
     // ANCHOR_END: range
 
     assert_eq!(most, Decibels::from_hundredths(1_435));
@@ -159,6 +178,13 @@ fn how_far_a_reading_reaches() -> std::result::Result<(), Box<dyn Error>> {
     );
     assert_eq!(radius, 20_777);
     assert_eq!(limit, Decibels::from_db(27));
+    assert_eq!(trade[0], (36, survives));
+    assert_eq!(trade[5].0, 873);
+    assert_eq!(
+        survives.hundredths() - trade[5].1.hundredths(),
+        1_250,
+        "five steps of 2.5 dB between SF12 and SF7"
+    );
 
     Ok(())
 }

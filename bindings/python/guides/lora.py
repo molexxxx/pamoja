@@ -30,7 +30,12 @@ print(f"budget    {messages_per_hour(link, 10, permille)} readings an hour")
 # A frequency in no sub-band the plan describes has no duty cycle to budget against. That
 # is a limit published elsewhere, not permission to transmit.
 outside = plan.duty_cycle_permille(700_000_000)
-print(f"700 MHz  is outside this plan, so it budgets nothing: {outside is None}")
+elsewhere = (
+    "in no sub-band of this plan, so its limit is published elsewhere"
+    if outside is None
+    else f"limited to {outside} per mille"
+)
+print(f"700 MHz   {elsewhere}")
 # ANCHOR_END: example
 
 assert plan.name == "EU863-870"
@@ -99,6 +104,21 @@ print(f"fresnel   {radius / 1000:.1f} m at the middle of 5 km, keep {clear / 100
 # decibel an antenna has over 6 dBi.
 limit = fcc_max_conducted_dbm(9, hopping_channels=64)
 print(f"fcc       a 9 dBi Yagi on 64 hopping channels may carry {limit:.2f} dBm")
+
+# Each step down in spreading factor halves the time on air and gives up 2.5 dB of reach:
+# the trade between how often a node speaks and how far it is heard.
+duty_cycle = eu868.duty_cycle_permille(frequency)
+trade = []
+for data_rate in range(6):
+    rate = eu868.link_settings(data_rate)
+    ms = rate.airtime_us(10) / 1000
+    readings = rate.messages_per_hour(10, duty_cycle)
+    reach = node.max_path_loss_db(rate)
+    print(
+        f"DR{data_rate} SF{rate.spreading_factor:<2}  {ms:>5.1f} ms, {readings:>3} an hour, "
+        f"{reach:.2f} dB of path loss"
+    )
+    trade.append((readings, reach))
 # ANCHOR_END: range
 
 assert most == 14.35
@@ -109,3 +129,6 @@ assert survives == 160.18
 assert margins == [62.94, 54.98, 45.44]
 assert radius == 20_777
 assert limit == 27
+assert trade[0] == (36, survives)
+assert trade[5][0] == 873
+assert round((survives - trade[5][1]) * 100) == 1_250

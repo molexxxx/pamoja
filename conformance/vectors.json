@@ -1293,6 +1293,37 @@
         "used": 12
       }
     ],
+    "edges": {
+      "pastOneFrame": {
+        "airtimeUs": 17592186806272,
+        "link": "sf12-125k",
+        "payloadLen": 536870912
+      },
+      "wholeTime": [
+        {
+          "link": "sf12-125k",
+          "messagesPerHour": 3631,
+          "offTimeUs": 0,
+          "payloadLen": 10,
+          "permille": 1000
+        },
+        {
+          "link": "sf12-125k",
+          "messagesPerHour": 3631,
+          "offTimeUs": 0,
+          "payloadLen": 10,
+          "permille": 1001
+        }
+      ],
+      "zeroBandwidth": {
+        "airtimeUs": 123904000000,
+        "bandwidthHz": 0,
+        "payloadLen": 10,
+        "spreadingFactor": 12,
+        "symbolTimeUs": 4096000000,
+        "usedBandwidthHz": 1
+      }
+    },
     "forbidden": {
       "link": "sf12-125k",
       "payloadLen": 20,
@@ -1325,16 +1356,19 @@
         "bandwidthHz": 125000,
         "budgets": [
           {
+            "messagesPerHour": 27,
             "offTimeUs": 130572288,
             "payloadLen": 20,
             "permille": 10
           },
           {
+            "messagesPerHour": 2,
             "offTimeUs": 1317593088,
             "payloadLen": 20,
             "permille": 1
           },
           {
+            "messagesPerHour": 145,
             "offTimeUs": 22192128,
             "payloadLen": 51,
             "permille": 100
@@ -1343,6 +1377,7 @@
         "codingRateDenominator": 5,
         "crc": true,
         "explicitHeader": true,
+        "lowDataRateOptimization": true,
         "name": "sf12-125k",
         "preambleSymbols": 8,
         "spreadingFactor": 12,
@@ -1374,16 +1409,19 @@
         "bandwidthHz": 125000,
         "budgets": [
           {
+            "messagesPerHour": 636,
             "offTimeUs": 5601024,
             "payloadLen": 20,
             "permille": 10
           },
           {
+            "messagesPerHour": 63,
             "offTimeUs": 56519424,
             "payloadLen": 20,
             "permille": 1
           },
           {
+            "messagesPerHour": 3506,
             "offTimeUs": 923904,
             "payloadLen": 51,
             "permille": 100
@@ -1392,6 +1430,7 @@
         "codingRateDenominator": 5,
         "crc": true,
         "explicitHeader": true,
+        "lowDataRateOptimization": false,
         "name": "sf7-125k",
         "preambleSymbols": 8,
         "spreadingFactor": 7,
@@ -1423,16 +1462,19 @@
         "bandwidthHz": 250000,
         "budgets": [
           {
+            "messagesPerHour": 273,
             "offTimeUs": 13026816,
             "payloadLen": 20,
             "permille": 10
           },
           {
+            "messagesPerHour": 27,
             "offTimeUs": 131452416,
             "payloadLen": 20,
             "permille": 1
           },
           {
+            "messagesPerHour": 1461,
             "offTimeUs": 2216448,
             "payloadLen": 51,
             "permille": 100
@@ -1441,6 +1483,7 @@
         "codingRateDenominator": 8,
         "crc": true,
         "explicitHeader": true,
+        "lowDataRateOptimization": false,
         "name": "sf9-250k-cr48",
         "preambleSymbols": 12,
         "spreadingFactor": 9,
@@ -1472,16 +1515,19 @@
         "bandwidthHz": 125000,
         "budgets": [
           {
+            "messagesPerHour": 109,
             "offTimeUs": 32643072,
             "payloadLen": 20,
             "permille": 10
           },
           {
+            "messagesPerHour": 10,
             "offTimeUs": 329398272,
             "payloadLen": 20,
             "permille": 1
           },
           {
+            "messagesPerHour": 625,
             "offTimeUs": 5179392,
             "payloadLen": 51,
             "permille": 100
@@ -1490,6 +1536,7 @@
         "codingRateDenominator": 5,
         "crc": false,
         "explicitHeader": false,
+        "lowDataRateOptimization": false,
         "name": "sf10-125k-bare",
         "preambleSymbols": 8,
         "spreadingFactor": 10,

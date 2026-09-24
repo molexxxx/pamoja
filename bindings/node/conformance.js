@@ -1761,6 +1761,11 @@ function loraVectors() {
       described.symbolTimeUs,
       `symbol time for ${described.name}`,
     );
+    assert.strictEqual(
+      lora.lowDataRateOptimization(link),
+      described.lowDataRateOptimization,
+      `low data rate optimization for ${described.name}`,
+    );
 
     for (const { payloadLen, airtimeUs } of described.airtimes) {
       assert.strictEqual(
@@ -1770,11 +1775,16 @@ function loraVectors() {
       );
     }
 
-    for (const { payloadLen, permille, offTimeUs } of described.budgets) {
+    for (const { payloadLen, permille, offTimeUs, messagesPerHour } of described.budgets) {
       assert.strictEqual(
         lora.minOffTimeUs(link, payloadLen, permille),
         offTimeUs,
         `off time at ${permille} permille on ${described.name}`,
+      );
+      assert.strictEqual(
+        lora.messagesPerHour(link, payloadLen, permille),
+        messagesPerHour,
+        `messages an hour at ${permille} permille on ${described.name}`,
       );
     }
   }
@@ -1801,6 +1811,30 @@ function loraVectors() {
     0,
     "and so allows no messages at all",
   );
+
+  const { zeroBandwidth, pastOneFrame, wholeTime } = vector.edges;
+  const unset = lora.link(zeroBandwidth.spreadingFactor, zeroBandwidth.bandwidthHz);
+  assert.strictEqual(unset.bandwidthHz, zeroBandwidth.usedBandwidthHz, "zero counts as one hertz");
+  assert.strictEqual(lora.symbolTimeUs(unset), zeroBandwidth.symbolTimeUs, "its symbol time");
+  assert.strictEqual(
+    lora.airtimeUs(unset, zeroBandwidth.payloadLen),
+    zeroBandwidth.airtimeUs,
+    "its airtime",
+  );
+  const sf12 = linkOf(vector.links.find((entry) => entry.name === pastOneFrame.link));
+  assert.strictEqual(
+    lora.airtimeUs(sf12, pastOneFrame.payloadLen),
+    pastOneFrame.airtimeUs,
+    "a payload past one frame keeps counting",
+  );
+  for (const { payloadLen, permille, offTimeUs, messagesPerHour } of wholeTime) {
+    assert.strictEqual(lora.minOffTimeUs(sf12, payloadLen, permille), offTimeUs, "no silence");
+    assert.strictEqual(
+      lora.messagesPerHour(sf12, payloadLen, permille),
+      messagesPerHour,
+      "an hour of airtime",
+    );
+  }
 }
 
 /** Rebuilds the link a vector describes. */

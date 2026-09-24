@@ -26,9 +26,11 @@ import {
   loraFresnelRadiusMm,
   loraLinkBudgetDefault,
   loraLinkDefault,
+  loraLowDataRateOptimization,
   loraMarginDb,
   loraMaxPathLossDb,
   loraMaxTransmitPowerDbm,
+  loraMessagesPerHour,
   loraMinOffTimeUs,
   loraNoiseFloorDbm,
   loraReceivedDbm,
@@ -281,6 +283,20 @@ export function symbolTimeUs(settings: LoraLink): number {
 }
 
 /**
+ * Reports whether a link uses low data rate optimization.
+ *
+ * It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+ * SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+ * turn it on too.
+ *
+ * @param settings - The link settings.
+ * @returns Whether the symbol time exceeds 16 ms.
+ */
+export function lowDataRateOptimization(settings: LoraLink): boolean {
+  return loraLowDataRateOptimization(settings)
+}
+
+/**
  * Returns the time on air of a payload, in microseconds.
  *
  * This is the channel occupancy a transmission costs: how long the radio holds
@@ -302,7 +318,8 @@ export function airtimeUs(settings: LoraLink, payloadLength: number): number {
  * @param payloadLength - The payload length in bytes.
  * @param dutyCyclePermille - The limit in parts per thousand, so 10 is 1%.
  * @returns The required off time in microseconds, or `null` when the limit is
- *   zero, which forbids transmitting at all.
+ *   zero, which forbids transmitting at all. A limit of 1000 or more, the whole of
+ *   the time, owes none.
  */
 export function minOffTimeUs(
   settings: LoraLink,
@@ -330,11 +347,7 @@ export function messagesPerHour(
   payloadLength: number,
   dutyCyclePermille: number,
 ): number {
-  const offTime = loraMinOffTimeUs(settings, payloadLength, dutyCyclePermille)
-  if (offTime === null) {
-    return 0
-  }
-  return Math.floor(3_600_000_000 / (loraAirtimeUs(settings, payloadLength) + offTime))
+  return loraMessagesPerHour(settings, payloadLength, dutyCyclePermille)
 }
 
 /**

@@ -1,6 +1,7 @@
 using Pamoja.Lora;
 
 using static Guides.Guide;
+using static System.FormattableString;
 
 namespace Guides;
 
@@ -20,7 +21,7 @@ public static class LoraGuide
         // The time on air for that setting, coding rate 4/5, an eight-symbol preamble, an
         // explicit header and CRC on, carrying a ten-byte reading.
         ulong airtime = link.AirtimeMicros(10);
-        Console.WriteLine($"airtime   {airtime / 1e6:F2} s for ten bytes");
+        Console.WriteLine(Invariant($"airtime   {airtime / 1e6:F2} s for ten bytes"));
 
         // 868.1 MHz falls in a sub-band capped at 1% of the time and 16 dBm, so every
         // transmission buys ninety-nine times its own length in silence.
@@ -30,7 +31,7 @@ public static class LoraGuide
             $"channel   {permille} per mille duty cycle, {plan.MaxEirpDbm(Channel)} dBm");
 
         ulong offTime = link.MinOffTimeMicros(10, permille)!.Value;
-        Console.WriteLine($"silence   {offTime / 1e6:F1} s owed after each reading");
+        Console.WriteLine(Invariant($"silence   {offTime / 1e6:F1} s owed after each reading"));
 
         // The airtime plus that silence is what one reading really costs, which is the
         // budget a deployment plans against.
@@ -39,7 +40,10 @@ public static class LoraGuide
         // A frequency in no sub-band the plan describes has no duty cycle to budget
         // against. That is a limit published elsewhere, not permission to transmit.
         uint? outside = plan.DutyCyclePermille(700_000_000);
-        Console.WriteLine($"700 MHz  is outside this plan, so it budgets nothing: {outside is null}");
+        string elsewhere = outside is null
+            ? "in no sub-band of this plan, so its limit is published elsewhere"
+            : $"limited to {outside} per mille";
+        Console.WriteLine($"700 MHz   {elsewhere}");
         // ANCHOR_END: example
 
         Expect(plan.Name == "EU863-870", "the plan names its band");
@@ -71,15 +75,15 @@ public static class LoraGuide
             ReceiveCableLossDb = 1.5,
             NoiseFigureDb = LoraLinkBudget.GatewayNoiseFigureDb,
         };
-        Console.WriteLine($"radio     {most:F2} dBm allowed, set to {node.TransmitPowerDbm} dBm");
-        Console.WriteLine($"eirp      {node.EirpDbm:F2} dBm under a {ceiling} dBm ceiling");
+        Console.WriteLine(Invariant($"radio     {most:F2} dBm allowed, set to {node.TransmitPowerDbm} dBm"));
+        Console.WriteLine(Invariant($"eirp      {node.EirpDbm:F2} dBm under a {ceiling} dBm ceiling"));
 
         // The weakest signal the gateway still hears at SF12 and 125 kHz, and so the most
         // path loss the link survives.
         double sensitivity = node.SensitivityDbm(dr0);
         double survives = node.MaxPathLossDb(dr0);
-        Console.WriteLine(
-            $"gateway   hears down to {sensitivity:F2} dBm, so {survives:F2} dB of path loss");
+        Console.WriteLine(Invariant(
+            $"gateway   hears down to {sensitivity:F2} dBm, so {survives:F2} dB of path loss"));
 
         // Free space at three distances, and what each path leaves to spare.
         var margins = new List<double>();
@@ -87,8 +91,8 @@ public static class LoraGuide
         {
             double loss = LoraLinkBudget.FreeSpaceLossDb(distanceMeters, Frequency);
             double margin = node.MarginDb(dr0, loss);
-            Console.WriteLine(
-                $"{distanceMeters / 1_000,2} km     {loss:F2} dB lost, {margin:F2} dB to spare");
+            Console.WriteLine(Invariant(
+                $"{distanceMeters / 1_000,2} km     {loss:F2} dB lost, {margin:F2} dB to spare"));
             margins.Add(margin);
         }
 
@@ -97,13 +101,28 @@ public static class LoraGuide
         // radius.
         uint radius = LoraLinkBudget.FresnelRadiusMillimeters(2_500, 2_500, Frequency);
         uint clear = radius * 6 / 10;
-        Console.WriteLine(
-            $"fresnel   {radius / 1000.0:F1} m at the middle of 5 km, keep {clear / 1000.0:F1} m clear");
+        Console.WriteLine(Invariant(
+            $"fresnel   {radius / 1000.0:F1} m at the middle of 5 km, keep {clear / 1000.0:F1} m clear"));
 
         // In the United States, 47 CFR 15.247 caps conducted power instead, and takes off
         // every decibel an antenna has over 6 dBi.
         double limit = LoraLinkBudget.FccMaxConductedDbm(9, hoppingChannels: 64)!.Value;
-        Console.WriteLine($"fcc       a 9 dBi Yagi on 64 hopping channels may carry {limit:F2} dBm");
+        Console.WriteLine(Invariant($"fcc       a 9 dBi Yagi on 64 hopping channels may carry {limit:F2} dBm"));
+
+        // Each step down in spreading factor halves the time on air and gives up 2.5 dB of
+        // reach: the trade between how often a node speaks and how far it is heard.
+        uint dutyCycle = eu868.DutyCyclePermille(Frequency)!.Value;
+        var trade = new List<(ulong Readings, double Reach)>();
+        for (byte dataRate = 0; dataRate <= 5; dataRate++)
+        {
+            LoraLink rate = eu868.LinkSettings(dataRate)!;
+            double ms = rate.AirtimeMicros(10) / 1000.0;
+            ulong readings = rate.MessagesPerHour(10, dutyCycle);
+            double reach = node.MaxPathLossDb(rate);
+            Console.WriteLine(Invariant(
+                $"DR{dataRate} SF{rate.SpreadingFactor,-2}  {ms,5:F1} ms, {readings,3} an hour, {reach:F2} dB of path loss"));
+            trade.Add((readings, reach));
+        }
         // ANCHOR_END: range
 
         Expect(most == 14.35, "the plan leaves 14.35 dBm for the radio behind the whip");
@@ -116,5 +135,8 @@ public static class LoraGuide
             "the margins free space leaves at 2, 5, and 15 km");
         Expect(radius == 20_777, "the Fresnel radius halfway along 5 km");
         Expect(limit == 27, "a 9 dBi antenna takes 3 dB off the 1 W limit");
+        Expect(trade[0] == (36, survives), "DR0 is the budget and the reach worked out above");
+        Expect(trade[5].Readings == 873, "DR5 fits 873 readings in the hour");
+        Expect(Math.Round((survives - trade[5].Reach) * 100) == 1_250, "for 12.5 dB less reach");
     }
 }

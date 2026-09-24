@@ -54,7 +54,12 @@ print(f"budget    {messages_per_hour(link, 10, permille)} readings an hour")
 # A frequency in no sub-band the plan describes has no duty cycle to budget against. That
 # is a limit published elsewhere, not permission to transmit.
 outside = plan.duty_cycle_permille(700_000_000)
-print(f"700 MHz  is outside this plan, so it budgets nothing: {outside is None}")
+elsewhere = (
+    "in no sub-band of this plan, so its limit is published elsewhere"
+    if outside is None
+    else f"limited to {outside} per mille"
+)
+print(f"700 MHz   {elsewhere}")
 ```
 
 ## The same capability in every language

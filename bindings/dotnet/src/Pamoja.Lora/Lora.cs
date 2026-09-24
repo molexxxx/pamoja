@@ -91,6 +91,15 @@ public sealed class LoraLink
         return new LoraLink(link);
     }
 
+    /// <summary>Whether this link uses low data rate optimization.</summary>
+    /// <remarks>
+    /// It is on when a symbol lasts longer than 16 ms, which is SF11 and SF12 at 125 kHz and
+    /// SF12 at 250 kHz. The airtime assumes it, so a radio set up from these settings must
+    /// turn it on too.
+    /// </remarks>
+    public bool LowDataRateOptimization =>
+        NativeMethods.pamoja_lora_low_data_rate_optimization(_link);
+
     /// <summary>The duration of one symbol on this link, in microseconds.</summary>
     public ulong SymbolTimeMicros => NativeMethods.pamoja_lora_symbol_time_us(_link);
 
@@ -100,8 +109,12 @@ public sealed class LoraLink
     /// The channel occupancy the transmission costs, which sets both the
     /// duty-cycle budget and most of the energy it spends.
     /// </returns>
-    public ulong AirtimeMicros(int payloadLength) =>
-        NativeMethods.pamoja_lora_airtime_us(_link, (nuint)payloadLength);
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="payloadLength"/> is negative.</exception>
+    public ulong AirtimeMicros(int payloadLength)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(payloadLength);
+        return NativeMethods.pamoja_lora_airtime_us(_link, (nuint)payloadLength);
+    }
 
     /// <summary>Returns the silence a duty-cycle limit forces after a transmission.</summary>
     /// <param name="payloadLength">The payload length in bytes.</param>
@@ -110,10 +123,13 @@ public sealed class LoraLink
     /// </param>
     /// <returns>
     /// The required off time in microseconds, or <c>null</c> when the limit is
-    /// zero, which forbids transmitting at all.
+    /// zero, which forbids transmitting at all. A limit of 1000 or more, the whole
+    /// of the time, owes none.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="payloadLength"/> is negative.</exception>
     public ulong? MinOffTimeMicros(int payloadLength, uint dutyCyclePermille)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(payloadLength);
         if (dutyCyclePermille == 0)
         {
             return null;
@@ -134,14 +150,11 @@ public sealed class LoraLink
     /// transmission really costs, so this is the budget a deployment plans
     /// against.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="payloadLength"/> is negative.</exception>
     public ulong MessagesPerHour(int payloadLength, uint dutyCyclePermille)
     {
-        ulong? offTime = MinOffTimeMicros(payloadLength, dutyCyclePermille);
-        if (offTime is null)
-        {
-            return 0;
-        }
-
-        return 3_600_000_000UL / (AirtimeMicros(payloadLength) + offTime.Value);
+        ArgumentOutOfRangeException.ThrowIfNegative(payloadLength);
+        return NativeMethods.pamoja_lora_messages_per_hour(
+            _link, (nuint)payloadLength, dutyCyclePermille);
     }
 }
