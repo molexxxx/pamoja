@@ -52,7 +52,7 @@ station-client = [
 # so a forwarded packet and its budget are described by one type.
 # A network holds the band it runs in rather than borrowing a table elsewhere, which is
 # what the owned plan is for; the published regions themselves stay out of the build.
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false, features = [
+pamoja-lora = { path = "../pamoja-lora", version = "0.2.0", default-features = false, features = [
     "alloc",
 ] }
 # The protocol's payload is a JSON object, built and read field by field so a datagram
@@ -60,15 +60,15 @@ pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = 
 serde_json = "1"
 # A join request and a data frame are read with the same crate a device builds them
 # with, so both ends of a session agree by construction rather than by agreement.
-pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.1.18", optional = true }
+pamoja-lorawan = { path = "../pamoja-lorawan", version = "0.2.0", optional = true }
 # The concentrator the daemon drives. A gateway is the only thing here that touches a
 # radio, so this stays optional and takes the publish order with it.
-pamoja-radios = { path = "../pamoja-radios", version = "0.1.18", optional = true }
+pamoja-radios = { path = "../pamoja-radios", version = "0.2.0", optional = true }
 # The bus traits the bring-up is written against, so it drives a concentrator on a scripted
 # bus in a test and on a real one in the daemon without knowing which it has.
 embedded-hal = { version = "1.0", optional = true }
 # A bridge moves topics between two pamoja transports, so it speaks the core traits.
-pamoja-core = { path = "../pamoja-core", version = "0.1.18", default-features = false, optional = true }
+pamoja-core = { path = "../pamoja-core", version = "0.2.0", default-features = false, optional = true }
 # The timer a bridge polls its radio on, and the runtime the station client connects with.
 tokio = { version = "1", default-features = false, features = ["time", "macros"], optional = true }
 # The Basics Station protocol runs over a websocket. TLS stays off here: a station reaches
@@ -98,7 +98,7 @@ pamoja-lora = { path = "../pamoja-lora", features = ["eu868"] }
 pamoja-hal = { path = "../pamoja-hal", features = ["alloc"] }
 # Both sides of a bridge in a test are the in-process broker, so a pass can be driven and
 # read without a radio, a socket, or a clock.
-pamoja-loopback = { path = "../pamoja-loopback", version = "0.1.18" }
+pamoja-loopback = { path = "../pamoja-loopback", version = "0.2.0" }
 # The station examples build the frames a node sends with the crate a node sends them with,
 # whichever features the crate itself is built with.
 pamoja-lorawan = { path = "../pamoja-lorawan" }

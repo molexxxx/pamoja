@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-bus"
-version = "0.1.18"
+version = "0.2.0"
 description = "An in-memory typed publish and subscribe event bus, with publishers that never wait and subscribers that count what they miss."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.1.18",
+    "pamoja-native==0.2.0",
 ]
 
 [project.urls]

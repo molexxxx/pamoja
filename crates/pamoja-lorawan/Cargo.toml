@@ -18,7 +18,7 @@ authors.workspace = true
 aes = { version = "0.9", default-features = false }
 # A device takes its channels, data rates, payload sizes and receive windows from the
 # region's plan, and the airtime its duty cycle is counted in from the same link math.
-pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }
+pamoja-lora = { path = "../pamoja-lora", version = "0.2.0", default-features = false }
 
 [dev-dependencies]
 # Property tests feed the frame decoder arbitrary bytes off the radio boundary: it must

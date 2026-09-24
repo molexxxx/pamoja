@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/gpio",
-  "version": "0.1.18",
+  "version": "0.2.0",
   "description": "I2C address frames with reserved-range checks, the four SPI clock modes, active-high or active-low switches and contacts, and GPIO lines opened on a Linux board.",
   "license": "MIT",
   "publishConfig": {
@@ -34,6 +34,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.1.18"
+    "@pamoja/native": "0.2.0"
   }
 }

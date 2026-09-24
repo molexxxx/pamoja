@@ -655,9 +655,10 @@ impl Catalog {
         }
     }
 
-    // The bundle crate's manifest against the map: one feature per capability, named by
-    // the capability key, enabling that capability's crates and no crate another
-    // capability claims, and in the default set.
+    // The bundle crate against the map: one feature per capability, named by the capability
+    // key, enabling that capability's crates and no crate another capability claims, and in
+    // the default set; and in its source, each of those crates re-exported and each feature
+    // in the table of features.
     fn bundle_problems(&self, root: &Path, name: &str) -> Vec<String> {
         let path = root.join("crates").join(name).join("Cargo.toml");
         let text = match fs::read_to_string(&path) {
@@ -762,6 +763,29 @@ impl Catalog {
                 problems.push(format!(
                     "crates/{name}/Cargo.toml: `{key}` is not in the default feature set"
                 ));
+            }
+        }
+
+        let lib = root.join("crates").join(name).join("src").join("lib.rs");
+        match fs::read_to_string(&lib) {
+            Err(err) => problems.push(format!("reading {}: {err}", lib.display())),
+            Ok(source) => {
+                for capability in self.capabilities.iter().filter(|c| !c.crates.is_empty()) {
+                    let key = &capability.key;
+                    for krate in &capability.crates {
+                        let reexport = format!("pub use {} as ", krate.replace('-', "_"));
+                        if !source.contains(&reexport) {
+                            problems.push(format!(
+                                "crates/{name}/src/lib.rs does not re-export {krate}, so feature `{key}` builds a crate no one can reach"
+                            ));
+                        }
+                    }
+                    if !source.contains(&format!("//! | `{key}`")) {
+                        problems.push(format!(
+                            "crates/{name}/src/lib.rs: the table of features has no row for `{key}`"
+                        ));
+                    }
+                }
             }
         }
         problems

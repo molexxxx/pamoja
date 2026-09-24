@@ -14,7 +14,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pamoja = "0.1"
+//! pamoja = "0.2"
 //! ```
 //!
 //! A build that needs only some capabilities names them, and takes on only
@@ -22,7 +22,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pamoja = { version = "0.1", default-features = false, features = ["std", "codec", "security"] }
+//! pamoja = { version = "0.2", default-features = false, features = ["std", "codec", "security"] }
 //! ```
 //!
 //! # Example
@@ -95,6 +95,7 @@
 //! | `lora` | `pamoja::lora` | [pamoja-lora](https://docs.rs/pamoja-lora) |
 //! | `lorawan` | `pamoja::lorawan` | [pamoja-lorawan](https://docs.rs/pamoja-lorawan) |
 //! | `radios` | `pamoja::radios` | [pamoja-radios](https://docs.rs/pamoja-radios) |
+//! | `gateway` | `pamoja::gateway` | [pamoja-gateway](https://docs.rs/pamoja-gateway) |
 //! | `mesh` | `pamoja::mesh` | [pamoja-mesh](https://docs.rs/pamoja-mesh) |
 //! | `routing` | `pamoja::routing` | [pamoja-routing](https://docs.rs/pamoja-routing) |
 //! | `mavlink` | `pamoja::mavlink` | [pamoja-mavlink](https://docs.rs/pamoja-mavlink) |
@@ -124,14 +125,14 @@
 //! | --- | --- |
 //! | `field-io` | `serial`, `modbus`, `can`, `gpio`, `hal` |
 //! | `sensing` | `sensors`, `actuators` |
-//! | `radio` | `lora`, `lorawan`, `radios`, `mesh`, `routing` |
+//! | `radio` | `lora`, `lorawan`, `radios`, `gateway`, `mesh`, `routing` |
 //! | `trust` | `audit`, `session`, `update`, `power`, `telemetry` |
 //! | `transports` | `mqtt`, `coap`, `loopback`, `sync`, `ladder`, `bus`, `sim` |
 //! | `profiles` | `profile`, `ros2`, `zenoh` |
 //!
 //! ```toml
 //! [dependencies]
-//! pamoja = { version = "0.1", default-features = false, features = ["std", "field-io"] }
+//! pamoja = { version = "0.2", default-features = false, features = ["std", "field-io"] }
 //! ```
 //!
 //! `std`, on by default, turns on the standard-library layer of the crates that
@@ -166,6 +167,8 @@ pub use pamoja_coap as coap;
 pub use pamoja_codec as codec;
 #[cfg(feature = "dashboard")]
 pub use pamoja_dashboard as dashboard;
+#[cfg(feature = "gateway")]
+pub use pamoja_gateway as gateway;
 #[cfg(feature = "gpio")]
 pub use pamoja_gpio as gpio;
 #[cfg(feature = "hal")]
