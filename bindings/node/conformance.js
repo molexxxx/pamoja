@@ -2350,6 +2350,7 @@ function routingVectors() {
   const route = router.route(vector.route.dst);
   assert.strictEqual(route.nextHop, vector.route.nextHop, "the cheapest way it knows");
   assert.strictEqual(route.cost, vector.route.cost);
+  assert.deepStrictEqual(router.routes(), vector.routes, "the routes held, in order");
 
   for (const want of vector.decisions) {
     assertDecision(router, want);
@@ -2369,6 +2370,35 @@ function routingVectors() {
     vector.sized.learned,
     "a table sized by the caller holds exactly what it was asked for",
   );
+
+  const full = routing.router(0x01, vector.full.capacity);
+  for (const { origin, via, cost, changed } of vector.full.observations) {
+    assert.strictEqual(full.observe(origin, via, cost), changed, `a full table observing ${origin}`);
+  }
+  assert.deepStrictEqual(full.routes(), vector.full.routes, "the costliest route gave up its slot");
+  for (const want of vector.full.decisions) {
+    assertDecision(full, want);
+  }
+
+  const own = routing.router(0x01, 4);
+  assert.strictEqual(
+    own.observe(0x01, vector.itself.via, vector.itself.cost),
+    vector.itself.changed,
+    "a route to the node itself",
+  );
+  assert.strictEqual(own.size, vector.itself.learned);
+  assertDecision(own, vector.itself.decision);
+
+  const none = routing.router(0x01, vector.empty.capacity);
+  assert.strictEqual(
+    none.observe(vector.empty.origin, vector.empty.via, vector.empty.cost),
+    vector.empty.changed,
+    "a table with no room",
+  );
+  for (const want of vector.empty.decisions) {
+    assertDecision(none, want);
+  }
+  assert.throws(() => routing.router(0x01, -1), /whole number from 0 up/, "a negative capacity");
 }
 
 /** Checks one routing decision against the vector that describes it. */

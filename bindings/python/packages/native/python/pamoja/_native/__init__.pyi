@@ -2991,6 +2991,7 @@ class ForwardDecision:
         r"""
         The neighbor to unicast to, or `None` unless the action is `Relay`.
         """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class GatewayNetwork:
@@ -10051,6 +10052,7 @@ class Route:
         r"""
         What the route costs, usually in hops.
         """
+    def __repr__(self) -> builtins.str: ...
 
 @typing.final
 class Router:
@@ -10090,6 +10092,11 @@ class Router:
     def route(self, dst: builtins.int) -> typing.Optional[Route]:
         r"""
         The whole route to `dst`, or `None` when none is known.
+        """
+    def routes(self) -> builtins.list[Route]:
+        r"""
+        The routes the table holds, each once, in the order the table holds them
+        rather than sorted by destination or cost.
         """
     def forward(self, dst: builtins.int) -> ForwardDecision:
         r"""

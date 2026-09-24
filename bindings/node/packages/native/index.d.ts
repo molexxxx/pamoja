@@ -2817,7 +2817,10 @@ export declare class Router {
    *
    * `capacity` is how many routes to make room for, defaulting to
    * [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-   * destination, which is the behavior with no table at all.
+   * destination, which is the behavior with no table at all. A number read as an
+   * unsigned integer wraps instead of failing, so -1 would ask for four billion
+   * routes; the capacity is taken as a number and refused unless it is whole and
+   * from zero up.
    */
   constructor(address: number, capacity?: number | undefined | null)
   /** The address this router answers for. */
@@ -2835,6 +2838,11 @@ export declare class Router {
   cost(dst: number): number | null
   /** Returns the whole route to `dst`, or `null` when none is known. */
   route(dst: number): Route | null
+  /**
+   * Lists the routes the table holds, each once, in the order the table holds
+   * them rather than sorted by destination or cost.
+   */
+  routes(): Array<Route>
   /** Decides what to do with a packet bound for `dst`. */
   forward(dst: number): ForwardDecision
   /** Forgets the route to `dst`, for example after it stops answering. */

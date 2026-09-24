@@ -229,6 +229,48 @@ pub unsafe extern "C" fn pamoja_router_route(
     }
 }
 
+/// Returns one of the routes a table holds, by its position among them.
+///
+/// Positions count the routes held from zero, in the order the table holds them, so
+/// reading positions `0` to [`pamoja_router_len`] minus one lists the whole table.
+///
+/// # Arguments
+///
+/// * `router` - the routing table.
+/// * `index` - the position of the route, counting from zero.
+/// * `out_route` - receives the route.
+///
+/// # Returns
+///
+/// `true` with `*out_route` filled in, or `false` when the table holds no route at
+/// that position.
+///
+/// # Safety
+///
+/// `router` must be a live handle from [`pamoja_router_new`], or null, and
+/// `out_route` must point to a writable [`PamojaRoute`].
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_router_route_at(
+    router: *const PamojaRouter,
+    index: usize,
+    out_route: *mut PamojaRoute,
+) -> bool {
+    if router.is_null() || out_route.is_null() {
+        return false;
+    }
+    match (*router).router.routes().nth(index) {
+        Some(route) => {
+            *out_route = PamojaRoute {
+                dst: route.dst(),
+                next_hop: route.next_hop(),
+                cost: route.cost(),
+            };
+            true
+        }
+        None => false,
+    }
+}
+
 /// Decides what to do with a packet bound for a node.
 ///
 /// # Arguments
@@ -449,6 +491,32 @@ mod tests {
                 pamoja_router_capacity(router),
                 PAMOJA_ROUTING_DEFAULT_CAPACITY
             );
+            pamoja_router_free(router);
+        }
+    }
+
+    #[test]
+    fn every_route_held_is_read_by_its_position() {
+        let router = pamoja_router_new(0x01, 2);
+        // Safety: the handle was just created and the out-pointer is valid.
+        unsafe {
+            pamoja_router_observe(router, 0x0A, 0x05, 3);
+            pamoja_router_observe(router, 0x20, 0x03, 5);
+            assert!(pamoja_router_observe(router, 0x0B, 0x07, 2));
+
+            let mut held = Vec::new();
+            let mut route = PamojaRoute {
+                dst: 0,
+                next_hop: 0,
+                cost: 0,
+            };
+            for index in 0..pamoja_router_len(router) {
+                assert!(pamoja_router_route_at(router, index, &mut route));
+                held.push((route.dst, route.next_hop, route.cost));
+            }
+            assert_eq!(held, [(0x0A, 0x05, 3), (0x0B, 0x07, 2)]);
+            assert!(!pamoja_router_route_at(router, 2, &mut route));
+            assert!(!pamoja_router_route_at(router, 0, ptr::null_mut()));
             pamoja_router_free(router);
         }
     }

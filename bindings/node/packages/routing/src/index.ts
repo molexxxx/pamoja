@@ -72,6 +72,7 @@ export class Router {
    *   recognizes as a local delivery.
    * @param capacity - How many routes to make room for, defaulting to
    *   {@link DEFAULT_CAPACITY}. A capacity of 0 floods every unknown destination.
+   * @throws Error when the capacity is negative or not a whole number.
    */
   constructor(address: number, capacity?: number) {
     this.#inner = new NativeRouter(address, capacity)
@@ -138,6 +139,17 @@ export class Router {
    */
   route(dst: number): Route | null {
     return this.#inner.route(dst) ?? null
+  }
+
+  /**
+   * Lists the routes the table holds.
+   *
+   * @returns Each route once, in the order the table holds them. A new route
+   *   takes the first free slot and one that displaces another takes that slot,
+   *   so the order is the table's own, not sorted by destination or cost.
+   */
+  routes(): Route[] {
+    return this.#inner.routes()
   }
 
   /**

@@ -1763,6 +1763,7 @@ def test_routing_vectors_match():
     route = router.route(vector["route"]["dst"])
     assert route.next_hop == vector["route"]["nextHop"]
     assert route.cost == vector["route"]["cost"]
+    _assert_routes(router, vector["routes"])
 
     for want in vector["decisions"]:
         _assert_decision(router, want)
@@ -1777,6 +1778,39 @@ def test_routing_vectors_match():
     for node in range(sized["offered"]):
         small.observe(node + 0x100, 0x05, 4)
     assert len(small) == sized["learned"]
+
+    full = vector["full"]
+    full_table = routing.router(0x01, full["capacity"])
+    for observation in full["observations"]:
+        assert (
+            full_table.observe(observation["origin"], observation["via"], observation["cost"])
+            == observation["changed"]
+        ), f"a full table observing {observation['origin']}"
+    _assert_routes(full_table, full["routes"])
+    for want in full["decisions"]:
+        _assert_decision(full_table, want)
+
+    itself = vector["itself"]
+    own = routing.router(0x01, 4)
+    assert own.observe(0x01, itself["via"], itself["cost"]) == itself["changed"]
+    assert len(own) == itself["learned"]
+    _assert_decision(own, itself["decision"])
+
+    empty = vector["empty"]
+    none = routing.router(0x01, empty["capacity"])
+    assert none.observe(empty["origin"], empty["via"], empty["cost"]) == empty["changed"]
+    for want in empty["decisions"]:
+        _assert_decision(none, want)
+    with pytest.raises(OverflowError):
+        routing.router(0x01, -1)
+
+
+def _assert_routes(router, want):
+    held = [
+        {"dst": route.dst, "nextHop": route.next_hop, "cost": route.cost}
+        for route in router.routes()
+    ]
+    assert held == want, "the routes held, in order"
 
 
 def test_lorawan_vectors_match():

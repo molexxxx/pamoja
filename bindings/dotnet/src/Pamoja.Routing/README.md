@@ -27,51 +27,67 @@ From [`bindings/dotnet/samples/Pamoja.Guides/RoutingGuide.cs`](https://github.co
 ```csharp
 // The nodes on this mesh. An address is just a number; naming them is what makes
 // the table below read as a map of the site rather than a list of numbers.
-const byte Gateway = 1;
-const byte Pump = 9;
-const byte Tank = 10;
-const byte NorthRelay = 5;
-const byte EastRelay = 7;
-const byte SouthRelay = 3;
-const byte Silo = 32;
+const uint Gateway = 1;
+const uint Pump = 9;
+const uint Tank = 10;
+const uint NorthRelay = 5;
+const uint EastRelay = 7;
+const uint SouthRelay = 3;
+const uint Silo = 32;
 
 // A node learns the way to another from traffic it already hears: a packet from
-// the pump that arrived through the north relay proves that relay is a way back,
-// at the cost the packet reports.
+// the pump that arrived through a relay proves that relay is a way back, at the
+// cost the packet reports. The table keeps the cheapest way it has heard, and a tie
+// keeps the way in use so two equal paths do not flap. Word from the relay already
+// in use is taken even when it is worse, which is how a failing link lets a detour
+// win.
 using Router router = new(Gateway, 4);
-router.Observe(Pump, NorthRelay, 2);
+(uint Via, ushort Cost)[] heardFromThePump =
+[
+    (NorthRelay, 2),
+    (EastRelay, 1),
+    (SouthRelay, 4),
+    (NorthRelay, 1),
+    (EastRelay, 3),
+    (NorthRelay, 2),
+];
+foreach ((uint via, ushort cost) in heardFromThePump)
+{
+    bool changed = router.Observe(Pump, via, cost);
+    Route? route = router.RouteTo(Pump);
+    string outcome = changed ? "so the route is" : "and the route stays";
+    Console.WriteLine(
+        $"heard     the pump via {via} at cost {cost}, {outcome} {route?.NextHop} at cost {route?.Cost}");
+}
 
-// The table keeps only the cheapest way it knows to each node, so a cost-1 report
-// through the east relay takes over and the later cost-4 report changes nothing.
-router.Observe(Pump, EastRelay, 1);
-router.Observe(Pump, SouthRelay, 4);
+// The table lists what it holds, one route for each node it has heard from.
 router.Observe(Tank, NorthRelay, 3);
-
-Route? route = router.RouteTo(Pump);
-Console.WriteLine($"to the pump   via {route?.NextHop} at cost {route?.Cost}");
-Console.WriteLine($"routes held   {router.Count}");
+IEnumerable<string> held = router.Routes()
+    .Select(route => $"to {route.Dst} via {route.NextHop} at cost {route.Cost}");
+Console.WriteLine($"table     {router.Count} routes of {router.Capacity}: {string.Join(", ", held)}");
 
 // Every packet gets one of three answers: deliver it here, relay it to the
 // neighbor on the way, or flood it because no route is known yet.
-foreach ((string name, byte address) in
+foreach ((string name, uint address) in
     new[] { ("gateway", Gateway), ("pump", Pump), ("silo", Silo) })
 {
     ForwardDecision decision = router.Forward(address);
     Console.WriteLine(decision.Action switch
     {
-        ForwardAction.Deliver => $"for the {name,-8} deliver here",
-        ForwardAction.Relay => $"for the {name,-8} relay via {decision.NextHop}",
-        _ => $"for the {name,-8} flood, no route known",
+        ForwardAction.Deliver => $"{name,-10}deliver here",
+        ForwardAction.Relay => $"{name,-10}relay via {decision.NextHop}",
+        _ => $"{name,-10}flood, no route known",
     });
 }
 
-// Forgetting a node that has gone quiet returns its traffic to flooding, so
-// routing is an optimization over flooding rather than a second thing that can
-// fail.
+// The table keeps no clock, so a route through a relay that has gone quiet stays
+// until the caller forgets it, typically when a relayed packet goes unanswered.
+// Forgetting returns the node's traffic to flooding, the answer that always works.
 router.Forget(Pump);
-ForwardDecision after = router.Forward(Pump);
-Console.WriteLine(
-    $"pump forgotten, so it floods again: {after.Action == ForwardAction.Flood}");
+if (router.Forward(Pump).Action == ForwardAction.Flood)
+{
+    Console.WriteLine($"forgot    the pump, so it floods again, and {router.Count} route is left");
+}
 ```
 
 ## The same capability in every language

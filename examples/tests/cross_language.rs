@@ -2712,6 +2712,7 @@ fn routing_vectors_match() {
         u64::from(learned.cost()),
         route["cost"].as_u64().expect("a cost")
     );
+    assert_routes(router.routes(), &case["routes"]);
 
     for want in case["decisions"].as_array().expect("an array") {
         assert_decision(&router, want);
@@ -2737,6 +2738,77 @@ fn routing_vectors_match() {
         sized["learned"].as_u64().expect("a count") as usize,
         "a table sized by the caller holds exactly what it was asked for"
     );
+
+    let full = &case["full"];
+    let mut full_table = DynamicRouter::new(
+        0x01,
+        full["capacity"].as_u64().expect("a capacity") as usize,
+    );
+    for observation in full["observations"].as_array().expect("an array") {
+        assert_eq!(
+            full_table.observe(
+                observation["origin"].as_u64().expect("an address") as u32,
+                observation["via"].as_u64().expect("an address") as u32,
+                observation["cost"].as_u64().expect("a cost") as u16,
+            ),
+            observation["changed"].as_bool().expect("a flag"),
+            "a full table observing {}",
+            observation["origin"]
+        );
+    }
+    assert_routes(full_table.routes(), &full["routes"]);
+    for want in full["decisions"].as_array().expect("an array") {
+        assert_decision(&full_table, want);
+    }
+
+    let itself = &case["itself"];
+    let mut own = DynamicRouter::new(0x01, 4);
+    assert_eq!(
+        own.observe(
+            0x01,
+            itself["via"].as_u64().expect("an address") as u32,
+            itself["cost"].as_u64().expect("a cost") as u16,
+        ),
+        itself["changed"].as_bool().expect("a flag"),
+        "a route to the node itself"
+    );
+    assert_eq!(
+        own.len(),
+        itself["learned"].as_u64().expect("a count") as usize
+    );
+    assert_decision(&own, &itself["decision"]);
+
+    let empty = &case["empty"];
+    let mut none = DynamicRouter::new(
+        0x01,
+        empty["capacity"].as_u64().expect("a capacity") as usize,
+    );
+    assert_eq!(
+        none.observe(
+            empty["origin"].as_u64().expect("an address") as u32,
+            empty["via"].as_u64().expect("an address") as u32,
+            empty["cost"].as_u64().expect("a cost") as u16,
+        ),
+        empty["changed"].as_bool().expect("a flag"),
+        "a table with no room"
+    );
+    for want in empty["decisions"].as_array().expect("an array") {
+        assert_decision(&none, want);
+    }
+}
+
+/// Checks the routes a table lists, in order, against the vector that describes them.
+fn assert_routes(routes: impl Iterator<Item = pamoja_routing::Route>, want: &Value) {
+    let held: Vec<Value> = routes
+        .map(|route| {
+            serde_json::json!({
+                "dst": route.dst(),
+                "nextHop": route.next_hop(),
+                "cost": route.cost(),
+            })
+        })
+        .collect();
+    assert_eq!(&Value::Array(held), want, "the routes held, in order");
 }
 
 /// Checks one routing decision against the vector that describes it.

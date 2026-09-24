@@ -46,6 +46,16 @@ pub struct Route {
     pub cost: u16,
 }
 
+impl From<pamoja_routing::Route> for Route {
+    fn from(route: pamoja_routing::Route) -> Self {
+        Route {
+            dst: route.dst(),
+            next_hop: route.next_hop(),
+            cost: route.cost(),
+        }
+    }
+}
+
 /// One node routing table, learned from the traffic the node hears.
 #[napi]
 pub struct Router {
@@ -58,15 +68,28 @@ impl Router {
     ///
     /// `capacity` is how many routes to make room for, defaulting to
     /// [`ROUTING_DEFAULT_CAPACITY`]. A capacity of zero floods every unknown
-    /// destination, which is the behavior with no table at all.
+    /// destination, which is the behavior with no table at all. A number read as an
+    /// unsigned integer wraps instead of failing, so -1 would ask for four billion
+    /// routes; the capacity is taken as a number and refused unless it is whole and
+    /// from zero up.
     #[napi(constructor)]
-    pub fn new(address: u32, capacity: Option<u32>) -> Self {
-        Self {
-            inner: DynamicRouter::new(
-                address,
-                capacity.unwrap_or(ROUTING_DEFAULT_CAPACITY) as usize,
-            ),
-        }
+    pub fn new(address: u32, capacity: Option<f64>) -> napi::Result<Self> {
+        let capacity = match capacity {
+            None => ROUTING_DEFAULT_CAPACITY as usize,
+            Some(capacity)
+                if capacity.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&capacity) =>
+            {
+                capacity as usize
+            }
+            Some(capacity) => {
+                return Err(napi::Error::from_reason(format!(
+                    "a capacity must be a whole number from 0 up, not {capacity}"
+                )))
+            }
+        };
+        Ok(Self {
+            inner: DynamicRouter::new(address, capacity),
+        })
     }
 
     /// The address this router answers for.
@@ -99,11 +122,14 @@ impl Router {
     /// Returns the whole route to `dst`, or `null` when none is known.
     #[napi]
     pub fn route(&self, dst: u32) -> Option<Route> {
-        self.inner.route(dst).map(|route| Route {
-            dst: route.dst(),
-            next_hop: route.next_hop(),
-            cost: route.cost(),
-        })
+        self.inner.route(dst).map(Route::from)
+    }
+
+    /// Lists the routes the table holds, each once, in the order the table holds
+    /// them rather than sorted by destination or cost.
+    #[napi]
+    pub fn routes(&self) -> Vec<Route> {
+        self.inner.routes().map(Route::from).collect()
     }
 
     /// Decides what to do with a packet bound for `dst`.

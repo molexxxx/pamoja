@@ -279,6 +279,14 @@ public static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_router_route(IntPtr router, uint dst, out PamojaRoute outRoute);
 
+    /// <summary>Returns one of the routes a table holds, by its position among them.</summary>
+    [LibraryImport(Library)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_router_route_at(
+        IntPtr router,
+        nuint index,
+        out PamojaRoute outRoute);
+
     /// <summary>Decides what to do with a packet bound for a node.</summary>
     [LibraryImport(Library)]
     public static partial PamojaForward pamoja_router_forward(

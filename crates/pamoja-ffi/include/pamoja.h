@@ -23104,6 +23104,28 @@ bool pamoja_router_cost(const PamojaRouter *router, uint32_t dst, uint16_t *out_
 // `out_route` must point to a writable [`PamojaRoute`].
 bool pamoja_router_route(const PamojaRouter *router, uint32_t dst, PamojaRoute *out_route);
 
+// Returns one of the routes a table holds, by its position among them.
+//
+// Positions count the routes held from zero, in the order the table holds them, so
+// reading positions `0` to [`pamoja_router_len`] minus one lists the whole table.
+//
+// # Arguments
+//
+// * `router` - the routing table.
+// * `index` - the position of the route, counting from zero.
+// * `out_route` - receives the route.
+//
+// # Returns
+//
+// `true` with `*out_route` filled in, or `false` when the table holds no route at
+// that position.
+//
+// # Safety
+//
+// `router` must be a live handle from [`pamoja_router_new`], or null, and
+// `out_route` must point to a writable [`PamojaRoute`].
+bool pamoja_router_route_at(const PamojaRouter *router, uintptr_t index, PamojaRoute *out_route);
+
 // Decides what to do with a packet bound for a node.
 //
 // # Arguments

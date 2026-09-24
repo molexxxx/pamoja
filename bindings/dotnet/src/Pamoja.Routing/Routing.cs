@@ -50,9 +50,11 @@ public sealed class Router : IDisposable
     /// How many routes to make room for. A capacity of 0 floods every unknown
     /// destination, which is the behavior with no table at all.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="capacity"/> is negative.</exception>
     /// <exception cref="PamojaException">The native table could not be created.</exception>
     public Router(uint address, int capacity = NativeMethods.RoutingDefaultCapacity)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
         _handle = NativeHandle.Create(
             NativeMethods.pamoja_router_new(address, (nuint)capacity),
             NativeMethods.pamoja_router_free,
@@ -103,6 +105,25 @@ public sealed class Router : IDisposable
             NativeMethods.pamoja_router_route(handle, dst, out PamojaRoute route)
                 ? new Route(route.Dst, route.NextHop, route.Cost)
                 : (Route?)null);
+
+    /// <summary>Lists the routes the table holds.</summary>
+    /// <returns>
+    /// Each route once, in the order the table holds them. A new route takes the first
+    /// free slot and one that displaces another takes that slot, so the order is the
+    /// table's own, not sorted by destination or cost.
+    /// </returns>
+    public IReadOnlyList<Route> Routes() =>
+        _handle.Use(handle =>
+        {
+            var routes = new List<Route>();
+            nuint index = 0;
+            while (NativeMethods.pamoja_router_route_at(handle, index++, out PamojaRoute route))
+            {
+                routes.Add(new Route(route.Dst, route.NextHop, route.Cost));
+            }
+
+            return routes;
+        });
 
     /// <summary>Decides what to do with a packet bound for a node.</summary>
     /// <param name="dst">The node the packet is addressed to.</param>
