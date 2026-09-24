@@ -576,7 +576,7 @@ The mistakes that cost an afternoon:
 ## Where next
 
 <!-- table: next ladder -->
-- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
+- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport.
 - [LoRa airtime and range](lora.md): Time-on-air, duty-cycle off-time, the regional channel plans a LoRa node must keep to, and the link budget that sets its range.
 - [Store and forward](sync.md): Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns.
 - Also in Transports and testing: [CoAP](coap.md), [Loopback](loopback.md), [Event bus](bus.md), [Engine surface](transport.md), [Your own link](link.md), [Simulators](sim.md).

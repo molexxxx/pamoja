@@ -1996,7 +1996,7 @@ afternoon:
 
 <!-- table: next gateway -->
 - [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
-- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
+- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport.
 - [Telemetry](telemetry.md): Observability that ships only what is worth the bytes as link cost rises, while counting everything.
 - Beside it: [Gateway](../boards/gateway.md), [Radios and antennas](../radio.md).
 - Also in Radio and reach: [LoRa airtime and range](lora.md), [LoRa radios](radios.md), [Mesh frames](mesh.md), [Routing](routing.md).

@@ -13,9 +13,9 @@ import enum
 from typing import AsyncIterator, Optional, Union
 
 from pamoja._native import MqttClient as _NativeMqttClient
-from pamoja._native import MqttMessage
+from pamoja._native import MqttMessage, MqttTls, MqttWill
 
-__all__ = ["MqttClient", "MqttMessage", "Qos"]
+__all__ = ["MqttClient", "MqttMessage", "MqttTls", "MqttWill", "Qos"]
 
 
 class Qos(str, enum.Enum):
@@ -56,6 +56,10 @@ class MqttClient:
         capacity: Optional[int] = None,
         qos: Optional[Qos] = None,
         max_packet_size: Optional[int] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        will: Optional[MqttWill] = None,
+        tls: Optional[MqttTls] = None,
     ) -> None:
         """Create a disconnected client from the given broker settings.
 
@@ -69,6 +73,14 @@ class MqttClient:
             bytes. Defaults to 10,240. A publish that would be larger is refused and the
             connection stays up, but a larger packet arriving from the broker ends the
             connection, so every client that shares a topic needs a limit that fits it.
+        :param username: The name to sign in to the broker with.
+        :param password: The password to sign in with, which needs a username. It travels
+            in the clear unless the connection uses ``tls``.
+        :param will: A message the broker publishes if the connection ends without a
+            goodbye.
+        :param tls: TLS settings; a connection with them is secured, conventionally on
+            port 8883.
+        :raises PamojaError: If a password comes without a username.
         """
         qos_value = qos.value if isinstance(qos, Qos) else qos
         self._native = _NativeMqttClient(
@@ -79,6 +91,10 @@ class MqttClient:
             capacity=capacity,
             qos=qos_value,
             max_packet_size=max_packet_size,
+            username=username,
+            password=password,
+            will=will,
+            tls=tls,
         )
 
     async def connect(self) -> None:
@@ -88,14 +104,54 @@ class MqttClient:
         """
         await self._native.connect()
 
-    async def publish(self, topic: str, payload: Union[str, bytes]) -> None:
-        """Publish a payload to a topic.
+    async def publish(
+        self,
+        topic: str,
+        payload: Union[str, bytes],
+        *,
+        qos: Optional[Qos] = None,
+        retain: bool = False,
+    ) -> None:
+        """Publish a payload to a topic, returning once it is queued for the broker.
+
+        This returns before the broker acknowledges the message;
+        :meth:`publish_confirmed` waits for that.
 
         :param topic: The destination topic.
         :param payload: The message body; ``str`` payloads are encoded as UTF-8.
+        :param qos: The quality of service for this message. Defaults to the client's.
+        :param retain: Whether the broker keeps the message for clients that subscribe
+            later. An empty retained message clears the one the broker holds.
         """
         data = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
-        await self._native.publish(topic, data)
+        qos_value = qos.value if isinstance(qos, Qos) else qos
+        await self._native.publish(topic, data, qos=qos_value, retain=retain)
+
+    async def publish_confirmed(
+        self,
+        topic: str,
+        payload: Union[str, bytes],
+        *,
+        qos: Optional[Qos] = None,
+        retain: bool = False,
+    ) -> None:
+        """Publish a payload to a topic and wait for the broker to acknowledge it.
+
+        The broker answers with a ``PUBACK`` at ``Qos.AT_LEAST_ONCE`` and a ``PUBCOMP``
+        at ``Qos.EXACTLY_ONCE``; at ``Qos.AT_MOST_ONCE`` MQTT acknowledges nothing, so
+        this returns once the connection has taken the message.
+
+        :param topic: The destination topic.
+        :param payload: The message body; ``str`` payloads are encoded as UTF-8.
+        :param qos: The quality of service for this message. Defaults to the client's.
+        :param retain: Whether the broker keeps the message for clients that subscribe
+            later.
+        :raises PamojaError: If the connection ends before the acknowledgment, when the
+            message may or may not have arrived.
+        """
+        data = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
+        qos_value = qos.value if isinstance(qos, Qos) else qos
+        await self._native.publish_confirmed(topic, data, qos=qos_value, retain=retain)
 
     async def subscribe(self, topic: str) -> None:
         """Subscribe to a topic filter.

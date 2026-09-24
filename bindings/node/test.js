@@ -135,6 +135,29 @@ async function main() {
     "connecting to a closed port should reject with a transport error",
   );
 
+  assert.throws(
+    () => new MqttClient({ clientId: "lonely", host: "127.0.0.1", port: 1883, password: "hunter2" }),
+    /a password needs a username/,
+  );
+  assert.throws(
+    () =>
+      new MqttClient({
+        clientId: "half",
+        host: "127.0.0.1",
+        port: 8883,
+        tls: { certificatePem: "-----BEGIN CERTIFICATE-----" },
+      }),
+    /a client certificate and its key come together/,
+  );
+  const broken = new MqttClient({
+    clientId: "broken-ca",
+    host: "127.0.0.1",
+    port: 47812,
+    keepAliveSecs: 1,
+    tls: { caPem: "not a certificate" },
+  });
+  await assert.rejects(() => broken.connect(), /holds no CERTIFICATE block/);
+
   assert.strictEqual(
     await client.isConnected(),
     false,

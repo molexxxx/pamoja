@@ -11,7 +11,16 @@ to drain.
 The three delivery guarantees are the knob that matters. At most once hands the
 message to the network and forgets it, at least once is acknowledged and may
 arrive twice, and exactly once costs a four-step handshake. The client carries one
-default and applies it to what it publishes and what it subscribes to.
+default and applies it to what it publishes and what it subscribes to, and a single
+publish can take its own guarantee, ask the broker to retain it for later
+subscribers, and wait for the broker's acknowledgment rather than returning once
+queued.
+
+A connection can carry more than messages. A username and password sign the client
+in, TLS secures the link on port 8883, and a will is a message the broker holds
+for the client and publishes for it if the connection ends without a goodbye: the
+network dropped, the power failed, or the keep-alive ran out. That is how a
+dashboard learns a device went quiet without anyone polling it.
 
 A connection that cannot be made is an ordinary outcome with a defined result,
 not a client left looking connected, so a retry loop has something to test. When
@@ -23,10 +32,14 @@ and delivers between clients in the same process.
 
 It runs a site's telemetry path over a broker: a gateway subscribes to every
 node's temperature with a single-level wildcard, a node publishes a reading under
-that pattern, and the gateway reads it back. The node then tries to send two days
-of readings as one message, which is over the connection's packet limit, and stays
-connected when that is refused. Last, the node disconnects, and a client aimed at
-a port with nothing listening on it is refused.
+that pattern, and the gateway reads it back. The node connects with a will that
+says `offline` on its status topic, then publishes `online` there, retained, and
+waits for the broker to acknowledge it. A dashboard that subscribes after that
+still receives the status. The node then tries to send two days of readings as one
+message, which is over the connection's packet limit, and stays connected when
+that is refused. Last, the node publishes `offline` itself, the dashboard sees it,
+the node disconnects, and a client aimed at a port with nothing listening on it is
+refused.
 
 The Rust example starts an in-process broker on whatever spare port the machine
 hands out, which is where the `port` in the snippet comes from, so it needs
@@ -42,8 +55,15 @@ It proves:
 - What arrives is the topic the node published to, `sensors/1/temperature`,
   rather than the `sensors/+/temperature` filter that matched it, and the payload
   is the bytes the node sent.
+- A retained message reaches a client that subscribes after it was published, so
+  the dashboard knows the node is online without waiting for the next status.
+- A confirmed publish returns only once the broker has acknowledged the message, so
+  the node knows the broker holds its status before it moves on.
 - A message over the packet limit is refused before anything is sent, with the
   size its packet would have been, and the node is still connected afterwards.
+- A node that says goodbye replaces its retained status itself, and its will is
+  discarded; had it dropped off instead, the broker would have published the will's
+  `offline` for it.
 - A client that has disconnected reports itself not connected, so code deciding
   whether to reconnect is not reading a stale flag.
 - A broker that is not there fails the connect and leaves the client not
@@ -66,19 +86,24 @@ repository:
 ## Rust
 
 In Rust, `MqttConfig::new(client_id, host, port)` holds the settings, refined with
-`keep_alive`, `capacity`, `qos`, and `max_packet_size`, and `MqttTransport::new(config)` makes
-the client. It implements the `Transport` and `Receive` traits, so `connect`, `subscribe`,
-`send`, `send_text`, and `recv` are the calls every link keeps, and it adds `is_connected()` and
+`keep_alive`, `capacity`, `qos`, `max_packet_size`, `credentials(username, password)`,
+`last_will(Will::new(topic, payload))`, and `tls(Tls::system_roots())` or
+`tls(Tls::with_ca_pem(pem))`, and `MqttTransport::new(config)` makes the client. It implements
+the `Transport` and `Receive` traits, so `connect`, `subscribe`, `send`, `send_text`, and `recv`
+are the calls every link keeps, and it adds `publish(topic, payload, PublishOptions)`, which
+returns a `Delivery` whose `confirmed()` waits for the broker's acknowledgment, `inbox()`, which
+another task can wait on for messages while this one publishes, `is_connected()`, and
 `disconnect()`. Every call is async and fails with a `pamoja_core::Error`: `Transport` for a
-broker that cannot be reached, a topic MQTT does not allow, a message over the packet limit, or a
-connection that ended on its own, and `Closed` for a client that is not connected.
+broker that cannot be reached, a topic MQTT does not allow, a message over the packet limit, a
+certificate that does not check out, or a connection that ended on its own, `Auth` for a broker
+that refuses the client's credentials, and `Closed` for a client that is not connected.
 
 <!-- snippet: examples/guides/mqtt.rs#example -->
 From [`examples/guides/mqtt.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/mqtt.rs):
 
 ```rust
 use pamoja_core::{Receive, Transport};
-use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
+use pamoja_mqtt::{MqttConfig, MqttTransport, PublishOptions, QualityOfService, Will};
 
 let connection = |connected: bool| {
     if connected {
@@ -101,10 +126,16 @@ gateway
 println!("gateway   subscribed to sensors/+/temperature");
 
 // A node publishes under that pattern. At least once has the broker acknowledge each
-// message, where at most once would send it and forget it.
+// message, where at most once would send it and forget it. It also leaves a will: should
+// it drop off the network without saying goodbye, the broker publishes offline on its
+// status topic for it.
+let will = Will::new("sites/node-1/status", "offline")
+    .qos(QualityOfService::AtLeastOnce)
+    .retained();
 let node_config = MqttConfig::new("node-1", "127.0.0.1", port)
     .keep_alive(Duration::from_secs(5))
-    .qos(QualityOfService::AtLeastOnce);
+    .qos(QualityOfService::AtLeastOnce)
+    .last_will(will);
 let mut node = connect(node_config).await;
 node.send_text("sensors/1/temperature", "21.5")
     .await
@@ -122,6 +153,38 @@ let reading = received.text().expect("text");
 let topic = &received.topic;
 println!("gateway   got {reading} on {topic}");
 
+// The node says it is up, retained, so a dashboard that opens later sees it at once.
+// `publish` takes options for this one message and hands back a delivery, which settles
+// when the broker acknowledges the message.
+node.publish(
+    "sites/node-1/status",
+    b"online",
+    PublishOptions::new().retained(),
+)
+.await
+.expect("the link is up")
+.confirmed()
+.await
+.expect("the broker acknowledges the status");
+println!("node      the broker holds online on sites/node-1/status");
+
+// A dashboard that subscribes afterwards still gets it, because the broker keeps the
+// last retained message on each topic for whoever subscribes next.
+let dashboard_config =
+    MqttConfig::new("site-dashboard", "127.0.0.1", port).keep_alive(Duration::from_secs(5));
+let mut dashboard = connect(dashboard_config).await;
+dashboard
+    .subscribe("sites/node-1/status")
+    .await
+    .expect("the broker accepts the subscription");
+let status = dashboard
+    .recv()
+    .await
+    .expect("the link is up")
+    .expect("the retained status arrives");
+let state = status.text().expect("text");
+println!("dashboard {} is {state}", status.topic);
+
 // Two days of readings saved at one a minute, sent as one message, make a packet over
 // the connection's 10 KiB limit. The send is refused before anything leaves and the
 // connection stays up; a node that must send it raises the limit on every client that
@@ -133,6 +196,26 @@ match node.send_text("sensors/1/backlog", &backlog).await {
 }
 let after_refusal = node.is_connected();
 println!("node      {}", connection(after_refusal));
+
+// Before it leaves, the node says so itself. A clean disconnect discards the will, which
+// is only for a node that drops off without this goodbye.
+node.publish(
+    "sites/node-1/status",
+    b"offline",
+    PublishOptions::new().retained(),
+)
+.await
+.expect("the link is up")
+.confirmed()
+.await
+.expect("the broker acknowledges the goodbye");
+let goodbye = dashboard
+    .recv()
+    .await
+    .expect("the link is up")
+    .expect("the goodbye arrives");
+let farewell = goodbye.text().expect("text");
+println!("dashboard {} is {farewell}", goodbye.topic);
 
 // Disconnecting leaves the transport reusable, so a node that loses its link can
 // reconnect the same object when the broker comes back.
@@ -160,9 +243,12 @@ match nowhere.connect().await {
 ## TypeScript
 
 In TypeScript, `new MqttClient(options)` from `@pamoja/mqtt` takes `{ clientId, host, port,
-keepAliveSecs?, capacity?, qos?, maxPacketSize? }`, with `Qos.AtMostOnce`, `Qos.AtLeastOnce`, and
-`Qos.ExactlyOnce`. `connect`, `subscribe`, `publish(topic, textOrBytes)`, `recv(timeoutMs?)`,
-`isConnected`, and `disconnect` return promises, and `for await (const message of client)` reads
+keepAliveSecs?, capacity?, qos?, maxPacketSize?, username?, password?, will?, tls? }`, where
+`will` is `{ topic, payload, qos?, retain? }` and `tls` is `{ caPem?, certificatePem?, keyPem? }`,
+with `Qos.AtMostOnce`, `Qos.AtLeastOnce`, and `Qos.ExactlyOnce`. `connect`, `subscribe`,
+`publish(topic, textOrBytes, { qos?, retain? }?)`, `publishConfirmed(...)` with the same
+arguments, `recv(timeoutMs?)`, `isConnected`, and `disconnect` return promises, a receive waiting
+does not hold up a publish on the same client, and `for await (const message of client)` reads
 until the connection ends. A message is `{ topic, payload, text?, number? }`, with `payload` a
 `Buffer`. For a ladder, `Transport.mqtt(options)` in `@pamoja/core` takes the same options.
 
@@ -193,12 +279,15 @@ async function main() {
   console.log('gateway   subscribed to sensors/+/temperature')
 
   // A node publishes under that pattern. At least once has the broker acknowledge each
-  // message, where at most once would send it and forget it.
+  // message, where at most once would send it and forget it. It also leaves a will: should
+  // it drop off the network without saying goodbye, the broker publishes offline on its
+  // status topic for it.
   const node = new MqttClient({
     clientId: 'node-1',
     host: BROKER,
     port: PORT,
     qos: Qos.AtLeastOnce,
+    will: { topic: 'sites/node-1/status', payload: 'offline', qos: Qos.AtLeastOnce, retain: true },
   })
   await node.connect()
   await node.publish('sensors/1/temperature', '21.5')
@@ -208,6 +297,19 @@ async function main() {
   // sent the reading without the payload having to repeat it.
   const received = (await gateway.recv())!
   console.log(`gateway   got ${received.text!} on ${received.topic}`)
+
+  // The node says it is up, retained, so a dashboard that opens later sees it at once.
+  // `publishConfirmed` resolves once the broker acknowledges the message.
+  await node.publishConfirmed('sites/node-1/status', 'online', { retain: true })
+  console.log('node      the broker holds online on sites/node-1/status')
+
+  // A dashboard that subscribes afterwards still gets it, because the broker keeps the
+  // last retained message on each topic for whoever subscribes next.
+  const dashboard = new MqttClient({ clientId: 'site-dashboard', host: BROKER, port: PORT })
+  await dashboard.connect()
+  await dashboard.subscribe('sites/node-1/status')
+  const status = (await dashboard.recv())!
+  console.log(`dashboard ${status.topic} is ${status.text!}`)
 
   // Two days of readings saved at one a minute, sent as one message, make a packet over
   // the connection's 10 KiB limit. The send is refused before anything leaves and the
@@ -223,12 +325,19 @@ async function main() {
   const afterRefusal = await node.isConnected()
   console.log(`node      ${connection(afterRefusal)}`)
 
+  // Before it leaves, the node says so itself. A clean disconnect discards the will, which
+  // is only for a node that drops off without this goodbye.
+  await node.publishConfirmed('sites/node-1/status', 'offline', { retain: true })
+  const goodbye = (await dashboard.recv())!
+  console.log(`dashboard ${goodbye.topic} is ${goodbye.text!}`)
+
   // Disconnecting leaves the client reusable, so a node that loses its link can reconnect
   // the same object when the broker comes back.
   await node.disconnect()
   const afterDisconnect = await node.isConnected()
   console.log(`node      ${connection(afterDisconnect)} after disconnecting`)
   await gateway.disconnect()
+  await dashboard.disconnect()
 
   // A broker that is not there is reported rather than leaving a client that looks
   // connected, so a retry loop has something to test.
@@ -240,7 +349,7 @@ async function main() {
     console.log(`unreachable broker refused: ${(error as Error).message}`)
   }
 
-  return { received, afterRefusal, afterDisconnect }
+  return { received, status, goodbye, afterRefusal, afterDisconnect }
 }
 
 main()
@@ -250,9 +359,12 @@ main()
 ## Python
 
 In Python, `MqttClient(client_id=..., host=..., port=...)` from `pamoja.mqtt` takes the settings
-as keywords, with `keep_alive_secs`, `capacity`, `qos`, and `max_packet_size` optional and
-`Qos.AT_MOST_ONCE`, `Qos.AT_LEAST_ONCE`, and `Qos.EXACTLY_ONCE` as the guarantees. The calls are
-coroutines, `async for message in client` reads until the connection ends, and `async with`
+as keywords, with `keep_alive_secs`, `capacity`, `qos`, `max_packet_size`, `username`,
+`password`, `will=MqttWill(topic, payload, qos=..., retain=...)`, and
+`tls=MqttTls(ca_pem=..., certificate_pem=..., key_pem=...)` optional and `Qos.AT_MOST_ONCE`,
+`Qos.AT_LEAST_ONCE`, and `Qos.EXACTLY_ONCE` as the guarantees. `publish` and `publish_confirmed`
+take `qos=` and `retain=` keywords. The calls are coroutines, a receive waiting does not hold up
+a publish on the same client, `async for message in client` reads until the connection ends, and `async with`
 connects and disconnects around a block. A message has `topic`, `payload` as bytes, `text`, and
 `number`. `asyncio.wait_for` puts a limit on a receive, and a failure raises `PamojaError`. For a
 ladder, `Transport.mqtt(...)` in `pamoja.core` takes the same keywords.
@@ -264,7 +376,7 @@ From [`bindings/python/guides/mqtt.py`](https://github.com/molexxxx/pamoja/blob/
 import asyncio
 
 from pamoja.core import PamojaError
-from pamoja.mqtt import MqttClient, Qos
+from pamoja.mqtt import MqttClient, MqttWill, Qos
 
 # The broker on the site. The guide's CI runs one on localhost; point these at yours and
 # nothing else changes.
@@ -287,8 +399,13 @@ async def main() -> None:
     print("gateway   subscribed to sensors/+/temperature")
 
     # A node publishes under that pattern. At least once has the broker acknowledge each
-    # message, where at most once would send it and forget it.
-    node = MqttClient(client_id="node-1", host=BROKER, port=PORT, qos=Qos.AT_LEAST_ONCE)
+    # message, where at most once would send it and forget it. It also leaves a will: should
+    # it drop off the network without saying goodbye, the broker publishes offline on its
+    # status topic for it.
+    will = MqttWill("sites/node-1/status", "offline", qos=Qos.AT_LEAST_ONCE, retain=True)
+    node = MqttClient(
+        client_id="node-1", host=BROKER, port=PORT, qos=Qos.AT_LEAST_ONCE, will=will
+    )
     await node.connect()
     await node.publish("sensors/1/temperature", "21.5")
     print("node      published 21.5 to sensors/1/temperature")
@@ -297,6 +414,19 @@ async def main() -> None:
     # sent the reading without the payload having to repeat it.
     received = await gateway.recv()
     print(f"gateway   got {received.text} on {received.topic}")
+
+    # The node says it is up, retained, so a dashboard that opens later sees it at once.
+    # `publish_confirmed` returns once the broker acknowledges the message.
+    await node.publish_confirmed("sites/node-1/status", "online", retain=True)
+    print("node      the broker holds online on sites/node-1/status")
+
+    # A dashboard that subscribes afterwards still gets it, because the broker keeps the
+    # last retained message on each topic for whoever subscribes next.
+    dashboard = MqttClient(client_id="site-dashboard", host=BROKER, port=PORT)
+    await dashboard.connect()
+    await dashboard.subscribe("sites/node-1/status")
+    status = await dashboard.recv()
+    print(f"dashboard {status.topic} is {status.text}")
 
     # Two days of readings saved at one a minute, sent as one message, make a packet over
     # the connection's 10 KiB limit. The send is refused before anything leaves and the
@@ -311,12 +441,19 @@ async def main() -> None:
     after_refusal = await node.is_connected()
     print(f"node      {connection(after_refusal)}")
 
+    # Before it leaves, the node says so itself. A clean disconnect discards the will, which
+    # is only for a node that drops off without this goodbye.
+    await node.publish_confirmed("sites/node-1/status", "offline", retain=True)
+    goodbye = await dashboard.recv()
+    print(f"dashboard {goodbye.topic} is {goodbye.text}")
+
     # Disconnecting leaves the client reusable, so a node that loses its link can
     # reconnect the same object when the broker comes back.
     await node.disconnect()
     after_disconnect = await node.is_connected()
     print(f"node      {connection(after_disconnect)} after disconnecting")
     await gateway.disconnect()
+    await dashboard.disconnect()
 
     # A broker that is not there is reported rather than leaving a client that looks
     # connected, so a retry loop has something to test.
@@ -327,20 +464,23 @@ async def main() -> None:
     except PamojaError as error:
         print(f"unreachable broker refused: {error}")
 
-    return received, after_refusal, after_disconnect
+    return received, status, goodbye, after_refusal, after_disconnect
 
 
-received, after_refusal, after_disconnect = asyncio.run(main())
+received, status, goodbye, after_refusal, after_disconnect = asyncio.run(main())
 ```
 <!-- end -->
 
 ## C#
 
 In C#, `new MqttClient(new MqttClientOptions { ... })` from `Pamoja.Mqtt` takes `ClientId`,
-`Host`, and `Port`, with `KeepAliveSecs`, `Capacity`, `Qos`, and `MaxPacketSize` optional. The
-client is `IAsyncDisposable`, with `ConnectAsync`, `SubscribeAsync`,
-`PublishAsync(topic, textOrBytes)`, `RecvAsync()`, `RecvAsync(limit)`, `IsConnectedAsync`, and
-`DisconnectAsync`, and calls on one client run one at a time. `await foreach` reads until the
+`Host`, and `Port`, with `KeepAliveSecs`, `Capacity`, `Qos`, `MaxPacketSize`, `Username`,
+`Password`, `Will` (an `MqttWill` with `Qos` and `Retain`), and `Tls` (an `MqttTls` with `CaPem`,
+`CertificatePem`, and `KeyPem`) optional. The client is `IAsyncDisposable`, with `ConnectAsync`,
+`SubscribeAsync`, `PublishAsync(topic, textOrBytes, options)`, `PublishConfirmedAsync` with the
+same arguments, where `options` is an `MqttPublishOptions(Qos, Retain)`, `RecvAsync()`,
+`RecvAsync(limit)`, `IsConnectedAsync`, and `DisconnectAsync`, and a receive waiting does not hold
+up a publish on the same client. `await foreach` reads until the
 connection ends, can publish from its body, and stops within a quarter of a second of being
 canceled. A message has `Topic`, `Payload` as `ReadOnlyMemory<byte>`, `Text`, and `Number`. For a
 ladder, `MqttTransport.Open(options)` takes the same options.
@@ -371,13 +511,16 @@ await gateway.SubscribeAsync("sensors/+/temperature");
 Console.WriteLine("gateway   subscribed to sensors/+/temperature");
 
 // A node publishes under that pattern. At least once has the broker acknowledge
-// each message, where at most once would send it and forget it.
+// each message, where at most once would send it and forget it. It also leaves a
+// will: should it drop off the network without saying goodbye, the broker
+// publishes offline on its status topic for it.
 await using var node = new MqttClient(new MqttClientOptions
 {
     ClientId = "node-1",
     Host = Broker,
     Port = Port,
     Qos = Qos.AtLeastOnce,
+    Will = new MqttWill("sites/node-1/status", "offline") { Qos = Qos.AtLeastOnce, Retain = true },
 });
 await node.ConnectAsync();
 await node.PublishAsync("sensors/1/temperature", "21.5");
@@ -389,6 +532,24 @@ MqttMessage received = (await gateway.RecvAsync())!;
 Console.WriteLine(
     $"gateway   got {received.Text}"
     + $" on {received.Topic}");
+
+// The node says it is up, retained, so a dashboard that opens later sees it at
+// once. PublishConfirmedAsync completes once the broker acknowledges the message.
+await node.PublishConfirmedAsync("sites/node-1/status", "online", new MqttPublishOptions(Retain: true));
+Console.WriteLine("node      the broker holds online on sites/node-1/status");
+
+// A dashboard that subscribes afterwards still gets it, because the broker keeps
+// the last retained message on each topic for whoever subscribes next.
+await using var dashboard = new MqttClient(new MqttClientOptions
+{
+    ClientId = "site-dashboard",
+    Host = Broker,
+    Port = Port,
+});
+await dashboard.ConnectAsync();
+await dashboard.SubscribeAsync("sites/node-1/status");
+MqttMessage status = (await dashboard.RecvAsync())!;
+Console.WriteLine($"dashboard {status.Topic} is {status.Text}");
 
 // Two days of readings saved at one a minute, sent as one message, make a packet
 // over the connection's 10 KiB limit. The send is refused before anything leaves
@@ -407,6 +568,12 @@ catch (PamojaException error)
 
 bool afterRefusal = await node.IsConnectedAsync();
 Console.WriteLine($"node      {Connection(afterRefusal)}");
+
+// Before it leaves, the node says so itself. A clean disconnect discards the will,
+// which is only for a node that drops off without this goodbye.
+await node.PublishConfirmedAsync("sites/node-1/status", "offline", new MqttPublishOptions(Retain: true));
+MqttMessage goodbye = (await dashboard.RecvAsync())!;
+Console.WriteLine($"dashboard {goodbye.Topic} is {goodbye.Text}");
 
 // Disconnecting leaves the client reusable, so a node that loses its link can
 // reconnect the same object when the broker comes back.
@@ -446,6 +613,9 @@ catch (PamojaException error)
 | requests queued toward the broker, 64 | `.capacity(n)` | `capacity` | `capacity` | `Capacity` |
 | delivery guarantee, at least once | `.qos(QualityOfService::AtLeastOnce)` | `qos: Qos.AtLeastOnce` | `qos=Qos.AT_LEAST_ONCE` | `Qos = Qos.AtLeastOnce` |
 | packet limit each way, 10,240 bytes | `.max_packet_size(bytes)` | `maxPacketSize` | `max_packet_size` | `MaxPacketSize` |
+| sign in, none | `.credentials(username, password)` | `username`, `password` | `username`, `password` | `Username`, `Password` |
+| a will, none | `.last_will(Will::new(topic, payload))` | `will: { topic, payload }` | `will=MqttWill(topic, payload)` | `Will = new MqttWill(topic, payload)` |
+| TLS, none | `.tls(Tls::with_ca_pem(pem))` | `tls: { caPem }` | `tls=MqttTls(ca_pem=pem)` | `Tls = new MqttTls { CaPem = pem }` |
 
 **The calls:**
 
@@ -454,6 +624,9 @@ catch (PamojaException error)
 | connect | `link.connect().await?` | `await client.connect()` | `await client.connect()` | `await client.ConnectAsync()` |
 | subscribe | `link.subscribe(filter).await?` | `await client.subscribe(filter)` | `await client.subscribe(filter)` | `await client.SubscribeAsync(filter)` |
 | publish | `link.send(topic, &bytes)`, `link.send_text(topic, text)` | `await client.publish(topic, textOrBytes)` | `await client.publish(topic, text_or_bytes)` | `await client.PublishAsync(topic, textOrBytes)` |
+| publish retained, or at its own guarantee | `link.publish(topic, &bytes, PublishOptions::new().retained()).await?` | `await client.publish(topic, body, { retain: true })` | `await client.publish(topic, body, retain=True)` | `await client.PublishAsync(topic, body, new MqttPublishOptions(Retain: true))` |
+| publish and wait for the broker | `link.publish(..).await?.confirmed().await?` | `await client.publishConfirmed(topic, body)` | `await client.publish_confirmed(topic, body)` | `await client.PublishConfirmedAsync(topic, body)` |
+| receive in another task | `let inbox = link.inbox(); inbox.recv().await?` | `await client.recv()` | `await client.recv()` | `await client.RecvAsync()` |
 | receive | `link.recv().await?` | `await client.recv()` | `await client.recv()` | `await client.RecvAsync()` |
 | receive with a limit | `timeout(limit, link.recv()).await` | `await client.recv(ms)` | `await asyncio.wait_for(client.recv(), seconds)` | `await client.RecvAsync(limit)` |
 | read until it ends | `while let Some(m) = link.recv().await? {}` | `for await (const m of client)` | `async for m in client` | `await foreach (var m in client)` |
@@ -477,8 +650,23 @@ below are those of the OASIS standard:
 
 A subscriber receives a message at the lower of the guarantee it was published with and the one
 granted to its subscription (3.8.4). A send returns once the message is queued for the broker,
-before any acknowledgment. The session is clean, so a message still waiting for its
-acknowledgment when the connection drops is not sent again (4.4).
+before any acknowledgment; a confirmed publish returns on the PUBACK or the PUBCOMP, and at most
+once, where MQTT acknowledges nothing, once the connection has taken the message. The session is
+clean, so a message still waiting for its acknowledgment when the connection drops is not sent
+again (4.4), and a confirmed publish in that state fails with the reason the connection ended.
+
+**Signing in and TLS.** A username can go without a password, but a password needs a username
+(3.1.2.9). The broker checks the pair and answers in its CONNACK (3.2.2.3); pamoja reports a
+refusal about who the client is as an authentication error. TLS checks the broker's certificate
+against the host name the client connects to, so a broker reached by address needs a certificate
+that names that address.
+
+| With | The client trusts | Presents |
+| --- | --- | --- |
+| no TLS | nothing; the connection is plain TCP, conventionally port 1883 | nothing |
+| TLS with no CA file | the certificate authorities the operating system trusts | nothing |
+| TLS with a CA file | only the authorities in that PEM file | nothing |
+| TLS with a CA file and a client certificate | only the authorities in that PEM file | the certificate and its key, for a broker that asks |
 
 **What the client checks before it sends.** A topic to publish to holds no `+` or `#`
 (4.7.1). A filter has `#` only alone in its last level and `+` only as a whole level
@@ -502,9 +690,9 @@ before it leaves:
 | a client sends nothing for one and a half keep-alive periods | the broker ends the connection; the client pings so that it does not | 3.1.2.10 |
 | a publish matches two of a client's filters | at least one copy arrives, and the broker may send one per filter | 3.3.5 |
 | a filter starts with a wildcard | it never matches a topic that starts with `$` | 4.7.2 |
-
-pamoja publishes without the retain flag, so a retained message a subscriber receives came from
-another client.
+| a client with a will drops off without a DISCONNECT | the broker publishes the will | 3.1.2.5 |
+| a client sends DISCONNECT | the broker discards its will | 3.14.4 |
+| a retained message with an empty payload arrives | the broker removes the retained message on that topic | 3.3.1.3 |
 
 ## When it goes wrong
 
@@ -518,6 +706,12 @@ What the client refuses, and what it says:
 | a message is over the packet limit | `transport error: the message makes a 14423-byte packet, over this connection's 10240-byte limit` | raise the limit on every client that shares the topic, or split the message |
 | the connection ended on its own | `transport error: the connection to the broker ended: ...`, from one receive | the reason after the colon, then connect and subscribe again |
 | a call on a client that is not connected | `resource is closed` | connect first, or again once the connection has ended |
+| the broker refuses the username or password | `authentication error: the broker does not authorize this client`, from Mosquitto, which answers a wrong password with return code 5 rather than 4 | the credentials, and the broker's password file |
+| a password with no username | `a password needs a username: MQTT sends no password alone` | add the username |
+| the broker's certificate comes from an authority the client does not trust | `transport error: TLS: I/O: invalid peer certificate: UnknownIssuer` | the CA file, or leave it out for a publicly issued certificate |
+| the certificate names another host | `... certificate not valid for name "127.0.0.1"; certificate is only valid for DnsName("localhost")` | connect to the name on the certificate |
+| a plain client aimed at a TLS port | `transport error: Mqtt state: Connection closed by peer abruptly` | add the TLS settings, or use the plain port |
+| a confirmed publish when the connection ends first | `transport error: the connection ended before the broker acknowledged the message: ...` | connect again and publish again; the message may or may not have arrived |
 | a receive given a limit ran out of time | `no message arrived within 250 ms` in TypeScript and C# | the topics were quiet; the next message waits for the next receive |
 
 The mistakes that cost an afternoon:
@@ -531,21 +725,26 @@ The mistakes that cost an afternoon:
 - **A subscriber's connection ends when a large message arrives.** Its packet limit is smaller than
   the publisher's, and a packet over the limit ends the connection that receives it. Raise the
   limit on every client that shares the topic.
-- **A client that listens never publishes.** A receive holds the client until a message arrives,
-  and a publish on the same client waits behind it. Receive with a limit in a loop and publish
-  between receives, publish from the body of the loop that reads, or use a second client with its
-  own id.
+- **A Rust task that listens never lets another publish.** `recv` borrows the transport for as
+  long as it waits. Take an `inbox()` and wait on that in the listening task; TypeScript, Python,
+  and C# receive that way already, so a receive waiting does not hold up a publish.
 - **A reading is handled twice.** At least once allows a second delivery (4.3.2). Make the handler
   safe to repeat, or ask for exactly once.
-- **A new subscriber gets yesterday's reading.** Another client published it with the retain flag,
-  and the broker hands the last retained message to each new subscription (3.3.1.3).
+- **A new subscriber gets yesterday's reading.** A client published it with the retain flag, and
+  the broker hands the last retained message to each new subscription (3.3.1.3). Publish an empty
+  retained message to the topic to clear it.
+- **The dashboard shows a device offline that is running.** Its will went out when the connection
+  dropped, and the device came back without saying so. Have it publish its retained `online`
+  after every connect, as the example does.
 - **A quiet connection drops.** Something on the path, often a NAT or a firewall, closed an idle
   TCP session before the next keep-alive ping. Set the keep-alive below its idle timeout.
 - **A `#` subscription never sees the broker's `$SYS` topics.** A filter that starts with a
   wildcard never matches a topic that starts with `$` (4.7.2). Subscribe to `$SYS/#` by name.
 - **A reading was lost when the connection dropped.** A send returns once the message is queued,
-  and a message in flight when a clean-session connection drops is not sent again (4.4). A reading
-  that has to arrive needs an answer from whatever receives it.
+  and a message in flight when a clean-session connection drops is not sent again (4.4). Publish
+  it confirmed, and publish again when the confirmation fails. The broker holding the message is
+  not the subscriber having it; a reading that has to reach an application needs an answer from
+  the application.
 
 ## Where next
 

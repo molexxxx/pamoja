@@ -359,7 +359,7 @@ dependency graph, for a `x86_64-unknown-linux-gnu` build:
 <!-- table: builds -->
 | Build | What you write | Crates compiled | From this workspace | External |
 | --- | --- | --- | --- | --- |
-| Every capability | `cargo add pamoja` | 111 | 34 | 77 |
+| Every capability | `cargo add pamoja` | 124 | 34 | 90 |
 | Codecs and identity | `cargo add pamoja --no-default-features --features std,codec,security` | 36 | 4 | 32 |
 | Field I/O | `cargo add pamoja --no-default-features --features std,field-io` | 8 | 7 | 1 |
 | One capability | `cargo add pamoja --no-default-features --features std,modbus` | 5 | 4 | 1 |

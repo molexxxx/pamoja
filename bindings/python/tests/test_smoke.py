@@ -52,6 +52,38 @@ def test_connect_failure_raises_and_leaves_client_disconnected():
     asyncio.run(run())
 
 
+def test_mqtt_settings_that_cannot_work_are_refused_before_connecting():
+    from pamoja.mqtt import MqttTls, MqttWill
+
+    with pytest.raises(PamojaError, match="a password needs a username"):
+        MqttClient(client_id="lonely", host="127.0.0.1", port=1883, password="hunter2")
+    with pytest.raises(PamojaError, match="a client certificate and its key come together"):
+        MqttTls(certificate_pem="-----BEGIN CERTIFICATE-----")
+    with pytest.raises(PamojaError, match="unknown quality of service"):
+        MqttWill("sites/pump-3/status", "offline", qos="Sometimes")
+    will = MqttWill("sites/pump-3/status", b"offline", qos=Qos.AT_LEAST_ONCE, retain=True)
+    assert (will.topic, will.payload, will.qos, will.retain) == (
+        "sites/pump-3/status",
+        b"offline",
+        "AtLeastOnce",
+        True,
+    )
+    assert "PRIVATE" not in repr(MqttTls(certificate_pem="c", key_pem="-----BEGIN PRIVATE KEY-----"))
+
+    async def run():
+        client = MqttClient(
+            client_id="secure",
+            host="127.0.0.1",
+            port=47812,
+            keep_alive_secs=1,
+            tls=MqttTls(ca_pem="not a certificate"),
+        )
+        with pytest.raises(PamojaError, match="holds no CERTIFICATE block"):
+            await client.connect()
+
+    asyncio.run(run())
+
+
 def test_identity_signs_and_verifies_a_reading():
     from pamoja.security import DeviceIdentity, fingerprint, verify
 

@@ -15,15 +15,34 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["tls"]
+# TLS to the broker over rustls, with its ring provider named rather than left to the
+# process, and the system's certificate authorities available to trust.
+tls = [
+    "rumqttc/use-rustls-no-provider",
+    "dep:rustls",
+    "dep:rustls-native-certs",
+    "dep:rustls-pki-types",
+]
+
 [dependencies]
 pamoja-core = { workspace = true }
-# Default features pull in the rustls TLS stack, which this crate does not use;
-# plain TCP is the only transport it drives today.
+# rumqttc's own TLS features pick a crypto provider for the whole process; the `tls`
+# feature above turns on its rustls transport and brings the ring provider itself.
 rumqttc = { version = "0.25", default-features = false }
+# 0.23.45 carries the fix for RUSTSEC-2026-0285.
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+rustls-pki-types = { version = "1.9", features = ["std"], optional = true }
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
+# The TLS test issues its own certificates and terminates TLS in front of the embedded
+# broker, both on the ring provider the client uses.
+rcgen = { version = "0.13", default-features = false, features = ["crypto", "pem", "ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 # The embedded test broker; its default features pull the rustls TLS listener, which
 # the round-trip test does not use (it connects over plain TCP), so turn them off to
 # keep the rustls-webpki stack out of the tree entirely.

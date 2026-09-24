@@ -41,6 +41,20 @@ public static partial class NativeMethods
         IntPtr payload,
         nuint payloadLen);
 
+    /// <summary>
+    /// Publishes with a quality of service and retain flag of its own, waiting for the
+    /// broker's acknowledgment when <paramref name="confirmed"/> is set.
+    /// </summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_mqtt_client_publish_with(
+        IntPtr client,
+        IntPtr topic,
+        IntPtr payload,
+        nuint payloadLen,
+        PamojaQos qos,
+        [MarshalAs(UnmanagedType.U1)] bool retain,
+        [MarshalAs(UnmanagedType.U1)] bool confirmed);
+
     /// <summary>Subscribes to a topic filter.</summary>
     [LibraryImport(Library)]
     public static partial PamojaStatus pamoja_mqtt_client_subscribe(IntPtr client, IntPtr topic);

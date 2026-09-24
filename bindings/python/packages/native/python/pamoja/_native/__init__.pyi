@@ -188,6 +188,8 @@ __all__ = [
     "ModbusServer",
     "MqttClient",
     "MqttMessage",
+    "MqttTls",
+    "MqttWill",
     "Odometry",
     "Opt3001",
     "Opt3001Config",
@@ -9107,21 +9109,34 @@ class MqttClient:
     r"""
     An MQTT client transport backed by the native pamoja core.
     """
-    def __new__(cls, *, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None) -> MqttClient:
+    def __new__(cls, *, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None, username: typing.Optional[builtins.str] = None, password: typing.Optional[builtins.str] = None, will: typing.Optional[MqttWill] = None, tls: typing.Optional[MqttTls] = None) -> MqttClient:
         r"""
         Creates a disconnected client from the given options.
         
         `max_packet_size` is the largest packet the connection sends or accepts, in
         bytes, 10,240 when omitted. A publish that would be larger is refused and the
         connection stays up, but a larger packet arriving from the broker ends it.
+        `username` and `password` sign in to the broker, and a password needs a username;
+        `will` is published if the connection ends without a goodbye, and `tls` secures the
+        connection.
         """
     def connect(self) -> typing.Any:
         r"""
         Connects to the broker and starts the background event loop.
         """
-    def publish(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int]) -> typing.Any:
+    def publish(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int], *, qos: typing.Optional[builtins.str] = None, retain: builtins.bool = False) -> typing.Any:
         r"""
-        Publishes a payload to a topic.
+        Publishes a payload to a topic, returning once it is queued for the broker.
+        `qos` is the client's unless given, and `retain` has the broker keep the message
+        for clients that subscribe later; an empty retained message clears the one it holds.
+        """
+    def publish_confirmed(self, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int], *, qos: typing.Optional[builtins.str] = None, retain: builtins.bool = False) -> typing.Any:
+        r"""
+        Publishes a payload to a topic and returns once the broker acknowledges it: its
+        `PUBACK` at `"AtLeastOnce"`, its `PUBCOMP` at `"ExactlyOnce"`, and once the
+        connection has taken it at `"AtMostOnce"`, where MQTT acknowledges nothing. Raises
+        `PamojaError` if the connection ends first, when the message may or may not have
+        arrived.
         """
     def subscribe(self, topic: builtins.str) -> typing.Any:
         r"""
@@ -9170,6 +9185,53 @@ class MqttMessage:
     def payload(self) -> bytes:
         r"""
         The raw payload bytes.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MqttTls:
+    r"""
+    How a connection is secured with TLS, conventionally on port 8883.
+    """
+    def __new__(cls, *, ca_pem: typing.Optional[builtins.str | typing.Sequence[builtins.int]] = None, certificate_pem: typing.Optional[builtins.str | typing.Sequence[builtins.int]] = None, key_pem: typing.Optional[builtins.str | typing.Sequence[builtins.int]] = None) -> MqttTls:
+        r"""
+        Trusts the certificate authorities in `ca_pem`, or the system's without it, and
+        presents `certificate_pem` with its `key_pem` to a broker that asks for a client
+        certificate. Raises `PamojaError` when only one of the pair is given.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class MqttWill:
+    r"""
+    A message the broker publishes on the client's behalf if its connection ends without a
+    disconnect: the network dropped, the power failed, or the keep-alive ran out. A client
+    that disconnects leaves no will behind.
+    """
+    @property
+    def topic(self) -> builtins.str:
+        r"""
+        The topic the broker publishes it to.
+        """
+    @property
+    def qos(self) -> builtins.str:
+        r"""
+        The quality of service it is published at, by name.
+        """
+    @property
+    def retain(self) -> builtins.bool:
+        r"""
+        Whether the broker retains it for clients that subscribe later.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        What the will publishes.
+        """
+    def __new__(cls, topic: builtins.str, payload: builtins.str | typing.Sequence[builtins.int], *, qos: typing.Optional[builtins.str] = None, retain: builtins.bool = False) -> MqttWill:
+        r"""
+        Creates a will to publish `payload` to `topic`, which holds no wildcard. `qos` is
+        `"AtMostOnce"` unless given.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -9763,7 +9825,7 @@ class PyTransport:
         Whether this transport is still holdable, or has been handed on.
         """
     @staticmethod
-    def mqtt(*, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None) -> PyTransport:
+    def mqtt(*, client_id: builtins.str, host: builtins.str, port: builtins.int, keep_alive_secs: typing.Optional[builtins.int] = None, capacity: typing.Optional[builtins.int] = None, qos: typing.Optional[builtins.str] = None, max_packet_size: typing.Optional[builtins.int] = None, username: typing.Optional[builtins.str] = None, password: typing.Optional[builtins.str] = None, will: typing.Optional[MqttWill] = None, tls: typing.Optional[MqttTls] = None) -> PyTransport:
         r"""
         Creates an MQTT transport from broker settings.
         """

@@ -408,11 +408,11 @@ next = ["power", "mqtt", "rules"]
 key = "mqtt"
 chapter = "transports"
 title = "MQTT"
-summary = "An MQTT client with the topic and wildcard rules, as the core transport"
+summary = "An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport"
 crates = ["pamoja-mqtt"]
 node = "mqtt"
 python = "mqtt"
-dotnet = ["MqttClient", "MqttClientOptions", "MqttMessage", "Qos"]
+dotnet = ["MqttClient", "MqttClientOptions", "MqttMessage", "MqttPublishOptions", "MqttTls", "MqttWill", "Qos"]
 guide = "guides/mqtt.md"
 next = ["codec", "sync", "ladder"]
 

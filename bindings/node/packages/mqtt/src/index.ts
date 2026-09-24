@@ -14,6 +14,7 @@ import {
   MqttClient as NativeMqttClient,
   type MqttClientOptions as NativeMqttClientOptions,
   type MqttMessage,
+  type MqttPublishOptions as NativeMqttPublishOptions,
 } from '@pamoja/native'
 
 export type { MqttMessage }
@@ -57,6 +58,74 @@ export interface MqttClientOptions {
    * a topic needs a limit that fits it.
    */
   maxPacketSize?: number
+  /** The name to sign in to the broker with. */
+  username?: string
+  /**
+   * The password to sign in with, which needs a username. It travels in the clear unless the
+   * connection uses {@link MqttClientOptions.tls}.
+   */
+  password?: string
+  /** A message the broker publishes if the connection ends without a goodbye. */
+  will?: MqttWill
+  /** TLS settings; a connection with them is secured, conventionally on port 8883. */
+  tls?: MqttTls
+}
+
+/**
+ * A message the broker publishes on the client's behalf if its connection ends without a
+ * disconnect: the network dropped, the power failed, or the keep-alive ran out. A client that
+ * calls {@link MqttClient.disconnect} leaves no will behind.
+ */
+export interface MqttWill {
+  /** The topic the broker publishes it to, with no wildcard. */
+  topic: string
+  /** What it publishes; strings are encoded as UTF-8. */
+  payload: string | Uint8Array
+  /** The quality of service it is published at. Defaults to `AtMostOnce`. */
+  qos?: Qos
+  /** Whether the broker retains it for clients that subscribe later. */
+  retain?: boolean
+}
+
+/** How a connection is secured with TLS. */
+export interface MqttTls {
+  /** The certificate authorities to trust, as PEM. Without it the system's are trusted. */
+  caPem?: string | Uint8Array
+  /** A client certificate to present, as PEM, for a broker that asks for one. */
+  certificatePem?: string | Uint8Array
+  /** The client certificate's private key, as PEM. */
+  keyPem?: string | Uint8Array
+}
+
+/** How one message is published. */
+export interface MqttPublishOptions {
+  /** The quality of service for this message. Defaults to the client's. */
+  qos?: Qos
+  /**
+   * Whether the broker keeps it for clients that subscribe later. Publishing an empty retained
+   * message clears the one the broker holds.
+   */
+  retain?: boolean
+}
+
+function bytes(payload: string | Uint8Array): Buffer {
+  return typeof payload === 'string' ? Buffer.from(payload, 'utf8') : Buffer.from(payload)
+}
+
+function nativeOptions(options: MqttClientOptions): NativeMqttClientOptions {
+  const { will, tls, ...rest } = options
+  return {
+    ...rest,
+    will: will === undefined ? undefined : { ...will, payload: bytes(will.payload) },
+    tls:
+      tls === undefined
+        ? undefined
+        : {
+            caPem: tls.caPem === undefined ? undefined : bytes(tls.caPem),
+            certificatePem: tls.certificatePem === undefined ? undefined : bytes(tls.certificatePem),
+            keyPem: tls.keyPem === undefined ? undefined : bytes(tls.keyPem),
+          },
+  } as unknown as NativeMqttClientOptions
 }
 
 /**
@@ -86,7 +155,7 @@ export class MqttClient {
    * @param options - The broker connection settings.
    */
   constructor(options: MqttClientOptions) {
-    this.#native = new NativeMqttClient(options as unknown as NativeMqttClientOptions)
+    this.#native = new NativeMqttClient(nativeOptions(options))
   }
 
   /**
@@ -103,11 +172,31 @@ export class MqttClient {
    *
    * @param topic - The destination topic.
    * @param payload - The message body; strings are encoded as UTF-8.
-   * @returns A promise that resolves once the payload is handed to the transport.
+   * @param options - The quality of service and retain flag for this message.
+   * @returns A promise that resolves once the payload is queued for the broker, before the
+   * broker acknowledges it; {@link publishConfirmed} waits for that.
    */
-  publish(topic: string, payload: string | Uint8Array): Promise<void> {
-    const bytes = typeof payload === 'string' ? Buffer.from(payload, 'utf8') : Buffer.from(payload)
-    return this.#native.publish(topic, bytes)
+  publish(topic: string, payload: string | Uint8Array, options?: MqttPublishOptions): Promise<void> {
+    return this.#native.publish(topic, bytes(payload), options as NativeMqttPublishOptions)
+  }
+
+  /**
+   * Publishes a payload to a topic and waits for the broker to acknowledge it: its `PUBACK` at
+   * `AtLeastOnce`, its `PUBCOMP` at `ExactlyOnce`, and once the connection has taken it at
+   * `AtMostOnce`, where MQTT acknowledges nothing.
+   *
+   * @param topic - The destination topic.
+   * @param payload - The message body; strings are encoded as UTF-8.
+   * @param options - The quality of service and retain flag for this message.
+   * @returns A promise that resolves once the broker holds the message, and rejects if the
+   * connection ends first, when the message may or may not have arrived.
+   */
+  publishConfirmed(
+    topic: string,
+    payload: string | Uint8Array,
+    options?: MqttPublishOptions,
+  ): Promise<void> {
+    return this.#native.publishConfirmed(topic, bytes(payload), options as NativeMqttPublishOptions)
   }
 
   /**

@@ -660,7 +660,7 @@ than it meant to. The ones that cost an afternoon:
 
 <!-- table: next zenoh -->
 - [ROS 2 rules](ros2.md): ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed.
-- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, as the core transport.
+- [MQTT](mqtt.md): An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport.
 - [Engine surface](transport.md): The transport every link shares (send, receive, subscribe, and a faulty wrapper for tests) and the runtime version.
 - Also in Profiles and robotics: [Device profiles](profile.md), [Rules](rules.md), [Robot motion](motion.md).
 <!-- end -->

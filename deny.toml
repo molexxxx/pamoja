@@ -14,9 +14,20 @@ yanked = "deny"
 # and it reaches this graph only through syntect, which the xtask site
 # generator uses at build time to load its syntax dumps; nothing shipped links
 # it.
+#
+# rumqttc 0.25.1 (latest) depends on rustls-webpki 0.102.8 only to name its error type
+# in one enum variant (src/tls.rs), and on rustls-pemfile only to parse the PEM of its
+# TlsConfiguration::Simple, which pamoja-mqtt never builds: it hands rumqttc a finished
+# rustls ClientConfig. Certificates are verified by rustls 0.23 through rustls-webpki
+# 0.103, which carries the fixes, and no CRL is parsed.
 ignore = [
     "spin@0.9.8",
     { id = "RUSTSEC-2025-0141", reason = "bincode 1.3.3 is complete per its advisory and only loads syntect grammars inside xtask" },
+    { id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; no CRL is parsed" },
+    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile parses PEM only for rumqttc's TlsConfiguration::Simple, which pamoja-mqtt does not use" },
 ]
 
 [licenses]

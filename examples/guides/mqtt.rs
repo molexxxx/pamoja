@@ -18,7 +18,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // ANCHOR: example
     use pamoja_core::{Receive, Transport};
-    use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
+    use pamoja_mqtt::{MqttConfig, MqttTransport, PublishOptions, QualityOfService, Will};
 
     let connection = |connected: bool| {
         if connected {
@@ -41,10 +41,16 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     println!("gateway   subscribed to sensors/+/temperature");
 
     // A node publishes under that pattern. At least once has the broker acknowledge each
-    // message, where at most once would send it and forget it.
+    // message, where at most once would send it and forget it. It also leaves a will: should
+    // it drop off the network without saying goodbye, the broker publishes offline on its
+    // status topic for it.
+    let will = Will::new("sites/node-1/status", "offline")
+        .qos(QualityOfService::AtLeastOnce)
+        .retained();
     let node_config = MqttConfig::new("node-1", "127.0.0.1", port)
         .keep_alive(Duration::from_secs(5))
-        .qos(QualityOfService::AtLeastOnce);
+        .qos(QualityOfService::AtLeastOnce)
+        .last_will(will);
     let mut node = connect(node_config).await;
     node.send_text("sensors/1/temperature", "21.5")
         .await
@@ -62,6 +68,38 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let topic = &received.topic;
     println!("gateway   got {reading} on {topic}");
 
+    // The node says it is up, retained, so a dashboard that opens later sees it at once.
+    // `publish` takes options for this one message and hands back a delivery, which settles
+    // when the broker acknowledges the message.
+    node.publish(
+        "sites/node-1/status",
+        b"online",
+        PublishOptions::new().retained(),
+    )
+    .await
+    .expect("the link is up")
+    .confirmed()
+    .await
+    .expect("the broker acknowledges the status");
+    println!("node      the broker holds online on sites/node-1/status");
+
+    // A dashboard that subscribes afterwards still gets it, because the broker keeps the
+    // last retained message on each topic for whoever subscribes next.
+    let dashboard_config =
+        MqttConfig::new("site-dashboard", "127.0.0.1", port).keep_alive(Duration::from_secs(5));
+    let mut dashboard = connect(dashboard_config).await;
+    dashboard
+        .subscribe("sites/node-1/status")
+        .await
+        .expect("the broker accepts the subscription");
+    let status = dashboard
+        .recv()
+        .await
+        .expect("the link is up")
+        .expect("the retained status arrives");
+    let state = status.text().expect("text");
+    println!("dashboard {} is {state}", status.topic);
+
     // Two days of readings saved at one a minute, sent as one message, make a packet over
     // the connection's 10 KiB limit. The send is refused before anything leaves and the
     // connection stays up; a node that must send it raises the limit on every client that
@@ -73,6 +111,26 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
     let after_refusal = node.is_connected();
     println!("node      {}", connection(after_refusal));
+
+    // Before it leaves, the node says so itself. A clean disconnect discards the will, which
+    // is only for a node that drops off without this goodbye.
+    node.publish(
+        "sites/node-1/status",
+        b"offline",
+        PublishOptions::new().retained(),
+    )
+    .await
+    .expect("the link is up")
+    .confirmed()
+    .await
+    .expect("the broker acknowledges the goodbye");
+    let goodbye = dashboard
+        .recv()
+        .await
+        .expect("the link is up")
+        .expect("the goodbye arrives");
+    let farewell = goodbye.text().expect("text");
+    println!("dashboard {} is {farewell}", goodbye.topic);
 
     // Disconnecting leaves the transport reusable, so a node that loses its link can
     // reconnect the same object when the broker comes back.
@@ -98,6 +156,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     assert_eq!(received.topic, "sensors/1/temperature");
     assert_eq!(received.payload, b"21.5");
+    assert_eq!(state, "online");
+    assert_eq!(farewell, "offline");
     assert!(after_refusal);
     assert!(!after_disconnect);
     assert!(!nowhere.is_connected());

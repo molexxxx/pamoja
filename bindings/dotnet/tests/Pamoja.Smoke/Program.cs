@@ -69,6 +69,59 @@ catch (PamojaException error)
 
 Assert(!await client.IsConnectedAsync(), "a failed connect should leave the client disconnected");
 
+try
+{
+    _ = new MqttClient(new MqttClientOptions
+    {
+        ClientId = "lonely",
+        Host = "127.0.0.1",
+        Port = 1883,
+        Password = "hunter2",
+    });
+    Fail("a password with no username should be refused");
+}
+catch (ArgumentException error)
+{
+    Assert(error.Message.Contains("a password needs a username", StringComparison.Ordinal), error.Message);
+}
+
+try
+{
+    _ = new MqttClient(new MqttClientOptions
+    {
+        ClientId = "half",
+        Host = "127.0.0.1",
+        Port = 8883,
+        Tls = new MqttTls { CertificatePem = "-----BEGIN CERTIFICATE-----" },
+    });
+    Fail("a client certificate with no key should be refused");
+}
+catch (ArgumentException error)
+{
+    Assert(error.Message.Contains("come together", StringComparison.Ordinal), error.Message);
+}
+
+await using (var broken = new MqttClient(new MqttClientOptions
+{
+    ClientId = "broken-ca",
+    Host = "127.0.0.1",
+    Port = 47812,
+    KeepAliveSecs = 1,
+    Tls = new MqttTls { CaPem = "not a certificate" },
+    Will = new MqttWill("sites/pump-3/status", "offline") { Qos = Qos.AtLeastOnce, Retain = true },
+}))
+{
+    try
+    {
+        await broken.ConnectAsync();
+        Fail("a CA file that is not PEM should be refused");
+    }
+    catch (PamojaException error)
+    {
+        Assert(error.Message.Contains("holds no CERTIFICATE block", StringComparison.Ordinal), error.Message);
+    }
+}
+
 Identity();
 NativeSafety();
 NamedValues();

@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/mqtt",
   "version": "0.1.18",
-  "description": "An MQTT client with the topic and wildcard rules, as the core transport.",
+  "description": "An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

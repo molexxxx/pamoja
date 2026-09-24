@@ -600,10 +600,10 @@ impl Transport {
     /// Creates an MQTT transport from broker settings.
     #[cfg(feature = "mqtt")]
     #[napi(factory)]
-    pub fn mqtt(options: crate::mqtt::MqttClientOptions) -> Self {
-        Self::wrap(Kind::Mqtt(pamoja_mqtt::MqttTransport::new(
-            crate::mqtt::settings(options),
-        )))
+    pub fn mqtt(options: crate::mqtt::MqttClientOptions) -> napi::Result<Self> {
+        Ok(Self::wrap(Kind::Mqtt(pamoja_mqtt::MqttTransport::new(
+            crate::mqtt::settings(options)?,
+        ))))
     }
 
     /// Creates a CoAP transport from endpoint settings.

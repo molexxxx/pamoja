@@ -2424,12 +2424,24 @@ export declare class ModbusServer {
 
 /** An MQTT client transport backed by the native pamoja core. */
 export declare class MqttClient {
-  /** Creates a disconnected client from the given options. */
+  /**
+   * Creates a disconnected client from the given options.
+   *
+   * @throws If a password comes without a username, or a TLS client certificate
+   *   without its key.
+   */
   constructor(options: MqttClientOptions)
   /** Connects to the broker and starts the background event loop. */
   connect(): Promise<void>
-  /** Publishes a payload to a topic. */
-  publish(topic: string, payload: Buffer | string): Promise<void>
+  /** Publishes a payload to a topic, resolving once it is queued for the broker. */
+  publish(topic: string, payload: Buffer | string, options?: MqttPublishOptions | undefined | null): Promise<void>
+  /**
+   * Publishes a payload to a topic, resolving once the broker acknowledges it: its
+   * `PUBACK` at `AtLeastOnce`, its `PUBCOMP` at `ExactlyOnce`, and once the connection
+   * has taken it at `AtMostOnce`, where MQTT acknowledges nothing. It rejects if the
+   * connection ends first, when the message may or may not have arrived.
+   */
+  publishConfirmed(topic: string, payload: Buffer | string, options?: MqttPublishOptions | undefined | null): Promise<void>
   /** Subscribes to a topic filter. */
   subscribe(topic: string): Promise<void>
   /**
@@ -8202,6 +8214,17 @@ export interface MqttClientOptions {
    * up, but a larger packet arriving from the broker ends the connection.
    */
   maxPacketSize?: number
+  /** The name to sign in to the broker with. */
+  username?: string
+  /**
+   * The password to sign in with, which needs a username. It travels in the clear
+   * unless the connection uses TLS.
+   */
+  password?: string
+  /** A message the broker publishes if the connection ends without a goodbye. */
+  will?: MqttWill
+  /** TLS settings; a connection with them is secured, conventionally on port 8883. */
+  tls?: MqttTls
 }
 
 /** A message received from a subscribed topic. */
@@ -8214,6 +8237,42 @@ export interface MqttMessage {
   text?: string
   /** The payload as a number, when its text is one, such as `21.5`. */
   number?: number
+}
+
+/** How one message is published. */
+export interface MqttPublishOptions {
+  /** The quality of service for this message. Defaults to the client's. */
+  qos?: Qos
+  /**
+   * Whether the broker keeps it for clients that subscribe later. An empty retained
+   * message clears the one the broker holds.
+   */
+  retain?: boolean
+}
+
+/** How a connection is secured with TLS. */
+export interface MqttTls {
+  /** The certificate authorities to trust, as PEM. Without it the system's are trusted. */
+  caPem?: Buffer | string
+  /** A client certificate to present, as PEM, for a broker that asks for one. */
+  certificatePem?: Buffer | string
+  /** The client certificate's private key, as PEM. */
+  keyPem?: Buffer | string
+}
+
+/**
+ * A message the broker publishes on the client's behalf if its connection ends without a
+ * disconnect: the network dropped, the power failed, or the keep-alive ran out.
+ */
+export interface MqttWill {
+  /** The topic the broker publishes it to, with no wildcard. */
+  topic: string
+  /** What it publishes; text is sent as UTF-8. */
+  payload: Buffer | string
+  /** The quality of service it is published at. Defaults to `AtMostOnce`. */
+  qos?: Qos
+  /** Whether the broker retains it for clients that subscribe later. */
+  retain?: boolean
 }
 
 /**
