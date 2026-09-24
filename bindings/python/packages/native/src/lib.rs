@@ -784,6 +784,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(radios::sx127x_modem_status, m)?)?;
         m.add_class::<lora_radio::LoraRadio>()?;
         m.add_class::<lora_radio::LoraReception>()?;
+        m.add_class::<lora_radio::LoraSentFrame>()?;
+        m.add_class::<lora_radio::LoraTuning>()?;
+        m.add_class::<lora_radio::SimulatedLoraChip>()?;
     }
     #[cfg(feature = "gateway")]
     {

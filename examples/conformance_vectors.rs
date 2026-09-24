@@ -163,6 +163,7 @@ fn main() {
         "lora": lora(),
         "loraRegions": lora_regions(),
         "radios": radios(),
+        "radioSim": radio_sim(),
         "gateway": gateway(),
         "gatewayNetwork": gateway_network(),
         "station": station(),
@@ -5040,7 +5041,100 @@ fn name(boundary: Boundary) -> &'static str {
     }
 }
 
-/// Renders bytes as lowercase hex, the form every binding can parse.
+/// A simulated chip of each family driven through a radio: what it was tuned to, what it
+/// sent, and how it handed over a frame, a silence, and a corrupt frame.
+fn radio_sim() -> Value {
+    use pamoja_radios::radio::{RadioConfig, Reception, SyncWord as RadioSyncWord};
+    use pamoja_radios::sim::Chip;
+
+    let link = LinkSettings::new(9, 125_000);
+    let reading = b"21.5";
+    let answer = b"ok";
+    let rssi = Decibels::from_db(-109);
+    let snr = Decibels::from_tenths(-25);
+    let chips = [
+        (
+            "Sx126x",
+            Chip::sx126x(pamoja_radios::sx126x::Board::new(
+                pamoja_radios::sx126x::config::PowerAmplifier::HighPower,
+            )),
+        ),
+        (
+            "Sx127x",
+            Chip::sx127x(pamoja_radios::sx127x::Board::new(
+                pamoja_radios::sx127x::config::PaOutput::PaBoost,
+            )),
+        ),
+    ];
+    let described: Vec<Value> = chips
+        .into_iter()
+        .map(|(family, chip)| {
+            let reset = chip.tuning();
+            let mut radio = chip.radio();
+            radio.init().expect("the chip answers");
+            let config =
+                RadioConfig::new(868_100_000, link, 14).with_sync_word(RadioSyncWord::Public);
+            radio.configure(config).expect("a link the chip carries");
+            let airtime = radio.transmit(reading).expect("the frame leaves");
+            let sent = chip.sent().remove(0);
+            let idle = radio.detect(4).expect("the chip answers");
+            chip.hear(answer, rssi, snr);
+            let busy = radio.detect(4).expect("the chip answers");
+            let mut buffer = [0u8; 255];
+            let received = radio
+                .receive(&mut buffer, 1_000_000)
+                .expect("the chip answers");
+            let Reception::Frame { len, levels } = received else {
+                panic!("a frame was waiting");
+            };
+            let heard = buffer[..len].to_vec();
+            let quiet = radio
+                .receive(&mut buffer, 1_000_000)
+                .expect("the chip answers");
+            chip.hear_corrupt(rssi, snr);
+            let broken = radio
+                .receive(&mut buffer, 1_000_000)
+                .expect("the chip answers");
+            json!({
+                "family": family,
+                "resetFrequencyHz": reset.frequency_hz,
+                "airtimeUs": airtime,
+                "sent": {
+                    "frequencyHz": sent.tuning.frequency_hz,
+                    "spreadingFactor": sent.tuning.link.spreading_factor(),
+                    "bandwidthHz": sent.tuning.link.bandwidth_hz(),
+                    "codingRateDenominator": sent.tuning.link.coding_rate_denominator(),
+                    "preambleSymbols": sent.tuning.link.preamble_symbols(),
+                    "outputDbm": sent.tuning.output_dbm,
+                    "syncWord": sent.tuning.sync_word.to_byte(),
+                    "payload": hex(&sent.payload),
+                },
+                "received": {
+                    "payload": hex(&heard),
+                    "rssiCentiDbm": levels.rssi_dbm.hundredths(),
+                    "snrCentiDb": levels.snr_db.hundredths(),
+                    "signalRssiCentiDbm": levels.signal_rssi_dbm.hundredths(),
+                },
+                "activity": { "idle": idle, "withAFrame": busy },
+                "quiet": format!("{quiet:?}"),
+                "broken": format!("{broken:?}"),
+            })
+        })
+        .collect();
+    json!({
+        "frequencyHz": 868_100_000,
+        "spreadingFactor": 9,
+        "bandwidthHz": 125_000,
+        "outputDbm": 14,
+        "syncWord": RadioSyncWord::Public.to_byte(),
+        "reading": hex(reading),
+        "answer": hex(answer),
+        "rssiCentiDbm": rssi.hundredths(),
+        "snrCentiDb": snr.hundredths(),
+        "chips": described,
+    })
+}
+/// The SX126x commands and SX127x registers every binding builds, and the answers it reads.
 fn radios() -> Value {
     use sx126x_config::{
         LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime, StandbyMode, SyncWord,
@@ -5948,6 +6042,7 @@ fn llcc68_vectors() -> Value {
     )
 }
 
+/// Renders bytes as lowercase hex, the form every binding can parse.
 fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {

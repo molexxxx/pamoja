@@ -1401,7 +1401,7 @@ export declare class LoraPlanBuilder {
   build(): LoraChannelPlan
 }
 
-/** A LoRa radio opened on a Linux board. */
+/** A LoRa radio opened on a Linux board or wired to a simulated chip. */
 export declare class LoraRadio {
   /**
    * Opens an SX1261, SX1262, SX1268, or LLCC68 module and resets it.
@@ -1432,6 +1432,12 @@ export declare class LoraRadio {
    * arrived.
    */
   takeFrame(): Promise<LoraReception | null>
+  /**
+   * Listens a few symbols for a LoRa preamble and resolves whether one is there, as a
+   * relay's scan does, leaving the chip in standby. An SX126x listens over 1, 2, 4, 8, or 16
+   * symbols, rounded down to one of them, and an SX127x over one.
+   */
+  detect(symbols: number): Promise<boolean>
   /** Puts the radio in standby, which stops a transmission or a reception. */
   standby(): Promise<void>
   /**
@@ -3133,6 +3139,43 @@ export declare class Signals {
   get bytes(): Buffer
 }
 export type CanSignals = Signals
+
+/**
+ * A simulated SX126x or SX127x, which a `LoraRadio` drives with no radio attached.
+ *
+ * The program says what arrives on the air with `hear`, and reads back what the chip was
+ * tuned to and what it sent with `tuning` and `sent`. Nothing is timed: a transmission is
+ * done as soon as it starts, and a reception with a timeout ends at once when nothing is
+ * waiting.
+ */
+export declare class SimulatedLoraChip {
+  /**
+   * A simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.
+   *
+   * Throws for a TCXO voltage DIO3 cannot supply.
+   */
+  static sx126x(board: Sx126xBoard): SimulatedLoraChip
+  /** A simulated SX1276, SX1277, SX1278, or SX1279, out of reset. */
+  static sx127x(board: Sx127xBoard): SimulatedLoraChip
+  /** The family of the chip. */
+  get family(): LoraRadioFamily
+  /** Returns a radio wired to the chip, reset as opening a module resets it. */
+  radio(): LoraRadio
+  /**
+   * Puts a frame on the air for the chip to receive the next time it listens, heard at a
+   * strength in dBm and a signal-to-noise ratio in dB. A payload past 255 bytes is cut to
+   * 255.
+   */
+  hear(payload: Buffer, rssiDbm: number, snrDb: number): void
+  /** Puts a frame on the air whose CRC fails, which the chip reports and drops. */
+  hearCorrupt(rssiDbm: number, snrDb: number): void
+  /** How many frames wait on the air for the chip to receive. */
+  get waiting(): number
+  /** Returns what the chip is tuned to now. */
+  tuning(): LoraTuning
+  /** Returns every frame the chip has put on the air, oldest first. */
+  sent(): Array<LoraSentFrame>
+}
 
 /** A robot that moves only in arithmetic. */
 export declare class SimulatedRobot {
@@ -6146,6 +6189,14 @@ export interface LoraRx2 {
 /** Returns the weakest signal the receiver of a budget can demodulate on a link, in dBm. */
 export declare function loraSensitivityDbm(budget: LoraLinkBudget, link: LoraLink): number
 
+/** A frame a simulated chip put on the air. */
+export interface LoraSentFrame {
+  /** What the chip was tuned to when the frame went out. */
+  tuning: LoraTuning
+  /** The frame's payload. */
+  payload: Buffer
+}
+
 /** A slice of a band with its own transmit limits. */
 export interface LoraSubBand {
   /** The first frequency in the sub-band, in hertz. */
@@ -6163,6 +6214,21 @@ export interface LoraSubBand {
 
 /** Returns the duration of one symbol on a link, in microseconds. */
 export declare function loraSymbolTimeUs(link: LoraLink): number
+
+/** What a simulated chip is tuned to. */
+export interface LoraTuning {
+  /**
+   * The carrier frequency in hertz, as the chip's synthesizer steps it: within a hertz of
+   * the one asked for on an SX126x, and within 61 Hz on an SX127x.
+   */
+  frequencyHz: number
+  /** The spreading factor, bandwidth, coding rate, preamble, header, and CRC. */
+  link: LoraLink
+  /** The output power the amplifier was asked for, in dBm. */
+  outputDbm: number
+  /** The sync word byte. */
+  syncWord: number
+}
 
 /** How many more before a device starts giving back what adaptive data rate took. */
 export declare const LORAWAN_ADR_ACK_DELAY: number

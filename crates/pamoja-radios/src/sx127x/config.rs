@@ -172,6 +172,30 @@ impl LoraBandwidth {
         })
     }
 
+    /// Finds the setting the Bw bits of RegModemConfig1 name.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the four bit code.
+    ///
+    /// # Returns
+    ///
+    /// The setting, or `None` for a code above 9, which the datasheet reserves.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx127x::config::LoraBandwidth;
+    ///
+    /// assert_eq!(LoraBandwidth::from_code(7), Some(LoraBandwidth::Khz125));
+    /// assert_eq!(LoraBandwidth::from_code(10), None);
+    /// ```
+    pub fn from_code(code: u8) -> Option<LoraBandwidth> {
+        LoraBandwidth::ALL
+            .into_iter()
+            .find(|bandwidth| bandwidth.code() == code)
+    }
+
     /// Reports whether the bandwidth is available at a carrier frequency.
     ///
     /// # Arguments

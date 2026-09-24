@@ -134,7 +134,81 @@ public static partial class NativeMethods
         ushort address,
         byte value);
 
+    /// <summary>Listens a few symbols for a LoRa preamble, as a relay's scan does.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_radio_detect(
+        IntPtr radio,
+        byte symbols,
+        [MarshalAs(UnmanagedType.U1)] out bool outDetected);
+
     /// <summary>Closes a radio's device files and releases it.</summary>
     [LibraryImport(Library)]
     public static partial void pamoja_lora_radio_free(IntPtr radio);
+
+    /// <summary>Creates a simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_sx126x(
+        PamojaSx126xBoard board,
+        out IntPtr outChip);
+
+    /// <summary>Creates a simulated SX1276, SX1277, SX1278, or SX1279, out of reset.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_sx127x(
+        [MarshalAs(UnmanagedType.U1)] bool paBoost,
+        [MarshalAs(UnmanagedType.U1)] bool tcxo,
+        out IntPtr outChip);
+
+    /// <summary>Returns the family of a simulated chip, or 255 for a null chip.</summary>
+    [LibraryImport(Library)]
+    public static partial byte pamoja_lora_sim_chip_family(IntPtr chip);
+
+    /// <summary>Wires a radio to a simulated chip and resets it, as opening a module does.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_radio(IntPtr chip, out IntPtr outRadio);
+
+    /// <summary>Puts a frame on the air for a simulated chip to receive.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_hear(
+        IntPtr chip,
+        ReadOnlySpan<byte> payload,
+        nuint len,
+        int rssiCentiDbm,
+        int snrCentiDb);
+
+    /// <summary>Puts a frame on the air whose CRC fails.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_hear_corrupt(
+        IntPtr chip,
+        int rssiCentiDbm,
+        int snrCentiDb);
+
+    /// <summary>Returns how many frames wait on the air for a simulated chip to receive.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_lora_sim_chip_waiting(IntPtr chip);
+
+    /// <summary>Reads what a simulated chip is tuned to now.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_tuning(
+        IntPtr chip,
+        out PamojaLoraTuning outTuning);
+
+    /// <summary>Returns how many frames a simulated chip has put on the air.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_lora_sim_chip_sent_count(IntPtr chip);
+
+    /// <summary>Reads what a simulated chip was tuned to when it sent a frame.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_lora_sim_chip_sent_tuning(
+        IntPtr chip,
+        nuint index,
+        out PamojaLoraTuning outTuning);
+
+    /// <summary>Copies the payload of a frame a simulated chip sent, or null past the last.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_lora_sim_chip_sent_payload(IntPtr chip, nuint index);
+
+    /// <summary>Releases a simulated chip.</summary>
+    [LibraryImport(Library)]
+    public static partial void pamoja_lora_sim_chip_free(IntPtr chip);
 }
+

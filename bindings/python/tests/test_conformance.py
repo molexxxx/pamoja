@@ -952,6 +952,49 @@ def test_lora_budget_vectors_match():
         assert (None if got is None else hundredths(got)) == rule["maxConductedHundredths"], rule
 
 
+def test_radio_sim_vectors_match():
+    vector = VECTORS["radioSim"]
+    boards = {
+        "Sx126x": lambda: radios.SimulatedLoraChip.sx126x("HighPower"),
+        "Sx127x": lambda: radios.SimulatedLoraChip.sx127x("PaBoost"),
+    }
+    rssi, snr = vector["rssiCentiDbm"] / 100, vector["snrCentiDb"] / 100
+    for described in vector["chips"]:
+        chip = boards[described["family"]]()
+        assert chip.family == described["family"]
+        assert chip.tuning().frequency_hz == described["resetFrequencyHz"]
+        radio = chip.radio()
+        radio.configure(
+            vector["frequencyHz"],
+            lora.link(vector["spreadingFactor"], vector["bandwidthHz"]),
+            vector["outputDbm"],
+            sync_word=vector["syncWord"],
+        )
+        assert radio.transmit(unhex(vector["reading"])) == described["airtimeUs"]
+        (sent,) = chip.sent()
+        want = described["sent"]
+        assert sent.tuning.frequency_hz == want["frequencyHz"]
+        assert sent.tuning.link.spreading_factor == want["spreadingFactor"]
+        assert sent.tuning.link.bandwidth_hz == want["bandwidthHz"]
+        assert sent.tuning.output_dbm == want["outputDbm"]
+        assert sent.tuning.sync_word == want["syncWord"]
+        assert sent.payload.hex() == want["payload"]
+
+        assert radio.detect(4) == described["activity"]["idle"]
+        chip.hear(unhex(vector["answer"]), rssi, snr)
+        assert radio.detect(4) == described["activity"]["withAFrame"]
+        heard = radio.receive(1_000_000)
+        received = described["received"]
+        assert heard.outcome == "Frame"
+        assert heard.payload.hex() == received["payload"]
+        assert heard.rssi_dbm == received["rssiCentiDbm"] / 100
+        assert heard.snr_db == received["snrCentiDb"] / 100
+        assert heard.signal_rssi_dbm == received["signalRssiCentiDbm"] / 100
+        assert radio.receive(1_000_000).outcome == described["quiet"]
+        chip.hear_corrupt(rssi, snr)
+        assert radio.receive(1_000_000).outcome == described["broken"]
+        radio.close()
+
 def test_radios_vectors_match():
     vector = VECTORS["radios"]
     links = {entry["name"]: entry for entry in VECTORS["lora"]["links"]}

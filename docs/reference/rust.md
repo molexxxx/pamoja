@@ -283,7 +283,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="rust-radios">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a><code class="pkg-import">pamoja-radios</code><p>The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/radios.html">LoRa radios</a><code class="pkg-import">pamoja-radios</code><p>The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, a duty-cycle guard, and simulated chips that stand in for a module</p></div>
 <div class="pkg-get"><code class="cmd">cargo add pamoja-radios</code><button class="copy" type="button" data-copy="cargo add pamoja-radios" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

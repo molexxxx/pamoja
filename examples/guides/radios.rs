@@ -5,34 +5,24 @@
 use std::error::Error;
 
 fn main() -> std::result::Result<(), Box<dyn Error>> {
-    a_reading_planned_for_an_sx1262()?;
+    a_reading_from_an_sx1262_on_the_bench()?;
     the_same_reading_from_an_rfm95w()?;
     a_radio_on_a_linux_board()?;
     Ok(())
 }
 
-/// A reading planned for an SX1262: the power a regional ceiling allows behind a whip, the
-/// bytes of each command, the chip's answers decoded, and the silence the duty cycle owes.
-fn a_reading_planned_for_an_sx1262() -> std::result::Result<(), Box<dyn Error>> {
+/// A reading sent from a simulated SX1262 through the same driver a real one runs: the power
+/// a regional ceiling allows behind a whip, what the chip was tuned to, the silence the duty
+/// cycle owes, and what the chip hands over when a frame arrives and when none does.
+fn a_reading_from_an_sx1262_on_the_bench() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: example
     use pamoja_lora::budget::{Decibels, LinkBudget};
     use pamoja_lora::region::Region;
     use pamoja_radios::duty::DutyCycle;
-    use pamoja_radios::sx126x::command;
-    use pamoja_radios::sx126x::config::{
-        self, LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime, StandbyMode,
-        TxPower,
-    };
-    use pamoja_radios::sx126x::irq::Irq;
-    use pamoja_radios::sx126x::status::{PacketStatus, Status};
-
-    let hex = |bytes: &[u8]| {
-        bytes
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+    use pamoja_radios::radio::{RadioConfig, Reception};
+    use pamoja_radios::sim::Chip;
+    use pamoja_radios::sx126x::config::{PowerAmplifier, TxPower};
+    use pamoja_radios::sx126x::Board;
 
     // An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
     // 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the antenna
@@ -56,103 +46,86 @@ fn a_reading_planned_for_an_sx1262() -> std::result::Result<(), Box<dyn Error>> 
         power.setting_dbm
     );
 
-    // The commands in the order section 14.2 of the datasheet gives, each sent in its own SPI
-    // transaction once BUSY is low. The chip gives up on the frame a second after its airtime.
-    let airtime = link.airtime_us(10);
-    let events = Irq::TX_DONE | Irq::TIMEOUT;
-    let modulation = LoraModulation::from_link(&link).expect("125 kHz is an SX126x bandwidth");
-    let commands = [
-        ("standby", command::set_standby(StandbyMode::Rc)),
-        ("packet type", command::set_packet_type(PacketType::Lora)),
-        (
-            "frequency",
-            command::set_rf_frequency(config::frequency_word(frequency)),
-        ),
-        ("pa config", command::set_pa_config(power.pa)),
-        (
-            "tx params",
-            command::set_tx_params(power.setting_dbm, RampTime::at_least(40)),
-        ),
-        (
-            "modulation",
-            command::set_lora_modulation_params(modulation),
-        ),
-        (
-            "packet",
-            command::set_lora_packet_params(LoraPacket::from_link(&link, 10, false)),
-        ),
-        (
-            "irq",
-            command::set_dio_irq_params(events, events, Irq::NONE, Irq::NONE),
-        ),
-        (
-            "tx",
-            command::set_tx(config::timeout_steps(airtime + 1_000_000)),
-        ),
-    ];
-    for (name, bytes) in &commands {
-        println!("{name:<12}{}", hex(bytes.as_bytes()));
-    }
-
-    // Once the frame has left, GetIrqStatus answers with TxDone, and the status byte shows the
-    // chip back in standby.
-    let irq = Irq::from_bytes([0x00, 0x01]);
-    let sent = irq.contains(Irq::TX_DONE);
-    let timed_out = irq.contains(Irq::TIMEOUT);
-    println!("sent      tx done {sent}, timed out {timed_out}");
-    let status = Status::from_byte(0x2C);
+    // A simulated SX1262 stands in for the chip on the node's board, driven by the same code
+    // that drives a real one, and it reports what that code told it.
+    let chip = Chip::sx126x(Board::new(PowerAmplifier::HighPower));
+    let mut radio = chip.radio();
+    radio.init()?;
+    radio.configure(RadioConfig::new(frequency, link, power.setting_dbm))?;
+    let tuned = chip.tuning();
     println!(
-        "status    {:?}, {:?}",
-        status.chip_mode, status.command_status
+        "tuned     {:.1} MHz, SF{} at {} kHz, {} dBm",
+        f64::from(tuned.frequency_hz) / 1e6,
+        tuned.link.spreading_factor(),
+        tuned.link.bandwidth_hz() / 1000,
+        tuned.output_dbm
     );
 
-    // A frame that arrives later comes with the signal levels it was heard at.
-    let heard = PacketStatus::from_bytes([0xDB, 0xF6, 0xE0]);
+    // The reading goes out, and the airtime comes back for the duty-cycle guard. The sub-band
+    // that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine times as long
+    // in silence before the next.
+    let reading = b"level=0.42";
+    let airtime = radio.transmit(reading)?;
     println!(
-        "received  RSSI {} dBm, SNR {} dB",
-        heard.rssi_dbm, heard.snr_db
+        "sent      {} bytes, {airtime} us on air",
+        chip.sent()[0].payload.len()
     );
-
-    // The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
-    // ninety-nine times as long in silence before the next.
     let permille = eu868
         .duty_cycle_permille(frequency)
         .expect("868.1 MHz is in a sub-band");
     let mut guard = DutyCycle::new(permille);
-    let held = guard.transmitted(0, &link, 10);
+    guard.transmitted(0, &link, reading.len());
     println!(
-        "airtime   {held} us, next frame after {} us",
+        "silence   the next frame starts {} us after this one did",
         guard.wait_us(0)
     );
+
+    // A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+    chip.hear(b"ack", Decibels::from_db(-109), Decibels::from_tenths(-25));
+    let mut buffer = [0u8; 255];
+    if let Reception::Frame { len, levels } = radio.receive(&mut buffer, 1_000_000)? {
+        println!(
+            "received  {} at {} dBm, SNR {} dB",
+            String::from_utf8_lossy(&buffer[..len]),
+            levels.rssi_dbm,
+            levels.snr_db
+        );
+    }
+
+    // With nothing on the air the reception times out, and a frame whose CRC fails is dropped
+    // rather than handed over.
+    let quiet = radio.receive(&mut buffer, 1_000_000)?;
+    chip.hear_corrupt(Decibels::from_db(-121), Decibels::from_db(-12));
+    let broken = radio.receive(&mut buffer, 1_000_000)?;
+    println!("then      {quiet:?}, then {broken:?}");
     // ANCHOR_END: example
 
-    // The bytes each command carries are pinned once, in the crate tests and the generated
-    // conformance vectors, so a guide asserts behavior instead.
     assert_eq!(power.setting_dbm, 14);
-    assert_eq!(commands.len(), 9);
-    assert!(sent && !timed_out);
-    assert_eq!(held, airtime);
-    assert!(!guard.ready(0));
-    assert!(guard.ready(held * 100));
+    assert_eq!(tuned.frequency_hz, frequency);
+    assert_eq!(airtime, link.airtime_us(reading.len()));
+    assert_eq!(chip.sent()[0].payload, reading);
+    assert_eq!(guard.wait_us(0), airtime * 100);
+    assert_eq!(quiet, Reception::Timeout);
+    assert_eq!(broken, Reception::Corrupt);
 
     Ok(())
 }
 
-/// The same reading from an RFM95W, whose SX1276 is driven through registers: the amplifier
-/// setting on PA_BOOST, the carrier and modem registers, the transmit mode, a received packet
-/// decoded, and whether an LLCC68 could carry the same data rates.
+/// The same reading from a simulated RFM95W, whose SX1276 takes registers where the SX1262
+/// takes commands: the power on PA_BOOST, the carrier its synthesizer can reach, a packet's
+/// levels, and whether an LLCC68 could carry the same data rates.
 fn the_same_reading_from_an_rfm95w() -> std::result::Result<(), Box<dyn Error>> {
     // ANCHOR: rfm95w
     use pamoja_lora::budget::{Decibels, LinkBudget};
     use pamoja_lora::region::Region;
+    use pamoja_radios::radio::{RadioConfig, Reception};
+    use pamoja_radios::sim::Chip;
     use pamoja_radios::sx126x::config::{llcc68_supports, LoraModulation as Sx126xModulation};
-    use pamoja_radios::sx127x::config::{frequency_word, LoraModulation, PaOutput, TxPower};
-    use pamoja_radios::sx127x::irq::IrqFlags;
-    use pamoja_radios::sx127x::register::{lora_op_mode, Mode};
-    use pamoja_radios::sx127x::status::{PacketStatus, Port};
+    use pamoja_radios::sx127x::config::{PaOutput, TxPower};
+    use pamoja_radios::sx127x::Board;
 
     // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the
-    // same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+    // same 16 dBm ceiling leave it the same 14 dBm.
     let band = Region::Eu868.plan();
     let channel = 868_100_000;
     let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
@@ -163,51 +136,53 @@ fn the_same_reading_from_an_rfm95w() -> std::result::Result<(), Box<dyn Error>> 
     };
     let limit = Decibels::from_db(band.max_eirp_dbm(channel).into());
     let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, limit);
+
+    // The same driver calls tune it, through registers this time. Its synthesizer steps in
+    // 61 Hz, so the carrier lands on the step nearest the one asked for.
+    let chip = Chip::sx127x(Board::new(PaOutput::PaBoost));
+    let mut radio = chip.radio();
+    radio.init()?;
+    radio.configure(RadioConfig::new(channel, dr3, rfm95w.output_dbm))?;
+    let tuned = chip.tuning();
     println!(
-        "rfm95w    {} dBm on PA_BOOST: RegPaConfig {:02x}, RegPaDac {:02x}, RegOcp {:02x}",
-        rfm95w.output_dbm, rfm95w.pa_config, rfm95w.pa_dac, rfm95w.ocp
+        "rfm95w    {} dBm on PA_BOOST, carrier {} Hz, {} Hz from {channel}",
+        tuned.output_dbm,
+        tuned.frequency_hz,
+        channel.abs_diff(tuned.frequency_hz)
     );
 
-    // The carrier and the modem go into registers while the chip stands by, and TX mode sends
-    // the frame the FIFO holds.
-    let modem = LoraModulation::from_link(&dr3).expect("DR3 fits an SX1276");
-    println!("carrier   RegFrf {:06x}", frequency_word(channel));
-    println!(
-        "modem     RegModemConfig {:02x} {:02x} {:02x}",
-        modem.modem_config_1(),
-        modem.modem_config_2(0),
-        modem.modem_config_3()
-    );
-    println!("tx mode   RegOpMode {:02x}", lora_op_mode(Mode::Tx));
-
-    // A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
-    // its levels on the high frequency port.
-    let flags = IrqFlags::from_bits(0x50);
-    let received = flags.contains(IrqFlags::RX_DONE);
-    let corrupt = flags.contains(IrqFlags::PAYLOAD_CRC_ERROR);
-    println!("irq       rx done {received}, crc error {corrupt}");
-    let packet = PacketStatus::from_bytes([0xF6, 0x30], Port::for_frequency(channel));
-    println!(
-        "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
-        packet.rssi_dbm, packet.snr_db, packet.signal_rssi_dbm
-    );
+    // The SX1276 gives a packet's strength in whole decibels, and works out the strength of
+    // the signal itself from the SNR when it arrived under the noise.
+    chip.hear(b"ack", Decibels::from_db(-109), Decibels::from_tenths(-25));
+    let mut buffer = [0u8; 255];
+    if let Reception::Frame { levels, .. } = radio.receive(&mut buffer, 1_000_000)? {
+        println!(
+            "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
+            levels.rssi_dbm, levels.snr_db, levels.signal_rssi_dbm
+        );
+    }
 
     // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-    let fits = |data_rate: u8| {
-        band.link_settings(data_rate)
+    let carries = |data_rate: u8| {
+        let fits = band
+            .link_settings(data_rate)
             .and_then(|link| Sx126xModulation::from_link(&link))
             .is_some_and(|modulation| {
                 llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
-            })
+            });
+        if fits {
+            "carries"
+        } else {
+            "cannot carry"
+        }
     };
-    println!("llcc68    DR3 {}, DR2 {}", fits(3), fits(2));
+    println!("llcc68    {} DR3 and {} DR2", carries(3), carries(2));
     // ANCHOR_END: rfm95w
 
     assert_eq!(rfm95w.output_dbm, 14);
-    assert_eq!(rfm95w.pa_config, 0xFC);
-    assert_eq!(modem.modem_config_2(0), 0x94);
-    assert!(received && !corrupt);
-    assert!(fits(3) && !fits(2));
+    assert_eq!(tuned.output_dbm, 14);
+    assert!(channel.abs_diff(tuned.frequency_hz) <= 61);
+    assert_eq!(carries(3), "carries");
 
     Ok(())
 }

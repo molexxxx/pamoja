@@ -87,3 +87,22 @@ public struct PamojaLoraRadioReception
     /// <summary>The strength of the LoRa signal itself, in hundredths of a dBm.</summary>
     public int SignalRssiCentiDbm;
 }
+
+/// <summary>
+/// What a simulated chip is tuned to, mirroring <c>PamojaLoraTuning</c> in <c>pamoja.h</c>.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PamojaLoraTuning
+{
+    /// <summary>The carrier frequency in hertz, as the chip's synthesizer steps it.</summary>
+    public uint FrequencyHz;
+
+    /// <summary>The spreading factor, bandwidth, coding rate, preamble, header, and CRC.</summary>
+    public PamojaLoraLink Link;
+
+    /// <summary>The output power the amplifier was asked for, in dBm.</summary>
+    public sbyte OutputDbm;
+
+    /// <summary>The sync word byte.</summary>
+    public byte SyncWord;
+}

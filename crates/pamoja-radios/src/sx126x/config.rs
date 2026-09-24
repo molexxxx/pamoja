@@ -101,6 +101,10 @@ pub const fn timeout_steps(micros: u64) -> u32 {
 /// the floor of the lower edge and the ceiling of the upper one, so the calibrated range
 /// always covers the band.
 ///
+/// Table 9-2 of the datasheet lists codes one step wider at the top for two bands, 0xD7 0xDB
+/// for 863 to 870 MHz and 0xE1 0xE9 for 902 to 928 MHz. Both cover the band; this is the rule
+/// Semtech's own `sx126x_driver` computes in `sx126x_cal_img_in_mhz`.
+///
 /// # Arguments
 ///
 /// * `low_hz` - the lower edge of the band in hertz.
@@ -501,6 +505,30 @@ impl LoraBandwidth {
             let nominal = u64::from(bandwidth.hz());
             u64::from(hz).abs_diff(nominal) * 100 <= nominal
         })
+    }
+
+    /// Finds the setting a BW value of SetModulationParams names.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - the parameter byte.
+    ///
+    /// # Returns
+    ///
+    /// The setting, or `None` for a byte Table 13-48 does not list.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_radios::sx126x::config::LoraBandwidth;
+    ///
+    /// assert_eq!(LoraBandwidth::from_code(LoraBandwidth::Khz125.code()), Some(LoraBandwidth::Khz125));
+    /// assert_eq!(LoraBandwidth::from_code(0x07), None);
+    /// ```
+    pub fn from_code(code: u8) -> Option<LoraBandwidth> {
+        LoraBandwidth::ALL
+            .into_iter()
+            .find(|bandwidth| bandwidth.code() == code)
     }
 }
 

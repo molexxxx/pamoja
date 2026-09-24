@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/radios",
   "version": "0.1.18",
-  "description": "The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard.",
+  "description": "The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, a duty-cycle guard, and simulated chips that stand in for a module.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

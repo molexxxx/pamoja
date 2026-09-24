@@ -883,6 +883,7 @@ module.exports.Session = nativeBinding.Session
 module.exports.Sht3x = nativeBinding.Sht3x
 module.exports.Signals = nativeBinding.Signals
 module.exports.CanSignals = nativeBinding.CanSignals
+module.exports.SimulatedLoraChip = nativeBinding.SimulatedLoraChip
 module.exports.SimulatedRobot = nativeBinding.SimulatedRobot
 module.exports.SimulatedSensor = nativeBinding.SimulatedSensor
 module.exports.SkidSteer = nativeBinding.SkidSteer

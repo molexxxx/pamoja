@@ -2103,6 +2103,112 @@ fn named<'a>(case: &'a Value, name: &str) -> &'a Value {
 }
 
 #[test]
+fn radio_sim_vectors_match() {
+    use pamoja_radios::radio::{RadioConfig, Reception, SyncWord as RadioSyncWord};
+    use pamoja_radios::sim::Chip;
+
+    let vectors = vectors();
+    let case = &vectors["radioSim"];
+    let link = LinkSettings::new(
+        case["spreadingFactor"].as_u64().expect("a factor") as u8,
+        case["bandwidthHz"].as_u64().expect("a bandwidth") as u32,
+    );
+    let config = RadioConfig::new(
+        case["frequencyHz"].as_u64().expect("a carrier") as u32,
+        link,
+        case["outputDbm"].as_i64().expect("a power") as i8,
+    )
+    .with_sync_word(RadioSyncWord::from_byte(
+        case["syncWord"].as_u64().expect("a sync word") as u8,
+    ));
+    let rssi = Decibels::from_hundredths(case["rssiCentiDbm"].as_i64().expect("a level") as i32);
+    let snr = Decibels::from_hundredths(case["snrCentiDb"].as_i64().expect("a ratio") as i32);
+
+    for described in case["chips"].as_array().expect("an array") {
+        let chip = match described["family"].as_str().expect("a family") {
+            "Sx126x" => Chip::sx126x(pamoja_radios::sx126x::Board::new(
+                pamoja_radios::sx126x::config::PowerAmplifier::HighPower,
+            )),
+            _ => Chip::sx127x(pamoja_radios::sx127x::Board::new(
+                pamoja_radios::sx127x::config::PaOutput::PaBoost,
+            )),
+        };
+        assert_eq!(
+            u64::from(chip.tuning().frequency_hz),
+            described["resetFrequencyHz"].as_u64().expect("a carrier")
+        );
+        let mut radio = chip.radio();
+        radio.init().expect("the chip answers");
+        radio.configure(config).expect("a link the chip carries");
+        assert_eq!(
+            radio
+                .transmit(&unhex(&case["reading"]))
+                .expect("the frame leaves"),
+            described["airtimeUs"].as_u64().expect("an airtime")
+        );
+        let sent = chip.sent().remove(0);
+        let want = &described["sent"];
+        assert_eq!(
+            u64::from(sent.tuning.frequency_hz),
+            want["frequencyHz"].as_u64().expect("a carrier")
+        );
+        assert_eq!(
+            u64::from(sent.tuning.link.spreading_factor()),
+            want["spreadingFactor"].as_u64().expect("a factor")
+        );
+        assert_eq!(
+            u64::from(sent.tuning.link.bandwidth_hz()),
+            want["bandwidthHz"].as_u64().expect("a bandwidth")
+        );
+        assert_eq!(
+            i64::from(sent.tuning.output_dbm),
+            want["outputDbm"].as_i64().expect("a power")
+        );
+        assert_eq!(
+            u64::from(sent.tuning.sync_word.to_byte()),
+            want["syncWord"].as_u64().expect("a sync word")
+        );
+        assert_eq!(sent.payload, unhex(&want["payload"]));
+
+        assert_eq!(
+            radio.detect(4).expect("an answer"),
+            described["activity"]["idle"].as_bool().expect("a flag")
+        );
+        chip.hear(&unhex(&case["answer"]), rssi, snr);
+        assert_eq!(
+            radio.detect(4).expect("an answer"),
+            described["activity"]["withAFrame"]
+                .as_bool()
+                .expect("a flag")
+        );
+        let mut buffer = [0u8; 255];
+        let Ok(Reception::Frame { len, levels }) = radio.receive(&mut buffer, 1_000_000) else {
+            panic!("a frame was waiting");
+        };
+        let received = &described["received"];
+        assert_eq!(buffer[..len], unhex(&received["payload"]));
+        assert_eq!(
+            i64::from(levels.signal_rssi_dbm.hundredths()),
+            received["signalRssiCentiDbm"].as_i64().expect("a level")
+        );
+        assert_eq!(
+            format!(
+                "{:?}",
+                radio.receive(&mut buffer, 1_000_000).expect("an answer")
+            ),
+            described["quiet"].as_str().expect("an outcome")
+        );
+        chip.hear_corrupt(rssi, snr);
+        assert_eq!(
+            format!(
+                "{:?}",
+                radio.receive(&mut buffer, 1_000_000).expect("an answer")
+            ),
+            described["broken"].as_str().expect("an outcome")
+        );
+    }
+}
+#[test]
 fn radios_vectors_match() {
     use sx126x_config::{LoraModulation, LoraPacket, PowerAmplifier, TxPower};
 

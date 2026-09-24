@@ -2508,6 +2508,7 @@ static void Conformance()
     ConformLoraBudget(vectors.GetProperty("lora"));
     ConformLoraRegions(vectors.GetProperty("loraRegions"));
     ConformRadios(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
+    ConformRadioSim(vectors.GetProperty("radioSim"));
     ConformSx127x(vectors.GetProperty("radios"), vectors.GetProperty("lora"));
     ConformGateway(vectors.GetProperty("gateway"));
     ConformGatewayNetwork(vectors.GetProperty("gatewayNetwork"));
@@ -5349,6 +5350,78 @@ static LoraLink LinkOf(JsonElement described)
     return link;
 }
 
+// A simulated chip of each family driven through a radio: what it was tuned to, what it sent,
+// and how it handed over a frame, a silence, and a corrupt frame.
+static void ConformRadioSim(JsonElement vector)
+{
+    double rssi = vector.GetProperty("rssiCentiDbm").GetInt32() / 100.0;
+    double snr = vector.GetProperty("snrCentiDb").GetInt32() / 100.0;
+    foreach (JsonElement described in vector.GetProperty("chips").EnumerateArray())
+    {
+        string family = described.GetProperty("family").GetString()!;
+        using SimulatedLoraChip chip = family == "Sx126x"
+            ? SimulatedLoraChip.Sx126x(new Sx126xBoard(Sx126xAmplifier.HighPower))
+            : SimulatedLoraChip.Sx127x(new Sx127xBoard(Sx127xPaOutput.PaBoost));
+        Assert(chip.Family.ToString() == family, "the family");
+        Assert(
+            chip.Tuning().FrequencyHz == described.GetProperty("resetFrequencyHz").GetUInt32(),
+            "out of reset");
+        using LoraRadio radio = chip.Radio();
+        radio.Configure(new LoraRadioConfig(
+            vector.GetProperty("frequencyHz").GetUInt32(),
+            new LoraLink(
+                vector.GetProperty("spreadingFactor").GetByte(),
+                vector.GetProperty("bandwidthHz").GetUInt32()),
+            vector.GetProperty("outputDbm").GetSByte())
+        {
+            SyncWord = vector.GetProperty("syncWord").GetByte(),
+        });
+        Assert(
+            radio.Transmit(Convert.FromHexString(vector.GetProperty("reading").GetString()!))
+                == described.GetProperty("airtimeUs").GetUInt64(),
+            "the airtime");
+        LoraSentFrame sent = chip.Sent().Single();
+        JsonElement want = described.GetProperty("sent");
+        Assert(sent.Tuning.FrequencyHz == want.GetProperty("frequencyHz").GetUInt32(), "the carrier");
+        Assert(
+            sent.Tuning.Link.SpreadingFactor == want.GetProperty("spreadingFactor").GetByte(),
+            "the spreading factor");
+        Assert(
+            sent.Tuning.Link.BandwidthHz == want.GetProperty("bandwidthHz").GetUInt32(),
+            "the bandwidth");
+        Assert(sent.Tuning.OutputDbm == want.GetProperty("outputDbm").GetSByte(), "the power");
+        Assert(sent.Tuning.SyncWord == want.GetProperty("syncWord").GetByte(), "the sync word");
+        Assert(
+            Convert.ToHexString(sent.Payload).ToLowerInvariant() == want.GetProperty("payload").GetString(),
+            "the payload");
+
+        Assert(
+            radio.Detect(4) == described.GetProperty("activity").GetProperty("idle").GetBoolean(),
+            "quiet air");
+        chip.Hear(Convert.FromHexString(vector.GetProperty("answer").GetString()!), rssi, snr);
+        Assert(
+            radio.Detect(4) == described.GetProperty("activity").GetProperty("withAFrame").GetBoolean(),
+            "a frame waiting");
+        LoraReception heard = radio.Receive(TimeSpan.FromSeconds(1));
+        JsonElement received = described.GetProperty("received");
+        Assert(heard.Outcome == LoraReceptionOutcome.Frame, "a frame");
+        Assert(
+            Convert.ToHexString(heard.Payload!).ToLowerInvariant() == received.GetProperty("payload").GetString(),
+            "its payload");
+        Assert(heard.RssiDbm == received.GetProperty("rssiCentiDbm").GetInt32() / 100.0, "the RSSI");
+        Assert(heard.SnrDb == received.GetProperty("snrCentiDb").GetInt32() / 100.0, "the SNR");
+        Assert(
+            heard.SignalRssiDbm == received.GetProperty("signalRssiCentiDbm").GetInt32() / 100.0,
+            "the signal");
+        Assert(
+            radio.Receive(TimeSpan.FromSeconds(1)).Outcome.ToString() == described.GetProperty("quiet").GetString(),
+            "a silence");
+        chip.HearCorrupt(rssi, snr);
+        Assert(
+            radio.Receive(TimeSpan.FromSeconds(1)).Outcome.ToString() == described.GetProperty("broken").GetString(),
+            "a bad CRC");
+    }
+}
 static void ConformRadios(JsonElement vector, JsonElement lora)
 {
     var links = new Dictionary<string, LoraLink>(StringComparer.Ordinal);

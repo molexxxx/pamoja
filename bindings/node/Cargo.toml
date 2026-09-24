@@ -81,7 +81,7 @@ lora = ["dep:pamoja-lora"]
 lorawan = ["dep:pamoja-lorawan"]
 # The SX126x and SX127x command sets and decoders, the duty-cycle guard, and a radio opened
 # on a Linux board.
-radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux"]
+radios = ["dep:pamoja-radios", "lora", "pamoja-radios/linux", "pamoja-radios/sim"]
 gateway = ["dep:pamoja-gateway", "lora"]
 mavlink = ["dep:pamoja-mavlink", "pamoja-mavlink/alloc"]
 mesh = ["dep:pamoja-mesh"]
