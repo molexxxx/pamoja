@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     // Each cycle the node reads, decides, switches the cooler, and publishes.
     let codec = CborCodec;
     for (step, (_, soc)) in afternoon.iter().enumerate() {
-        let reaction = node.tick().await?;
+        let reaction = node.tick().await?.reaction;
         let reading: f32 = codec.decode(&gateway.recv().await?.expect("a reading").payload)?;
 
         let cooler = if reaction.actuator == Some(true) {

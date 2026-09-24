@@ -611,9 +611,8 @@ pub struct Fired {
 ///
 /// A [`RuleEngine`] receives each message, decodes it, and carries out what a rule calls
 /// for. This is its deciding half on its own, for a program that moves its own messages
-/// and drives its own outputs, as the program does in every language but Rust: hand it a
-/// topic and a reading, and it says which rules set or cleared and what each calls for.
-/// The engine runs on one, so the two decide alike.
+/// and drives its own outputs: hand it a topic and a reading, and it says which rules set
+/// or cleared and what each calls for. The engine runs on one, so the two decide alike.
 ///
 /// # Examples
 ///

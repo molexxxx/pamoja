@@ -16,7 +16,7 @@ dotnet add package Pamoja.Profile
 using Pamoja.Profile;
 ```
 
-This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Kit` and `Pamoja.Power`. `dotnet add package Pamoja` is the whole framework in one package.
+This pulls in `Pamoja.Native`, the compiled engine, and `Pamoja.Core`, `Pamoja.Kit` and `Pamoja.Power`. `dotnet add package Pamoja` is the whole framework in one package.
 
 ## Example
 
@@ -25,74 +25,70 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs):
 
 ```csharp
-// A profile is plain data, so a fleet ships one as a file rather than as code.
-// This manifest names no battery thresholds, so the documented defaults apply.
-const string manifest = """
-{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
-    },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-}
-""";
-using var profile = Profile.FromJson(manifest);
-Console.WriteLine($"profile   {profile.Name} reports on {profile.Topic}");
-Console.WriteLine(Invariant(
-    $"defaults  the file names no battery thresholds, so saver starts below {profile.Power.SaverBelow * 100:F0}% and critical below {profile.Power.CriticalBelow * 100:F0}%"));
+// A profile is a file. This one ships in the catalog under profiles/: it holds a
+// brooder at 32 C by switching a heat lamp, says what it reads, and says how a
+// dashboard draws it.
+string text = File.ReadAllText("profiles/brooder-heater.json");
+using var profile = Profile.FromJson(text);
+Reads reads = profile.Reads!.Value;
+Console.WriteLine($"profile   {profile.Name} reads {reads.Quantity} in {reads.Unit} and reports on {profile.Topic}");
 
-// The schedule becomes a power plan, which says what mode a charge puts the node
-// in and how long it waits between samples there, in microseconds.
-PowerPlan plan = profile.PowerPlan;
+// A node is the profile and the parts that make it run: a sensor, an output, and a
+// link. A morning of readings stands in for the probe, and a dashboard listens on the
+// same broker.
+using var broker = new LoopbackBroker();
+using var link = broker.Link();
+using var dashboard = broker.Link();
+await link.ConnectAsync();
+await dashboard.ConnectAsync();
+await dashboard.SubscribeAsync(profile.Topic);
+var morning = new Queue<float>([27.5f, 31.8f, 32.6f, 32.1f, 31.4f]);
+bool lamp = false;
+using var node = new Node(
+    profile,
+    () => ValueTask.FromResult(morning.Dequeue()),
+    link,
+    drive: on =>
+    {
+        lamp = on;
+        return ValueTask.CompletedTask;
+    });
+
+// Each tick reads, decides, switches the lamp, and publishes the reading. The lamp
+// comes on at 31.5 C or below and goes off at 32.5 C or above, and in between it stays
+// as it was; a reading more than 4 C from 32 raises an alert as well.
+bool was = false;
+for (int at = 0; at < 5; at++)
+{
+    Tick tick = await node.TickAsync();
+    bool on = tick.Reaction.Actuator == true;
+    string change = on ? (was ? "lamp stays on" : "lamp on") : was ? "lamp off" : "lamp stays off";
+    string alert = tick.Reaction.Alert is { } raised ? $", alert {raised.Kind}" : string.Empty;
+    Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}{change}{alert}"));
+    was = on;
+}
+
+// The dashboard heard every reading the node published.
+var heard = new List<string>();
+for (int at = 0; at < 5; at++)
+{
+    TransportMessage? message = await dashboard.ReceiveAsync(TimeSpan.FromSeconds(5));
+    heard.Add(Invariant($"{message!.Number}"));
+}
+
+Console.WriteLine($"heard     {string.Join(", ", heard)} on {profile.Topic}");
+
+// Between ticks the node waits as long as its battery allows: often on a healthy
+// charge, sparingly on a low one. RunAsync does this until cancelled, waiting each
+// interval.
 foreach (float charge in new[] { 0.8f, 0.3f, 0.1f })
 {
-    Console.WriteLine(Invariant(
-        $"battery   at {charge * 100:F0}% it runs {plan.Mode(charge)} and samples every {plan.IntervalUs(charge) / 1_000_000} s"));
+    (var mode, TimeSpan wait) = node.Schedule(charge);
+    Console.WriteLine(Invariant($"battery   at {charge * 100:F0}% it runs {mode} and waits {wait.TotalSeconds} s"));
 }
 
-// One controller runs for the life of the node, because it remembers whether the
-// lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above,
-// the setpoint less and plus the hysteresis, and in between it stays as it was. A
-// reading more than 4 C from the setpoint raises an alert as well.
-using Controller controller = profile.Controller();
-bool lamp = false;
-foreach (float reading in new[] { 27.5f, 31.8f, 32.6f, 32.1f, 31.4f })
-{
-    Reaction reaction = controller.Evaluate(reading);
-    bool on = reaction.Actuator == true;
-    string change = on
-        ? lamp ? "lamp stays on" : "lamp on"
-        : lamp ? "lamp off" : "lamp stays off";
-    string alert = reaction.Alert is { } raised ? $", alert {raised.Kind}" : "";
-    string at = Invariant($"{reading} C");
-    Console.WriteLine($"{at,-10}{change}{alert}");
-    lamp = on;
-}
-
-// Written back out, the manifest names the thresholds the file left to their
-// defaults, so the next reader has nothing to infer, and it loads as the same
-// profile.
-string shared = profile.ToJson();
-using (var reloaded = Profile.FromJson(shared))
-{
-    if (shared.Contains("saver_below") && reloaded.ToJson() == shared)
-    {
-        Console.WriteLine("shared    written back out, it names saver_below and loads as the same profile");
-    }
-}
-
-// The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature on a thermometer with the band the chicks are safe in.
-using var drawn = profile.WithPresentation(new Presentation(
-[
-    new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
-    {
-        Band = [28f, 36f],
-    },
-]));
-ElementSpec element = drawn.Presentation!.Elements[0];
+// The same file says how a dashboard draws the node.
+ElementSpec element = profile.Presentation!.Elements[0];
 string graphic = element.Viz.ToString().ToLowerInvariant();
 Console.WriteLine(Invariant(
     $"draws     {element.Key} in {element.Unit} on a {graphic}, safe from {element.Band![0]} to {element.Band[1]}"));

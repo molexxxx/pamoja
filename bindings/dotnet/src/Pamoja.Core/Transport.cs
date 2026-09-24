@@ -44,7 +44,7 @@ public sealed record TransportMessage(string Topic, byte[] Payload)
 /// waiting runs once the receive returns. A task that listens should have a link
 /// of its own.
 /// </remarks>
-public sealed class Transport : IDisposable
+public sealed class Transport : ILink, IDisposable
 {
     private const string Spent = "this transport was already added to a ladder or a wrapper";
     private const string Busy = "this transport is busy with a call";

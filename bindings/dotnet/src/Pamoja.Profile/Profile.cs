@@ -462,7 +462,7 @@ public sealed class Profile : IDisposable
 /// rate of change both need the previous sample, so evaluate readings through one
 /// controller in the order they were taken.
 /// </remarks>
-public sealed class Controller : IDisposable
+public sealed class Controller : IPolicy, IDisposable
 {
     private readonly NativeHandle _handle;
 

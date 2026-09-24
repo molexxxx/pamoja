@@ -10,13 +10,13 @@ profile: a file that ships, not a firmware build.
 
 The condition is the kit's trigger, a threshold with hysteresis that reports the
 moment it is crossed and the moment the reading has come back far enough to
-count, and nothing in between. In Rust the engine runs the whole file off any
-link that can receive: it subscribes to each rule's topic, decodes each reading in
-the codec the nodes publish in, switches the actuators it was given by name, and
-publishes over the same link. In every language a rule evaluator is the engine's
-deciding half on its own: the program hands it each reading with the topic it
-arrived on, learns which rules set or cleared and what each calls for, and carries
-that out with its own link and outputs. The two decide alike, because the engine
+count, and nothing in between. In every language a rule engine runs the whole
+file off any link that can receive: it listens on each rule's topic, reads each
+reading from the message, switches the outputs it was given by the names the file
+uses, and publishes over the same link. A rule evaluator is the engine's deciding
+half on its own, for a program that moves its own messages: it hands each reading
+over with the topic it arrived on, learns which rules set or cleared and what each
+calls for, and carries that out itself. The two decide alike, because the engine
 runs on one.
 
 ## What the example does
@@ -24,9 +24,8 @@ runs on one.
 It loads a file of two rules on one raised bed. One waters the bed when the soil
 dries below 30 and stops once it is wetter than 35. The other raises an alarm when
 the bed is soaked past 60 and clears once it drops below 55. A probe on one link
-sends six readings, and a watcher on another hears what the rules publish. In Rust
-the engine runs the file off the broker and holds the valve; in the other
-languages the evaluator judges each reading and the program runs the actions.
+sends six readings, and a watcher on another hears what the rules publish. The
+engine runs the file off the broker and holds the valve.
 
 The second part is what goes wrong: a reading that is not a number, a topic no
 rule watches, two files no engine could run, and a rule with no release band.
@@ -238,19 +237,21 @@ println!(
 
 ## TypeScript
 
-In TypeScript, `@pamoja/profile` loads the file with `RuleEvaluator.fromJson`, which
-throws an `Error` saying why for a file no engine could run. `topics` and
-`actuators` say what to subscribe to and which outputs to hold, and `evaluate`
-returns what fired: each with the `rule`, the `edge` as `'set'` or `'cleared'`, the
-`reading`, and the `actions`, each with a `kind` of `RuleActionKind.Drive` or
-`RuleActionKind.Publish`. The program carries the actions out over its own link.
+In TypeScript, `@pamoja/profile` loads the file into a `RuleEngine`, which throws an
+`Error` saying why for a file no engine could run. The engine takes any link with
+`send`, `subscribe`, and `recv`, and its outputs as functions under the names the
+file uses; `listen` refuses one it was not given and subscribes, and `step` resolves
+to what fired: each with the `rule`, the `edge` as `'set'` or `'cleared'`, the
+`reading`, and the `actions` it carried out, each with a `kind` of
+`RuleActionKind.Drive` or `RuleActionKind.Publish`. `run` repeats `step` until its
+`AbortSignal` fires, and `RuleEvaluator` is the deciding half on its own.
 
 <!-- snippet: bindings/node/guides/rules.ts#example -->
 From [`bindings/node/guides/rules.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/rules.ts):
 
 ```typescript
 import { LoopbackBroker } from '@pamoja/loopback'
-import { type RuleAction, RuleActionKind, RuleEvaluator } from '@pamoja/profile'
+import { type RuleAction, RuleActionKind, RuleEngine } from '@pamoja/profile'
 
 // A rule is a file: the topic it watches, the line a reading crosses, the release band
 // that stops it firing over and over, and what to do on the way down and on the way back.
@@ -268,55 +269,44 @@ const file = `{ "rules": [
     "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }`
 
-// The evaluator judges each reading and says what the rules call for; the program moves
-// the messages and holds the valve, which is the engine's work in Rust.
-const evaluator = RuleEvaluator.fromJson(file)
-console.log(`watches   ${evaluator.topics.join(', ')}, and drives ${evaluator.actuators.join(', ')}`)
+// Says what one action does, in the words the output uses.
+const described = (action: RuleAction) =>
+  action.kind === RuleActionKind.Drive
+    ? `drive ${action.actuator} ${action.on ? 'on' : 'off'}`
+    : `publish ${action.payload} to ${action.topic}`
 
 async function main() {
-  // Three parties on one broker: the node that reads the bed, the program that holds the
+  // Three parties on one broker: the node that reads the bed, the engine that holds the
   // valve, and a watcher on the topics the rules publish to.
   const broker = new LoopbackBroker()
   const probe = broker.link()
-  const link = broker.link()
   const watcher = broker.link()
+  const link = broker.link()
   await probe.connect()
-  await link.connect()
   await watcher.connect()
+  await link.connect()
   await watcher.subscribe('garden/bed-1/valve')
   await watcher.subscribe('garden/alarm')
-  for (const topic of evaluator.topics) {
-    await link.subscribe(topic)
-  }
 
+  // The engine runs the file off its link: it listens on every topic a rule watches,
+  // switches the outputs it was given by the names the file uses, and publishes over the
+  // same link. Here the valve is a list of the settings it was given.
   const valve: boolean[] = []
-  const run = async (action: RuleAction) => {
-    if (action.kind === RuleActionKind.Drive) {
-      valve.push(action.on === true)
-    } else {
-      await link.send(action.topic!, action.payload!)
-    }
-  }
-  const described = (action: RuleAction) =>
-    action.kind === RuleActionKind.Drive
-      ? `drive ${action.actuator} ${action.on ? 'on' : 'off'}`
-      : `publish ${action.payload} to ${action.topic}`
+  const engine = new RuleEngine(file, link, { actuators: { 'bed-valve': (on) => valve.push(on) } })
+  await engine.listen()
+  console.log(`watches   ${engine.topics.join(', ')}, and drives ${engine.actuators.join(', ')}`)
 
   // The bed dries out, is watered, and floods. A rule fires only as its condition sets or
   // clears, and the readings in between change nothing. At 65 two rules fire on one
   // reading, in the order the file lists them.
   for (const reading of [42, 31, 28, 33, 65, 50]) {
     await probe.send('garden/bed-1/moisture', String(reading))
-    const message = (await link.recv())!
-    const fired = evaluator.evaluate(message.topic, message.number!)
+    const fired = (await engine.step())!
     const at = String(reading).padEnd(10)
     if (fired.length === 0) {
       console.log(`${at}nothing fired`)
     }
     for (const one of fired) {
-      for (const action of one.actions) {
-        await run(action)
-      }
       if (one.actions.length === 0) {
         console.log(`${at}${one.rule} ${one.edge}, with nothing to do`)
       } else {
@@ -332,7 +322,7 @@ async function main() {
   }
   console.log(`heard     ${heard.join(', ')}`)
   console.log(`valve     switched ${valve.length} times, and it is ${valve[valve.length - 1] ? 'on' : 'off'}`)
-  return { heard, valve }
+  return { heard, valve, engine }
 }
 
 main()
@@ -345,59 +335,69 @@ What goes wrong, continuing from above:
 From [`bindings/node/guides/rules.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/rules.ts):
 
 ```typescript
-// A reading that is not a number, such as the NaN a failed probe reports, is refused on
-// a watched topic rather than leaving every rule as it was with nothing to say why.
-const judge = RuleEvaluator.fromJson(file)
-try {
-  judge.evaluate('garden/bed-1/moisture', Number.NaN)
-  console.log('a reading of NaN was judged, which should never happen')
-} catch (error) {
-  console.log(`refused   ${(error as Error).message}`)
-}
+import { RuleEvaluator } from '@pamoja/profile'
 
-// A topic no rule watches is not judged at all, so even a NaN there says nothing.
-if (judge.evaluate('garden/bed-2/moisture', Number.NaN).length === 0) {
-  console.log('ignored   no rule watches garden/bed-2/moisture, so even a NaN there is not judged')
-}
+function wrong(): void {
+  // A program that moves its own messages hands each reading to an evaluator, the engine's
+  // deciding half on its own, and carries out what it says.
+  const judge = RuleEvaluator.fromJson(file)
 
-// A file no engine could run is refused as it loads, with the rule and the reason.
-for (const edited of [
-  file.split('garden/bed-1/moisture').join('garden/+/moisture'),
-  file.replace('"flood-alarm"', '"water-when-dry"'),
-]) {
+  // A reading that is not a number, such as the NaN a failed probe reports, is refused on a
+  // watched topic rather than leaving every rule as it was with nothing to say why.
   try {
-    RuleEvaluator.fromJson(edited)
-    console.log('a file no engine could run was accepted, which should never happen')
+    judge.evaluate('garden/bed-1/moisture', Number.NaN)
+    console.log('a reading of NaN was judged, which should never happen')
   } catch (error) {
     console.log(`refused   ${(error as Error).message}`)
   }
-}
 
-// With no release band, readings that hover at the line set and clear the rule on every
-// sample, and each edge switches the valve. The band of 5 holds it through them.
-const fires = (text: string) => {
-  const rules = RuleEvaluator.fromJson(text)
-  let count = 0
-  for (const reading of [29.9, 30.1, 29.8, 30.2]) {
-    count += rules.evaluate('garden/bed-1/moisture', reading).length
+  // A topic no rule watches is not judged at all, so even a NaN there says nothing.
+  if (judge.evaluate('garden/bed-2/moisture', Number.NaN).length === 0) {
+    console.log('ignored   no rule watches garden/bed-2/moisture, so even a NaN there is not judged')
   }
-  return count
+
+  // A file no engine could run is refused as it loads, with the rule and the reason.
+  for (const edited of [
+    file.split('garden/bed-1/moisture').join('garden/+/moisture'),
+    file.replace('"flood-alarm"', '"water-when-dry"'),
+  ]) {
+    try {
+      RuleEvaluator.fromJson(edited)
+      console.log('a file no engine could run was accepted, which should never happen')
+    } catch (error) {
+      console.log(`refused   ${(error as Error).message}`)
+    }
+  }
+
+  // With no release band, readings that hover at the line set and clear the rule on every
+  // sample, and each edge switches the valve. The band of 5 holds it through them.
+  const fires = (text: string) => {
+    const rules = RuleEvaluator.fromJson(text)
+    let count = 0
+    for (const reading of [29.9, 30.1, 29.8, 30.2]) {
+      count += rules.evaluate('garden/bed-1/moisture', reading).length
+    }
+    return count
+  }
+  const bare = fires(file.split('"hysteresis": 5.0').join('"hysteresis": 0.0'))
+  const banded = fires(file)
+  console.log(
+    `chatter   4 readings hovering at 30 fire the rule ${bare} times with no release band, ${banded} with a band of 5`,
+  )
 }
-const bare = fires(file.split('"hysteresis": 5.0').join('"hysteresis": 0.0'))
-const banded = fires(file)
-console.log(
-  `chatter   4 readings hovering at 30 fire the rule ${bare} times with no release band, ${banded} with a band of 5`,
-)
 ```
 <!-- end -->
 
 ## Python
 
-In Python, `pamoja.profile` loads the file with `RuleEvaluator.from_json`, which
-raises `PamojaError` for a file no engine could run, as `evaluate` does for a
-reading that is not a number on a watched topic. `evaluate` returns a list of
-`RuleFired`, whose `edge` compares equal to a `pamoja.kit.Edge` member and whose
-`actions` are `RuleAction` values with a `kind` equal to a `RuleActionKind` member.
+In Python, `pamoja.profile` loads the file into a `RuleEngine`, which raises
+`PamojaError` for a file no engine could run, as a step does for a reading that is
+not a number on a watched topic. The engine takes any link with `send`,
+`subscribe`, and `recv`, and its outputs as callables, plain or async, under the
+names the file uses; `listen` refuses one it was not given and subscribes, `step`
+returns a list of `RuleFired`, whose `edge` compares equal to a `pamoja.kit.Edge`
+member and whose `actions` are `RuleAction` values with a `kind` equal to a
+`RuleActionKind` member, and `run` repeats it until its task is cancelled.
 
 <!-- snippet: bindings/python/guides/rules.py#example -->
 From [`bindings/python/guides/rules.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/rules.py):
@@ -406,7 +406,7 @@ From [`bindings/python/guides/rules.py`](https://github.com/molexxxx/pamoja/blob
 import asyncio
 
 from pamoja.loopback import LoopbackBroker
-from pamoja.profile import RuleActionKind, RuleEvaluator
+from pamoja.profile import RuleActionKind, RuleEngine
 
 # A rule is a file: the topic it watches, the line a reading crosses, the release band that
 # stops it firing over and over, and what to do on the way down and on the way back. Two
@@ -424,12 +424,6 @@ file = """{ "rules": [
     "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }"""
 
-# The evaluator judges each reading and says what the rules call for; the program moves the
-# messages and holds the valve, which is the engine's work in Rust.
-evaluator = RuleEvaluator.from_json(file)
-print(f"watches   {', '.join(evaluator.topics)}, and drives {', '.join(evaluator.actuators)}")
-
-
 def described(action) -> str:
     """Says what one action does, in the words the output uses."""
     if action.kind == RuleActionKind.DRIVE:
@@ -437,39 +431,37 @@ def described(action) -> str:
     return f"publish {action.payload} to {action.topic}"
 
 
-async def main() -> tuple[list[str], list[bool]]:
-    # Three parties on one broker: the node that reads the bed, the program that holds the
+async def main() -> tuple[list[str], list[bool], RuleEngine]:
+    # Three parties on one broker: the node that reads the bed, the engine that holds the
     # valve, and a watcher on the topics the rules publish to.
     broker = LoopbackBroker()
     probe = broker.link()
-    link = broker.link()
     watcher = broker.link()
+    link = broker.link()
     await probe.connect()
-    await link.connect()
     await watcher.connect()
+    await link.connect()
     await watcher.subscribe("garden/bed-1/valve")
     await watcher.subscribe("garden/alarm")
-    for topic in evaluator.topics:
-        await link.subscribe(topic)
 
+    # The engine runs the file off its link: it listens on every topic a rule watches,
+    # switches the outputs it was given by the names the file uses, and publishes over the
+    # same link. Here the valve is a list of the settings it was given.
     valve: list[bool] = []
+    engine = RuleEngine(file, link, actuators={"bed-valve": valve.append})
+    await engine.listen()
+    print(f"watches   {', '.join(engine.topics)}, and drives {', '.join(engine.actuators)}")
 
     # The bed dries out, is watered, and floods. A rule fires only as its condition sets or
     # clears, and the readings in between change nothing. At 65 two rules fire on one
     # reading, in the order the file lists them.
     for reading in [42, 31, 28, 33, 65, 50]:
         await probe.send("garden/bed-1/moisture", str(reading))
-        message = await link.recv()
-        fired = evaluator.evaluate(message.topic, message.number)
+        fired = await engine.step()
         at = f"{reading:<10}"
         if not fired:
             print(f"{at}nothing fired")
         for one in fired:
-            for action in one.actions:
-                if action.kind == RuleActionKind.DRIVE:
-                    valve.append(action.on)
-                else:
-                    await link.send(action.topic, action.payload)
             if not one.actions:
                 print(f"{at}{one.rule} {one.edge}, with nothing to do")
             else:
@@ -479,10 +471,10 @@ async def main() -> tuple[list[str], list[bool]]:
     heard = [(await watcher.recv()).text for _ in range(3)]
     print(f"heard     {', '.join(heard)}")
     print(f"valve     switched {len(valve)} times, and it is {'on' if valve[-1] else 'off'}")
-    return heard, valve
+    return heard, valve, engine
 
 
-heard, valve = asyncio.run(main())
+heard, valve, engine = asyncio.run(main())
 ```
 <!-- end -->
 
@@ -493,10 +485,14 @@ From [`bindings/python/guides/rules.py`](https://github.com/molexxxx/pamoja/blob
 
 ```python
 from pamoja.core import PamojaError
+from pamoja.profile import RuleEvaluator
+
+# A program that moves its own messages hands each reading to an evaluator, the engine's
+# deciding half on its own, and carries out what it says.
+judge = RuleEvaluator.from_json(file)
 
 # A reading that is not a number, such as the NaN a failed probe reports, is refused on a
 # watched topic rather than leaving every rule as it was with nothing to say why.
-judge = RuleEvaluator.from_json(file)
 try:
     judge.evaluate("garden/bed-1/moisture", float("nan"))
     print("a reading of NaN was judged, which should never happen")
@@ -538,11 +534,13 @@ print(
 
 ## C#
 
-In C#, `RuleEvaluator.FromJson` loads the file and throws `PamojaException` for one
-no engine could run; the evaluator holds native state and is disposed with `using`.
-`Evaluate` returns `RuleFired` records, whose `Edge` is the kit's `Edge` and whose
-`Actions` are `RuleAction` records with a `Kind` of `RuleActionKind.Drive` or
-`RuleActionKind.Publish`, and the fields belonging to that kind.
+In C#, a `RuleEngine` loads the file and throws `PamojaException` for one no engine
+could run; it holds native state and is disposed with `using`. It takes any `ILink`
+and its outputs as functions under the names the file uses; `ListenAsync` refuses one
+it was not given and subscribes, and `StepAsync` returns `RuleFired` records, whose
+`Edge` is the kit's `Edge` and whose `Actions` are `RuleAction` records with a `Kind`
+of `RuleActionKind.Drive` or `RuleActionKind.Publish`. `RunAsync` repeats it until
+its token is cancelled, and `RuleEvaluator` is the deciding half on its own.
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs):
@@ -567,29 +565,34 @@ const string file = """
     ] }
     """;
 
-// The evaluator judges each reading and says what the rules call for; the program
-// moves the messages and holds the valve, which is the engine's work in Rust.
-using var evaluator = RuleEvaluator.FromJson(file);
-Console.WriteLine(
-    $"watches   {string.Join(", ", evaluator.Topics)}, and drives {string.Join(", ", evaluator.Actuators)}");
-
-// Three parties on one broker: the node that reads the bed, the program that holds
+// Three parties on one broker: the node that reads the bed, the engine that holds
 // the valve, and a watcher on the topics the rules publish to.
 using var broker = new LoopbackBroker();
 using LoopbackTransport probe = broker.Link();
-using LoopbackTransport link = broker.Link();
 using LoopbackTransport watcher = broker.Link();
+using LoopbackTransport link = broker.Link();
 await probe.ConnectAsync();
-await link.ConnectAsync();
 await watcher.ConnectAsync();
+await link.ConnectAsync();
 await watcher.SubscribeAsync("garden/bed-1/valve");
 await watcher.SubscribeAsync("garden/alarm");
-foreach (string topic in evaluator.Topics)
-{
-    await link.SubscribeAsync(topic);
-}
 
+// The engine runs the file off its link: it listens on every topic a rule watches,
+// switches the outputs it was given by the names the file uses, and publishes over
+// the same link. Here the valve is a list of the settings it was given.
 var valve = new List<bool>();
+using var engine = new RuleEngine(file, link, new Dictionary<string, Func<bool, ValueTask>>
+{
+    ["bed-valve"] = on =>
+    {
+        valve.Add(on);
+        return ValueTask.CompletedTask;
+    },
+});
+await engine.ListenAsync();
+Console.WriteLine(
+    $"watches   {string.Join(", ", engine.Topics)}, and drives {string.Join(", ", engine.Actuators)}");
+
 static string Described(RuleAction action) => action.Kind == RuleActionKind.Drive
     ? $"drive {action.Actuator} {(action.On == true ? "on" : "off")}"
     : $"publish {action.Payload} to {action.Topic}";
@@ -599,9 +602,8 @@ static string Described(RuleAction action) => action.Kind == RuleActionKind.Driv
 // on one reading, in the order the file lists them.
 foreach (int reading in new[] { 42, 31, 28, 33, 65, 50 })
 {
-    await probe.SendAsync("garden/bed-1/moisture", reading.ToString());
-    TransportMessage message = (await link.ReceiveAsync())!;
-    IReadOnlyList<RuleFired> fired = evaluator.Evaluate(message.Topic, (float)message.Number!);
+    await probe.SendAsync("garden/bed-1/moisture", reading.ToString(CultureInfo.InvariantCulture));
+    IReadOnlyList<RuleFired> fired = (await engine.StepAsync(TimeSpan.FromSeconds(5)))!;
     string at = $"{reading,-10}";
     if (fired.Count == 0)
     {
@@ -610,18 +612,6 @@ foreach (int reading in new[] { 42, 31, 28, 33, 65, 50 })
 
     foreach (RuleFired one in fired)
     {
-        foreach (RuleAction action in one.Actions)
-        {
-            if (action.Kind == RuleActionKind.Drive)
-            {
-                valve.Add(action.On == true);
-            }
-            else
-            {
-                await link.SendAsync(action.Topic!, action.Payload!);
-            }
-        }
-
         string edge = one.Edge == Pamoja.Kit.Edge.Set ? "set" : "cleared";
         Console.WriteLine(one.Actions.Count == 0
             ? $"{at}{one.Rule} {edge}, with nothing to do"
@@ -647,10 +637,13 @@ What goes wrong, continuing from above:
 From [`bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RulesGuide.cs):
 
 ```csharp
+// A program that moves its own messages hands each reading to an evaluator, the
+// engine's deciding half on its own, and carries out what it says.
+using var judge = RuleEvaluator.FromJson(file);
+
 // A reading that is not a number, such as the NaN a failed probe reports, is
 // refused on a watched topic rather than leaving every rule as it was with nothing
 // to say why.
-using var judge = RuleEvaluator.FromJson(file);
 try
 {
     judge.Evaluate("garden/bed-1/moisture", float.NaN);
@@ -770,6 +763,7 @@ actuator it was not given.
 
 | To | Call |
 | --- | --- |
+| run it off a link | `new RuleEngine(text, link, { actuators })`, `listen()`, `step(timeoutMs)`, `run({ signal, onFired, onError })` |
 | load a file | `RuleEvaluator.fromJson(text)`, `toJson()` |
 | judge a reading | `evaluate(topic, reading)`, then each fired `rule`, `edge`, `reading`, `actions` |
 | read an action | `kind` of `RuleActionKind.Drive` with `actuator` and `on`, or `RuleActionKind.Publish` with `topic` and `payload` |
@@ -779,6 +773,7 @@ actuator it was not given.
 
 | To | Call |
 | --- | --- |
+| run it off a link | `RuleEngine(text, link, actuators=...)`, `listen()`, `step(timeout)`, `run(on_fired=..., on_error=...)` |
 | load a file | `RuleEvaluator.from_json(text)`, `to_json()` |
 | judge a reading | `evaluate(topic, reading)`, then each fired `rule`, `edge`, `reading`, `actions` |
 | read an action | `kind` of `RuleActionKind.DRIVE` with `actuator` and `on`, or `RuleActionKind.PUBLISH` with `topic` and `payload` |
@@ -788,6 +783,7 @@ actuator it was not given.
 
 | To | Call |
 | --- | --- |
+| run it off a link | `new RuleEngine(text, link, actuators)`, `ListenAsync()`, `StepAsync(timeout)`, `RunAsync(onFired, onError, cancellationToken: token)` |
 | load a file | `RuleEvaluator.FromJson(text)`, `ToJson()` |
 | judge a reading | `Evaluate(topic, reading)`, then each fired `Rule`, `Edge`, `Reading`, `Actions` |
 | read an action | `Kind` of `RuleActionKind.Drive` with `Actuator` and `On`, or `RuleActionKind.Publish` with `Topic` and `Payload` |
@@ -880,9 +876,9 @@ ones that cost an afternoon:
 - **Two rules fight over one output.** Rules act independently, so two rules that
   drive one actuator leave it wherever the last edge put it. Give each output one
   rule.
-- **The engine will not connect.** In Rust, a rule drives an actuator the engine was
-  not given; give it with `with_actuator` under the name the file uses. Elsewhere,
-  check the evaluator's `actuators` against the outputs the program holds.
+- **The engine will not start.** A rule drives an output the engine was not given,
+  and the reason names it. Give it under the name the file uses: `with_actuator` in
+  Rust, `actuators` in the other languages.
 - **Every reading fails to decode.** The engine reads each payload with the codec
   the nodes publish in, so a node sending text to an engine built for CBOR fails
   every reading. Build the engine with the codec the nodes use.

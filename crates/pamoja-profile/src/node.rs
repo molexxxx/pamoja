@@ -1,5 +1,7 @@
 //! The ready-to-run node a profile assembles around real components.
 
+use core::convert::Infallible;
+use core::future::Future;
 use core::time::Duration;
 
 use pamoja_codec::Codec;
@@ -71,7 +73,7 @@ impl Actuator for NoActuator {
 ///
 /// // A warm fridge, assembled straight from its profile.
 /// let mut node = Node::new(Profile::vaccine_fridge_monitor(), Probe(9.0), Cooler, link, CborCodec)?;
-/// let reaction = node.tick().await?;
+/// let reaction = node.tick().await?.reaction;
 /// assert_eq!(reaction.actuator, Some(true)); // the cooler runs
 /// assert!(reaction.alert.is_some()); // and 9 C is a spoilage excursion
 /// # Ok(())
@@ -172,7 +174,7 @@ impl<S, A, T, C> Node<S, A, T, C, BoxedPolicy> {
     /// let mut link = LoopbackTransport::new(LoopbackBroker::new());
     /// link.connect().await?;
     /// let mut node = Node::resolve(profile, &registry, Air(1.0), NoActuator, link, JsonCodec)?;
-    /// assert_eq!(node.tick().await?.actuator, Some(true)); // cold: the heater comes on
+    /// assert_eq!(node.tick().await?.reaction.actuator, Some(true)); // cold: the heater comes on
     /// # Ok(())
     /// # }
     /// ```
@@ -263,7 +265,7 @@ impl<S, A, T, C, P> Node<S, A, T, C, P> {
     /// link.connect().await?;
     /// let profile = Profile::irrigation_node();
     /// let mut node = Node::with_policy(profile, DripPolicy, Probe, Valve, link, CborCodec);
-    /// let reaction = node.tick().await?;
+    /// let reaction = node.tick().await?.reaction;
     /// assert_eq!(reaction.actuator, Some(false)); // dry, but frost is closer
     /// assert_eq!(reaction.alert.map(Alert::kind), Some("FrostRisk"));
     /// # Ok(())
@@ -443,8 +445,8 @@ where
     ///
     /// # Returns
     ///
-    /// The [`Reaction`] the policy produced: the command that was applied (if any)
-    /// and any alert the reading raised.
+    /// The [`Tick`]: the reading, and the [`Reaction`] the policy produced, the command
+    /// that was applied (if any) and any alert the reading raised.
     ///
     /// # Errors
     ///
@@ -453,7 +455,7 @@ where
     /// actuator command fails, [`Error::Codec`](pamoja_core::Error::Codec) if the
     /// reading cannot be encoded, and [`Error::Transport`](pamoja_core::Error::Transport)
     /// or [`Error::Closed`](pamoja_core::Error::Closed) if the publish fails.
-    pub async fn tick(&mut self) -> Result<Reaction<P::Command>> {
+    pub async fn tick(&mut self) -> Result<Tick<S::Reading, P::Command>> {
         let reading = self.sensor.read().await?;
         let reaction = self.policy.evaluate(&reading);
         if let Some(command) = reaction.actuator.clone() {
@@ -461,8 +463,102 @@ where
         }
         let payload = self.codec.encode(&reading)?;
         self.transport.send(&self.profile.topic, &payload).await?;
-        Ok(reaction)
+        Ok(Tick { reading, reaction })
     }
+
+    /// Ticks, then waits the interval the battery's charge calls for, for as long as every
+    /// tick succeeds.
+    ///
+    /// The node keeps no clock of its own: `wait` is the runtime's sleep, such as
+    /// `tokio::time::sleep`, so a node runs on any executor, and a test hands it one that
+    /// returns at once. A program that carries on past a failed tick writes this loop
+    /// itself from [`tick`](Node::tick) and [`schedule`](Node::schedule).
+    ///
+    /// # Arguments
+    ///
+    /// * `battery` - reads the state of charge, from 0 to 1, and whether the panel is
+    ///   charging, before each wait; `|| (1.0, false)` for a node on mains power.
+    /// * `wait` - waits a duration.
+    ///
+    /// # Returns
+    ///
+    /// Only an error: the loop runs until a tick fails.
+    ///
+    /// # Errors
+    ///
+    /// The first failed tick, with what [`tick`](Node::tick) returns; a sensor that has
+    /// ended reports [`Error::Closed`](pamoja_core::Error::Closed).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::time::Duration;
+    ///
+    /// use pamoja_codec::JsonCodec;
+    /// use pamoja_core::{Actuator, Error, Result, Sensor, Transport};
+    /// use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+    /// use pamoja_profile::{Node, Profile};
+    ///
+    /// // A morning of readings that ends, which ends the loop.
+    /// struct Morning(Vec<f32>);
+    /// impl Sensor for Morning {
+    ///     type Reading = f32;
+    ///     async fn read(&mut self) -> Result<f32> {
+    ///         if self.0.is_empty() { Err(Error::Closed) } else { Ok(self.0.remove(0)) }
+    ///     }
+    /// }
+    ///
+    /// struct Lamp;
+    /// impl Actuator for Lamp {
+    ///     type Command = bool;
+    ///     async fn apply(&mut self, _on: bool) -> Result<()> {
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// # async fn run() -> Result<()> {
+    /// let mut link = LoopbackTransport::new(LoopbackBroker::new());
+    /// link.connect().await?;
+    /// let profile = Profile::vaccine_fridge_monitor();
+    /// let mut node = Node::new(profile, Morning(vec![4.0, 6.0]), Lamp, link, JsonCodec)?;
+    ///
+    /// let mut waited = Vec::new();
+    /// let ended = node
+    ///     .run(|| (0.3, false), |interval: Duration| {
+    ///         waited.push(interval);
+    ///         async {}
+    ///     })
+    ///     .await;
+    /// assert!(matches!(ended, Err(Error::Closed)));
+    /// assert_eq!(waited, [Duration::from_secs(300), Duration::from_secs(300)]); // saver
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn run<W, F>(
+        &mut self,
+        mut battery: impl FnMut() -> (f32, bool),
+        mut wait: W,
+    ) -> Result<Infallible>
+    where
+        W: FnMut(Duration) -> F,
+        F: Future<Output = ()>,
+    {
+        loop {
+            self.tick().await?;
+            let (charge, charging) = battery();
+            let (_, interval) = self.schedule(charge, charging);
+            wait(interval).await;
+        }
+    }
+}
+
+/// One reading a node took, and what its policy decided about it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Tick<R = f32, C = bool> {
+    /// The reading, as the sensor returned it and the node published it.
+    pub reading: R,
+    /// What the policy decided: the command applied, if any, and any alert.
+    pub reaction: Reaction<C>,
 }
 
 #[cfg(test)]
@@ -535,7 +631,7 @@ mod tests {
         )
         .expect("a built-in kind");
 
-        let reaction = node.tick().await.expect("tick");
+        let reaction = node.tick().await.expect("tick").reaction;
         assert_eq!(reaction.actuator, Some(true));
         assert!(reaction.alert.is_some());
         assert_eq!(*commands.lock().expect("commands"), vec![true]);
@@ -557,7 +653,7 @@ mod tests {
         )
         .expect("a built-in kind");
 
-        let reaction = node.tick().await.expect("tick");
+        let reaction = node.tick().await.expect("tick").reaction;
         assert_eq!(reaction.actuator, None);
 
         let message = gateway.recv().await.expect("recv").expect("a reading");
@@ -609,7 +705,7 @@ mod tests {
             CborCodec,
         );
 
-        let reaction = node.tick().await.expect("tick");
+        let reaction = node.tick().await.expect("tick").reaction;
         assert_eq!(reaction.actuator, Some(100));
         assert_eq!(reaction.alert.map(Alert::kind), Some("Muggy"));
         assert_eq!(*duties.lock().expect("duties"), vec![100]);
@@ -652,6 +748,48 @@ mod tests {
         let first = gateway.recv().await.expect("recv").expect("a reading");
         let reading: f32 = CborCodec.decode(&first.payload).expect("decode");
         assert_eq!(reading, 9.0);
+    }
+
+    #[tokio::test]
+    async fn run_ticks_and_waits_the_battery_cadence_until_a_tick_fails() {
+        let (mut gateway, link) = connected_pair("cold-chain/#").await;
+        let commands = Arc::new(Mutex::new(Vec::new()));
+        let mut node = Node::new(
+            Profile::vaccine_fridge_monitor(),
+            ScriptedSensor::new(vec![9.0, 4.0, 6.0]),
+            Recording(commands.clone()),
+            link,
+            CborCodec,
+        )
+        .expect("a built-in kind");
+        let mut charges = [0.9, 0.3, 0.1].into_iter();
+        let mut waited = Vec::new();
+        let ended = node
+            .run(
+                || (charges.next().expect("a charge per tick"), false),
+                |interval| {
+                    waited.push(interval);
+                    async {}
+                },
+            )
+            .await;
+        assert!(matches!(ended, Err(Error::Closed)), "{ended:?}");
+        assert_eq!(
+            waited,
+            [
+                Duration::from_secs(60),
+                Duration::from_secs(300),
+                Duration::from_secs(900)
+            ]
+        );
+        assert_eq!(*commands.lock().expect("commands"), vec![true, false, true]);
+        let mut published: Vec<f32> = Vec::new();
+        for _ in 0..3 {
+            let message = gateway.recv().await.expect("recv").expect("a reading");
+            published.push(CborCodec.decode(&message.payload).expect("decode"));
+        }
+        assert_eq!(published, [9.0, 4.0, 6.0]);
+        assert_eq!(node.power_mode(), Some(PowerMode::Critical));
     }
 
     #[test]

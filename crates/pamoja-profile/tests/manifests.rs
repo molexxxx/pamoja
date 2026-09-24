@@ -146,7 +146,7 @@ async fn run(profile: Profile) -> (Vec<bool>, Vec<f32>, Vec<Alert>) {
         )
         .expect("every shipped profile names a built-in kind");
         for _ in 0..readings.len() {
-            let reaction = node.tick().await.expect("the node ticks");
+            let reaction = node.tick().await.expect("the node ticks").reaction;
             if let Some(alert) = reaction.alert {
                 alerts.push(alert);
             }

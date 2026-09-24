@@ -40,7 +40,7 @@ var guides = new Dictionary<string, Func<Task>>(StringComparer.Ordinal)
     ["transport"] = async () => await TransportGuide.RunAsync(),
     ["link"] = async () => await LinkGuide.RunAsync(),
     ["sim"] = async () => await SimGuide.RunAsync(),
-    ["profile"] = () => { ProfileGuide.Run(); return Task.CompletedTask; },
+    ["profile"] = async () => await ProfileGuide.RunAsync(),
     ["rules"] = async () => await RulesGuide.RunAsync(),
     ["ros2"] = () => { Ros2Guide.Run(); return Task.CompletedTask; },
     ["zenoh"] = () => { ZenohGuide.Run(); return Task.CompletedTask; },

@@ -61,7 +61,7 @@ public sealed class LoopbackBroker : IDisposable
 /// Calls on one link run one at a time, so a send made while a receive is waiting
 /// runs once the receive returns. A task that listens should have a link of its own.
 /// </remarks>
-public sealed class LoopbackTransport : IDisposable
+public sealed class LoopbackTransport : ILink, IDisposable
 {
     private readonly NativeHandle _handle;
 

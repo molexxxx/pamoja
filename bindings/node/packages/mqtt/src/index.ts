@@ -181,6 +181,20 @@ export class MqttClient {
   }
 
   /**
+   * Publishes a payload to a topic at the client's default quality of service.
+   *
+   * This is the `send` every link has, so a profile's `Node` or a `RuleEngine` publishes
+   * over an MQTT client the way it publishes over any other link.
+   *
+   * @param topic - The destination topic.
+   * @param payload - The message body; strings are encoded as UTF-8.
+   * @returns A promise that resolves once the payload is queued for the broker.
+   */
+  send(topic: string, payload: string | Uint8Array): Promise<void> {
+    return this.publish(topic, payload)
+  }
+
+  /**
    * Publishes a payload to a topic and waits for the broker to acknowledge it: its `PUBACK` at
    * `AtLeastOnce`, its `PUBCOMP` at `ExactlyOnce`, and once the connection has taken it at
    * `AtMostOnce`, where MQTT acknowledges nothing.

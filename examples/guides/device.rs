@@ -163,7 +163,7 @@ async fn the_same_parts_run_under_a_profile() -> std::result::Result<(), Box<dyn
         .expect("the profile names a built-in kind");
     let mut reactions = Vec::new();
     for _ in 0..2 {
-        let reaction = node.tick().await.expect("a tick");
+        let reaction = node.tick().await.expect("a tick").reaction;
         let valve = match reaction.actuator {
             Some(true) => "open",
             Some(false) => "closed",

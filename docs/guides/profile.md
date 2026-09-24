@@ -12,54 +12,56 @@ nodes is a file that ships, not a firmware build. The same manifest also carries
 what a dashboard needs to draw the node, so the device and the screen agree
 without a second source.
 
-The controller is the decision half. Hand it a reading and it says what the output
-should do and whether the reading crossed a threshold worth raising. A manifest is
-checked as it loads, so a value no node could run is refused with the reason
-rather than running quietly wrong, and serializing writes the defaulted fields out
-in full, so a manifest that has been round-tripped leaves nothing for the next
-reader to infer.
+A node runs the profile: it takes a reading, lets the profile's policy decide what
+the output should do and whether the reading crossed a line worth raising, switches
+the output, and publishes the reading, then waits as long as the battery allows. The
+decisions are compiled into the library; the file only tunes them. A control kind
+the library never shipped is decided by code the program registers under the kind's
+name, so a manifest for it reads exactly like one for a setpoint. A manifest is
+checked as it loads, so a value no node could run, or a misspelled field, is refused
+with the reason rather than running quietly wrong.
 
 ## What the example does
 
-It loads a brooder-heater profile from a JSON manifest and asks its power plan how
-often the node samples at three charges. It then walks one controller through a
-morning of five brooder temperatures, printing what the heat lamp does at each. It
-writes the profile back out, and declares how a dashboard draws the node.
+It loads `profiles/brooder-heater.json`, the brooder profile the catalog ships, and
+runs it as a node over a morning of five brooder temperatures: a list stands in for
+the probe, a variable for the heat lamp, and an in-process broker for the link, with
+a dashboard listening on it. It prints what the lamp does at each reading and what
+the dashboard heard, asks the node how long it would wait at three charges, and
+prints how the file says a dashboard draws the node.
 
-The second part runs the other two policies on the profiles the library ships: a
-well whose level falls toward dry, and a river that rises too fast.
+The second part runs the other two built-in policies on the profiles the library
+ships: a well whose level falls toward dry, and a river that rises too fast. The
+third names a control kind of the program's own in the same file, and registers the
+code that decides it. The fourth is what goes wrong: a probe that fails, a
+controller built again for each reading, two manifests no node could run and one
+with a misspelled field, and a custom kind with no code registered for it.
 
-The third part is what goes wrong: a probe that fails, a controller built again
-for each reading, two manifests no node could run and one with a misspelled field,
-and a control kind the library does not ship.
-
-The manifest sets the three sampling intervals but neither battery threshold, so
-the 50% and 20% printed come from the library's defaults rather than from the
-file. The five readings sit around the 32 C target: the lamp switches on at
-31.5 C or below and off at 32.5 C or above, and between the two it stays as it
-was.
+The five readings sit around the 32 C target: the lamp switches on at 31.5 C or
+below and off at 32.5 C or above, and between the two it stays as it was.
 
 It proves:
 
-- A manifest parses into the name, topic, setpoint policy and sampling schedule
-  the node runs on, and a threshold the file leaves out takes its documented
-  default.
-- The power plan puts a charge of 80% in the active mode, 30% in saver, and 10% in
-  critical, each with its own interval.
-- One controller holds the lamp through the deadband in both directions, and
-  raises `OutOfRange` for a reading more than 4 C from the target.
-- Written back out, the manifest names the defaulted thresholds and loads as the
-  same profile, and a dashboard element travels in it with its key, unit, graphic,
-  and band intact.
+- The file parses into the profile a node runs: what it reads, the topic it
+  reports on, the setpoint policy, the sampling schedule, and how a dashboard
+  draws it.
+- The node holds the lamp through the deadband in both directions, raises
+  `OutOfRange` for a reading more than 4 C from the target, and publishes every
+  reading, in order, to the topic the file names.
+- At a charge of 80% the node samples every 2 minutes, at 30% every 10, and at 10%
+  every 30, the cadences the file sets.
 - A level warns once a fall puts dry within six samples, and a surge warns when
   one sample rises more than its limit.
+- A kind the library never shipped runs the program's own code once it is
+  registered under the kind's name, reading its parameters from the file and
+  raising a condition of its own.
 - A reading that is not a number raises `InvalidReading` and the lamp holds, and a
   controller built again for each reading forgets the lamp was on.
 - A manifest with a hysteresis of zero, or intervals that shorten as the battery
   drains, is refused with the reason, and one with a misspelled field is refused
-  with the field it was probably meant to be. A control kind the library does not
-  ship loads, but no built-in controller decides it, so asking for one is refused
-  rather than handing back a node that never switches the lamp.
+  with the field it was probably meant to be and where it sits. A custom kind with
+  no code registered for it is refused rather than run as a node that never
+  switches the lamp.
 
 ## Run it
 
@@ -78,105 +80,105 @@ repository:
 ## Rust
 
 In Rust, `Profile::from_json` loads a manifest and checks it, returning an `Err`
-holding the reason for one no node could run, and `check` runs the same check on
-a profile built in code. `controller` builds a `Controller` whose `evaluate`
-returns a `Reaction`: the actuator setting, if the profile drives one, and an
-`Alert`. `power.plan()` turns the schedule into the `pamoja-power` governor. A
-policy of your own implements `Policy`, and a `PolicyRegistry` resolves a
-manifest's custom kind to it.
+holding the reason for one no node could run. `Node::new` assembles the profile with
+a `Sensor`, an `Actuator`, a `Transport`, and a `Codec`; each `tick` returns a `Tick`
+with the reading and the `Reaction`, the output setting and an `Alert`, and `run`
+repeats it at the cadence `schedule` gives, sleeping with the runtime's own timer. A
+policy of your own implements `Policy`, and `Node::resolve` runs the one a
+`PolicyRegistry` finds for a manifest's custom kind.
 
 <!-- snippet: examples/guides/profile.rs#example -->
 From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/profile.rs):
 
 ```rust
-    use pamoja_profile::{ElementSpec, Presentation, Profile, Viz};
+use pamoja_codec::{Codec, JsonCodec};
+use pamoja_core::{Receive, Transport};
+use pamoja_loopback::{LoopbackBroker, LoopbackTransport};
+use pamoja_profile::{Node, Profile};
 
-    // A profile is plain data, so a fleet ships one as a file rather than as code. This
-    // manifest names no battery thresholds, so the documented defaults apply.
-    let manifest = r#"{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
-    },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-}"#;
-    let profile = Profile::from_json(manifest)?;
-    println!("profile   {} reports on {}", profile.name, profile.topic);
+// A profile is a file. This one ships in the catalog under profiles/: it holds a
+// brooder at 32 C by switching a heat lamp, says what it reads, and says how a
+// dashboard draws it.
+let text = std::fs::read_to_string("profiles/brooder-heater.json")?;
+let profile = Profile::from_json(&text)?;
+let reads = profile
+    .reads
+    .clone()
+    .expect("a catalog profile says what it reads");
+println!(
+    "profile   {} reads {} in {} and reports on {}",
+    profile.name, reads.quantity, reads.unit, profile.topic
+);
+let topic = profile.topic.clone();
+let element = profile
+    .presentation
+    .clone()
+    .expect("a presentation")
+    .elements[0]
+    .clone();
+
+// A node is the profile and the parts that make it run: a sensor, an output, and a
+// link. A morning of readings stands in for the probe, and a dashboard listens on the
+// same broker.
+let broker = LoopbackBroker::new();
+let mut link = LoopbackTransport::new(broker.clone());
+let mut dashboard = LoopbackTransport::new(broker);
+link.connect().await?;
+dashboard.connect().await?;
+dashboard.subscribe(&topic).await?;
+let morning = Morning(vec![27.5, 31.8, 32.6, 32.1, 31.4]);
+let mut node = Node::new(profile, morning, Lamp::default(), link, JsonCodec)?;
+
+// Each tick reads, decides, switches the lamp, and publishes the reading. The lamp
+// comes on at 31.5 C or below and goes off at 32.5 C or above, and in between it stays
+// as it was; a reading more than 4 C from 32 raises an alert as well.
+let mut was = false;
+for _ in 0..5 {
+    let tick = node.tick().await?;
+    let on = tick.reaction.actuator == Some(true);
+    let change = match (was, on) {
+        (false, true) => "lamp on",
+        (true, false) => "lamp off",
+        (true, true) => "lamp stays on",
+        (false, false) => "lamp stays off",
+    };
+    let alert = tick
+        .reaction
+        .alert
+        .map(|alert| format!(", alert {}", alert.kind()))
+        .unwrap_or_default();
+    println!("{:<10}{change}{alert}", format!("{} C", tick.reading));
+    was = on;
+}
+
+// The dashboard heard every reading the node published.
+let mut heard = Vec::new();
+for _ in 0..5 {
+    let message = dashboard.recv().await?.expect("a reading");
+    let reading: f32 = JsonCodec.decode(&message.payload)?;
+    heard.push(reading.to_string());
+}
+println!("heard     {} on {topic}", heard.join(", "));
+
+// Between ticks the node waits as long as its battery allows: often on a healthy
+// charge, sparingly on a low one. run() does this until stopped, waiting each interval.
+for charge in [0.8, 0.3, 0.1] {
+    let (mode, wait) = node.schedule(charge, false);
     println!(
-        "defaults  the file names no battery thresholds, so saver starts below {:.0}% and critical below {:.0}%",
-        profile.power.saver_below * 100.0,
-        profile.power.critical_below * 100.0
+        "battery   at {:.0}% it runs {mode:?} and waits {} s",
+        charge * 100.0,
+        wait.as_secs()
     );
+}
 
-    // The schedule becomes a power plan, which says what mode a charge puts the node in
-    // and how long it waits between samples there.
-    let plan = profile.power.plan();
-    for charge in [0.8, 0.3, 0.1] {
-        println!(
-            "battery   at {:.0}% it runs {:?} and samples every {} s",
-            charge * 100.0,
-            plan.mode(charge),
-            plan.interval(charge).as_secs()
-        );
-    }
-
-    // One controller runs for the life of the node, because it remembers whether the
-    // lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the
-    // setpoint less and plus the hysteresis, and in between it stays as it was. A reading
-    // more than 4 C from the setpoint raises an alert as well.
-    let mut controller = profile.controller()?;
-    let mut lamp = false;
-    for reading in [27.5, 31.8, 32.6, 32.1, 31.4] {
-        let reaction = controller.evaluate(reading);
-        let on = reaction.actuator.expect("this profile drives a lamp");
-        let change = match (lamp, on) {
-            (false, true) => "lamp on",
-            (true, false) => "lamp off",
-            (true, true) => "lamp stays on",
-            (false, false) => "lamp stays off",
-        };
-        let alert = reaction
-            .alert
-            .map(|alert| format!(", alert {}", alert.kind()))
-            .unwrap_or_default();
-        println!("{:<10}{change}{alert}", format!("{reading} C"));
-        lamp = on;
-    }
-
-    // Written back out, the manifest names the thresholds the file left to their
-    // defaults, so the next reader has nothing to infer, and it loads as the same profile.
-    let shared = profile.to_json()?;
-    if shared.contains("saver_below") && Profile::from_json(&shared)?.to_json()? == shared {
-        println!("shared    written back out, it names saver_below and loads as the same profile");
-    }
-
-    // The manifest also carries how a dashboard draws the node: one element here, the
-    // brooder's temperature on a thermometer with the band the chicks are safe in.
-    let drawn = profile.clone().with_presentation(
-        Presentation::new().with_element(
-            ElementSpec::new(
-                "brooder_temperature",
-                "celsius",
-                "Brooder temperature",
-                Viz::Thermometer,
-            )
-            .with_band(28.0, 36.0),
-        ),
-    );
-    let element = &drawn
-        .presentation
-        .as_ref()
-        .expect("a declared presentation")
-        .elements[0];
-    let [low, high] = element.band.expect("a band");
-    println!(
-        "draws     {} in {} on a {}, safe from {low} to {high}",
-        element.key,
-        element.unit,
-        element.viz.name()
-    );
+// The same file says how a dashboard draws the node.
+let [low, high] = element.band.expect("a band");
+println!(
+    "draws     {} in {} on a {}, safe from {low} to {high}",
+    element.key,
+    element.unit,
+    element.viz.name()
+);
 ```
 <!-- end -->
 
@@ -214,6 +216,78 @@ for gauge in [1.2, 1.35, 1.9] {
 ```
 <!-- end -->
 
+A control kind of the program's own, continuing from above:
+
+<!-- snippet: examples/guides/profile.rs#custom -->
+From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/profile.rs):
+
+```rust
+use pamoja_profile::{BoxedPolicy, Params, Policy, PolicyRegistry, Reaction};
+
+/// A policy of the program's own: the lamp on below the setpoint, and a condition of
+/// its own when the chicks are chilled.
+struct BrooderGuard {
+    setpoint: f32,
+    chilled_below: f32,
+}
+
+impl Policy for BrooderGuard {
+    type Reading = f32;
+    type Command = bool;
+
+    fn evaluate(&mut self, reading: &f32) -> Reaction {
+        let chilled = *reading < self.chilled_below;
+        Reaction {
+            actuator: Some(*reading < self.setpoint),
+            alert: chilled.then_some(Alert::Custom {
+                code: "Chilled",
+                value: *reading,
+            }),
+        }
+    }
+}
+
+// A manifest may name a control kind the library never shipped, with its parameters
+// beside it. The program registers the code that decides it under that name, and the
+// node runs whichever kind the file names.
+let guarded =
+    Profile::from_json(&text.replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""))?;
+let registry = PolicyRegistry::new().register("brooder_guard", |params: &Params| {
+    let setpoint = params.number("setpoint").unwrap_or(32.0) as f32;
+    let band = params.number("safe_band").unwrap_or(4.0) as f32;
+    Ok(Box::new(BrooderGuard {
+        setpoint,
+        chilled_below: setpoint - band,
+    }) as BoxedPolicy)
+});
+println!(
+    "custom    {} is decided by the program's own code, registered under its name",
+    guarded.control.kind()
+);
+let mut link = LoopbackTransport::new(LoopbackBroker::new());
+link.connect().await?;
+let mut node = Node::resolve(
+    guarded,
+    &registry,
+    Morning(vec![27.5]),
+    Lamp::default(),
+    link,
+    JsonCodec,
+)?;
+let tick = node.tick().await?;
+let lamp = if tick.reaction.actuator == Some(true) {
+    "on"
+} else {
+    "off"
+};
+let alert = tick.reaction.alert.map(Alert::kind).unwrap_or("none");
+println!(
+    "{:<10}lamp {lamp}, alert {alert}",
+    format!("{} C", tick.reading)
+);
+```
+<!-- end -->
+
 What goes wrong, continuing from above:
 
 <!-- snippet: examples/guides/profile.rs#wrong -->
@@ -223,6 +297,9 @@ From [`examples/guides/profile.rs`](https://github.com/molexxxx/pamoja/blob/main
 // A probe that fails reports a reading that is not a number. The controller raises
 // it rather than going quiet, and the lamp holds its state; what off means for the
 // chicks is the node's call.
+let profile = Profile::from_json(&text)?;
+let mut controller = profile.controller()?;
+controller.evaluate(27.5);
 let failed = controller.evaluate(f32::NAN);
 if let Some(alert) = failed.alert {
     let holds = if failed.actuator == Some(true) {
@@ -247,15 +324,12 @@ if first == Some(true) && then == Some(false) {
 }
 
 // A manifest no node could run is refused as it loads, with the reason. So is a
-// misspelled field, with the one it was probably meant to be, rather than leaving
-// the default in its place without a word.
+// misspelled field, with the one it was probably meant to be and where it sits,
+// rather than leaving the default in its place without a word.
 for edited in [
-    manifest.replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
-    manifest.replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
-    manifest.replace(
-        "\"critical_secs\": 1800 }",
-        "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }",
-    ),
+    text.replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
+    text.replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+    text.replace("\"saver_below\"", "\"saver_bellow\""),
 ] {
     match Profile::from_json(&edited) {
         Ok(_) => {
@@ -266,12 +340,11 @@ for edited in [
 }
 
 // A kind the library does not ship loads with its parameters, but no built-in
-// controller decides it, so asking for one is refused rather than handing back a
-// node that would never switch the lamp.
-let custom = Profile::from_json(
-    &manifest.replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""),
-)?;
-match custom.controller() {
+// controller decides it, so a node without a registry that knows it is refused
+// rather than running one that never switches the lamp.
+let unknown =
+    Profile::from_json(&text.replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""))?;
+match unknown.controller() {
     Ok(_) => println!("a custom kind ran without its policy, which should never happen"),
     Err(error) => println!("refused   {error}"),
 }
@@ -281,82 +354,83 @@ match custom.controller() {
 ## TypeScript
 
 In TypeScript, `@pamoja/profile` loads a manifest with `Profile.fromJson`, which
-throws an `Error` saying why for one no node could run, as the constructor does
-for parts that could not. A reaction is a plain object whose `actuator` is a
-boolean or undefined and whose `alert` carries a `kind` from `AlertKind`.
-`powerPlan` returns the power governor, whose intervals are in microseconds.
+throws an `Error` saying why for one no node could run. A `Node` takes the profile,
+a `read` function, a `drive` function, and any link with `send`; `tick` resolves to
+the reading and a reaction whose `actuator` is a boolean or undefined and whose
+`alert` carries a `kind` from `AlertKind`, and `run` repeats it at the battery's
+cadence until its `AbortSignal` fires. A `PolicyRegistry` maps a custom kind to a
+function that builds the program's own policy.
 
 <!-- snippet: bindings/node/guides/profile.ts#example -->
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import { Profile, Viz } from '@pamoja/profile'
+import { readFileSync } from 'node:fs'
+import { LoopbackBroker } from '@pamoja/loopback'
+import { Node, Profile } from '@pamoja/profile'
 
-// A profile is plain data, so a fleet ships one as a file rather than as code. This
-// manifest names no battery thresholds, so the documented defaults apply.
-const manifest = `{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
+// A profile is a file. This one ships in the catalog under profiles/: it holds a brooder at
+// 32 C by switching a heat lamp, says what it reads, and says how a dashboard draws it.
+const text = readFileSync('profiles/brooder-heater.json', 'utf8')
+const profile = Profile.fromJson(text)
+
+async function example(): Promise<boolean> {
+  const reads = profile.reads!
+  console.log(`profile   ${profile.name} reads ${reads.quantity} in ${reads.unit} and reports on ${profile.topic}`)
+
+  // A node is the profile and the parts that make it run: a sensor, an output, and a link.
+  // A morning of readings stands in for the probe, and a dashboard listens on the same
+  // broker.
+  const broker = new LoopbackBroker()
+  const link = broker.link()
+  const dashboard = broker.link()
+  await link.connect()
+  await dashboard.connect()
+  await dashboard.subscribe(profile.topic)
+  const morning = [27.5, 31.8, 32.6, 32.1, 31.4]
+  let lamp = false
+  const node = new Node({
+    profile,
+    read: () => morning.shift()!,
+    drive: (on) => {
+      lamp = on
     },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-}`
-const profile = Profile.fromJson(manifest)
-console.log(`profile   ${profile.name} reports on ${profile.topic}`)
-console.log(
-  `defaults  the file names no battery thresholds, so saver starts below ${(profile.power.saverBelow * 100).toFixed(0)}% and critical below ${(profile.power.criticalBelow * 100).toFixed(0)}%`,
-)
+    link,
+  })
 
-// The schedule becomes a power plan, which says what mode a charge puts the node in and
-// how long it waits between samples there, in microseconds.
-const plan = profile.powerPlan()
-for (const charge of [0.8, 0.3, 0.1]) {
-  console.log(
-    `battery   at ${(charge * 100).toFixed(0)}% it runs ${plan.mode(charge)} and samples every ${plan.intervalUs(charge) / 1_000_000} s`,
-  )
+  // Each tick reads, decides, switches the lamp, and publishes the reading. The lamp comes on
+  // at 31.5 C or below and goes off at 32.5 C or above, and in between it stays as it was; a
+  // reading more than 4 C from 32 raises an alert as well.
+  let was = false
+  for (let at = 0; at < 5; at += 1) {
+    const { reading, reaction } = await node.tick()
+    const on = reaction.actuator === true
+    const change = on ? (was ? 'lamp stays on' : 'lamp on') : was ? 'lamp off' : 'lamp stays off'
+    const alert = reaction.alert ? `, alert ${reaction.alert.kind}` : ''
+    console.log(`${`${reading} C`.padEnd(10)}${change}${alert}`)
+    was = on
+  }
+
+  // The dashboard heard every reading the node published.
+  const heard: number[] = []
+  for (let at = 0; at < 5; at += 1) {
+    heard.push((await dashboard.recv())!.number!)
+  }
+  console.log(`heard     ${heard.join(', ')} on ${profile.topic}`)
+
+  // Between ticks the node waits as long as its battery allows: often on a healthy charge,
+  // sparingly on a low one. run() does this until stopped, waiting each interval.
+  for (const charge of [0.8, 0.3, 0.1]) {
+    const { mode, waitMs } = node.schedule(charge)
+    console.log(`battery   at ${(charge * 100).toFixed(0)}% it runs ${mode} and waits ${waitMs / 1000} s`)
+  }
+
+  // The same file says how a dashboard draws the node.
+  const element = profile.presentation!.elements[0]
+  const [low, high] = element.band!
+  console.log(`draws     ${element.key} in ${element.unit} on a ${element.viz}, safe from ${low} to ${high}`)
+  return lamp
 }
-
-// One controller runs for the life of the node, because it remembers whether the lamp is
-// on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the setpoint
-// less and plus the hysteresis, and in between it stays as it was. A reading more than
-// 4 C from the setpoint raises an alert as well.
-const controller = profile.controller()
-let lamp = false
-for (const reading of [27.5, 31.8, 32.6, 32.1, 31.4]) {
-  const reaction = controller.evaluate(reading)
-  const on = reaction.actuator === true
-  const change = on ? (lamp ? 'lamp stays on' : 'lamp on') : lamp ? 'lamp off' : 'lamp stays off'
-  const alert = reaction.alert ? `, alert ${reaction.alert.kind}` : ''
-  console.log(`${`${reading} C`.padEnd(10)}${change}${alert}`)
-  lamp = on
-}
-
-// Written back out, the manifest names the thresholds the file left to their defaults,
-// so the next reader has nothing to infer, and it loads as the same profile.
-const shared = profile.toJson()
-if (shared.includes('saver_below') && Profile.fromJson(shared).toJson() === shared) {
-  console.log('shared    written back out, it names saver_below and loads as the same profile')
-}
-
-// The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature on a thermometer with the band the chicks are safe in.
-const drawn = profile.withPresentation({
-  elements: [
-    {
-      key: 'brooder_temperature',
-      unit: 'celsius',
-      label: 'Brooder temperature',
-      viz: Viz.Thermometer,
-      band: [28, 36],
-    },
-  ],
-})
-const element = drawn.presentation?.elements[0]
-console.log(
-  `draws     ${element?.key} in ${element?.unit} on a ${element?.viz}, safe from ${element?.band?.[0]} to ${element?.band?.[1]}`,
-)
 ```
 <!-- end -->
 
@@ -368,28 +442,77 @@ From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob
 ```typescript
 import { AlertKind } from '@pamoja/profile'
 
-// A level warns before a tank or a well runs dry. The shipped well profile counts 0.5 m
-// as dry and warns once the last fall puts dry six samples away or nearer.
-const well = Profile.wellLevel().controller()
-for (const depth of [5.0, 4.4, 3.8]) {
-  const alert = well.evaluate(depth).alert
-  if (alert?.kind === AlertKind.RunningOut) {
-    console.log(`well      ${depth} m: dry in ${alert.samples} samples at this rate, RunningOut`)
-  } else {
-    console.log(`well      ${depth} m: no warning yet`)
+function kinds(): void {
+  // A level warns before a tank or a well runs dry. The shipped well profile counts 0.5 m
+  // as dry and warns once the last fall puts dry six samples away or nearer.
+  const well = Profile.wellLevel().controller()
+  for (const depth of [5.0, 4.4, 3.8]) {
+    const alert = well.evaluate(depth).alert
+    if (alert?.kind === AlertKind.RunningOut) {
+      console.log(`well      ${depth} m: dry in ${alert.samples} samples at this rate, RunningOut`)
+    } else {
+      console.log(`well      ${depth} m: no warning yet`)
+    }
+  }
+
+  // A surge warns when a reading moves too far in one sample. The shipped flood sensor warns
+  // when a river rises more than 0.3 m between two readings.
+  const river = Profile.floodSensor().controller()
+  for (const gauge of [1.2, 1.35, 1.9]) {
+    const alert = river.evaluate(gauge).alert
+    if (alert?.kind === AlertKind.ChangingFast) {
+      console.log(`river     ${gauge} m: up ${alert.rate?.toFixed(2)} m in one sample, ChangingFast`)
+    } else {
+      console.log(`river     ${gauge} m: no warning`)
+    }
+  }
+}
+```
+<!-- end -->
+
+A control kind of the program's own, continuing from above:
+
+<!-- snippet: bindings/node/guides/profile.ts#custom -->
+From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
+
+```typescript
+import { type Policy, PolicyRegistry } from '@pamoja/profile'
+
+// A policy of the program's own: the lamp on below the setpoint, and a condition of its own
+// when the chicks are chilled.
+function brooderGuard(params: Record<string, number | boolean | string>): Policy {
+  const setpoint = Number(params.setpoint ?? 32)
+  const chilledBelow = setpoint - Number(params.safe_band ?? 4)
+  return {
+    evaluate: (reading) => ({
+      actuator: reading < setpoint,
+      alert: reading < chilledBelow ? { kind: AlertKind.Custom, code: 'Chilled', value: reading } : undefined,
+    }),
   }
 }
 
-// A surge warns when a reading moves too far in one sample. The shipped flood sensor warns
-// when a river rises more than 0.3 m between two readings.
-const river = Profile.floodSensor().controller()
-for (const gauge of [1.2, 1.35, 1.9]) {
-  const alert = river.evaluate(gauge).alert
-  if (alert?.kind === AlertKind.ChangingFast) {
-    console.log(`river     ${gauge} m: up ${alert.rate?.toFixed(2)} m in one sample, ChangingFast`)
-  } else {
-    console.log(`river     ${gauge} m: no warning`)
-  }
+async function custom(): Promise<void> {
+  // A manifest may name a control kind the library never shipped, with its parameters
+  // beside it. The program registers the code that decides it under that name, and the node
+  // runs whichever kind the file names.
+  const guarded = Profile.fromJson(text.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
+  const registry = new PolicyRegistry().register('brooder_guard', brooderGuard)
+  console.log(`custom    ${guarded.control.customKind} is decided by the program's own code, registered under its name`)
+  const link = new LoopbackBroker().link()
+  await link.connect()
+  let lamp = false
+  const node = new Node({
+    profile: guarded,
+    policy: registry,
+    read: () => 27.5,
+    drive: (on) => {
+      lamp = on
+    },
+    link,
+  })
+  const { reading, reaction } = await node.tick()
+  const alert = reaction.alert?.code ?? reaction.alert?.kind ?? 'none'
+  console.log(`${`${reading} C`.padEnd(10)}lamp ${lamp ? 'on' : 'off'}, alert ${alert}`)
 }
 ```
 <!-- end -->
@@ -400,50 +523,52 @@ What goes wrong, continuing from above:
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-// A probe that fails reports a reading that is not a number. The controller raises it
-// rather than going quiet, and the lamp holds its state; what off means for the chicks is
-// the node's call.
-const failed = controller.evaluate(Number.NaN)
-if (failed.alert) {
-  const holds = failed.actuator === true ? 'on' : 'off'
-  console.log(`probe     a reading of NaN raises ${failed.alert.kind}, and the lamp holds ${holds}`)
-}
+function wrong(): void {
+  // A probe that fails reports a reading that is not a number. The controller raises it
+  // rather than going quiet, and the lamp holds its state; what off means for the chicks is
+  // the node's call.
+  const controller = profile.controller()
+  controller.evaluate(27.5)
+  const failed = controller.evaluate(Number.NaN)
+  if (failed.alert) {
+    const holds = failed.actuator === true ? 'on' : 'off'
+    console.log(`probe     a reading of NaN raises ${failed.alert.kind}, and the lamp holds ${holds}`)
+  }
 
-// A controller built again for each reading forgets the lamp was on, so inside the
-// deadband it switches the lamp off.
-const first = profile.controller().evaluate(27.5).actuator
-const then = profile.controller().evaluate(31.8).actuator
-if (first === true && then === false) {
-  console.log(
-    'fresh     built again for each reading, the controller turns the lamp off at 31.8 C',
-  )
-}
+  // A controller built again for each reading forgets the lamp was on, so inside the
+  // deadband it switches the lamp off.
+  const first = profile.controller().evaluate(27.5).actuator
+  const then = profile.controller().evaluate(31.8).actuator
+  if (first === true && then === false) {
+    console.log('fresh     built again for each reading, the controller turns the lamp off at 31.8 C')
+  }
 
-// A manifest no node could run is refused as it loads, with the reason. So is a misspelled
-// field, with the one it was probably meant to be, rather than leaving the default in its
-// place without a word.
-for (const edited of [
-  manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
-  manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
-  manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
-]) {
+  // A manifest no node could run is refused as it loads, with the reason. So is a misspelled
+  // field, with the one it was probably meant to be and where it sits, rather than leaving
+  // the default in its place without a word.
+  for (const edited of [
+    text.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
+    text.replace('"saver_secs": 600', '"saver_secs": 60'),
+    text.replace('"saver_below"', '"saver_bellow"'),
+  ]) {
+    try {
+      Profile.fromJson(edited)
+      console.log('a manifest no node could run was accepted, which should never happen')
+    } catch (error) {
+      console.log(`refused   ${(error as Error).message}`)
+    }
+  }
+
+  // A kind the library does not ship loads with its parameters, but no built-in controller
+  // decides it, so a node without a registry that knows it is refused rather than running
+  // one that never switches the lamp.
+  const unknown = Profile.fromJson(text.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
   try {
-    Profile.fromJson(edited)
-    console.log('a manifest no node could run was accepted, which should never happen')
+    unknown.controller()
+    console.log('a custom kind ran without its policy, which should never happen')
   } catch (error) {
     console.log(`refused   ${(error as Error).message}`)
   }
-}
-
-// A kind the library does not ship loads with its parameters, but no built-in controller
-// decides it, so asking for one is refused rather than handing back a node that would
-// never switch the lamp.
-const custom = Profile.fromJson(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
-try {
-  custom.controller()
-  console.log('a custom kind ran without its policy, which should never happen')
-} catch (error) {
-  console.log(`refused   ${(error as Error).message}`)
 }
 ```
 <!-- end -->
@@ -451,87 +576,82 @@ try {
 ## Python
 
 In Python, `pamoja.profile` loads a manifest with `Profile.from_json`, which raises
-`PamojaError` for one no node could run, as the constructor does for such parts.
-`ValueError` is kept for an argument of the wrong shape, such as a setpoint
-control with no hysteresis. A reaction's `actuator` is `True`, `False`, or `None`,
-and its `alert` has a `kind` that compares equal to an `AlertKind` member.
-`power_plan` returns the power governor, whose intervals are in microseconds.
+`PamojaError` for one no node could run. A `Node` takes the profile, a `read`
+callable, a `drive` callable, and any link with `send`, each plain or async; `tick`
+returns the reading and a reaction whose `actuator` is `True`, `False`, or `None`,
+and `run` repeats it at the battery's cadence until its task is cancelled. A
+`PolicyRegistry` maps a custom kind to a class or function that builds the program's
+own policy, which returns a `Decision`.
 
 <!-- snippet: bindings/python/guides/profile.py#example -->
 From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py):
 
 ```python
-from pamoja.profile import ElementSpec, Presentation, Profile, Viz
+from pathlib import Path
 
-# A profile is plain data, so a fleet ships one as a file rather than as code. This
-# manifest names no battery thresholds, so the documented defaults apply.
-manifest = """{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
-    },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-}"""
-profile = Profile.from_json(manifest)
-print(f"profile   {profile.name} reports on {profile.topic}")
+from pamoja.loopback import LoopbackBroker
+from pamoja.profile import Node, Profile
+
+# A profile is a file. This one ships in the catalog under profiles/: it holds a brooder at
+# 32 C by switching a heat lamp, says what it reads, and says how a dashboard draws it.
+text = Path("profiles/brooder-heater.json").read_text(encoding="utf-8")
+profile = Profile.from_json(text)
 print(
-    "defaults  the file names no battery thresholds, so saver starts below "
-    f"{profile.power.saver_below * 100:.0f}% and critical below "
-    f"{profile.power.critical_below * 100:.0f}%"
+    f"profile   {profile.name} reads {profile.reads.quantity} in {profile.reads.unit} "
+    f"and reports on {profile.topic}"
 )
 
-# The schedule becomes a power plan, which says what mode a charge puts the node in and
-# how long it waits between samples there, in microseconds.
-plan = profile.power_plan()
-for charge in [0.8, 0.3, 0.1]:
+
+async def example() -> bool:
+    # A node is the profile and the parts that make it run: a sensor, an output, and a link.
+    # A morning of readings stands in for the probe, and a dashboard listens on the same
+    # broker.
+    broker = LoopbackBroker()
+    link = broker.link()
+    dashboard = broker.link()
+    await link.connect()
+    await dashboard.connect()
+    await dashboard.subscribe(profile.topic)
+    morning = [27.5, 31.8, 32.6, 32.1, 31.4]
+    lamp = []
+    node = Node(profile, read=lambda: morning.pop(0), drive=lamp.append, link=link)
+
+    # Each tick reads, decides, switches the lamp, and publishes the reading. The lamp comes
+    # on at 31.5 C or below and goes off at 32.5 C or above, and in between it stays as it
+    # was; a reading more than 4 C from 32 raises an alert as well.
+    was = False
+    for _ in range(5):
+        tick = await node.tick()
+        on = tick.reaction.actuator is True
+        if on:
+            change = "lamp stays on" if was else "lamp on"
+        else:
+            change = "lamp off" if was else "lamp stays off"
+        alert = f", alert {tick.reaction.alert.kind}" if tick.reaction.alert else ""
+        print(f"{f'{tick.reading:g} C':<10}{change}{alert}")
+        was = on
+
+    # The dashboard heard every reading the node published.
+    heard = [f"{(await dashboard.recv()).number:g}" for _ in range(5)]
+    print(f"heard     {', '.join(heard)} on {profile.topic}")
+
+    # Between ticks the node waits as long as its battery allows: often on a healthy charge,
+    # sparingly on a low one. run() does this until stopped, waiting each interval.
+    for charge in [0.8, 0.3, 0.1]:
+        mode, seconds = node.schedule(charge)
+        print(f"battery   at {charge * 100:.0f}% it runs {mode} and waits {seconds:g} s")
+
+    # The same file says how a dashboard draws the node.
+    element = profile.presentation.elements[0]
+    low, high = element.band
     print(
-        f"battery   at {charge * 100:.0f}% it runs {plan.mode(charge)} "
-        f"and samples every {plan.interval_us(charge) // 1_000_000} s"
+        f"draws     {element.key} in {element.unit} on a {element.viz}, "
+        f"safe from {low:g} to {high:g}"
     )
+    return lamp[-1]
 
-# One controller runs for the life of the node, because it remembers whether the lamp is
-# on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the setpoint
-# less and plus the hysteresis, and in between it stays as it was. A reading more than 4 C
-# from the setpoint raises an alert as well.
-controller = profile.controller()
-lamp = False
-for reading in [27.5, 31.8, 32.6, 32.1, 31.4]:
-    reaction = controller.evaluate(reading)
-    on = reaction.actuator is True
-    if on:
-        change = "lamp stays on" if lamp else "lamp on"
-    else:
-        change = "lamp off" if lamp else "lamp stays off"
-    alert = f", alert {reaction.alert.kind}" if reaction.alert else ""
-    print(f"{f'{reading:g} C':<10}{change}{alert}")
-    lamp = on
 
-# Written back out, the manifest names the thresholds the file left to their defaults, so
-# the next reader has nothing to infer, and it loads as the same profile.
-shared = profile.to_json()
-if "saver_below" in shared and Profile.from_json(shared).to_json() == shared:
-    print("shared    written back out, it names saver_below and loads as the same profile")
-
-# The manifest also carries how a dashboard draws the node: one element here, the brooder's
-# temperature on a thermometer with the band the chicks are safe in.
-drawn = profile.with_presentation(
-    Presentation(
-        [
-            ElementSpec(
-                "brooder_temperature", "celsius", "Brooder temperature", Viz.THERMOMETER,
-                band=(28, 36),
-            ),
-        ]
-    )
-)
-element = drawn.presentation.elements[0]
-low, high = element.band
-print(
-    f"draws     {element.key} in {element.unit} on a {element.viz}, "
-    f"safe from {low:g} to {high:g}"
-)
+lamp_on = asyncio.run(example())
 ```
 <!-- end -->
 
@@ -565,6 +685,52 @@ for gauge in [1.2, 1.35, 1.9]:
 ```
 <!-- end -->
 
+A control kind of the program's own, continuing from above:
+
+<!-- snippet: bindings/python/guides/profile.py#custom -->
+From [`bindings/python/guides/profile.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/profile.py):
+
+```python
+from pamoja.profile import CustomAlert, Decision, PolicyRegistry
+
+
+class BrooderGuard:
+    """A policy of the program's own: the lamp on below the setpoint, and a condition of its
+    own when the chicks are chilled."""
+
+    def __init__(self, params: dict) -> None:
+        self.setpoint = params.get("setpoint", 32.0)
+        self.chilled_below = self.setpoint - params.get("safe_band", 4.0)
+
+    def evaluate(self, reading: float) -> Decision:
+        chilled = reading < self.chilled_below
+        alert = CustomAlert("Chilled", reading) if chilled else None
+        return Decision(actuator=reading < self.setpoint, alert=alert)
+
+
+async def custom() -> None:
+    # A manifest may name a control kind the library never shipped, with its parameters
+    # beside it. The program registers the code that decides it under that name, and the
+    # node runs whichever kind the file names.
+    guarded = Profile.from_json(text.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
+    registry = PolicyRegistry().register("brooder_guard", BrooderGuard)
+    print(
+        f"custom    {guarded.control.custom_kind} is decided by the program's own code, "
+        "registered under its name"
+    )
+    link = LoopbackBroker().link()
+    await link.connect()
+    lamp = []
+    node = Node(guarded, read=lambda: 27.5, drive=lamp.append, link=link, policy=registry)
+    tick = await node.tick()
+    alert = tick.reaction.alert.code if tick.reaction.alert else "none"
+    print(f"{f'{tick.reading:g} C':<10}lamp {'on' if lamp[-1] else 'off'}, alert {alert}")
+
+
+asyncio.run(custom())
+```
+<!-- end -->
+
 What goes wrong, continuing from above:
 
 <!-- snippet: bindings/python/guides/profile.py#wrong -->
@@ -576,6 +742,8 @@ from pamoja.core import PamojaError
 # A probe that fails reports a reading that is not a number. The controller raises it
 # rather than going quiet, and the lamp holds its state; what off means for the chicks is
 # the node's call.
+controller = profile.controller()
+controller.evaluate(27.5)
 failed = controller.evaluate(float("nan"))
 if failed.alert:
     holds = "on" if failed.actuator is True else "off"
@@ -589,12 +757,12 @@ if first is True and then is False:
     print("fresh     built again for each reading, the controller turns the lamp off at 31.8 C")
 
 # A manifest no node could run is refused as it loads, with the reason. So is a misspelled
-# field, with the one it was probably meant to be, rather than leaving the default in its
-# place without a word.
+# field, with the one it was probably meant to be and where it sits, rather than leaving the
+# default in its place without a word.
 for edited in [
-    manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
-    manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
-    manifest.replace('"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'),
+    text.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
+    text.replace('"saver_secs": 600', '"saver_secs": 60'),
+    text.replace('"saver_below"', '"saver_bellow"'),
 ]:
     try:
         Profile.from_json(edited)
@@ -603,11 +771,11 @@ for edited in [
         print(f"refused   {error}")
 
 # A kind the library does not ship loads with its parameters, but no built-in controller
-# decides it, so asking for one is refused rather than handing back a node that would never
-# switch the lamp.
-custom = Profile.from_json(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
+# decides it, so a node without a registry that knows it is refused rather than running one
+# that never switches the lamp.
+unknown = Profile.from_json(text.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
 try:
-    custom.controller()
+    unknown.controller()
     print("a custom kind ran without its policy, which should never happen")
 except PamojaError as error:
     print(f"refused   {error}")
@@ -616,85 +784,82 @@ except PamojaError as error:
 
 ## C#
 
-In C#, a `Profile` and a `Controller` hold native state and are disposed with
-`using`. `Profile.FromJson` throws `PamojaException` for a manifest no node could
-run, as the constructor does for such parts. `Evaluate` returns a `Reaction`
-record whose `Actuator` is a `bool?` and whose `Alert` carries an `AlertKind`.
-The `PowerPlan` property is the power governor, whose intervals are in
-microseconds.
+In C#, a `Profile`, a `Controller`, and a `Node` hold native state and are disposed
+with `using`. `Profile.FromJson` throws `PamojaException` for a manifest no node could
+run. A `Node` takes the profile, a `read` function, a `drive` function, and any
+`ILink`; `TickAsync` returns a `Tick` with the reading and a `Reaction` record whose
+`Actuator` is a `bool?` and whose `Alert` carries an `AlertKind`, and `RunAsync`
+repeats it at the battery's cadence until its token is cancelled. A
+`PolicyRegistry` maps a custom kind to a factory for the program's own `IPolicy`.
 
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs):
 
 ```csharp
-// A profile is plain data, so a fleet ships one as a file rather than as code.
-// This manifest names no battery thresholds, so the documented defaults apply.
-const string manifest = """
-{
-    "name": "brooder-heater",
-    "topic": "poultry/brooder/temperature",
-    "control": {
-        "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5,
-        "cooling": false, "safe_band": 4.0
-    },
-    "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
-}
-""";
-using var profile = Profile.FromJson(manifest);
-Console.WriteLine($"profile   {profile.Name} reports on {profile.Topic}");
-Console.WriteLine(Invariant(
-    $"defaults  the file names no battery thresholds, so saver starts below {profile.Power.SaverBelow * 100:F0}% and critical below {profile.Power.CriticalBelow * 100:F0}%"));
+// A profile is a file. This one ships in the catalog under profiles/: it holds a
+// brooder at 32 C by switching a heat lamp, says what it reads, and says how a
+// dashboard draws it.
+string text = File.ReadAllText("profiles/brooder-heater.json");
+using var profile = Profile.FromJson(text);
+Reads reads = profile.Reads!.Value;
+Console.WriteLine($"profile   {profile.Name} reads {reads.Quantity} in {reads.Unit} and reports on {profile.Topic}");
 
-// The schedule becomes a power plan, which says what mode a charge puts the node
-// in and how long it waits between samples there, in microseconds.
-PowerPlan plan = profile.PowerPlan;
+// A node is the profile and the parts that make it run: a sensor, an output, and a
+// link. A morning of readings stands in for the probe, and a dashboard listens on the
+// same broker.
+using var broker = new LoopbackBroker();
+using var link = broker.Link();
+using var dashboard = broker.Link();
+await link.ConnectAsync();
+await dashboard.ConnectAsync();
+await dashboard.SubscribeAsync(profile.Topic);
+var morning = new Queue<float>([27.5f, 31.8f, 32.6f, 32.1f, 31.4f]);
+bool lamp = false;
+using var node = new Node(
+    profile,
+    () => ValueTask.FromResult(morning.Dequeue()),
+    link,
+    drive: on =>
+    {
+        lamp = on;
+        return ValueTask.CompletedTask;
+    });
+
+// Each tick reads, decides, switches the lamp, and publishes the reading. The lamp
+// comes on at 31.5 C or below and goes off at 32.5 C or above, and in between it stays
+// as it was; a reading more than 4 C from 32 raises an alert as well.
+bool was = false;
+for (int at = 0; at < 5; at++)
+{
+    Tick tick = await node.TickAsync();
+    bool on = tick.Reaction.Actuator == true;
+    string change = on ? (was ? "lamp stays on" : "lamp on") : was ? "lamp off" : "lamp stays off";
+    string alert = tick.Reaction.Alert is { } raised ? $", alert {raised.Kind}" : string.Empty;
+    Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}{change}{alert}"));
+    was = on;
+}
+
+// The dashboard heard every reading the node published.
+var heard = new List<string>();
+for (int at = 0; at < 5; at++)
+{
+    TransportMessage? message = await dashboard.ReceiveAsync(TimeSpan.FromSeconds(5));
+    heard.Add(Invariant($"{message!.Number}"));
+}
+
+Console.WriteLine($"heard     {string.Join(", ", heard)} on {profile.Topic}");
+
+// Between ticks the node waits as long as its battery allows: often on a healthy
+// charge, sparingly on a low one. RunAsync does this until cancelled, waiting each
+// interval.
 foreach (float charge in new[] { 0.8f, 0.3f, 0.1f })
 {
-    Console.WriteLine(Invariant(
-        $"battery   at {charge * 100:F0}% it runs {plan.Mode(charge)} and samples every {plan.IntervalUs(charge) / 1_000_000} s"));
+    (var mode, TimeSpan wait) = node.Schedule(charge);
+    Console.WriteLine(Invariant($"battery   at {charge * 100:F0}% it runs {mode} and waits {wait.TotalSeconds} s"));
 }
 
-// One controller runs for the life of the node, because it remembers whether the
-// lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above,
-// the setpoint less and plus the hysteresis, and in between it stays as it was. A
-// reading more than 4 C from the setpoint raises an alert as well.
-using Controller controller = profile.Controller();
-bool lamp = false;
-foreach (float reading in new[] { 27.5f, 31.8f, 32.6f, 32.1f, 31.4f })
-{
-    Reaction reaction = controller.Evaluate(reading);
-    bool on = reaction.Actuator == true;
-    string change = on
-        ? lamp ? "lamp stays on" : "lamp on"
-        : lamp ? "lamp off" : "lamp stays off";
-    string alert = reaction.Alert is { } raised ? $", alert {raised.Kind}" : "";
-    string at = Invariant($"{reading} C");
-    Console.WriteLine($"{at,-10}{change}{alert}");
-    lamp = on;
-}
-
-// Written back out, the manifest names the thresholds the file left to their
-// defaults, so the next reader has nothing to infer, and it loads as the same
-// profile.
-string shared = profile.ToJson();
-using (var reloaded = Profile.FromJson(shared))
-{
-    if (shared.Contains("saver_below") && reloaded.ToJson() == shared)
-    {
-        Console.WriteLine("shared    written back out, it names saver_below and loads as the same profile");
-    }
-}
-
-// The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature on a thermometer with the band the chicks are safe in.
-using var drawn = profile.WithPresentation(new Presentation(
-[
-    new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
-    {
-        Band = [28f, 36f],
-    },
-]));
-ElementSpec element = drawn.Presentation!.Elements[0];
+// The same file says how a dashboard draws the node.
+ElementSpec element = profile.Presentation!.Elements[0];
 string graphic = element.Viz.ToString().ToLowerInvariant();
 Console.WriteLine(Invariant(
     $"draws     {element.Key} in {element.Unit} on a {graphic}, safe from {element.Band![0]} to {element.Band[1]}"));
@@ -720,9 +885,9 @@ using (Controller well = wellLevel.Controller())
     }
 }
 
-// A surge warns when a reading moves too far in one sample. The shipped flood
-// sensor warns when a river rises more than 0.3 m between two readings.
-using (var floodSensor = Profile.FloodSensor())
+// A surge warns when a reading moves too far in one sample. The shipped flood sensor
+// warns when a river rises more than 0.3 m between two readings.
+using var floodSensor = Profile.FloodSensor();
 using (Controller river = floodSensor.Controller())
 {
     foreach (float gauge in new[] { 1.2f, 1.35f, 1.9f })
@@ -731,6 +896,55 @@ using (Controller river = floodSensor.Controller())
             ? Invariant($"river     {gauge} m: up {alert.Rate:F2} m in one sample, ChangingFast")
             : Invariant($"river     {gauge} m: no warning"));
     }
+}
+```
+<!-- end -->
+
+A control kind of the program's own, continuing from above:
+
+<!-- snippet: bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs#custom -->
+From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs):
+
+```csharp
+/// <summary>
+/// A policy of the program's own: the lamp on below the setpoint, and a condition of its
+/// own when the chicks are chilled.
+/// </summary>
+private sealed class BrooderGuard(IReadOnlyDictionary<string, object> parameters) : IPolicy
+{
+    private readonly float _setpoint = Convert.ToSingle(parameters["setpoint"]);
+    private readonly float _chilledBelow = Convert.ToSingle(parameters["setpoint"]) - Convert.ToSingle(parameters["safe_band"]);
+
+    public Reaction Evaluate(float reading) => new(
+        reading < _setpoint,
+        reading < _chilledBelow ? new Alert(AlertKind.Custom, null, null, null, "Chilled", reading) : null);
+}
+
+private static async Task CustomAsync(string text)
+{
+    // A manifest may name a control kind the library never shipped, with its parameters
+    // beside it. The program registers the code that decides it under that name, and the
+    // node runs whichever kind the file names.
+    using var guarded = Profile.FromJson(text.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
+    var registry = new PolicyRegistry().Register("brooder_guard", parameters => new BrooderGuard(parameters));
+    Console.WriteLine($"custom    {guarded.Control.CustomKind} is decided by the program's own code, registered under its name");
+    using var broker = new LoopbackBroker();
+    using var link = broker.Link();
+    await link.ConnectAsync();
+    bool lamp = false;
+    using var node = new Node(
+        guarded,
+        () => ValueTask.FromResult(27.5f),
+        link,
+        drive: on =>
+        {
+            lamp = on;
+            return ValueTask.CompletedTask;
+        },
+        policy: registry.Resolve(guarded));
+    Tick tick = await node.TickAsync();
+    string alert = tick.Reaction.Alert?.Code ?? tick.Reaction.Alert?.Kind.ToString() ?? "none";
+    Console.WriteLine(Invariant($"{Invariant($"{tick.Reading} C"),-10}lamp {(lamp ? "on" : "off")}, alert {alert}"));
 }
 ```
 <!-- end -->
@@ -744,11 +958,15 @@ From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.co
 // A probe that fails reports a reading that is not a number. The controller raises
 // it rather than going quiet, and the lamp holds its state; what off means for the
 // chicks is the node's call.
-Reaction failed = controller.Evaluate(float.NaN);
-if (failed.Alert is { } invalid)
+using (Controller controller = profile.Controller())
 {
-    string holds = failed.Actuator == true ? "on" : "off";
-    Console.WriteLine($"probe     a reading of NaN raises {invalid.Kind}, and the lamp holds {holds}");
+    controller.Evaluate(27.5f);
+    Reaction failed = controller.Evaluate(float.NaN);
+    if (failed.Alert is { } invalid)
+    {
+        string holds = failed.Actuator == true ? "on" : "off";
+        Console.WriteLine($"probe     a reading of NaN raises {invalid.Kind}, and the lamp holds {holds}");
+    }
 }
 
 // A controller built again for each reading forgets the lamp was on, so inside the
@@ -771,13 +989,13 @@ if (first == true && then == false)
 }
 
 // A manifest no node could run is refused as it loads, with the reason. So is a
-// misspelled field, with the one it was probably meant to be, rather than leaving
-// the default in its place without a word.
+// misspelled field, with the one it was probably meant to be and where it sits,
+// rather than leaving the default in its place without a word.
 foreach (string edited in new[]
 {
-    manifest.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
-    manifest.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
-    manifest.Replace("\"critical_secs\": 1800 }", "\"critical_secs\": 1800, \"saver_bellow\": 0.3 }"),
+    text.Replace("\"hysteresis\": 0.5", "\"hysteresis\": 0.0"),
+    text.Replace("\"saver_secs\": 600", "\"saver_secs\": 60"),
+    text.Replace("\"saver_below\"", "\"saver_bellow\""),
 })
 {
     try
@@ -792,12 +1010,12 @@ foreach (string edited in new[]
 }
 
 // A kind the library does not ship loads with its parameters, but no built-in
-// controller decides it, so asking for one is refused rather than handing back a
-// node that would never switch the lamp.
-using var custom = Profile.FromJson(manifest.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
+// controller decides it, so a node without a registry that knows it is refused
+// rather than running one that never switches the lamp.
+using var unknown = Profile.FromJson(text.Replace("\"kind\": \"setpoint\"", "\"kind\": \"brooder_guard\""));
 try
 {
-    using Controller inert = custom.Controller();
+    using Controller inert = unknown.Controller();
     Console.WriteLine("a custom kind ran without its policy, which should never happen");
 }
 catch (PamojaException error)
@@ -882,6 +1100,7 @@ the built-in kind it is probably a misspelling of when there is one.
 | load and write | `Profile::from_json(text)`, `to_json()`, `check()` |
 | start from a preset | `Profile::vaccine_fridge_monitor()`, `irrigation_node()`, `well_level()`, `flood_sensor()` |
 | build one | `Profile::new(name, topic, ControlSpec, PowerSchedule::new(active, saver, critical))`, `with_reads`, `with_thresholds`, `with_description`, `with_presentation`, `with_element` |
+| run it | `Node::new(profile, sensor, actuator, link, codec)`, `tick()` for a `Tick` of `reading` and `reaction`, `schedule(charge, charging)`, `run(battery, wait)` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller::setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert`, `Alert::kind()` |
 | schedule sampling | `power.plan()`, then `mode(charge)`, `mode_while_charging(charge, charging)`, `interval(charge)` |
@@ -894,6 +1113,8 @@ the built-in kind it is probably a misspelling of when there is one.
 | load and write | `Profile.fromJson(text)`, `toJson()` |
 | start from a preset | `Profile.vaccineFridgeMonitor()`, `irrigationNode()`, `wellLevel()`, `floodSensor()` |
 | build one | `new Profile(name, topic, control, power)`, `withReads`, `withDescription`, `withPresentation` |
+| run it | `new Node({ profile, read, drive, link })`, `tick()` for `reading` and `reaction`, `schedule(charge)`, `run({ signal, battery, onTick, onError })` |
+| supply a policy | `new PolicyRegistry().register(kind, factory)`, `resolve(profile)`, or the registry as the node's `policy` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller.setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert.kind`, `AlertKind` |
 | schedule sampling | `powerPlan()`, then `mode(charge)`, `modeWhileCharging(charge, charging)`, `intervalUs(charge)` |
@@ -907,6 +1128,8 @@ the built-in kind it is probably a misspelling of when there is one.
 | load and write | `Profile.from_json(text)`, `to_json()` |
 | start from a preset | `Profile.vaccine_fridge_monitor()`, `irrigation_node()`, `well_level()`, `flood_sensor()` |
 | build one | `Profile(name, topic, ControlPolicy(...), PowerScheduleSpec(...))`, `with_reads`, `with_description`, `with_presentation` |
+| run it | `Node(profile, read=..., drive=..., link=...)`, `tick()` for `reading` and `reaction`, `schedule(charge)`, `run(battery=..., on_tick=..., on_error=...)` |
+| supply a policy | `PolicyRegistry().register(kind, factory)`, `resolve(profile)`, or the registry as the node's `policy`; a policy returns a `Decision` |
 | decide a reading | `controller()`, then `evaluate(reading)`; `Controller.setpoint`, `level`, `surge`, `monitor` |
 | read the reaction | `actuator`, `alert.kind`, `AlertKind` |
 | schedule sampling | `power_plan()`, then `mode(charge)`, `mode_while_charging(charge, charging)`, `interval_us(charge)` |
@@ -920,6 +1143,8 @@ the built-in kind it is probably a misspelling of when there is one.
 | load and write | `Profile.FromJson(text)`, `ToJson()` |
 | start from a preset | `Profile.VaccineFridgeMonitor()`, `IrrigationNode()`, `WellLevel()`, `FloodSensor()` |
 | build one | `new Profile(name, topic, ControlPolicy, PowerSchedule)`, `WithReads`, `WithDescription`, `WithPresentation` |
+| run it | `new Node(profile, read, link, drive)`, `TickAsync()` for a `Tick`, `Schedule(charge)`, `RunAsync(battery, onTick, onError, cancellationToken: token)` |
+| supply a policy | `new PolicyRegistry().Register(kind, factory)`, `Resolve(profile)` as the node's `policy`, over an `IPolicy` |
 | decide a reading | `Controller()`, then `Evaluate(reading)`; `Controller.Setpoint`, `Level`, `Surge`, `Monitor` |
 | read the reaction | `Actuator`, `Alert?.Kind`, `AlertKind` |
 | schedule sampling | `PowerPlan`, then `Mode(charge)`, `ModeWhileCharging(charge, charging)`, `IntervalUs(charge)` |

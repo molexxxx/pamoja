@@ -379,16 +379,15 @@ The manifest holds the target, the deadband, the alert range, and how often to
 sample as the battery drains, so changing any of them is an edit rather than a
 build. The shipped [`brooder-heater.json`](profiles/brooder-heater.json) also says
 how it should be drawn, which is what lets a dashboard render a node it has never
-seen, in the reader's language. In Rust a `Node` loads the file and runs the whole
-loop around a sensor, an output, and a link; in TypeScript, Python, and C# the
-program reads the file and asks its controller to decide each reading.
+seen, in the reader's language. A `Node` loads the file and runs the whole loop
+around a sensor, an output, and a link, in all four languages.
 
 Each part has a guide of its own:
 
 | Part | What it does |
 | --- | --- |
-| [Profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | reads a manifest and decides each reading by it, in all four languages |
-| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | a file that turns one node's reading into an action on another node |
+| [Profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | loads a manifest from a file and runs it as a node, in all four languages |
+| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | a file an engine runs off a link, turning one node's reading into an action on another node |
 | [The transport ladder](https://pamoja.molex.cloud/docs/guides/ladder.html) | tries each link in turn and keeps what none of them would take |
 | [The dashboard](https://pamoja.molex.cloud/dashboard/) | a gateway serves the fleet on the local network, with no internet and no app |
 

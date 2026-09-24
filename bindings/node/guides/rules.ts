@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 
 // ANCHOR: example
 import { LoopbackBroker } from '@pamoja/loopback'
-import { type RuleAction, RuleActionKind, RuleEvaluator } from '@pamoja/profile'
+import { type RuleAction, RuleActionKind, RuleEngine } from '@pamoja/profile'
 
 // A rule is a file: the topic it watches, the line a reading crosses, the release band
 // that stops it firing over and over, and what to do on the way down and on the way back.
@@ -22,55 +22,44 @@ const file = `{ "rules": [
     "then": [ { "publish": "garden/alarm", "payload": "waterlogged" } ] }
 ] }`
 
-// The evaluator judges each reading and says what the rules call for; the program moves
-// the messages and holds the valve, which is the engine's work in Rust.
-const evaluator = RuleEvaluator.fromJson(file)
-console.log(`watches   ${evaluator.topics.join(', ')}, and drives ${evaluator.actuators.join(', ')}`)
+// Says what one action does, in the words the output uses.
+const described = (action: RuleAction) =>
+  action.kind === RuleActionKind.Drive
+    ? `drive ${action.actuator} ${action.on ? 'on' : 'off'}`
+    : `publish ${action.payload} to ${action.topic}`
 
 async function main() {
-  // Three parties on one broker: the node that reads the bed, the program that holds the
+  // Three parties on one broker: the node that reads the bed, the engine that holds the
   // valve, and a watcher on the topics the rules publish to.
   const broker = new LoopbackBroker()
   const probe = broker.link()
-  const link = broker.link()
   const watcher = broker.link()
+  const link = broker.link()
   await probe.connect()
-  await link.connect()
   await watcher.connect()
+  await link.connect()
   await watcher.subscribe('garden/bed-1/valve')
   await watcher.subscribe('garden/alarm')
-  for (const topic of evaluator.topics) {
-    await link.subscribe(topic)
-  }
 
+  // The engine runs the file off its link: it listens on every topic a rule watches,
+  // switches the outputs it was given by the names the file uses, and publishes over the
+  // same link. Here the valve is a list of the settings it was given.
   const valve: boolean[] = []
-  const run = async (action: RuleAction) => {
-    if (action.kind === RuleActionKind.Drive) {
-      valve.push(action.on === true)
-    } else {
-      await link.send(action.topic!, action.payload!)
-    }
-  }
-  const described = (action: RuleAction) =>
-    action.kind === RuleActionKind.Drive
-      ? `drive ${action.actuator} ${action.on ? 'on' : 'off'}`
-      : `publish ${action.payload} to ${action.topic}`
+  const engine = new RuleEngine(file, link, { actuators: { 'bed-valve': (on) => valve.push(on) } })
+  await engine.listen()
+  console.log(`watches   ${engine.topics.join(', ')}, and drives ${engine.actuators.join(', ')}`)
 
   // The bed dries out, is watered, and floods. A rule fires only as its condition sets or
   // clears, and the readings in between change nothing. At 65 two rules fire on one
   // reading, in the order the file lists them.
   for (const reading of [42, 31, 28, 33, 65, 50]) {
     await probe.send('garden/bed-1/moisture', String(reading))
-    const message = (await link.recv())!
-    const fired = evaluator.evaluate(message.topic, message.number!)
+    const fired = (await engine.step())!
     const at = String(reading).padEnd(10)
     if (fired.length === 0) {
       console.log(`${at}nothing fired`)
     }
     for (const one of fired) {
-      for (const action of one.actions) {
-        await run(action)
-      }
       if (one.actions.length === 0) {
         console.log(`${at}${one.rule} ${one.edge}, with nothing to do`)
       } else {
@@ -86,23 +75,29 @@ async function main() {
   }
   console.log(`heard     ${heard.join(', ')}`)
   console.log(`valve     switched ${valve.length} times, and it is ${valve[valve.length - 1] ? 'on' : 'off'}`)
-  return { heard, valve }
+  return { heard, valve, engine }
 }
 
 main()
   // ANCHOR_END: example
-  .then(({ heard, valve }) => {
+  .then(({ heard, valve, engine }) => {
     assert.deepEqual(heard, ['open', 'closed', 'waterlogged'])
     assert.deepEqual(valve, [true, false])
-    assert.equal(evaluator.isSet('water-when-dry'), false)
+    assert.equal(engine.isSet('water-when-dry'), false)
+    assert.equal(engine.isSet('flood-alarm'), false)
     wrong()
   })
 
+// ANCHOR: wrong
+import { RuleEvaluator } from '@pamoja/profile'
+
 function wrong(): void {
-  // ANCHOR: wrong
-  // A reading that is not a number, such as the NaN a failed probe reports, is refused on
-  // a watched topic rather than leaving every rule as it was with nothing to say why.
+  // A program that moves its own messages hands each reading to an evaluator, the engine's
+  // deciding half on its own, and carries out what it says.
   const judge = RuleEvaluator.fromJson(file)
+
+  // A reading that is not a number, such as the NaN a failed probe reports, is refused on a
+  // watched topic rather than leaving every rule as it was with nothing to say why.
   try {
     judge.evaluate('garden/bed-1/moisture', Number.NaN)
     console.log('a reading of NaN was judged, which should never happen')
@@ -143,5 +138,5 @@ function wrong(): void {
   console.log(
     `chatter   4 readings hovering at 30 fire the rule ${bare} times with no release band, ${banded} with a band of 5`,
   )
-  // ANCHOR_END: wrong
 }
+// ANCHOR_END: wrong

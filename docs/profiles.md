@@ -13,11 +13,10 @@ and nothing else.
 
 ## Using one
 
-Download the file, or copy its text, and load it where the node runs. In Rust,
-`Profile::from_json` reads it and `Node` runs it over a sensor, an actuator, and a
-transport of your own. In TypeScript, Python, and C#, `fromJson`, `from_json`, and
-`FromJson` read it, and its controller decides each reading while the program
-drives the hardware, the loop the guide shows. The numbers are a starting point: a
+Download the file, or copy its text, and load it where the node runs:
+`Profile::from_json`, `fromJson`, `from_json`, or `FromJson` reads it, and a `Node`
+runs it over a reading, an output, and a link of your own, in any of the four
+languages, as the [guide](guides/profile.md) shows. The numbers are a starting point: a
 manifest is meant to be edited to the bed, the fridge, or the river in front of
 you, and shared back once it has run.
 

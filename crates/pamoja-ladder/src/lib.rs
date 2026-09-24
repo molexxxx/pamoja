@@ -1028,7 +1028,7 @@ mod tests {
         };
         let mut node = Node::new(profile, Probe(20.0), Valve(Vec::new()), ladder, CborCodec)
             .expect("a built-in kind");
-        let reaction = node.tick().await.expect("a tick");
+        let reaction = node.tick().await.expect("a tick").reaction;
         assert_eq!(reaction.actuator, Some(true));
 
         let reading = observer.recv().await.expect("recv").expect("a reading");

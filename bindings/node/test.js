@@ -186,9 +186,144 @@ async function main() {
   mavlinkProtocols();
   trustAndOperation();
   await asyncTransports();
+  await profileRuns();
   wholeNumbers();
 
   console.log("ok");
+}
+
+// A profile run as a node, a custom kind resolved through a registry, and a rule file run
+// off a link, with nothing plugged in.
+async function profileRuns() {
+  const brooder = profile.Profile.fromJson(JSON.stringify({
+    name: "brooder",
+    reads: { quantity: "temperature", unit: "celsius" },
+    topic: "poultry/brooder/temperature",
+    control: { kind: "setpoint", setpoint: 32, hysteresis: 0.5, cooling: false, safe_band: 4 },
+    power: { active_secs: 120, saver_secs: 600, critical_secs: 1800 },
+  }));
+  const frost = profile.Profile.fromJson(JSON.stringify({
+    name: "orchard-frost",
+    topic: "orchard/air/temperature",
+    control: { kind: "frost_guard", warn_below: 2 },
+    power: { active_secs: 60, saver_secs: 300, critical_secs: 900 },
+  }));
+
+  const empty = new profile.PolicyRegistry();
+  assert.strictEqual(typeof empty.resolve(brooder).evaluate, "function", "a built-in kind resolves");
+  assert.throws(() => empty.resolve(frost), /no policy decides the control kind `frost_guard`.*PolicyRegistry that registers it/);
+  const registry = new profile.PolicyRegistry().register("frost_guard", (params) => ({
+    evaluate: (reading) => {
+      const cold = reading < params.warn_below;
+      return { actuator: cold, alert: cold ? { kind: "Custom", code: "FrostRisk", value: reading } : undefined };
+    },
+  }));
+  assert.deepStrictEqual(registry.kinds, ["frost_guard"]);
+  assert.strictEqual(registry.resolve(frost).evaluate(1).alert.code, "FrostRisk");
+  const typo = profile.Profile.fromJson(profile.Profile.fromJson(frost.toJson()).toJson().replace("frost_guard", "frost_gaurd"));
+  assert.throws(() => registry.resolve(typo), /did you mean `frost_guard`\?/);
+  const stranger = profile.Profile.fromJson(frost.toJson().replace("frost_guard", "hail_net"));
+  assert.throws(() => registry.resolve(stranger), /the registry knows `frost_guard`/);
+
+  const broker = new loopback.LoopbackBroker();
+  const link = broker.link();
+  const watcher = broker.link();
+  await link.connect();
+  await watcher.connect();
+  await watcher.subscribe("poultry/brooder/temperature");
+
+  assert.throws(
+    () => new profile.Node({ profile: brooder, read: () => 30, link }),
+    /the profile `brooder` switches an output, so the node needs `drive`/,
+  );
+  const readings = [27.5, 31.8, 32.6, 32.1];
+  const lamp = [];
+  const node = new profile.Node({
+    profile: brooder,
+    read: async () => readings.shift(),
+    link,
+    drive: (on) => lamp.push(on),
+  });
+  const first = await node.tick();
+  assert.strictEqual(first.reading, 27.5);
+  assert.strictEqual(first.reaction.actuator, true, "cold: the lamp comes on");
+  assert.strictEqual(first.reaction.alert.kind, "OutOfRange");
+  assert.strictEqual((await watcher.recv(1000)).number, 27.5, "the reading is published");
+
+  const waits = [];
+  const heard = [];
+  await node.run({
+    ticks: 3,
+    battery: () => ({ charge: 0.3, charging: false }),
+    onTick: (tick) => heard.push(tick.reading),
+    wait: async (ms) => { waits.push(ms); },
+  });
+  assert.deepStrictEqual(heard, [31.8, 32.6, 32.1]);
+  assert.deepStrictEqual(lamp, [true, true, false, false], "the lamp holds through the deadband");
+  assert.deepStrictEqual(waits, [600000, 600000], "a 30% charge waits at the saver cadence");
+  assert.strictEqual(node.powerMode, "Saver");
+  assert.deepStrictEqual(node.schedule(0.9), { mode: "Active", waitMs: 120000 });
+
+  let failures = 0;
+  const flaky = new profile.Node({
+    profile: frost,
+    policy: registry,
+    read: () => { failures += 1; if (failures === 1) { throw new Error("probe unplugged"); } return 5; },
+    link,
+    drive: () => {},
+  });
+  const errors = [];
+  await flaky.run({ ticks: 2, onError: (error) => errors.push(error.message), wait: async () => {} });
+  assert.deepStrictEqual(errors, ["probe unplugged"], "a failed tick is heard and the loop goes on");
+  await assert.rejects(
+    new profile.Node({ profile: frost, policy: registry, read: () => { throw new Error("gone"); }, link }).run({ ticks: 1 }),
+    /gone/,
+  );
+
+  const rules = JSON.stringify({
+    rules: [
+      {
+        name: "water-when-dry",
+        when: { topic: "garden/bed-1/moisture", below: 30, hysteresis: 5 },
+        then: [{ drive: "bed-valve", on: true }, { publish: "garden/bed-1/valve", payload: "open" }],
+        otherwise: [{ drive: "bed-valve", on: false }],
+      },
+    ],
+  });
+  const valve = [];
+  const probe = broker.link();
+  const engineLink = broker.link();
+  await probe.connect();
+  await engineLink.connect();
+  const listener = broker.link();
+  await listener.connect();
+  await listener.subscribe("garden/bed-1/valve");
+  await assert.rejects(
+    new profile.RuleEngine(rules, engineLink).listen(),
+    /a rule drives `bed-valve`, which the engine was not given under `actuators`/,
+  );
+  const engine = new profile.RuleEngine(rules, engineLink, { actuators: { "bed-valve": (on) => valve.push(on) } });
+  await engine.listen();
+  assert.deepStrictEqual(engine.topics, ["garden/bed-1/moisture"]);
+  await probe.send("garden/bed-1/moisture", "28");
+  const fired = await engine.step(1000);
+  assert.strictEqual(fired[0].rule, "water-when-dry");
+  assert.strictEqual(fired[0].edge, "set");
+  assert.strictEqual((await listener.recv(1000)).text, "open", "the rule published over the link");
+  assert.strictEqual(await engine.step(50), null, "nothing arrived in time");
+  for (const reading of ["33", "36", "not a number"]) {
+    await probe.send("garden/bed-1/moisture", reading);
+  }
+  const seen = [];
+  const refusals = [];
+  await engine.run({ messages: 3, onFired: (one) => seen.push(one[0].edge), onError: (error) => refusals.push(error.message) });
+  assert.deepStrictEqual(seen, ["cleared"]);
+  assert.deepStrictEqual(valve, [true, false]);
+  assert.ok(refusals[0].includes("not a finite number"), refusals[0]);
+  assert.strictEqual(engine.isSet("water-when-dry"), false);
+
+  assert.strictEqual(typeof new MqttClient({ clientId: "node-link", host: "127.0.0.1", port: 1883 }).send, "function",
+    "an MQTT client is a link like any other");
 }
 
 // Signing a payload and checking it, the way a gateway verifies a reading.

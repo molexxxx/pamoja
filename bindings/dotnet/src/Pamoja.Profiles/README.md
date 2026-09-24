@@ -15,7 +15,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 | Capability | Package | What it covers |
 | --- | --- | --- |
 | [Device profiles](https://pamoja.molex.cloud/docs/guides/profile.html) | `Pamoja.Profile` | Named, ready-to-run device profiles from plain data or a JSON manifest |
-| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | `Pamoja.Profile` | Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language |
+| [Rules](https://pamoja.molex.cloud/docs/guides/rules.html) | `Pamoja.Profile` | Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link in every language, or judged reading by reading |
 | [Robot motion](https://pamoja.molex.cloud/docs/guides/motion.html) | `Pamoja.Kit` | Wheel speeds for differential, skid-steer, car-like, and mecanum chassis, a two-link arm and Denavit-Hartenberg forward kinematics, odometry, waypoint guidance, a safety gate, and servo, ESC, and encoder conversions |
 | [ROS 2 rules](https://pamoja.molex.cloud/docs/guides/ros2.html) | `Pamoja.Ros2` | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
 | [Zenoh keys](https://pamoja.molex.cloud/docs/guides/zenoh.html) | `Pamoja.Zenoh` | Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys |

@@ -24,7 +24,7 @@ public enum Delivery
 /// were added, cheapest first, and a message no rung accepts goes into a buffer
 /// rather than being lost.
 /// </remarks>
-public sealed class Ladder : IDisposable
+public sealed class Ladder : ILink, IDisposable
 {
     private readonly NativeHandle _handle;
 
@@ -189,6 +189,12 @@ public sealed class Ladder : IDisposable
             return timedOut ? throw Messages.TimedOut(timeout) : Received(message);
         });
     }
+
+    /// <inheritdoc/>
+    Task ILink.SendAsync(string topic, ReadOnlyMemory<byte> payload) => SendAsync(topic, payload);
+
+    /// <inheritdoc/>
+    async Task<TransportMessage?> ILink.ReceiveAsync(TimeSpan timeout) => await ReceiveAsync(timeout).ConfigureAwait(false);
 
     /// <inheritdoc/>
     public void Dispose() => _handle.Dispose();
