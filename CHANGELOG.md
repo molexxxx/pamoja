@@ -7,6 +7,13 @@ released together, so one entry covers all of them.
 
 ## [Unreleased]
 
+### Fixed
+
+- A tag whose changelog entry runs past GitHub's 125,000-character limit on release notes
+  gets its GitHub release, carrying the entry's opening paragraph and the first sentence of
+  each change with a link to the whole entry. The release workflow failed on 0.2.0 and left
+  the tag with no release.
+
 ## [0.2.0] - 2026-09-24
 
 LoRa from the radio to the network, and a node from a file. `pamoja-radios` drives the
