@@ -818,7 +818,7 @@ cost an afternoon:
 <!-- table: next lora -->
 - [LoRa radios](radios.md): The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators.
 - [LoRaWAN](lorawan.md): LoRaWAN 1.0.x MAC framing, AES-CMAC and AES encryption, and both halves of the OTAA join.
-- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains.
+- [Power](power.md): Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge.
 - Beside it: [Radios and antennas](../radio.md).
 - Also in Radio and reach: [LoRaWAN gateways](gateway.md), [Mesh frames](mesh.md), [Routing](routing.md).
 <!-- end -->

@@ -414,6 +414,27 @@ public static partial class NativeMethods
         float saverBelow,
         float criticalBelow);
 
+    /// <summary>Returns a plan with the hysteresis margin moved.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaPowerPlan pamoja_power_plan_with_hysteresis(
+        PamojaPowerPlan plan,
+        float margin);
+
+    /// <summary>Returns the mode a node in a given mode moves to at a new state of charge.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaPowerMode pamoja_power_plan_next_mode(
+        PamojaPowerPlan plan,
+        PamojaPowerMode current,
+        float soc);
+
+    /// <summary>Returns the mode a node in a given mode moves to, eased one step while charging.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaPowerMode pamoja_power_plan_next_mode_while_charging(
+        PamojaPowerPlan plan,
+        PamojaPowerMode current,
+        float soc,
+        byte charging);
+
     /// <summary>Returns the mode a plan calls for at a state of charge.</summary>
     [LibraryImport(Library)]
     public static partial PamojaPowerMode pamoja_power_plan_mode(PamojaPowerPlan plan, float soc);

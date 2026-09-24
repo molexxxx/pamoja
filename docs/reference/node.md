@@ -372,7 +372,7 @@ reference pages, one step away.
 </div>
 <div class="pkg" id="node-power">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><code class="pkg-import">@pamoja/power</code><p>Duty cycling and an energy-aware governor that stretches work as the battery drains</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/power.html">Power</a><code class="pkg-import">@pamoja/power</code><p>Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/power</code><button class="copy" type="button" data-copy="npm install @pamoja/power" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

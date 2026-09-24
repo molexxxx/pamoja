@@ -98,6 +98,8 @@ pub struct PamojaPowerSchedule {
     pub saver_below: f32,
     /// Enter the critical cadence below this state of charge.
     pub critical_below: f32,
+    /// How far above a threshold the charge must climb to leave the lower cadence.
+    pub hysteresis: f32,
 }
 
 /// Which threshold a reading crossed, if any.
@@ -198,6 +200,7 @@ impl From<PowerSchedule> for PamojaPowerSchedule {
             critical_secs: schedule.critical_secs,
             saver_below: schedule.saver_below,
             critical_below: schedule.critical_below,
+            hysteresis: schedule.hysteresis,
         }
     }
 }
@@ -455,6 +458,7 @@ fn schedule_of(power: PamojaPowerSchedule) -> PowerSchedule {
         critical_secs: power.critical_secs,
         saver_below: power.saver_below,
         critical_below: power.critical_below,
+        hysteresis: power.hysteresis,
     }
 }
 
@@ -877,6 +881,7 @@ pub unsafe extern "C" fn pamoja_profile_power_plan(
         critical_us: schedule.critical_secs.saturating_mul(1_000_000),
         saver_below: schedule.saver_below,
         critical_below: schedule.critical_below,
+        hysteresis: schedule.hysteresis,
     };
     PamojaStatus::Ok
 }
@@ -1442,6 +1447,7 @@ mod tests {
             critical_secs: 0,
             saver_below: 0.0,
             critical_below: 0.0,
+            hysteresis: 0.0,
         };
         let mut plan = PamojaPowerPlan {
             active_us: 0,
@@ -1449,6 +1455,7 @@ mod tests {
             critical_us: 0,
             saver_below: 0.0,
             critical_below: 0.0,
+            hysteresis: 0.0,
         };
         unsafe {
             assert_eq!(
@@ -1463,6 +1470,8 @@ mod tests {
         }
         assert_eq!(plan.active_us, schedule.active_secs * 1_000_000);
         assert_eq!(plan.saver_below, schedule.saver_below);
+        assert_eq!(plan.hysteresis, schedule.hysteresis);
+        assert_eq!(schedule.hysteresis, pamoja_power::DEFAULT_HYSTERESIS);
     }
 
     #[test]

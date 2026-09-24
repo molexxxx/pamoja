@@ -31,9 +31,11 @@ microcontroller and verified on a server:
   as the battery drains, picking a `PowerMode` from the state of charge and
   easing off when the panel is charging.
 
-The state of charge fed to a `PowerPlan` is noisy in the field, so smoothing
-it first (for example with a `Smoother` from `pamoja-kit`) keeps the governor
-from flapping between modes at a threshold.
+The state of charge fed to a `PowerPlan` is noisy in the field. Its
+`next_mode` keeps a node from flapping between modes at a
+threshold: it drops to a lower mode at the threshold but climbs back only once the
+charge clears the threshold by the plan's hysteresis margin. Smoothing the charge
+first, for example with a `Smoother` from `pamoja-kit`, steadies it further.
 
 The crate is `no_std` and allocation-free.
 

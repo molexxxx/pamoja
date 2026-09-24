@@ -249,7 +249,7 @@ async fn every_shipped_manifest_assembles_into_a_node_that_runs() {
 async fn every_shipped_manifest_slows_down_as_its_battery_drains() {
     for (stem, profile) in shipped() {
         let power = profile.power;
-        let node = Node::monitor(profile, (), (), ());
+        let mut node = Node::monitor(profile, (), (), ());
 
         for (soc, mode, secs) in [
             (1.0, PowerMode::Active, power.active_secs),

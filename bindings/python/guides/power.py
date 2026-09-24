@@ -33,6 +33,30 @@ print(f"the winter plan saves below {saver:.0f}% and goes critical below {critic
 cold, mild = winter.mode(0.60), plan.mode(0.60)
 print(f"at 60% charge: {cold} in winter, {mild} by default")
 
+# A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+# would change the cadence on every cycle. `next_mode` takes the mode the node is in: it
+# drops as soon as the charge falls below a threshold, and climbs back only once the charge
+# is the plan's hysteresis margin clear of it.
+wandering = (0.49, 0.51, 0.50, 0.53, 0.48, 0.52)
+
+
+def walk(governor):
+    mode = PowerMode.ACTIVE
+    modes = []
+    for charge in wandering:
+        mode = governor.next_mode(mode, charge)
+        modes.append(mode)
+    return ", ".join(modes)
+
+
+flapping = walk(plan.with_hysteresis(0))
+print(f"a charge wandering around 50% with no margin: {flapping}")
+margin = plan.hysteresis * 100
+settled = walk(plan)
+print(f"and with the {margin:.0f} point margin: {settled}")
+back = plan.next_mode(PowerMode.SAVER, 0.56)
+print(f"at 56% the charge has cleared the margin: {back}")
+
 # The work is the same two seconds whichever mode the node is in; stretching the cycle is
 # what saves the energy. The duty fraction is the proxy for average draw, so the hourly
 # cadence costs a sixtieth of what the one-minute cadence does.
@@ -69,6 +93,9 @@ assert plan.mode(unknown) == PowerMode.CRITICAL
 assert plan.interval_us(unknown) == 3_600_000_000
 assert cold == PowerMode.SAVER
 assert mild == PowerMode.ACTIVE
+assert flapping == "Saver, Active, Active, Active, Saver, Active"
+assert settled == "Saver, Saver, Saver, Saver, Saver, Saver"
+assert back == PowerMode.ACTIVE
 assert abs(healthy.fraction - 2 / 60) < 1e-6
 assert abs(flat.fraction - 2 / 3600) < 1e-6
 assert cloudy.active_us == 6_000_000

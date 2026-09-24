@@ -92,10 +92,13 @@ pub struct PowerScheduleSpec {
     pub saver_below: f64,
     /// Enter the critical cadence below this state of charge.
     pub critical_below: f64,
+    /// How far above a threshold the charge must climb to leave the lower cadence.
+    pub hysteresis: f64,
 }
 
 /// The sampling schedule a new profile keeps, in whole seconds. The thresholds default
-/// to entering the saver cadence below 50% charge and the critical cadence below 20%.
+/// to entering the saver cadence below 50% charge and the critical cadence below 20%, and
+/// the node leaves each lower cadence once the charge is five points above its threshold.
 #[napi(object)]
 pub struct PowerScheduleSettings {
     /// Seconds between samples at a healthy charge.
@@ -108,6 +111,9 @@ pub struct PowerScheduleSettings {
     pub saver_below: Option<f64>,
     /// Enter the critical cadence below this state of charge; 0.2 unless given.
     pub critical_below: Option<f64>,
+    /// How far above a threshold the charge must climb to leave the lower cadence; 0.05
+    /// unless given.
+    pub hysteresis: Option<f64>,
 }
 
 /// The graphic a dashboard draws an element with, named by the instrument rather than
@@ -380,6 +386,9 @@ fn schedule_from(power: PowerScheduleSettings) -> napi::Result<CoreSchedule> {
     if let Some(critical_below) = power.critical_below {
         schedule.critical_below = critical_below as f32;
     }
+    if let Some(hysteresis) = power.hysteresis {
+        schedule.hysteresis = hysteresis as f32;
+    }
     Ok(schedule)
 }
 
@@ -391,6 +400,7 @@ fn schedule_of(schedule: CoreSchedule) -> PowerScheduleSpec {
         critical_secs: schedule.critical_secs as f64,
         saver_below: f64::from(schedule.saver_below),
         critical_below: f64::from(schedule.critical_below),
+        hysteresis: f64::from(schedule.hysteresis),
     }
 }
 

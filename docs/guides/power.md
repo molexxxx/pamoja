@@ -13,9 +13,12 @@ Neither type reads a battery, drives a sleep, or owns a clock. They decide and t
 caller acts, which is what lets the same policy run on a microcontroller and be
 checked on a server. The crate is `no_std` and allocation-free.
 
-A state of charge measured in the field is noisy, and a governor fed a raw reading
-will flap back and forth across a threshold. Smooth it first, with a `Smoother` or a
-`Median` from `pamoja-kit`, and give the governor the filtered value.
+A state of charge measured in the field is noisy, and a governor that looks only at
+the latest reading flaps back and forth across a threshold. `next_mode` takes the mode
+the node is already in and applies hysteresis: the node drops a mode as soon as the
+charge falls below its threshold, and climbs back only once the charge is a margin
+clear of it, five points unless the plan is told otherwise. Smoothing the reading
+first, with a `Smoother` or a `Median` from `pamoja-kit`, steadies it further.
 
 ## What the example does
 
@@ -27,6 +30,11 @@ with a fuel gauge that did not answer.
 A second plan is the first with its thresholds moved for winter, when the battery
 has to carry the node through long nights. The example reads the thresholds back
 from it and compares the two plans at the same charge.
+
+Then it walks a charge that wanders around 50%, the way a fuel gauge's reading does
+from one cycle to the next, through `next_mode` twice: once on a copy of the plan with
+no margin, and once on the plan as it is. It prints the mode after each reading, and
+the mode once the charge climbs to 56%.
 
 The work window stays two seconds throughout. The sleep half of each duty cycle is
 the plan's own interval less that window, so the two fractions weigh the same job
@@ -47,6 +55,10 @@ It proves:
   what it has left samples hourly until it can.
 - Moving the thresholds to 70% and 30% puts a 60% battery in saver mode, where the
   default plan keeps it active.
+- With no margin, readings of 49%, 51%, 50%, 53%, 48% and 52% change the mode four
+  times, since every reading at or above 50% is active again. With the default five
+  point margin the node drops to saver at 49% and stays there, because none of the
+  later readings reaches 55%. At 56% it is active again.
 - Two seconds of work is one part in thirty at the minute cadence and one part in
   1800 at the hourly one, the sixtyfold cut in average draw the stretch buys. The
   fraction is the awake share of the whole period, so two seconds awake and 58
@@ -79,7 +91,10 @@ In Rust, `pamoja-power` is `no_std` and allocation-free, and both types are `Cop
 thresholds; `thresholds` returns a copy with them moved, and `saver_below` and
 `critical_below` read them back. `mode` and `interval` answer for a charge,
 `mode_while_charging` for a charge and the panel, and `interval_for` for a mode
-already chosen. A charge is an `f32` from 0.0 to 1.0. `DutyCycle::new` takes the two
+already chosen. `next_mode` and `next_mode_while_charging` take the mode the node is
+in as well, and apply the margin `with_hysteresis` sets and `hysteresis` reads back;
+`DEFAULT_HYSTERESIS` is the 0.05 a new plan starts with. A charge is an `f32` from 0.0
+to 1.0. `DutyCycle::new` takes the two
 halves and `DutyCycle::from_fraction` splits a period; `active`, `sleep`, `period`,
 and `fraction` read one back, and `period` holds at `Duration::MAX` rather than
 overflow.
@@ -90,7 +105,7 @@ From [`examples/guides/power.rs`](https://github.com/molexxxx/pamoja/blob/main/e
 ```rust
 use core::time::Duration;
 
-use pamoja_power::{DutyCycle, PowerPlan};
+use pamoja_power::{DutyCycle, PowerMode, PowerPlan};
 
 // A solar node samples every minute while the charge is healthy, stretches to ten
 // minutes to conserve, and to an hour once the battery is nearly flat.
@@ -130,6 +145,28 @@ println!("the winter plan saves below {saver:.0}% and goes critical below {criti
 let (cold, mild) = (winter.mode(0.60), plan.mode(0.60));
 println!("at 60% charge: {cold:?} in winter, {mild:?} by default");
 
+// A fuel gauge wanders a point or two between readings, so a charge sitting at a
+// threshold would change the cadence on every cycle. `next_mode` takes the mode the
+// node is in: it drops as soon as the charge falls below a threshold, and climbs
+// back only once the charge is the plan's hysteresis margin clear of it.
+let wandering = [0.49, 0.51, 0.50, 0.53, 0.48, 0.52];
+let walk = |governor: PowerPlan| {
+    let mut mode = PowerMode::Active;
+    let mut modes = Vec::new();
+    for charge in wandering {
+        mode = governor.next_mode(mode, charge);
+        modes.push(format!("{mode:?}"));
+    }
+    modes.join(", ")
+};
+let flapping = walk(plan.with_hysteresis(0.0));
+println!("a charge wandering around 50% with no margin: {flapping}");
+let margin = plan.hysteresis() * 100.0;
+let settled = walk(plan);
+println!("and with the {margin:.0} point margin: {settled}");
+let back = plan.next_mode(PowerMode::Saver, 0.56);
+println!("at 56% the charge has cleared the margin: {back:?}");
+
 // The work is the same two seconds whichever mode the node is in; stretching the cycle
 // is what saves the energy. The duty fraction is the proxy for average draw, so the
 // hourly cadence costs a sixtieth of what the one-minute cadence does.
@@ -166,9 +203,9 @@ In TypeScript, `@pamoja/power` exports `PowerPlan`, `DutyCycle`, and `PowerMode`
 object whose values are the mode names that `mode` returns. Every duration is a whole
 number of microseconds in a `number`, and a constructor or `fromFraction` throws on
 one that is negative, fractional, or past `Number.MAX_SAFE_INTEGER`.
-`withThresholds` returns a new plan, and `saverBelow` and `criticalBelow` are
-properties; `mode`, `modeWhileCharging`, `intervalUs`, and `intervalForUs` are
-methods. A `DutyCycle` has `activeUs`, `sleepUs`, `periodUs`, and `fraction` as
+`withThresholds` and `withHysteresis` return a new plan, and `saverBelow`,
+`criticalBelow`, and `hysteresis` are properties; `mode`, `modeWhileCharging`,
+`nextMode`, `nextModeWhileCharging`, `intervalUs`, and `intervalForUs` are methods. A `DutyCycle` has `activeUs`, `sleepUs`, `periodUs`, and `fraction` as
 properties.
 
 <!-- snippet: bindings/node/guides/power.ts#example -->
@@ -214,6 +251,28 @@ const cold = winter.mode(0.6)
 const mild = plan.mode(0.6)
 console.log(`at 60% charge: ${cold} in winter, ${mild} by default`)
 
+// A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+// would change the cadence on every cycle. `nextMode` takes the mode the node is in: it drops
+// as soon as the charge falls below a threshold, and climbs back only once the charge is the
+// plan's hysteresis margin clear of it.
+const wandering = [0.49, 0.51, 0.5, 0.53, 0.48, 0.52]
+const walk = (governor: PowerPlan): string => {
+  let mode: PowerMode = PowerMode.Active
+  const modes: string[] = []
+  for (const charge of wandering) {
+    mode = governor.nextMode(mode, charge)
+    modes.push(mode)
+  }
+  return modes.join(', ')
+}
+const flapping = walk(plan.withHysteresis(0))
+console.log(`a charge wandering around 50% with no margin: ${flapping}`)
+const margin = (plan.hysteresis * 100).toFixed(0)
+const settled = walk(plan)
+console.log(`and with the ${margin} point margin: ${settled}`)
+const back = plan.nextMode(PowerMode.Saver, 0.56)
+console.log(`at 56% the charge has cleared the margin: ${back}`)
+
 // The work is the same two seconds whichever mode the node is in; stretching the cycle is
 // what saves the energy. The duty fraction is the proxy for average draw, so the hourly
 // cadence costs a sixtieth of what the one-minute cadence does.
@@ -246,8 +305,9 @@ In Python, `pamoja.power` exports `PowerPlan` and `DutyCycle`, the `power_plan` 
 `duty_cycle` builders, and `PowerMode`, a string enum. Durations are `int`
 microseconds: a negative one raises `OverflowError` and a `float` raises `TypeError`.
 A mode comes back as its name, a `str` that compares equal to its `PowerMode`
-member, and `interval_for_us` raises `PamojaError` for a name that is not a mode.
-`with_thresholds` returns a new plan, and `saver_below` and `critical_below` are
+member, and `interval_for_us`, `next_mode`, and `next_mode_while_charging` raise
+`PamojaError` for a name that is not a mode. `with_thresholds` and `with_hysteresis`
+return a new plan, and `saver_below`, `critical_below`, and `hysteresis` are
 properties. A `DutyCycle` has `active_us`, `sleep_us`, `period_us`, and `fraction`.
 
 <!-- snippet: bindings/python/guides/power.py#example -->
@@ -286,6 +346,30 @@ print(f"the winter plan saves below {saver:.0f}% and goes critical below {critic
 cold, mild = winter.mode(0.60), plan.mode(0.60)
 print(f"at 60% charge: {cold} in winter, {mild} by default")
 
+# A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+# would change the cadence on every cycle. `next_mode` takes the mode the node is in: it
+# drops as soon as the charge falls below a threshold, and climbs back only once the charge
+# is the plan's hysteresis margin clear of it.
+wandering = (0.49, 0.51, 0.50, 0.53, 0.48, 0.52)
+
+
+def walk(governor):
+    mode = PowerMode.ACTIVE
+    modes = []
+    for charge in wandering:
+        mode = governor.next_mode(mode, charge)
+        modes.append(mode)
+    return ", ".join(modes)
+
+
+flapping = walk(plan.with_hysteresis(0))
+print(f"a charge wandering around 50% with no margin: {flapping}")
+margin = plan.hysteresis * 100
+settled = walk(plan)
+print(f"and with the {margin:.0f} point margin: {settled}")
+back = plan.next_mode(PowerMode.SAVER, 0.56)
+print(f"at 56% the charge has cleared the margin: {back}")
+
 # The work is the same two seconds whichever mode the node is in; stretching the cycle is
 # what saves the energy. The duty fraction is the proxy for average draw, so the hourly
 # cadence costs a sixtieth of what the one-minute cadence does.
@@ -316,9 +400,11 @@ print(f"an unread harvest keeps it asleep all {unread.sleep_us // 1000}ms")
 
 In C#, `Pamoja.Power` holds `PowerPlan` and `DutyCycle`, both readonly record
 structs, and the `PowerMode` enum. Durations are `ulong` microseconds.
-`PowerPlan.Create` starts with the default thresholds, which the record carries as
-`SaverBelow` and `CriticalBelow`, and `WithThresholds` returns a new plan. `Mode`,
-`ModeWhileCharging`, `IntervalUs`, and `IntervalForUs` are methods. A `DutyCycle` is
+`PowerPlan.Create` starts with the default thresholds and margin, which the record
+carries as `SaverBelow`, `CriticalBelow`, and `Hysteresis`, and `WithThresholds` and
+`WithHysteresis` return a new plan; `PowerPlan.DefaultHysteresis` is the 0.05 it starts
+with. `Mode`, `ModeWhileCharging`, `NextMode`, `NextModeWhileCharging`, `IntervalUs`,
+and `IntervalForUs` are methods. A `DutyCycle` is
 its `ActiveUs` and `SleepUs`, with `PeriodUs` and `Fraction` worked out from them,
 and `DutyCycle.FromFraction` splits a period.
 
@@ -363,6 +449,30 @@ PowerMode cold = winter.Mode(0.60f);
 PowerMode mild = plan.Mode(0.60f);
 Console.WriteLine($"at 60% charge: {cold} in winter, {mild} by default");
 
+// A fuel gauge wanders a point or two between readings, so a charge sitting at a
+// threshold would change the cadence on every cycle. NextMode takes the mode the
+// node is in: it drops as soon as the charge falls below a threshold, and climbs
+// back only once the charge is the plan's hysteresis margin clear of it.
+float[] wandering = { 0.49f, 0.51f, 0.50f, 0.53f, 0.48f, 0.52f };
+string Walk(PowerPlan governor)
+{
+    PowerMode mode = PowerMode.Active;
+    var modes = new List<string>();
+    foreach (float charge in wandering)
+    {
+        mode = governor.NextMode(mode, charge);
+        modes.Add(mode.ToString());
+    }
+    return string.Join(", ", modes);
+}
+string flapping = Walk(plan.WithHysteresis(0f));
+Console.WriteLine($"a charge wandering around 50% with no margin: {flapping}");
+float margin = plan.Hysteresis * 100;
+string settled = Walk(plan);
+Console.WriteLine(Invariant($"and with the {margin:F0} point margin: {settled}"));
+PowerMode back = plan.NextMode(PowerMode.Saver, 0.56f);
+Console.WriteLine($"at 56% the charge has cleared the margin: {back}");
+
 // The work is the same two seconds whichever mode the node is in; stretching the
 // cycle is what saves the energy. The duty fraction is the proxy for average draw,
 // so the hourly cadence costs a sixtieth of what the one-minute cadence does.
@@ -400,6 +510,23 @@ the mode above it, so a battery at exactly 50% is still active:
 | Active | at or above the saver threshold, 0.5 by default | 60 s |
 | Saver | below the saver threshold, at or above the critical one | 600 s |
 | Critical | below the critical threshold, 0.2 by default, or not a number | 3600 s |
+
+**Moving with `next_mode`,** a node falls at a threshold and climbs back only past
+the threshold plus the margin, 0.05 by default:
+
+| From | To | When the charge |
+| --- | --- | --- |
+| Active | Saver | falls below the saver threshold, 0.5 |
+| Saver | Critical | falls below the critical threshold, 0.2 |
+| Critical | Saver | reaches the critical threshold plus the margin, 0.25 |
+| Saver | Active | reaches the saver threshold plus the margin, 0.55 |
+| any mode | the mode `mode` gives | with a margin of 0, at every charge |
+
+A climb of two modes at once happens when the charge clears both bars, so a critical
+node at 0.9 goes straight to active. A charge that is not a number drops the node to
+critical, as it does for `mode`. `next_mode_while_charging` eases the result one step
+while the panel delivers, and counts that step as a climb, so near the critical
+threshold it too waits for the margin.
 
 **While the panel is delivering,** the mode moves one step toward full duty:
 
@@ -439,7 +566,9 @@ share never runs over the budget.
 | --- | --- |
 | make a plan | `PowerPlan::new(active, saver, critical)` |
 | move the thresholds | `thresholds(saver_below, critical_below)`; `saver_below()`, `critical_below()` |
+| set the margin | `with_hysteresis(margin)`; `hysteresis()`, `DEFAULT_HYSTERESIS` |
 | choose a mode | `mode(soc)`, `mode_while_charging(soc, charging)` |
+| move from the mode it is in | `next_mode(current, soc)`, `next_mode_while_charging(current, soc, charging)` |
 | look up an interval | `interval(soc)`, `interval_for(mode)` |
 | make a duty cycle | `DutyCycle::new(active, sleep)`, `DutyCycle::from_fraction(period, fraction)` |
 | read a duty cycle | `active()`, `sleep()`, `period()`, `fraction()` |
@@ -450,7 +579,9 @@ share never runs over the budget.
 | --- | --- |
 | make a plan | `new PowerPlan(activeUs, saverUs, criticalUs)` |
 | move the thresholds | `withThresholds(saverBelow, criticalBelow)`; `saverBelow`, `criticalBelow` |
+| set the margin | `withHysteresis(margin)`; `hysteresis` |
 | choose a mode | `mode(soc)`, `modeWhileCharging(soc, charging)` |
+| move from the mode it is in | `nextMode(current, soc)`, `nextModeWhileCharging(current, soc, charging)` |
 | look up an interval | `intervalUs(soc)`, `intervalForUs(mode)` |
 | make a duty cycle | `new DutyCycle(activeUs, sleepUs)`, `DutyCycle.fromFraction(periodUs, fraction)` |
 | read a duty cycle | `activeUs`, `sleepUs`, `periodUs`, `fraction` |
@@ -461,7 +592,9 @@ share never runs over the budget.
 | --- | --- |
 | make a plan | `power_plan(active_us, saver_us, critical_us)` |
 | move the thresholds | `with_thresholds(saver_below, critical_below)`; `saver_below`, `critical_below` |
+| set the margin | `with_hysteresis(margin)`; `hysteresis` |
 | choose a mode | `mode(soc)`, `mode_while_charging(soc, charging)` |
+| move from the mode it is in | `next_mode(current, soc)`, `next_mode_while_charging(current, soc, charging)` |
 | look up an interval | `interval_us(soc)`, `interval_for_us(mode)` |
 | make a duty cycle | `duty_cycle(active_us, sleep_us)`, `DutyCycle.from_fraction(period_us, fraction)` |
 | read a duty cycle | `active_us`, `sleep_us`, `period_us`, `fraction` |
@@ -472,7 +605,9 @@ share never runs over the budget.
 | --- | --- |
 | make a plan | `PowerPlan.Create(activeUs, saverUs, criticalUs)` |
 | move the thresholds | `WithThresholds(saverBelow, criticalBelow)`; `SaverBelow`, `CriticalBelow` |
+| set the margin | `WithHysteresis(margin)`; `Hysteresis`, `PowerPlan.DefaultHysteresis` |
 | choose a mode | `Mode(soc)`, `ModeWhileCharging(soc, charging)` |
+| move from the mode it is in | `NextMode(current, soc)`, `NextModeWhileCharging(current, soc, charging)` |
 | look up an interval | `IntervalUs(soc)`, `IntervalForUs(mode)` |
 | make a duty cycle | `new DutyCycle(activeUs, sleepUs)`, `DutyCycle.FromFraction(periodUs, fraction)` |
 | read a duty cycle | `ActiveUs`, `SleepUs`, `PeriodUs`, `Fraction` |
@@ -491,9 +626,16 @@ mistakes that cost an afternoon:
 - **The cadence stays slow while the panel is charging.** `interval` looks at the
   charge alone. Take the mode from `mode_while_charging` and ask `interval_for` for
   its cadence, as the example does.
-- **The mode flips back and forth.** A raw state of charge is noisy, and one that
-  hovers at 50% crosses the saver threshold on every sample. Smooth it first, with a
-  `Smoother` or a `Median` from `pamoja-kit`, and give the plan the filtered value.
+- **The mode flips back and forth.** The node asks `mode` for each reading, which
+  looks at the charge alone, so a charge hovering at 50% crosses the saver threshold
+  on every sample. Keep the mode the node is in and pass it to `next_mode`, as the
+  example does. If it still flips, the margin is smaller than the gauge's noise:
+  widen it with `with_hysteresis`, or smooth the reading first with a `Smoother` or a
+  `Median` from `pamoja-kit`.
+- **The node never climbs back to active.** The saver threshold plus the margin is
+  above 1, so no charge reaches it: a saver threshold of 0.98 with the default margin
+  asks for 103%. A profile refuses such a schedule; a plan built by hand does not, so
+  keep the two under 1.
 - **Saver mode never comes.** The thresholds are the wrong way round: a critical
   threshold above the saver one takes the node straight from active to critical.
   Keep the critical threshold below the saver one.

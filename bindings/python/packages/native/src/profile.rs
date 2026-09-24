@@ -503,6 +503,9 @@ pub struct PowerScheduleSpec {
     /// Enter the critical cadence below this state of charge.
     #[pyo3(get)]
     critical_below: f32,
+    /// How far above a threshold the charge must climb to leave the lower cadence.
+    #[pyo3(get)]
+    hysteresis: f32,
 }
 
 #[gen_stub_pymethods]
@@ -510,15 +513,17 @@ pub struct PowerScheduleSpec {
 impl PowerScheduleSpec {
     /// Creates a schedule from its three intervals in whole seconds; the node enters
     /// the saver cadence below `saver_below` charge and the critical one below
-    /// `critical_below`.
+    /// `critical_below`, and leaves each lower cadence once the charge is `hysteresis`
+    /// above its threshold.
     #[new]
-    #[pyo3(signature = (active_secs, saver_secs, critical_secs, *, saver_below = 0.5, critical_below = 0.2))]
+    #[pyo3(signature = (active_secs, saver_secs, critical_secs, *, saver_below = 0.5, critical_below = 0.2, hysteresis = 0.05))]
     fn new(
         active_secs: u64,
         saver_secs: u64,
         critical_secs: u64,
         saver_below: f32,
         critical_below: f32,
+        hysteresis: f32,
     ) -> Self {
         Self {
             active_secs,
@@ -526,6 +531,7 @@ impl PowerScheduleSpec {
             critical_secs,
             saver_below,
             critical_below,
+            hysteresis,
         }
     }
 }
@@ -691,6 +697,7 @@ fn schedule_of(schedule: PowerSchedule) -> PowerScheduleSpec {
         critical_secs: schedule.critical_secs,
         saver_below: schedule.saver_below,
         critical_below: schedule.critical_below,
+        hysteresis: schedule.hysteresis,
     }
 }
 
@@ -760,6 +767,7 @@ impl Profile {
             critical_secs: power.critical_secs,
             saver_below: power.saver_below,
             critical_below: power.critical_below,
+            hysteresis: power.hysteresis,
         };
         checked(CoreProfile::new(name, topic, spec_of(&control)?, schedule))
     }

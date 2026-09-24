@@ -1,6 +1,6 @@
 # @pamoja/power
 
-Duty cycling and an energy-aware governor that stretches work as the battery drains. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Duty cycling and an energy-aware governor that stretches work as the battery drains and holds its mode against a wandering charge. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/power.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -59,6 +59,28 @@ console.log(`the winter plan saves below ${saver}% and goes critical below ${cri
 const cold = winter.mode(0.6)
 const mild = plan.mode(0.6)
 console.log(`at 60% charge: ${cold} in winter, ${mild} by default`)
+
+// A fuel gauge wanders a point or two between readings, so a charge sitting at a threshold
+// would change the cadence on every cycle. `nextMode` takes the mode the node is in: it drops
+// as soon as the charge falls below a threshold, and climbs back only once the charge is the
+// plan's hysteresis margin clear of it.
+const wandering = [0.49, 0.51, 0.5, 0.53, 0.48, 0.52]
+const walk = (governor: PowerPlan): string => {
+  let mode: PowerMode = PowerMode.Active
+  const modes: string[] = []
+  for (const charge of wandering) {
+    mode = governor.nextMode(mode, charge)
+    modes.push(mode)
+  }
+  return modes.join(', ')
+}
+const flapping = walk(plan.withHysteresis(0))
+console.log(`a charge wandering around 50% with no margin: ${flapping}`)
+const margin = (plan.hysteresis * 100).toFixed(0)
+const settled = walk(plan)
+console.log(`and with the ${margin} point margin: ${settled}`)
+const back = plan.nextMode(PowerMode.Saver, 0.56)
+console.log(`at 56% the charge has cleared the margin: ${back}`)
 
 // The work is the same two seconds whichever mode the node is in; stretching the cycle is
 // what saves the energy. The duty fraction is the proxy for average draw, so the hourly

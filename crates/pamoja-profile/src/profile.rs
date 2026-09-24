@@ -261,7 +261,9 @@ impl<'de> Deserialize<'de> for ControlSpec {
 /// state-of-charge thresholds, and [`plan`](PowerSchedule::plan) assembles the
 /// `pamoja-power` governor from them. The thresholds may be omitted from a manifest,
 /// in which case they default to entering the saver cadence below 50% charge and the
-/// critical cadence below 20%.
+/// critical cadence below 20%. So may the hysteresis margin, which defaults to five
+/// points: a node that fell below a threshold climbs back once the charge is 5% above
+/// it, so a charge hovering at the threshold does not switch the cadence every cycle.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PowerSchedule {
     /// Seconds between samples at a healthy charge.
@@ -276,6 +278,9 @@ pub struct PowerSchedule {
     /// Enter the critical cadence below this state of charge.
     #[serde(default = "PowerSchedule::default_critical_below")]
     pub critical_below: f32,
+    /// How far above a threshold the charge must climb to leave the lower cadence.
+    #[serde(default = "PowerSchedule::default_hysteresis")]
+    pub hysteresis: f32,
 }
 
 impl PowerSchedule {
@@ -285,6 +290,10 @@ impl PowerSchedule {
 
     fn default_critical_below() -> f32 {
         0.2
+    }
+
+    fn default_hysteresis() -> f32 {
+        pamoja_power::DEFAULT_HYSTERESIS
     }
 
     /// Creates a schedule from its three work intervals, with default thresholds.
@@ -298,7 +307,7 @@ impl PowerSchedule {
     /// # Returns
     ///
     /// A schedule that enters the saver cadence below 50% charge and the critical
-    /// cadence below 20%.
+    /// cadence below 20%, and leaves each once the charge is five points above it.
     pub fn new(active_secs: u64, saver_secs: u64, critical_secs: u64) -> Self {
         Self {
             active_secs,
@@ -306,6 +315,7 @@ impl PowerSchedule {
             critical_secs,
             saver_below: Self::default_saver_below(),
             critical_below: Self::default_critical_below(),
+            hysteresis: Self::default_hysteresis(),
         }
     }
 
@@ -326,12 +336,27 @@ impl PowerSchedule {
         self
     }
 
+    /// Sets how far above a threshold the charge must climb to leave the lower cadence.
+    ///
+    /// # Arguments
+    ///
+    /// * `margin` - the state of charge added to each threshold on the way back up; `0.0`
+    ///   switches cadence at the thresholds themselves.
+    ///
+    /// # Returns
+    ///
+    /// The updated schedule, for chaining.
+    pub fn with_hysteresis(mut self, margin: f32) -> Self {
+        self.hysteresis = margin;
+        self
+    }
+
     /// Assembles the `pamoja-power` governor this schedule describes.
     ///
     /// # Returns
     ///
-    /// A [`PowerPlan`](pamoja_power::PowerPlan) with this schedule's intervals and
-    /// thresholds.
+    /// A [`PowerPlan`](pamoja_power::PowerPlan) with this schedule's intervals,
+    /// thresholds, and hysteresis.
     pub fn plan(&self) -> PowerPlan {
         PowerPlan::new(
             Duration::from_secs(self.active_secs),
@@ -339,6 +364,7 @@ impl PowerSchedule {
             Duration::from_secs(self.critical_secs),
         )
         .thresholds(self.saver_below, self.critical_below)
+        .with_hysteresis(self.hysteresis)
     }
 }
 
@@ -952,6 +978,12 @@ impl Profile {
                 power.saver_below, power.critical_below
             ));
         }
+        if !(power.hysteresis >= 0.0 && power.saver_below + power.hysteresis <= 1.0) {
+            return refuse(format!(
+                "the power `hysteresis` must be 0 or more and leave `saver_below` ({}) plus it at most 1, not {}",
+                power.saver_below, power.hysteresis
+            ));
+        }
         Ok(())
     }
 }
@@ -1172,6 +1204,7 @@ mod tests {
         let profile = Profile::from_json(manifest).expect("valid manifest");
         assert_eq!(profile.power.saver_below, 0.5);
         assert_eq!(profile.power.critical_below, 0.2);
+        assert_eq!(profile.power.hysteresis, pamoja_power::DEFAULT_HYSTERESIS);
         assert!(matches!(
             profile.control,
             ControlSpec::Level { warn_within: 4, .. }
@@ -1261,6 +1294,16 @@ mod tests {
         assert!(refused(schedule(inverted)).contains("`critical_below` must sit between"));
         let over = PowerSchedule::new(120, 600, 1800).with_thresholds(50.0, 0.2);
         assert!(refused(schedule(over)).contains("not 50"));
+        let out_of_reach = PowerSchedule::new(120, 600, 1800).with_thresholds(0.98, 0.2);
+        assert!(
+            refused(schedule(out_of_reach)).contains("the power `hysteresis` must be 0 or more")
+        );
+        let negative = PowerSchedule::new(120, 600, 1800).with_hysteresis(-0.1);
+        assert!(refused(schedule(negative)).contains("not -0.1"));
+        let unknown = PowerSchedule::new(120, 600, 1800).with_hysteresis(f32::NAN);
+        assert!(refused(schedule(unknown)).contains("not NaN"));
+        let flat = PowerSchedule::new(120, 600, 1800).with_hysteresis(0.0);
+        schedule(flat).check().expect("no margin is allowed");
 
         let drawn = base().with_element(
             ElementSpec::new(

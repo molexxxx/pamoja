@@ -4739,7 +4739,8 @@ typedef struct {
 // The work intervals a node uses in each mode, and where the modes change.
 //
 // Build one with [`pamoja_power_plan_new`], which applies the default
-// thresholds, then move them with [`pamoja_power_plan_with_thresholds`].
+// thresholds and hysteresis, then move them with
+// [`pamoja_power_plan_with_thresholds`] and [`pamoja_power_plan_with_hysteresis`].
 typedef struct {
   // The interval between work at a healthy charge, in microseconds.
   uint64_t active_us;
@@ -4751,6 +4752,9 @@ typedef struct {
   float saver_below;
   // Enter [`PamojaPowerMode::Critical`] below this state of charge.
   float critical_below;
+  // How far above a threshold the charge must climb before the plan leaves the lower
+  // mode.
+  float hysteresis;
 } PamojaPowerPlan;
 
 // A control policy, flattened so every variant crosses as one value.
@@ -4792,6 +4796,8 @@ typedef struct {
   float saver_below;
   // Enter the critical cadence below this state of charge.
   float critical_below;
+  // How far above a threshold the charge must climb to leave the lower cadence.
+  float hysteresis;
 } PamojaPowerSchedule;
 
 // What a controller decided about one reading.
@@ -21463,7 +21469,8 @@ float pamoja_duty_cycle_fraction(PamojaDutyCycle duty);
 // Creates a power plan from its three work intervals, with default thresholds.
 //
 // The defaults enter [`PamojaPowerMode::Saver`] below 50% charge and
-// [`PamojaPowerMode::Critical`] below 20%.
+// [`PamojaPowerMode::Critical`] below 20%, and leave each lower mode once the charge is
+// five points above the threshold that brought it on.
 //
 // # Arguments
 //
@@ -21490,6 +21497,58 @@ PamojaPowerPlan pamoja_power_plan_new(uint64_t active_us, uint64_t saver_us, uin
 PamojaPowerPlan pamoja_power_plan_with_thresholds(PamojaPowerPlan plan,
                                                   float saver_below,
                                                   float critical_below);
+
+// Returns a plan with the hysteresis margin moved.
+//
+// # Arguments
+//
+// * `plan` - the plan to adjust.
+// * `margin` - how far above a threshold the charge must climb before the plan leaves
+//   the lower mode; `0.0` switches at the thresholds themselves, and a margin that is
+//   negative or not a number is taken as `0.0`.
+//
+// # Returns
+//
+// The adjusted plan.
+PamojaPowerPlan pamoja_power_plan_with_hysteresis(PamojaPowerPlan plan, float margin);
+
+// Returns the mode a node in a given mode moves to at a new state of charge.
+//
+// The node drops to a lower mode as soon as the charge falls below its threshold, and
+// climbs to a higher one only once the charge reaches the threshold plus the plan's
+// hysteresis, so a charge wandering around a threshold does not switch the mode on
+// every reading.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `current` - the mode the node is running in.
+// * `soc` - the battery state of charge, from 0.0 through 1.0.
+//
+// # Returns
+//
+// The mode the node should run in next.
+PamojaPowerMode pamoja_power_plan_next_mode(PamojaPowerPlan plan,
+                                            PamojaPowerMode current,
+                                            float soc);
+
+// Returns the mode a node in a given mode moves to, easing off one step while
+// charging.
+//
+// # Arguments
+//
+// * `plan` - the power plan.
+// * `current` - the mode the node is running in, as this returned it last time.
+// * `soc` - the battery state of charge, from 0.0 through 1.0.
+// * `charging` - `1` if the node is charging, `0` if it is not.
+//
+// # Returns
+//
+// The mode the node should run in next.
+PamojaPowerMode pamoja_power_plan_next_mode_while_charging(PamojaPowerPlan plan,
+                                                           PamojaPowerMode current,
+                                                           float soc,
+                                                           uint8_t charging);
 
 // Returns the mode a plan calls for at a state of charge.
 //
