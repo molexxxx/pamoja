@@ -3018,9 +3018,13 @@ class GatewayNetwork:
         
         The plan is copied into the network, so it holds its band for as long as it runs.
         """
-    def register(self, dev_eui: typing.Sequence[builtins.int], app_eui: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int]) -> None:
+    def register(self, dev_eui: typing.Sequence[builtins.int], app_eui: typing.Sequence[builtins.int], app_key: typing.Sequence[builtins.int], version: typing.Optional[builtins.str] = None) -> None:
         r"""
         Admits a device, so a join request signed with its key is accepted.
+        
+        `version` is the link layer revision the device follows, `"1.0.3"` or `"1.0.4"`, and
+        1.0.4 unless given. A 1.0.3 device's frames are refused once their counter runs
+        `MAX_FCNT_GAP` ahead of the last one accepted, which TS001-1.0.4 no longer asks.
         """
     def uplink(self, heard: GatewayRxpk) -> GatewayNetworkEvent:
         r"""

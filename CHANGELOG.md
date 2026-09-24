@@ -9,6 +9,13 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The network side of a site knows which LoRaWAN revision each device follows.
+  `Registration::with_version` names it, 1.0.4 unless told otherwise, and only a device
+  registered as 1.0.3 has its frames refused once the counter runs `MAX_FCNT_GAP` ahead of
+  the last one taken: LoRaWAN 1.0.3 section 4.3.1.5 asks for that, and TS001-1.0.4 asks only
+  that the counter go up. TypeScript's `register` takes an optional `LorawanVersion`,
+  Python's a `version="1.0.3"` keyword, C#'s `Register` a `LorawanVersion`, and the C ABI's
+  `pamoja_gateway_network_register` a `PAMOJA_LORAWAN_VERSION_1_0_3` or `_1_0_4` code.
 - One I2C bus that a program and every driver on it share, in every language.
   `pamoja_hal::bus::I2cBus` in Rust (the `std` feature) is a handle that clones into each
   driver, over the kernel's adapter (`I2cBus::open`, the `linux` feature), simulated
@@ -930,6 +937,11 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- A site no longer refuses a frame from a TS001-1.0.4 device whose counter jumped 16,384 or
+  more ahead; register the device as 1.0.3 to keep that rule. `pamoja_gateway_network_register`
+  in the C ABI takes the device's version as a fifth argument. The `gateway` feature of the C
+  ABI and the Node and Python bindings carries `lorawan`, which the network side already
+  needed to build.
 - `Quantizer::encode` returns a `Result` in Rust, and throws in the other languages, for a
   reading that is not a number, is infinite, or is too large for the scale, such as
   `codec error: reading 1 is NaN, which cannot be quantized`. A scale that is not a positive,
@@ -1280,6 +1292,10 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- A site that had followed a device's counter to within 65,536 of 2^32 overflowed working
+  out the next one, which panicked in a debug build and wrapped the counter in a release
+  one. The frame is refused now with `the frame counter of 0x26010001 has run out; the device
+  must join again`.
 - Every integer the Node binding takes, as an argument or as a field of an options object,
   is checked now. N-API reads an integer by keeping the bottom 32 bits of the number and
   dropping any fraction, so `-1` reached a `u32` as 4294967295, 4294967296 reached it as 0,

@@ -774,8 +774,14 @@ export declare class GatewayNetwork {
    * The plan is copied into the network, so it holds its band for as long as it runs.
    */
   constructor(plan: LoraChannelPlan, netId: number, windows?: GatewayNetworkWindows | undefined | null, firstDevAddr?: number | undefined | null)
-  /** Admits a device, so a join request signed with its key is accepted. */
-  register(devEui: Buffer, appEui: Buffer, appKey: Buffer): void
+  /**
+   * Admits a device, so a join request signed with its key is accepted.
+   *
+   * @param version - the link layer revision the device follows, 1.0.4 unless given. A
+   *   1.0.3 device's frames are refused once their counter runs `MAX_FCNT_GAP` ahead of
+   *   the last one accepted, which TS001-1.0.4 no longer asks.
+   */
+  register(devEui: Buffer, appEui: Buffer, appKey: Buffer, version?: LorawanVersion | undefined | null): void
   /** Reads a packet the gateway forwarded. */
   uplink(heard: GatewayRxpk): GatewayNetworkEvent
   /** Builds a downlink for a device, encrypted with its session. */

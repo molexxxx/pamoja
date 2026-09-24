@@ -21,6 +21,7 @@ use crate::gateway::{rxpk_of, txpk_to_js, GatewayRxpk, GatewayTxpk};
 use crate::lora::{lora_link_of, settings, LoraLink};
 use crate::lora_region::LoraChannelPlan;
 use crate::lorawan::{describe_command, rebuild, LorawanMacCommand};
+use crate::lorawan_link::LorawanVersion;
 use crate::lorawan_relay::LorawanWorChannel;
 
 /// What a forwarded packet turned out to be.
@@ -162,18 +163,26 @@ impl GatewayNetwork {
     }
 
     /// Admits a device, so a join request signed with its key is accepted.
+    ///
+    /// @param version - the link layer revision the device follows, 1.0.4 unless given. A
+    ///   1.0.3 device's frames are refused once their counter runs `MAX_FCNT_GAP` ahead of
+    ///   the last one accepted, which TS001-1.0.4 no longer asks.
     #[napi]
     pub fn register(
         &mut self,
         dev_eui: Buffer,
         app_eui: Buffer,
         app_key: Buffer,
+        version: Option<LorawanVersion>,
     ) -> napi::Result<()> {
         let dev_eui = eight(&dev_eui, "devEui")?;
         let app_eui = eight(&app_eui, "appEui")?;
         let app_key = sixteen(&app_key)?;
-        self.inner
-            .register(Registration::new(dev_eui, app_eui, app_key));
+        let mut registration = Registration::new(dev_eui, app_eui, app_key);
+        if let Some(version) = version {
+            registration = registration.with_version(version.core());
+        }
+        self.inner.register(registration);
         Ok(())
     }
 

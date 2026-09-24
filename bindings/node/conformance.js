@@ -4275,6 +4275,35 @@ function gatewayNetworkVectors() {
   const answer = site.answer(carried.devAddr, carried.slot, vector.uplink.fport, Buffer.from("ok"));
   assert.strictEqual(hex(answer.payload), vector.downlink.frame, "the downlink frame");
   assert.strictEqual(answer.timestampUs, vector.downlink.timestampUs, "when it transmits");
+
+  const gap = vector.counterGap;
+  for (const revision of gap.revisions) {
+    const fresh = new gateway.Network(
+      lora.planFor(lora.LoraRegion.Eu868),
+      vector.netId,
+      null,
+      vector.devAddr,
+    );
+    const version = revision.version === "1.0.3" ? "V1_0_3" : "V1_0_4";
+    fresh.register(unhex(vector.devEui), unhex(vector.appEui), unhex(vector.appKey), version);
+    const hear = (payload, timestampUs) =>
+      fresh.uplink({ frequencyHz: vector.frequencyHz, payload, link: dr, timestampUs });
+    hear(request, vector.join.heardAtUs);
+    hear(unhex(gap.first), 2_000_000);
+    if (revision.refused) {
+      assert.throws(
+        () => hear(unhex(gap.jumped), 3_000_000),
+        (error) => error.message.includes(revision.refused),
+        `a ${revision.version} device's counter a whole gap ahead`,
+      );
+    } else {
+      assert.strictEqual(
+        hear(unhex(gap.jumped), 3_000_000).fcnt,
+        revision.fcnt,
+        `a ${revision.version} device's counter a whole gap ahead`,
+      );
+    }
+  }
 }
 
 function gatewayVectors() {

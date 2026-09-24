@@ -225,12 +225,26 @@ impl GatewayNetwork {
     }
 
     /// Admits a device, so a join request signed with its key is accepted.
-    fn register(&self, dev_eui: Vec<u8>, app_eui: Vec<u8>, app_key: Vec<u8>) -> PyResult<()> {
+    ///
+    /// `version` is the link layer revision the device follows, `"1.0.3"` or `"1.0.4"`, and
+    /// 1.0.4 unless given. A 1.0.3 device's frames are refused once their counter runs
+    /// `MAX_FCNT_GAP` ahead of the last one accepted, which TS001-1.0.4 no longer asks.
+    #[pyo3(signature = (dev_eui, app_eui, app_key, version = None))]
+    fn register(
+        &self,
+        dev_eui: Vec<u8>,
+        app_eui: Vec<u8>,
+        app_key: Vec<u8>,
+        version: Option<&str>,
+    ) -> PyResult<()> {
         let dev_eui = eight(&dev_eui, "dev_eui")?;
         let app_eui = eight(&app_eui, "app_eui")?;
         let app_key = sixteen(&app_key)?;
-        self.locked()?
-            .register(Registration::new(dev_eui, app_eui, app_key));
+        let mut registration = Registration::new(dev_eui, app_eui, app_key);
+        if let Some(version) = version {
+            registration = registration.with_version(crate::lorawan_link::version(version)?);
+        }
+        self.locked()?.register(registration);
         Ok(())
     }
 

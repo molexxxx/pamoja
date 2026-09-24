@@ -221,10 +221,15 @@ pub unsafe extern "C" fn pamoja_gateway_network_open(
 /// * `dev_eui` - the device identifier, eight bytes.
 /// * `app_eui` - the application identifier, eight bytes.
 /// * `app_key` - the root key, sixteen bytes.
+/// * `version` - the link layer revision the device follows,
+///   [`PAMOJA_LORAWAN_VERSION_1_0_3`](crate::lorawan_link::PAMOJA_LORAWAN_VERSION_1_0_3) or
+///   [`PAMOJA_LORAWAN_VERSION_1_0_4`](crate::lorawan_link::PAMOJA_LORAWAN_VERSION_1_0_4). A
+///   1.0.3 device's frames are refused once their counter runs `MAX_FCNT_GAP` ahead.
 ///
 /// # Returns
 ///
-/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or a
+/// version that is not one of the two.
 ///
 /// # Safety
 ///
@@ -236,6 +241,7 @@ pub unsafe extern "C" fn pamoja_gateway_network_register(
     dev_eui: *const u8,
     app_eui: *const u8,
     app_key: *const u8,
+    version: u8,
 ) -> PamojaStatus {
     let Some(network) = network.as_mut() else {
         return missing("network");
@@ -246,10 +252,14 @@ pub unsafe extern "C" fn pamoja_gateway_network_register(
     let Some(app_key) = sixteen(app_key) else {
         return missing("app_key");
     };
+    let version = match crate::lorawan_link::version(version) {
+        Ok(version) => version,
+        Err(status) => return status,
+    };
 
     network
         .network
-        .register(Registration::new(dev_eui, app_eui, app_key));
+        .register(Registration::new(dev_eui, app_eui, app_key).with_version(version));
     PamojaStatus::Ok
 }
 
@@ -746,4 +756,50 @@ unsafe fn sixteen(bytes: *const u8) -> Option<[u8; 16]> {
     let mut read = [0u8; 16];
     ptr::copy_nonoverlapping(bytes, read.as_mut_ptr(), read.len());
     Some(read)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lora_region::{
+        pamoja_lora_plan_for_region, pamoja_lora_plan_free, PAMOJA_LORA_REGION_EU868,
+    };
+    use crate::lorawan_link::{PAMOJA_LORAWAN_VERSION_1_0_3, PAMOJA_LORAWAN_VERSION_1_0_4};
+
+    #[test]
+    fn a_device_is_registered_under_a_version_code() {
+        let (dev_eui, app_eui, app_key) = ([0x11u8; 8], [0x22u8; 8], [0x33u8; 16]);
+        unsafe {
+            let mut plan = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_plan_for_region(PAMOJA_LORA_REGION_EU868, &mut plan),
+                PamojaStatus::Ok
+            );
+            let mut network = ptr::null_mut();
+            assert_eq!(
+                pamoja_gateway_network_open(
+                    plan,
+                    0x2A,
+                    pamoja_gateway_network_windows_default(),
+                    0x2601_0001,
+                    &mut network,
+                ),
+                PamojaStatus::Ok
+            );
+            let register = |version: u8| {
+                pamoja_gateway_network_register(
+                    network,
+                    dev_eui.as_ptr(),
+                    app_eui.as_ptr(),
+                    app_key.as_ptr(),
+                    version,
+                )
+            };
+            assert_eq!(register(PAMOJA_LORAWAN_VERSION_1_0_3), PamojaStatus::Ok);
+            assert_eq!(register(PAMOJA_LORAWAN_VERSION_1_0_4), PamojaStatus::Ok);
+            assert_eq!(register(2), PamojaStatus::InvalidArgument);
+            pamoja_gateway_network_free(network);
+            pamoja_lora_plan_free(plan);
+        }
+    }
 }
