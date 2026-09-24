@@ -96,9 +96,9 @@ answer = network.session(root_key, 1).encode_downlink(0, 2, b"set=19.0", ack=Tru
 downlink = node.heard(answer, 7, ReceiveWindow.RX1)
 if downlink.kind == "data":
     delivery = downlink.delivery
-    acknowledged = "true" if delivery.acknowledged else "false"
+    reading_was = "acknowledged" if delivery.acknowledged else "not acknowledged"
     print(
-        f"downlink  acknowledged: {acknowledged}, port {delivery.port or 0} "
+        f"downlink  the reading was {reading_was}, and port {delivery.port or 0} "
         f"says {delivery.payload.decode()}"
     )
 

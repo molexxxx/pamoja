@@ -128,9 +128,9 @@ public static class LorawanGuide
         if (node.Heard(answer, 7, LorawanReceiveWindow.Rx1) is LorawanHeard.Data data)
         {
             LorawanDelivery delivery = data.Delivery;
-            string acknowledged = delivery.Acknowledged ? "true" : "false";
+            string readingWas = delivery.Acknowledged ? "acknowledged" : "not acknowledged";
             Console.WriteLine(
-                $"downlink  acknowledged: {acknowledged}, port {delivery.Port ?? 0} says {Encoding.UTF8.GetString(delivery.Payload)}");
+                $"downlink  the reading was {readingWas}, and port {delivery.Port ?? 0} says {Encoding.UTF8.GetString(delivery.Payload)}");
         }
 
         // Before sleeping, the device saves what it settled with the network. After the power

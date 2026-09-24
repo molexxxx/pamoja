@@ -100,7 +100,8 @@ const answer = lorawan.grantSession(grant, rootKey, 1).encodeDownlink(0, 2, Buff
 const downlink = sensor.heard(answer, 7, lorawan.ReceiveWindow.Rx1)
 if (downlink.kind === 'Data') {
   const { acknowledged, port, payload } = downlink.delivery
-  console.log(`downlink  acknowledged: ${acknowledged}, port ${port ?? 0} says ${payload.toString()}`)
+  const readingWas = acknowledged ? 'acknowledged' : 'not acknowledged'
+  console.log(`downlink  the reading was ${readingWas}, and port ${port ?? 0} says ${payload.toString()}`)
 }
 
 // Before sleeping, the device saves what it settled with the network. After the power cut a

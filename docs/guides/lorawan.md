@@ -97,6 +97,15 @@ repository:
 
 ## Rust
 
+In Rust, `pamoja-lorawan` is `no_std`. `Device` and `JoinGrant` are the two ends of
+the join, and `Session` encodes and decodes data frames built as `Uplink` and
+`Downlink`. `device::EndDevice` runs a whole node over a `ChannelPlan` from
+`pamoja-lora`, with a `Settings` of the radio's power range and a seed. It takes the
+caller's time in microseconds and the SNR each frame was heard at, and answers with a
+`Transmission` to put on the air or a `Heard` to act on; a refusal is a `DeviceError`.
+`relay::Relay` wraps an end device so it carries others under TS011-1.0.1, and the
+network side of a whole site is `Network` in `pamoja-gateway`.
+
 A network admitting a device:
 
 <!-- snippet: examples/guides/lorawan.rs#example -->
@@ -223,9 +232,13 @@ let answer = network
     .session(&app_key, 1)
     .encode_downlink(&Downlink::new(0, 2, b"set=19.0").with_ack())?;
 if let Heard::Data(delivery) = node.heard_in(ReceiveWindow::Rx1, answer.as_bytes(), 7)? {
+    let reading_was = if delivery.acknowledged() {
+        "acknowledged"
+    } else {
+        "not acknowledged"
+    };
     println!(
-        "downlink  acknowledged: {}, port {} says {}",
-        delivery.acknowledged(),
+        "downlink  the reading was {reading_was}, and port {} says {}",
         delivery.port().unwrap_or(0),
         String::from_utf8_lossy(delivery.payload()),
     );
@@ -404,8 +417,17 @@ if let Heard::Data(delivery) = cellar.heard_in(ReceiveWindow::Rxr, downlink.fram
 ```
 <!-- end -->
 
-
 ## TypeScript
+
+In TypeScript, `@pamoja/lorawan` holds the join as `device(devEui, joinEui, appKey)`
+on one side and a grant object passed to `grantAccept` and `grantSession` on the
+other. A `Session`'s `encodeUplink`, `encodeDownlink`, and `decode` take the frame
+counter, the port, and the payload directly. `EndDevice.overTheAir(plan, devEui,
+joinEui, appKey, settings)` runs a node: `send` takes the time before the confirmed
+flag, and `heard(frame, snrDb, window?)` returns a `Heard` tagged by `kind`. A
+refusal throws a `DeviceError` whose `code` names it, and `isDeviceError(error,
+'Busy')` tests for one. Keys and EUIs are `Uint8Array`s; addresses and counters are
+numbers.
 
 A network admitting a device:
 
@@ -513,7 +535,8 @@ const answer = lorawan.grantSession(grant, rootKey, 1).encodeDownlink(0, 2, Buff
 const downlink = sensor.heard(answer, 7, lorawan.ReceiveWindow.Rx1)
 if (downlink.kind === 'Data') {
   const { acknowledged, port, payload } = downlink.delivery
-  console.log(`downlink  acknowledged: ${acknowledged}, port ${port ?? 0} says ${payload.toString()}`)
+  const readingWas = acknowledged ? 'acknowledged' : 'not acknowledged'
+  console.log(`downlink  the reading was ${readingWas}, and port ${port ?? 0} says ${payload.toString()}`)
 }
 
 // Before sleeping, the device saves what it settled with the network. After the power cut a
@@ -629,8 +652,15 @@ if (delivered.kind === 'Data') {
 ```
 <!-- end -->
 
-
 ## Python
+
+In Python, `pamoja.lorawan` gives `device(...)` and `grant(app_nonce=, net_id=,
+dev_addr=)` for the join, and a `Session` with `encode_uplink(fcnt, port,
+payload)`, `encode_downlink(fcnt, port, payload, ack=True)`, and `decode(frame,
+fcnt)`. `end_device(...)` builds a whole node from a plan, the credentials, and
+`DeviceSettings(min_dbm, max_dbm, seed=...)`. A refusal raises
+`LorawanDeviceError`, whose `kind` names it, such as `busy`, with `until_us` or
+`max` alongside where they apply. Keys, EUIs, and frames are `bytes`.
 
 A network admitting a device:
 
@@ -736,9 +766,9 @@ answer = network.session(root_key, 1).encode_downlink(0, 2, b"set=19.0", ack=Tru
 downlink = node.heard(answer, 7, ReceiveWindow.RX1)
 if downlink.kind == "data":
     delivery = downlink.delivery
-    acknowledged = "true" if delivery.acknowledged else "false"
+    reading_was = "acknowledged" if delivery.acknowledged else "not acknowledged"
     print(
-        f"downlink  acknowledged: {acknowledged}, port {delivery.port or 0} "
+        f"downlink  the reading was {reading_was}, and port {delivery.port or 0} "
         f"says {delivery.payload.decode()}"
     )
 
@@ -857,8 +887,15 @@ print(
 ```
 <!-- end -->
 
-
 ## C#
+
+In C#, `Pamoja.Lorawan` holds `LorawanDevice` and `LorawanGrant` for the join and
+`LorawanSession` for data frames, each disposable where it holds native state.
+`LorawanEndDevice.OverTheAir(plan, credentials, settings)` runs a node with a
+`LorawanDeviceSettings`; `Heard` returns a `LorawanHeard` to match with
+`is LorawanHeard.Data data`, and a refusal throws `LorawanDeviceException` with its
+`Kind`. `LorawanRelayNode` carries others. Keys and identifiers are checked for
+their width before the engine reads them.
 
 A network admitting a device:
 
@@ -972,9 +1009,9 @@ byte[] answer = networkSession.EncodeDownlink(0, 2, "set=19.0"u8, new LorawanOpt
 if (node.Heard(answer, 7, LorawanReceiveWindow.Rx1) is LorawanHeard.Data data)
 {
     LorawanDelivery delivery = data.Delivery;
-    string acknowledged = delivery.Acknowledged ? "true" : "false";
+    string readingWas = delivery.Acknowledged ? "acknowledged" : "not acknowledged";
     Console.WriteLine(
-        $"downlink  acknowledged: {acknowledged}, port {delivery.Port ?? 0} says {Encoding.UTF8.GetString(delivery.Payload)}");
+        $"downlink  the reading was {readingWas}, and port {delivery.Port ?? 0} says {Encoding.UTF8.GetString(delivery.Payload)}");
 }
 
 // Before sleeping, the device saves what it settled with the network. After the power
@@ -1094,6 +1131,161 @@ Console.WriteLine(
 ```
 <!-- end -->
 
+## Values at a glance
+
+**What each end holds.** Only the root key is secret before the join, and the two
+session keys are derived at each end, never sent:
+
+| Value | Size | Where it comes from |
+| --- | --- | --- |
+| DevEUI | 8 bytes | the device's own identifier, printed on it |
+| JoinEUI | 8 bytes | the join server's identifier; zeros where there is none |
+| AppKey | 16 bytes | the root key, provisioned into the device and known to the network |
+| DevNonce | 2 bytes | a number the device has not used before, in each join request |
+| AppNonce | 3 bytes | the network's own number, in each accept |
+| NetID | 3 bytes | the network the device joins |
+| DevAddr | 4 bytes | the address the network assigns, read out of the accept |
+| NwkSKey and AppSKey | 16 bytes each | derived from the root key and both nonces |
+
+**The timings,** from RP002-1.0.5 and LoRaWAN 1.0.3:
+
+| Timing | Value |
+| --- | --- |
+| first receive window | 1 s after the uplink ends |
+| second receive window | 2 s after it |
+| join accept windows | 5 s and 6 s after the request |
+| how early or late a window may open | 20 microseconds |
+| a confirmed uplink's retry, unanswered | 1 to 3 s, drawn at random |
+| a relayed device's third window | up to 18 s after its uplink |
+
+**The counters:**
+
+| Counter | Value | What it does |
+| --- | --- | --- |
+| the largest gap a receiver follows | 16,384 | a frame further ahead is refused, so a captured one cannot be replayed early |
+| uplinks before asking the network to answer | 64 | the adaptive data rate check |
+| more before stepping the data rate down | 32 | and between each step after that |
+
+**The ports:**
+
+| Port | Carries |
+| --- | --- |
+| 0 | MAC commands only, encrypted with the network session key |
+| 1 to 223 | the application's data, encrypted with the application session key |
+| 224 | the MAC layer test protocol |
+| 226 | a relay's frames to and from its network, under TS011-1.0.1 |
+
+**What an end device refuses,** named `DeviceError::Busy` in Rust, `code` `Busy`
+in TypeScript, `kind` `busy` in Python, and `LorawanDeviceErrorKind.Busy` in C#:
+
+| Refusal | Means |
+| --- | --- |
+| NotJoined | there is no session yet; join first |
+| NoCredentials | a device activated by personalization has nothing to join with |
+| Busy | a transmission still waits on its receive windows |
+| NothingPending | nothing waits on its windows or is due to repeat |
+| Wait | the air is not free until the time given with it |
+| NoChannel | no enabled channel carries the data rate |
+| DataRate | the data rate is not a LoRa one the device can use here |
+| PayloadTooLong | the payload does not fit a frame at this data rate; the most that does is given |
+| CounterExhausted | the uplink counter is spent, and the device has to join again |
+| Frame | the frame did not decode |
+| Foreign | the frame is addressed to another device |
+| Replayed | the frame repeats or precedes the last downlink the device took |
+| CounterGap | the frame counter jumped further ahead than 16,384 |
+| Refused | a join accept carries settings the region does not allow |
+| State | a saved state could not be resumed |
+| TooManyChannels | the plan defines more channels than a device keeps |
+
+**The calls in each language:**
+
+### Rust
+
+| To | Call |
+| --- | --- |
+| ask to join | `Device::new(dev_eui, join_eui, app_key)`, `join_request(dev_nonce)` |
+| grant a join | `JoinGrant::new(app_nonce, net_id, dev_addr)`, `accept(&app_key, dev_nonce)`, `session(&app_key, dev_nonce)` |
+| take an accept | `accept_join(frame, dev_nonce)`, then `dev_addr()`, `session()` |
+| exchange data | `encode_uplink(&Uplink::new(fcnt, port, payload))`, `encode_downlink(&Downlink::new(...).with_ack())`, `decode(frame, fcnt)` |
+| run a node | `EndDevice::new(plan, device, Settings::new(min_dbm, max_dbm).with_seed(seed))` |
+| join and send | `join(dev_nonce, now_us)`, `send(port, payload, confirmed, now_us)`, `send_empty(now_us)` |
+| hear the network | `heard(frame, snr_db)`, `heard_in(window, frame, snr_db)` |
+| survive a power cut | `save(now_us)`, `resume(&saved, now_us)` |
+| carry others | `Relay::new(device, RelaySettings::new(..))`, `start(RelayConfig::new(..))`, `forward(now_us)` |
+
+### TypeScript
+
+| To | Call |
+| --- | --- |
+| ask to join | `device(devEui, joinEui, appKey)`, `joinRequest(devNonce)` |
+| grant a join | `grantAccept(grant, appKey, devNonce)`, `grantSession(grant, appKey, devNonce)` |
+| take an accept | `acceptJoin(frame, devNonce)`, then `devAddr`, `session()` |
+| exchange data | `encodeUplink(fcnt, port, payload)`, `encodeDownlink(fcnt, port, payload, { ack })`, `decode(frame, fcnt)` |
+| run a node | `EndDevice.overTheAir(plan, devEui, joinEui, appKey, settings)` |
+| join and send | `join(devNonce, nowUs)`, `send(port, payload, nowUs, confirmed)`, `sendEmpty(nowUs)` |
+| hear the network | `heard(frame, snrDb, window?)`, `nothingHeard(nowUs)` |
+| survive a power cut | `save(nowUs)`, `resume(saved, nowUs)` |
+| carry others | `Relay.overTheAir(...)`, `start(...)`, `forward(nowUs)` |
+
+### Python
+
+| To | Call |
+| --- | --- |
+| ask to join | `device(dev_eui, join_eui, app_key)`, `join_request(dev_nonce)` |
+| grant a join | `grant(app_nonce=, net_id=, dev_addr=)`, `accept(app_key, dev_nonce)`, `session(app_key, dev_nonce)` |
+| take an accept | `accept_join(frame, dev_nonce)`, then `dev_addr`, `session()` |
+| exchange data | `encode_uplink(fcnt, port, payload)`, `encode_downlink(fcnt, port, payload, ack=True)`, `decode(frame, fcnt)` |
+| run a node | `end_device(plan, dev_eui, join_eui, app_key, DeviceSettings(min_dbm, max_dbm, seed=...))` |
+| join and send | `join(dev_nonce, now_us)`, `send(port, payload, now_us, confirmed=True)`, `send_empty(now_us)` |
+| hear the network | `heard(frame, snr_db, window)`, `nothing_heard(now_us)` |
+| survive a power cut | `save(now_us)`, `resume(saved, now_us)` |
+| carry others | `Relay.over_the_air(...)`, `start(...)`, `forward(now_us)` |
+
+### C#
+
+| To | Call |
+| --- | --- |
+| ask to join | `new LorawanDevice(devEui, joinEui, appKey)`, `JoinRequest(devNonce)` |
+| grant a join | `new LorawanGrant(appNonce, netId, devAddr)`, `Accept(appKey, devNonce)`, `Session(appKey, devNonce)` |
+| take an accept | `AcceptJoin(frame, devNonce)`, then `DevAddr`, `Session()` |
+| exchange data | `EncodeUplink(fcnt, port, payload)`, `EncodeDownlink(fcnt, port, payload, options)`, `Decode(frame, fcnt)` |
+| run a node | `LorawanEndDevice.OverTheAir(plan, credentials, new LorawanDeviceSettings(min, max) { Seed = ... })` |
+| join and send | `Join(devNonce, nowUs)`, `Send(port, payload, nowUs, confirmed)`, `SendEmpty(nowUs)` |
+| hear the network | `Heard(frame, snrDb, window)`, `NothingHeard(nowUs)` |
+| survive a power cut | `Save(nowUs)`, `Resume(saved, nowUs)` |
+| carry others | `LorawanRelayNode.OverTheAir(...)`, `Start(...)`, `Forward(nowUs)` |
+
+<!-- languages end -->
+
+## When it goes wrong
+
+A join or a frame that fails its check is refused whole, and the refusal says
+why. The mistakes that cost an afternoon:
+
+- **Every accept is refused.** The root key differs between the device and the
+  network, or the nonce passed to `accept_join` is not the one the request
+  carried. An accept names no device, so those two alone decide.
+- **A second reading is refused as busy.** The first still waits on its receive
+  windows. Hand the device what each window heard, or tell it nothing was heard,
+  and it is free again.
+- **After a power cut the network ignores the device.** A device that joins
+  again is fine, but one that starts its counters over on an old session has
+  every frame taken as a replay. Save the state before sleeping and resume it, as
+  the example does; the saved state carries the counters.
+- **A downlink is refused as replayed.** The device has already taken one at or
+  after that counter. The network numbers its downlinks upward; a server that
+  restarted its count has to start a new session.
+- **A payload is refused as too long.** Each data rate carries its own most
+  payload, 51 bytes at DR0 in EU863-870. The refusal gives the most that fits;
+  send less, or let the device move to a faster rate.
+- **A send is refused with a wait.** The duty cycle has not freed the air yet.
+  The refusal carries the time it will be free, in the caller's microseconds.
+- **The network decodes nothing a device sends.** `decode` takes the full 32-bit
+  counter it expects for the frame, and its low 16 bits must match what the frame
+  carries. A server keeps the count for each device and passes the next one.
+- **A relayed device misses its answer.** It arrives in the third window a
+  relayed device keeps, up to 18 seconds after the uplink, not in the usual two.
+  Name that window when handing the frame to the device.
 
 ## Where next
 

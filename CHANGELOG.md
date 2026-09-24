@@ -1058,6 +1058,10 @@ released together, so one entry covers all of them.
   docstrings, and they read the same way now.
 - The bus, loopback, store-and-forward, sensor, and actuator crates open with an example,
   where they had none, and the first three run rather than only compile.
+- The LoRaWAN guide says the network acknowledged the reading rather than printing a
+  boolean, and the page gains a paragraph for each language, tables of what each end
+  holds, the timings, counters, and ports, what an end device refuses, and the calls, and
+  a section on what goes wrong.
 - The LoRa guide runs one reading through every LoRa data rate from DR0 to DR5, what it
   costs on air, how many fit in an hour, and how far it is heard, and prints the same
   twenty lines in every language, with words where it printed a boolean. The page gains
