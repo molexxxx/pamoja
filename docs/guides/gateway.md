@@ -491,7 +491,7 @@ const active = session(0x26010001, Buffer.alloc(16, 0x44), Buffer.alloc(16, 0x55
 const frame = active.encodeUplink(7, 2, Buffer.from('21.5'))
 const reported = stationHeard(frame, 5, 868_100_000, {
   rctx: 0,
-  xtime: 1_000_000,
+  xtime: 1_000_000n,
   rssi: -35,
   snr: 5.1,
 })
@@ -858,7 +858,7 @@ GatewayStationMessage heard = GatewayStation.Heard(
     5,
     868_100_000,
     new GatewayStationLevels(0, 1_000_000) { Rssi = -35.0, Snr = 5.1 });
-Console.WriteLine($"updf      {heard.Json}");
+Console.WriteLine($"updf      {GatewayStation.Encode(heard)}");
 Console.WriteLine(
     $"heard     0x{heard.DevAddr:x8} counter {heard.Fcnt} on port {heard.Fport}");
 Console.WriteLine($"payload   {heard.Payload.Length} bytes, still encrypted");

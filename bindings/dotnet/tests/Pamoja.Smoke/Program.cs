@@ -8026,7 +8026,27 @@ static void ConformStation(JsonElement vector)
 
     GatewayStationRouter routed = GatewayStation.RouterParse(
         vector.GetProperty("routerAnswer").GetString()!);
-    Assert(routed.Uri is not null, "an accepted station is sent somewhere");
+    string uri = vector.GetProperty("uri").GetString()!;
+    byte[] muxs = Convert.FromHexString(vector.GetProperty("muxs").GetString()!);
+    Assert(routed.Uri == uri, "an accepted station is sent somewhere");
+    Assert(HexLower(routed.Router!) == router, "the station the server answered");
+    Assert(routed.Muxs!.AsSpan().SequenceEqual(muxs), "the endpoint carrying the session");
+
+    // The server side of the same exchange: it reads who asked, and answers or refuses.
+    Assert(
+        HexLower(GatewayStation.DiscoveryParse(vector.GetProperty("discovery").GetString()!)) == router,
+        "the station that asked");
+    Assert(
+        GatewayStation.RouterAccepted(identifier, muxs, uri) == vector.GetProperty("routerAnswer").GetString(),
+        "the answer a server writes");
+    JsonElement refusal = vector.GetProperty("refusal");
+    string why = refusal.GetProperty("error").GetString()!;
+    Assert(
+        GatewayStation.RouterRefused(identifier, why) == refusal.GetProperty("json").GetString(),
+        "the refusal a server writes");
+    Assert(
+        GatewayStation.RouterParse(refusal.GetProperty("json").GetString()!).Error == why,
+        "the refusal read back");
 
     // A join request the radio heard, split into the fields the protocol names.
     JsonElement wanted = vector.GetProperty("join");
@@ -8044,7 +8064,7 @@ static void ConformStation(JsonElement vector)
         "the device asking");
     Assert(join.DevNonce == wanted.GetProperty("devNonce").GetUInt16(), "the nonce it used");
     Assert(join.Mic == wanted.GetProperty("mic").GetInt32(), "its integrity code");
-    Assert(join.Json == wanted.GetProperty("message").GetString(), "the jreq it sends");
+    Assert(GatewayStation.Encode(join) == wanted.GetProperty("message").GetString(), "the jreq it sends");
 
     // Then a data frame, whose payload stays encrypted as it passes through.
     JsonElement carried = vector.GetProperty("uplink");
@@ -8063,13 +8083,98 @@ static void ConformStation(JsonElement vector)
         HexLower(uplink.Payload) == carried.GetProperty("payload").GetString(),
         "the payload, still encrypted");
     Assert(uplink.Mic == carried.GetProperty("mic").GetInt32(), "its integrity code");
-    Assert(uplink.Json == carried.GetProperty("message").GetString(), "the updf it sends");
+    Assert(GatewayStation.Encode(uplink) == carried.GetProperty("message").GetString(), "the updf it sends");
 
     // What arrives on the websocket reads back into the same fields.
     GatewayStationMessage read = GatewayStation.Parse(
         carried.GetProperty("message").GetString()!);
     Assert(read.DevAddr == uplink.DevAddr, "the address read back");
     Assert(read.Fcnt == uplink.Fcnt, "the counter read back");
+
+    // Every kind of message reads and writes back unchanged, so no field is dropped either way.
+    foreach (JsonElement entry in vector.GetProperty("messages").EnumerateArray())
+    {
+        string text = entry.GetProperty("json").GetString()!;
+        string kind = entry.GetProperty("kind").GetString()!;
+        GatewayStationMessage message = GatewayStation.Parse(text);
+        Assert(message.Msgtype == kind, $"a {kind} names its kind");
+        Assert(GatewayStation.Encode(message) == text, $"a {kind} written back");
+
+        if (entry.TryGetProperty("xtime", out JsonElement xtime))
+        {
+            long clock = message.Levels?.Xtime ?? message.Xtime ?? 0;
+            Assert(clock == long.Parse(xtime.GetString()!, System.Globalization.CultureInfo.InvariantCulture), $"the {kind} clock to the microsecond");
+        }
+
+        if (entry.TryGetProperty("dataRates", out JsonElement rates))
+        {
+            JsonElement[] expected = rates.EnumerateArray().ToArray();
+            Assert(message.DataRates.Count == expected.Length, $"the {kind} data-rate count");
+            for (int number = 0; number < expected.Length; number++)
+            {
+                GatewayStationDataRate? rate = message.DataRates[number];
+                JsonElement want = expected[number];
+                Assert(
+                    want.ValueKind == JsonValueKind.Null
+                        ? rate is null
+                        : rate is not null
+                            && rate.SpreadingFactor == want.GetProperty("spreadingFactor").GetByte()
+                            && rate.BandwidthHz == want.GetProperty("bandwidthHz").GetUInt32()
+                            && rate.DownlinkOnly == want.GetProperty("downlinkOnly").GetBoolean(),
+                    $"the {kind} data rate at DR{number}");
+            }
+        }
+
+        if (entry.TryGetProperty("filtersNetworks", out JsonElement filters))
+        {
+            Assert((message.NetIds is not null) == filters.GetBoolean(), $"the {kind} network filter");
+        }
+
+        if (entry.TryGetProperty("netIds", out JsonElement netIds))
+        {
+            Assert(
+                message.NetIds!.SequenceEqual(netIds.EnumerateArray().Select(id => id.GetUInt32())),
+                $"the {kind} networks");
+        }
+
+        if (entry.TryGetProperty("joinEuiRanges", out JsonElement ranges))
+        {
+            string[] readRanges = message.JoinEuiRanges
+                .Select(range => $"{range.First:x16}-{range.Last:x16}")
+                .ToArray();
+            string[] wantRanges = ranges.EnumerateArray()
+                .Select(pair => $"{pair[0].GetString()}-{pair[1].GetString()}")
+                .ToArray();
+            Assert(readRanges.SequenceEqual(wantRanges), $"the {kind} join ranges");
+        }
+
+        foreach ((string name, GatewayStationWindow? window) in new[]
+        {
+            ("rx1", message.Rx1),
+            ("rx2", message.Rx2),
+            ("pingSlot", message.PingSlot),
+        })
+        {
+            if (entry.TryGetProperty(name, out JsonElement want))
+            {
+                Assert(
+                    window is not null
+                        && window.DataRate == want.GetProperty("dataRate").GetByte()
+                        && window.FrequencyHz == want.GetProperty("frequencyHz").GetUInt32(),
+                    $"the {kind} {name}");
+            }
+        }
+
+        if (entry.TryGetProperty("gpstime", out JsonElement gpstime))
+        {
+            Assert(message.Gpstime == gpstime.GetInt64(), $"the {kind} GPS time");
+        }
+    }
+
+    // A kind missing an identifier it needs is refused rather than written with a zero one,
+    // and so is a kind that is not one.
+    Catch<ArgumentException>(() => GatewayStation.Encode(new GatewayStationMessage(GatewayStationKind.Downlink)));
+    Catch<ArgumentOutOfRangeException>(() => GatewayStation.Encode(new GatewayStationMessage((GatewayStationKind)42)));
 }
 
 static void ConformGatewayNetwork(JsonElement vector)

@@ -6808,10 +6808,9 @@ fn zenoh() -> Value {
     })
 }
 
-/// The datagrams of the Semtech UDP packet forwarder protocol, each with the fields it
-/// carries, so every binding builds the same bytes and reads the same values back.
-/// The network side of a site: a join admitted and answered, and an uplink read.
-/// The Basics Station messages a session carries, built from a frame a radio heard.
+/// The Basics Station messages a session carries: the discovery exchange, the frames a radio
+/// heard split as a station reports them, and one message of every kind as the Rust side
+/// writes it, which each binding reads and writes back unchanged.
 fn station() -> Value {
     use pamoja_gateway::station::{id6, Discovery, Levels, Message, Router};
     use pamoja_gateway::udp::Eui;
@@ -6841,9 +6840,13 @@ fn station() -> Value {
         snr: 5.1,
     };
 
-    // A station asks the discovery endpoint where its network server is, and is told.
+    // A station asks the discovery endpoint where its network server is, and is told, or is
+    // told why not.
+    let uri = "ws://lns.example.invalid:3001/router";
     let asking = Discovery::new(router);
-    let answered = Router::accepted(router, muxs, "ws://lns.example.invalid:3001/router");
+    let answered = Router::accepted(router, muxs, uri);
+    let why = "this gateway is not registered";
+    let refused = Router::refused(router, why);
 
     // The device asks to join, and the station splits the frame into the fields it reports.
     let device = Device::new(dev_eui, app_eui, app_key);
@@ -6884,9 +6887,12 @@ fn station() -> Value {
     json!({
         "router": router.to_hex(),
         "routerId6": id6(router),
+        "muxs": muxs.to_hex(),
         "muxsId6": id6(muxs),
+        "uri": uri,
         "discovery": asking.to_json(),
         "routerAnswer": answered.to_json(),
+        "refusal": { "error": why, "json": refused.to_json() },
         "dataRate": data_rate,
         "frequencyHz": frequency_hz,
         "join": {
@@ -6906,9 +6912,204 @@ fn station() -> Value {
             "payload": hex(&payload_read),
             "mic": uplink_mic,
         },
+        "messages": station_messages(&join, &uplink),
     })
 }
 
+/// One message of every kind, as the Rust side writes it.
+///
+/// A binding reads each text and writes it back, and the two must match: a field a binding
+/// drops on the way in or leaves out on the way out shows up as a difference. The values a
+/// binding is most likely to lose are read out beside the text: an xtime past what a double
+/// holds, written as text so no JSON reader rounds it, a data-rate table with a number left
+/// undefined, a network filter written as null, and the windows of both downlink classes.
+fn station_messages(
+    join: &pamoja_gateway::station::Message,
+    uplink: &pamoja_gateway::station::Message,
+) -> Value {
+    use pamoja_gateway::station::{Broadcast, Levels, Message, PROTOCOL_VERSION};
+    use pamoja_gateway::udp::Eui;
+
+    let device = Eui::from_hex("70b3d57ed0001234").expect("sixteen hexadecimal digits");
+    let xtime = (0xa5_i64 << 48) | 3_512_348_611;
+    let first_join = u64::from_be_bytes(
+        Eui::from_hex("70b3d57ed0000000")
+            .expect("sixteen hexadecimal digits")
+            .bytes(),
+    );
+
+    let version = Message::Version {
+        station: "pamoja".to_owned(),
+        firmware: "0.2.0".to_owned(),
+        package: "pamoja-gateway".to_owned(),
+        model: "linux".to_owned(),
+        protocol: PROTOCOL_VERSION,
+        features: "gps".to_owned(),
+    };
+    let us915 = Message::RouterConfig {
+        net_id: None,
+        join_eui: vec![(first_join, first_join + 0xff)],
+        region: "US915".to_owned(),
+        max_eirp: 30.0,
+        hwspec: "sx1301/1".to_owned(),
+        freq_range: (902_000_000, 928_000_000),
+        data_rates: vec![
+            Some((10, 125_000, false)),
+            Some((9, 125_000, false)),
+            Some((8, 125_000, false)),
+            Some((7, 125_000, false)),
+            Some((8, 500_000, false)),
+            None,
+            None,
+            None,
+            Some((12, 500_000, true)),
+            Some((11, 500_000, true)),
+        ],
+    };
+    let filtered = Message::RouterConfig {
+        net_id: Some(vec![0x13]),
+        join_eui: Vec::new(),
+        region: "EU868".to_owned(),
+        max_eirp: 16.0,
+        hwspec: "sx1301/1".to_owned(),
+        freq_range: (863_000_000, 870_000_000),
+        data_rates: vec![Some((12, 125_000, false)), Some((7, 250_000, false))],
+    };
+    let proprietary = Message::Proprietary {
+        payload: vec![0xe0, 0x01, 0x02, 0x03, 0x04, 0x05],
+        data_rate: 5,
+        frequency_hz: 868_100_000,
+        levels: Levels {
+            rctx: 0,
+            xtime,
+            gpstime: Some(1_442_000_000_000_000),
+            rssi: -97.5,
+            snr: -3.25,
+        },
+    };
+    let class_a = Message::Downlink {
+        dev_eui: device,
+        class: 0,
+        diid: 42,
+        pdu: vec![0x60, 0x01],
+        rx_delay: Some(1),
+        rx1: Some((5, 868_100_000)),
+        rx2: Some((0, 869_525_000)),
+        ping_slot: None,
+        priority: 0,
+        xtime: Some(xtime + 1_000_000),
+        rctx: Some(0),
+        gpstime: None,
+    };
+    let class_b = Message::Downlink {
+        dev_eui: device,
+        class: 1,
+        diid: 43,
+        pdu: vec![0x60, 0x01],
+        rx_delay: None,
+        rx1: None,
+        rx2: None,
+        ping_slot: Some((3, 869_525_000)),
+        priority: 1,
+        xtime: None,
+        rctx: Some(0),
+        gpstime: Some(1_442_000_000_000_000),
+    };
+    let schedule = Message::Schedule {
+        frames: vec![Broadcast {
+            pdu: vec![0x60, 0x01, 0x02],
+            data_rate: 3,
+            frequency_hz: 869_525_000,
+            priority: 1,
+            gpstime: Some(1_442_000_000_000_000),
+            rctx: Some(0),
+        }],
+    };
+    let transmitted = Message::Transmitted {
+        diid: 42,
+        dev_eui: device,
+        rctx: 0,
+        xtime: xtime + 1_000_000,
+        txtime: 1_442_000_001.5,
+        gpstime: None,
+    };
+    let time_sync = Message::TimeSync {
+        txtime: Some(1_000),
+        xtime: None,
+        gpstime: Some(1_442_000_000_000_000),
+    };
+    let other = Message::Other {
+        msgtype: "rmtsh".to_owned(),
+    };
+
+    let written =
+        |message: &Message| json!({ "kind": message.msgtype(), "json": message.to_json() });
+    let rates = |message: &Message| match message {
+        Message::RouterConfig { data_rates, .. } => data_rates
+            .iter()
+            .map(|entry| match entry {
+                Some((spreading_factor, bandwidth_hz, downlink_only)) => json!({
+                    "spreadingFactor": spreading_factor,
+                    "bandwidthHz": bandwidth_hz,
+                    "downlinkOnly": downlink_only,
+                }),
+                None => Value::Null,
+            })
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+
+    json!([
+        written(&version),
+        {
+            "kind": "router_config",
+            "json": us915.to_json(),
+            "filtersNetworks": false,
+            "joinEuiRanges": [[
+                Eui::new(first_join.to_be_bytes()).to_hex(),
+                Eui::new((first_join + 0xff).to_be_bytes()).to_hex(),
+            ]],
+            "dataRates": rates(&us915),
+        },
+        {
+            "kind": "router_config",
+            "json": filtered.to_json(),
+            "filtersNetworks": true,
+            "netIds": [0x13],
+            "dataRates": rates(&filtered),
+        },
+        written(join),
+        written(uplink),
+        {
+            "kind": "propdf",
+            "json": proprietary.to_json(),
+            "xtime": xtime.to_string(),
+        },
+        {
+            "kind": "dnmsg",
+            "json": class_a.to_json(),
+            "xtime": (xtime + 1_000_000).to_string(),
+            "rx1": { "dataRate": 5, "frequencyHz": 868_100_000 },
+            "rx2": { "dataRate": 0, "frequencyHz": 869_525_000 },
+        },
+        {
+            "kind": "dnmsg",
+            "json": class_b.to_json(),
+            "pingSlot": { "dataRate": 3, "frequencyHz": 869_525_000 },
+            "gpstime": 1_442_000_000_000_000_i64,
+        },
+        written(&schedule),
+        {
+            "kind": "dntxed",
+            "json": transmitted.to_json(),
+            "xtime": (xtime + 1_000_000).to_string(),
+        },
+        written(&time_sync),
+        written(&other),
+    ])
+}
+
+/// The network side of a site: a join admitted and answered, and an uplink read.
 fn gateway_network() -> Value {
     use pamoja_gateway::network::{Event, Network, Registration};
     use pamoja_gateway::udp::Rxpk;
@@ -7008,6 +7209,8 @@ fn gateway_network() -> Value {
     })
 }
 
+/// The datagrams of the Semtech UDP packet forwarder protocol, each with the fields it
+/// carries, so every binding builds the same bytes and reads the same values back.
 fn gateway() -> Value {
     use pamoja_gateway::udp::{Eui, Packet, Rxpk, Stat, TxStatus, Txpk, Uplink};
 

@@ -4571,6 +4571,77 @@ fn mavlink_protocol_vectors_match() {
     );
 }
 
+/// Both sides of the Basics Station discovery exchange write the committed text, and every
+/// kind of message reads back the values beside it and writes back unchanged.
+#[test]
+fn station_vectors_match() {
+    use pamoja_gateway::station::{Discovery, Message, Router};
+    use pamoja_gateway::udp::Eui;
+
+    let text = |value: &Value| value.as_str().expect("text").to_owned();
+    let vectors = vectors();
+    let case = &vectors["station"];
+    let router = Eui::from_hex(&text(&case["router"])).expect("an identifier");
+    let muxs = Eui::from_hex(&text(&case["muxs"])).expect("an identifier");
+
+    assert_eq!(
+        Discovery::from_json(text(&case["discovery"]).as_bytes())
+            .expect("a request")
+            .router,
+        router
+    );
+    assert_eq!(
+        Router::accepted(router, muxs, text(&case["uri"])).to_json(),
+        text(&case["routerAnswer"])
+    );
+    assert_eq!(
+        Router::refused(router, text(&case["refusal"]["error"])).to_json(),
+        text(&case["refusal"]["json"])
+    );
+
+    for wanted in case["messages"].as_array().expect("a list") {
+        let written = text(&wanted["json"]);
+        let message = Message::from_json(written.as_bytes()).expect("well formed");
+        let kind = text(&wanted["kind"]);
+        assert_eq!(message.msgtype(), kind);
+        assert_eq!(message.to_json(), written, "a {kind} written back");
+
+        let clock = match &message {
+            Message::Proprietary { levels, .. } => Some(levels.xtime),
+            Message::Downlink { xtime, .. } => *xtime,
+            Message::Transmitted { xtime, .. } => Some(*xtime),
+            _ => None,
+        };
+        if let Some(xtime) = wanted.get("xtime") {
+            assert_eq!(clock.map(|at| at.to_string()), Some(text(xtime)), "{kind}");
+        }
+        if let Message::RouterConfig {
+            net_id, data_rates, ..
+        } = &message
+        {
+            if let Some(filters) = wanted.get("filtersNetworks") {
+                assert_eq!(Some(net_id.is_some()), filters.as_bool(), "{kind}");
+            }
+            if let Some(rates) = wanted.get("dataRates") {
+                let read: Vec<Value> = data_rates
+                    .iter()
+                    .map(|entry| match entry {
+                        Some((spreading_factor, bandwidth_hz, downlink_only)) => {
+                            serde_json::json!({
+                                "spreadingFactor": spreading_factor,
+                                "bandwidthHz": bandwidth_hz,
+                                "downlinkOnly": downlink_only,
+                            })
+                        }
+                        None => Value::Null,
+                    })
+                    .collect();
+                assert_eq!(&Value::Array(read), rates, "{kind}");
+            }
+        }
+    }
+}
+
 /// Every datagram of the packet forwarder protocol builds the committed bytes, and reading
 /// those bytes gives back the fields the vectors describe.
 #[test]

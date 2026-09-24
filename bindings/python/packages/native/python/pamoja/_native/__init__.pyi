@@ -71,9 +71,12 @@ __all__ = [
     "GatewaySlot",
     "GatewayStat",
     "GatewayStationBroadcast",
+    "GatewayStationDataRate",
+    "GatewayStationJoinRange",
     "GatewayStationLevels",
     "GatewayStationMessage",
     "GatewayStationRouter",
+    "GatewayStationWindow",
     "GatewayTxpk",
     "Geofence",
     "GpioLine",
@@ -622,12 +625,15 @@ __all__ = [
     "spi_mode_from_clock",
     "split_update_block",
     "station_discovery",
+    "station_discovery_parse",
     "station_encode",
     "station_eui_of",
     "station_heard",
     "station_id6",
     "station_parse",
+    "station_router_accepted",
     "station_router_parse",
+    "station_router_refused",
     "stepper_step_count",
     "stepper_steps_for_degrees",
     "stepper_timing",
@@ -3397,6 +3403,55 @@ class GatewayStationBroadcast:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class GatewayStationDataRate:
+    r"""
+    One number of a configuration's data-rate table.
+    """
+    @property
+    def spreading_factor(self) -> builtins.int:
+        r"""
+        The spreading factor, 0 for FSK.
+        """
+    @property
+    def bandwidth_hz(self) -> builtins.int:
+        r"""
+        The bandwidth in hertz.
+        """
+    @property
+    def downlink_only(self) -> builtins.bool:
+        r"""
+        Whether the rate is used only for downlinks.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, spreading_factor: builtins.int, bandwidth_hz: builtins.int, downlink_only: builtins.bool = False) -> GatewayStationDataRate:
+        r"""
+        Describes a data rate by its spreading factor and bandwidth.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationJoinRange:
+    r"""
+    A range of join identifiers whose join requests a station forwards, both ends included.
+    """
+    @property
+    def first(self) -> builtins.str:
+        r"""
+        The first identifier, as sixteen hexadecimal digits.
+        """
+    @property
+    def last(self) -> builtins.str:
+        r"""
+        The last identifier, as sixteen hexadecimal digits.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, first: builtins.str, last: builtins.str) -> GatewayStationJoinRange:
+        r"""
+        Describes a range by its first and last identifier, each sixteen hexadecimal digits.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
 class GatewayStationLevels:
     r"""
     How a station heard a packet, as it reports it.
@@ -3438,7 +3493,8 @@ class GatewayStationMessage:
     A message either side of a session sends.
     
     Every message names its kind in `msgtype`, and carries the fields that kind uses. The rest
-    read as ``None``.
+    read as ``None``. Build one with the keyword arguments of its kind and write it with
+    :func:`station_encode`.
     """
     @property
     def msgtype(self) -> builtins.str:
@@ -3478,7 +3534,14 @@ class GatewayStationMessage:
     @property
     def net_id(self) -> typing.Optional[builtins.list[builtins.int]]:
         r"""
-        The networks whose frames are carried, for a configuration.
+        The networks whose data frames a configuration forwards, ``None`` to forward every
+        network's. A station matches each against the top seven bits of a device address, so an
+        empty list forwards no data frame at all.
+        """
+    @property
+    def join_eui_ranges(self) -> typing.Optional[builtins.list[GatewayStationJoinRange]]:
+        r"""
+        The join identifier ranges a configuration forwards; empty forwards every join.
         """
     @property
     def region(self) -> typing.Optional[builtins.str]:
@@ -3504,6 +3567,12 @@ class GatewayStationMessage:
     def freq_max(self) -> typing.Optional[builtins.int]:
         r"""
         The highest frequency the station may use, in hertz.
+        """
+    @property
+    def data_rates(self) -> typing.Optional[builtins.list[typing.Optional[GatewayStationDataRate]]]:
+        r"""
+        A configuration's data rates, indexed by data-rate number, with ``None`` for a number
+        the table leaves undefined.
         """
     @property
     def mhdr(self) -> typing.Optional[builtins.int]:
@@ -3553,7 +3622,7 @@ class GatewayStationMessage:
     @property
     def data_rate(self) -> typing.Optional[builtins.int]:
         r"""
-        The data rate it arrived at, or is to be sent at.
+        The data rate a frame arrived at.
         """
     @property
     def frequency_hz(self) -> typing.Optional[builtins.int]:
@@ -3568,17 +3637,32 @@ class GatewayStationMessage:
     @property
     def class_(self) -> typing.Optional[builtins.int]:
         r"""
-        Which class of downlink this is.
+        Which class of downlink this is: 0 for A, 1 for B, 2 for C.
         """
     @property
     def diid(self) -> typing.Optional[builtins.int]:
         r"""
-        The identifier a transmission report carries back.
+        The identifier a downlink and its transmission report share.
         """
     @property
     def rx_delay(self) -> typing.Optional[builtins.int]:
         r"""
         The delay before the first receive window, in seconds.
+        """
+    @property
+    def rx1(self) -> typing.Optional[GatewayStationWindow]:
+        r"""
+        The first receive window a downlink names.
+        """
+    @property
+    def rx2(self) -> typing.Optional[GatewayStationWindow]:
+        r"""
+        The second receive window a downlink names.
+        """
+    @property
+    def ping_slot(self) -> typing.Optional[GatewayStationWindow]:
+        r"""
+        The ping slot a class B downlink goes out in.
         """
     @property
     def priority(self) -> typing.Optional[builtins.int]:
@@ -3588,7 +3672,8 @@ class GatewayStationMessage:
     @property
     def xtime(self) -> typing.Optional[builtins.int]:
         r"""
-        The station clock, for a downlink or a report.
+        The station clock in microseconds: the uplink a downlink answers, the moment a reported
+        frame went out, or the one a time sync carries.
         """
     @property
     def rctx(self) -> typing.Optional[builtins.int]:
@@ -3598,12 +3683,13 @@ class GatewayStationMessage:
     @property
     def txtime(self) -> typing.Optional[builtins.float]:
         r"""
-        When a frame went out, in seconds.
+        When a frame went out, in seconds, or the station time a time sync carries, in
+        microseconds.
         """
     @property
     def gpstime(self) -> typing.Optional[builtins.int]:
         r"""
-        The GPS time, when the station has one.
+        The GPS time in microseconds since the GPS epoch.
         """
     @property
     def schedule(self) -> typing.Optional[builtins.list[GatewayStationBroadcast]]:
@@ -3618,7 +3704,14 @@ class GatewayStationMessage:
     @property
     def payload(self) -> bytes:
         r"""
-        The payload a frame carries, still encrypted, or the frame a downlink transmits.
+        The payload a frame carries, still encrypted, the whole of a proprietary frame, or the
+        frame a downlink transmits.
+        """
+    def __new__(cls, msgtype: builtins.str, *, station: typing.Optional[builtins.str] = None, firmware: typing.Optional[builtins.str] = None, package: typing.Optional[builtins.str] = None, model: typing.Optional[builtins.str] = None, protocol: typing.Optional[builtins.int] = None, features: typing.Optional[builtins.str] = None, net_id: typing.Optional[typing.Sequence[builtins.int]] = None, join_eui_ranges: typing.Optional[typing.Sequence[GatewayStationJoinRange]] = None, region: typing.Optional[builtins.str] = None, max_eirp: typing.Optional[builtins.float] = None, hwspec: typing.Optional[builtins.str] = None, freq_min: typing.Optional[builtins.int] = None, freq_max: typing.Optional[builtins.int] = None, data_rates: typing.Optional[typing.Sequence[typing.Optional[GatewayStationDataRate]]] = None, mhdr: typing.Optional[builtins.int] = None, join_eui: typing.Optional[builtins.str] = None, dev_eui: typing.Optional[builtins.str] = None, dev_nonce: typing.Optional[builtins.int] = None, dev_addr: typing.Optional[builtins.int] = None, fctrl: typing.Optional[builtins.int] = None, fcnt: typing.Optional[builtins.int] = None, fopts: typing.Optional[typing.Sequence[builtins.int]] = None, fport: typing.Optional[builtins.int] = None, payload: typing.Optional[typing.Sequence[builtins.int]] = None, mic: typing.Optional[builtins.int] = None, data_rate: typing.Optional[builtins.int] = None, frequency_hz: typing.Optional[builtins.int] = None, levels: typing.Optional[GatewayStationLevels] = None, class_: typing.Optional[builtins.int] = None, diid: typing.Optional[builtins.int] = None, rx_delay: typing.Optional[builtins.int] = None, rx1: typing.Optional[GatewayStationWindow] = None, rx2: typing.Optional[GatewayStationWindow] = None, ping_slot: typing.Optional[GatewayStationWindow] = None, priority: typing.Optional[builtins.int] = None, xtime: typing.Optional[builtins.int] = None, rctx: typing.Optional[builtins.int] = None, txtime: typing.Optional[builtins.float] = None, gpstime: typing.Optional[builtins.int] = None, schedule: typing.Optional[typing.Sequence[GatewayStationBroadcast]] = None) -> GatewayStationMessage:
+        r"""
+        Describes a message of any kind, named by `msgtype` as the protocol writes it.
+        
+        A downlink's frame goes in `payload`, as does the whole of a proprietary frame.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -3646,6 +3739,28 @@ class GatewayStationRouter:
     def error(self) -> typing.Optional[builtins.str]:
         r"""
         Why the station was refused, when it was.
+        """
+    def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class GatewayStationWindow:
+    r"""
+    A receive window, or the ping slot a class B frame goes out in.
+    """
+    @property
+    def data_rate(self) -> builtins.int:
+        r"""
+        The data rate, as the network's table numbers it.
+        """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The frequency in hertz.
+        """
+    def __eq__(self, other: builtins.object, /) -> builtins.bool: ...
+    def __new__(cls, data_rate: builtins.int, frequency_hz: builtins.int) -> GatewayStationWindow:
+        r"""
+        Describes a window by its data rate and frequency.
         """
     def __repr__(self) -> builtins.str: ...
 
@@ -13747,9 +13862,15 @@ def station_discovery(router: builtins.str) -> builtins.str:
     Writes the request a station sends to find its network server.
     """
 
+def station_discovery_parse(text: builtins.str) -> builtins.str:
+    r"""
+    Reads the request a station sent to find its network server, as the server does, and
+    returns the station asking as sixteen hexadecimal digits.
+    """
+
 def station_encode(message: GatewayStationMessage) -> builtins.str:
     r"""
-    Writes a message the way the websocket carries it.
+    Writes a message of any kind the way the websocket carries it.
     """
 
 def station_eui_of(text: builtins.str) -> builtins.str:
@@ -13772,9 +13893,19 @@ def station_parse(text: builtins.str) -> GatewayStationMessage:
     Reads a message that arrived over the websocket.
     """
 
+def station_router_accepted(router: builtins.str, muxs: builtins.str, uri: builtins.str) -> builtins.str:
+    r"""
+    Writes the answer that sends a station to the websocket its session runs on.
+    """
+
 def station_router_parse(text: builtins.str) -> GatewayStationRouter:
     r"""
     Reads the answer a discovery endpoint gives.
+    """
+
+def station_router_refused(router: builtins.str, error: builtins.str) -> builtins.str:
+    r"""
+    Writes the answer that refuses a station, saying why.
     """
 
 def stepper_step_count(drive: builtins.str) -> builtins.int:

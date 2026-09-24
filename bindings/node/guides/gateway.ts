@@ -179,7 +179,7 @@ const active = session(0x26010001, Buffer.alloc(16, 0x44), Buffer.alloc(16, 0x55
 const frame = active.encodeUplink(7, 2, Buffer.from('21.5'))
 const reported = stationHeard(frame, 5, 868_100_000, {
   rctx: 0,
-  xtime: 1_000_000,
+  xtime: 1_000_000n,
   rssi: -35,
   snr: 5.1,
 })

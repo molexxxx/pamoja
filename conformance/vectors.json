@@ -13585,7 +13585,141 @@
       "message": "{\"DR\":5,\"DevEui\":\"1111:1111:1111:1111\",\"DevNonce\":258,\"Freq\":868100000,\"JoinEui\":\"2222:2222:2222:2222\",\"MHdr\":0,\"MIC\":446794118,\"msgtype\":\"jreq\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
       "mic": 446794118
     },
+    "messages": [
+      {
+        "json": "{\"features\":\"gps\",\"firmware\":\"0.2.0\",\"model\":\"linux\",\"msgtype\":\"version\",\"package\":\"pamoja-gateway\",\"protocol\":2,\"station\":\"pamoja\"}",
+        "kind": "version"
+      },
+      {
+        "dataRates": [
+          {
+            "bandwidthHz": 125000,
+            "downlinkOnly": false,
+            "spreadingFactor": 10
+          },
+          {
+            "bandwidthHz": 125000,
+            "downlinkOnly": false,
+            "spreadingFactor": 9
+          },
+          {
+            "bandwidthHz": 125000,
+            "downlinkOnly": false,
+            "spreadingFactor": 8
+          },
+          {
+            "bandwidthHz": 125000,
+            "downlinkOnly": false,
+            "spreadingFactor": 7
+          },
+          {
+            "bandwidthHz": 500000,
+            "downlinkOnly": false,
+            "spreadingFactor": 8
+          },
+          null,
+          null,
+          null,
+          {
+            "bandwidthHz": 500000,
+            "downlinkOnly": true,
+            "spreadingFactor": 12
+          },
+          {
+            "bandwidthHz": 500000,
+            "downlinkOnly": true,
+            "spreadingFactor": 11
+          }
+        ],
+        "filtersNetworks": false,
+        "joinEuiRanges": [
+          [
+            "70b3d57ed0000000",
+            "70b3d57ed00000ff"
+          ]
+        ],
+        "json": "{\"DRs\":[[10,125,0],[9,125,0],[8,125,0],[7,125,0],[8,500,0],[-1,0,0],[-1,0,0],[-1,0,0],[12,500,1],[11,500,1]],\"JoinEui\":[[8121069293711392768,8121069293711393023]],\"NetID\":null,\"freq_range\":[902000000,928000000],\"hwspec\":\"sx1301/1\",\"max_eirp\":30.0,\"msgtype\":\"router_config\",\"region\":\"US915\"}",
+        "kind": "router_config"
+      },
+      {
+        "dataRates": [
+          {
+            "bandwidthHz": 125000,
+            "downlinkOnly": false,
+            "spreadingFactor": 12
+          },
+          {
+            "bandwidthHz": 250000,
+            "downlinkOnly": false,
+            "spreadingFactor": 7
+          }
+        ],
+        "filtersNetworks": true,
+        "json": "{\"DRs\":[[12,125,0],[7,250,0]],\"JoinEui\":[],\"NetID\":[19],\"freq_range\":[863000000,870000000],\"hwspec\":\"sx1301/1\",\"max_eirp\":16.0,\"msgtype\":\"router_config\",\"region\":\"EU868\"}",
+        "kind": "router_config",
+        "netIds": [
+          19
+        ]
+      },
+      {
+        "json": "{\"DR\":5,\"DevEui\":\"1111:1111:1111:1111\",\"DevNonce\":258,\"Freq\":868100000,\"JoinEui\":\"2222:2222:2222:2222\",\"MHdr\":0,\"MIC\":446794118,\"msgtype\":\"jreq\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
+        "kind": "jreq"
+      },
+      {
+        "json": "{\"DR\":5,\"DevAddr\":637599745,\"FCnt\":7,\"FCtrl\":0,\"FOpts\":\"\",\"FPort\":2,\"FRMPayload\":\"5871195d\",\"Freq\":868100000,\"MHdr\":64,\"MIC\":741013680,\"msgtype\":\"updf\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
+        "kind": "updf"
+      },
+      {
+        "json": "{\"DR\":5,\"FRMPayload\":\"e00102030405\",\"Freq\":868100000,\"msgtype\":\"propdf\",\"upinfo\":{\"gpstime\":1442000000000000,\"rctx\":0,\"rssi\":-97.5,\"snr\":-3.25,\"xtime\":46443374669606851}}",
+        "kind": "propdf",
+        "xtime": "46443374669606851"
+      },
+      {
+        "json": "{\"DevEui\":\"70b3:d57e:d000:1234\",\"RX1DR\":5,\"RX1Freq\":868100000,\"RX2DR\":0,\"RX2Freq\":869525000,\"RxDelay\":1,\"dC\":0,\"diid\":42,\"msgtype\":\"dnmsg\",\"pdu\":\"6001\",\"priority\":0,\"rctx\":0,\"xtime\":46443374670606851}",
+        "kind": "dnmsg",
+        "rx1": {
+          "dataRate": 5,
+          "frequencyHz": 868100000
+        },
+        "rx2": {
+          "dataRate": 0,
+          "frequencyHz": 869525000
+        },
+        "xtime": "46443374670606851"
+      },
+      {
+        "gpstime": 1442000000000000,
+        "json": "{\"DR\":3,\"DevEui\":\"70b3:d57e:d000:1234\",\"Freq\":869525000,\"dC\":1,\"diid\":43,\"gpstime\":1442000000000000,\"msgtype\":\"dnmsg\",\"pdu\":\"6001\",\"priority\":1,\"rctx\":0}",
+        "kind": "dnmsg",
+        "pingSlot": {
+          "dataRate": 3,
+          "frequencyHz": 869525000
+        }
+      },
+      {
+        "json": "{\"msgtype\":\"dnsched\",\"schedule\":[{\"DR\":3,\"Freq\":869525000,\"gpstime\":1442000000000000,\"pdu\":\"600102\",\"priority\":1,\"rctx\":0}]}",
+        "kind": "dnsched"
+      },
+      {
+        "json": "{\"DevEui\":\"70b3:d57e:d000:1234\",\"diid\":42,\"msgtype\":\"dntxed\",\"rctx\":0,\"txtime\":1442000001.5,\"xtime\":46443374670606851}",
+        "kind": "dntxed",
+        "xtime": "46443374670606851"
+      },
+      {
+        "json": "{\"gpstime\":1442000000000000,\"msgtype\":\"timesync\",\"txtime\":1000}",
+        "kind": "timesync"
+      },
+      {
+        "json": "{\"msgtype\":\"rmtsh\"}",
+        "kind": "rmtsh"
+      }
+    ],
+    "muxs": "0000000000000000",
     "muxsId6": "::",
+    "refusal": {
+      "error": "this gateway is not registered",
+      "json": "{\"error\":\"this gateway is not registered\",\"router\":\"b827:ebff:fe01:203\"}"
+    },
     "router": "b827ebfffe010203",
     "routerAnswer": "{\"muxs\":\"::\",\"router\":\"b827:ebff:fe01:203\",\"uri\":\"ws://lns.example.invalid:3001/router\"}",
     "routerId6": "b827:ebff:fe01:203",
@@ -13597,7 +13731,8 @@
       "message": "{\"DR\":5,\"DevAddr\":637599745,\"FCnt\":7,\"FCtrl\":0,\"FOpts\":\"\",\"FPort\":2,\"FRMPayload\":\"5871195d\",\"Freq\":868100000,\"MHdr\":64,\"MIC\":741013680,\"msgtype\":\"updf\",\"upinfo\":{\"rctx\":0,\"rssi\":-35.0,\"snr\":5.1,\"xtime\":1000000}}",
       "mic": 741013680,
       "payload": "5871195d"
-    }
+    },
+    "uri": "ws://lns.example.invalid:3001/router"
   },
   "telemetry": {
     "adaptedTo": "Expensive",

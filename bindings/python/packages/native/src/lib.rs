@@ -816,10 +816,25 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<gateway_station::GatewayStationLevels>()?;
         m.add_class::<gateway_station::GatewayStationBroadcast>()?;
         m.add_class::<gateway_station::GatewayStationRouter>()?;
+        m.add_class::<gateway_station::GatewayStationWindow>()?;
+        m.add_class::<gateway_station::GatewayStationDataRate>()?;
+        m.add_class::<gateway_station::GatewayStationJoinRange>()?;
         m.add_function(wrap_pyfunction!(gateway_station::station_heard, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_encode, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_parse, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_discovery, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            gateway_station::station_discovery_parse,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            gateway_station::station_router_accepted,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            gateway_station::station_router_refused,
+            m
+        )?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_router_parse, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_id6, m)?)?;
         m.add_function(wrap_pyfunction!(gateway_station::station_eui_of, m)?)?;
