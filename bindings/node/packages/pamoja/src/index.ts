@@ -15,9 +15,17 @@
 
 export { version } from '@pamoja/core'
 
-export { MqttClient, type MqttClientOptions, type MqttMessage, Qos } from '@pamoja/mqtt'
+export {
+  MqttClient,
+  type MqttClientOptions,
+  type MqttMessage,
+  type MqttPublishOptions,
+  type MqttTls,
+  type MqttWill,
+  Qos,
+} from '@pamoja/mqtt'
 
-export { DeviceIdentity, fingerprint, type Payload, verify } from '@pamoja/security'
+export { DeviceIdentity, fingerprint, type Payload, verify, verifyMessage } from '@pamoja/security'
 
 export { fromCbor, packSamples, Quantizer, toCbor, unpackSamples } from '@pamoja/codec'
 

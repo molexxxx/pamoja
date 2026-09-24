@@ -1439,6 +1439,10 @@ minor version is for the calls whose signatures changed, listed under Changed.
   gave no way to reach it; the crate's table of features and its `radio` group left it out
   too. `cargo xtask docs --check` now refuses a capability crate the bundle does not
   re-export or list. The crate's examples name `version = "0.2"`.
+- The `pamoja` npm package flattens `verifyMessage`, beside `DeviceIdentity` and `verify`,
+  and the `MqttWill`, `MqttTls`, and `MqttPublishOptions` types beside `MqttClient`, so a
+  program on the bundle can check a signed message and type a will. The smoke test now
+  fails when a flattened package exports a value the bundle does not.
 - The README, the landing page, and the install page said things that were not true, and
   now say what the build measures:
   - The Rust command for a domain was `cargo add pamoja --features radio`, which still

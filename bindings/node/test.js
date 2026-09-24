@@ -109,6 +109,16 @@ function wholeNumbers() {
   assert.strictEqual(new bus.EventBus().missed, 0, "and one left out takes the default");
 }
 
+// The bundle flattens the identity, codec, helper, and MQTT packages, so every value each
+// of them exports is on it by the same name, including ones added after the bundle was.
+function flattened() {
+  const bundle = require("pamoja");
+  for (const name of ["security", "codec", "kit", "mqtt"]) {
+    const missing = Object.keys(require(`@pamoja/${name}`)).filter((key) => !(key in bundle));
+    assert.deepStrictEqual(missing, [], `pamoja flattens all of @pamoja/${name}`);
+  }
+}
+
 async function main() {
   const v = version();
   console.log("pamoja version:", v);
@@ -188,6 +198,7 @@ async function main() {
   await asyncTransports();
   await profileRuns();
   wholeNumbers();
+  flattened();
 
   console.log("ok");
 }
