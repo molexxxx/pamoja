@@ -1,6 +1,6 @@
 //! The site's navigation, derived from the capability map.
 //!
-//! The pages come first (introduction, install, hardware, buses, radios, examples, profiles, community), the boards, then a group per
+//! The pages come first (introduction, install, hardware, buses, radios, examples, profiles, running a profile, community), the boards, then a group per
 //! chapter holding its guides in the order the map gives them, then the reference hub and
 //! the four references, and the pages about the project. The same order gives every page its previous and next neighbor.
 
@@ -52,6 +52,7 @@ impl Nav {
                 item("Radios and antennas", "docs/radio.html"),
                 item("Examples", "docs/examples.html"),
                 item("Profiles", "docs/profiles.html"),
+                item("Running a profile", "docs/run.html"),
                 item("Community", "docs/community.html"),
             ],
         }];
@@ -256,7 +257,7 @@ guide = "guides/can.md"
         );
         let urls: Vec<&str> = nav.items().map(|item| item.url.as_str()).collect();
         assert_eq!(
-            &urls[..13],
+            &urls[..14],
             [
                 "docs/index.html",
                 "docs/install.html",
@@ -265,6 +266,7 @@ guide = "guides/can.md"
                 "docs/radio.html",
                 "docs/examples.html",
                 "docs/profiles.html",
+                "docs/run.html",
                 "docs/community.html",
                 "docs/boards/raspberry-pi.html",
                 "docs/boards/esp32.html",

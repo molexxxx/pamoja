@@ -472,7 +472,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="node-profile">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><code class="pkg-import">@pamoja/profile</code><p>Named, ready-to-run device profiles from plain data or a JSON manifest</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/profile.html">Device profiles</a><code class="pkg-import">@pamoja/profile</code><p>Named, ready-to-run device profiles from plain data or a JSON manifest, run as a node in every language</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/profile</code><button class="copy" type="button" data-copy="npm install @pamoja/profile" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

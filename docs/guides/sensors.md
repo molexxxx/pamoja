@@ -1284,7 +1284,7 @@ The mistakes that cost an afternoon:
 <!-- table: next sensors -->
 - [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus and one serial port a program and its drivers share, and delays that sleep or only count.
 - [Helpers](kit.md): Plain-language helper math.
-- [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest.
+- [Device profiles](profile.md): Named, ready-to-run device profiles from plain data or a JSON manifest, run as a node in every language.
 - Beside it: [Hardware](../hardware.md), [Node to dashboard](../boards/walkthrough.md).
 - Also in Sensing and actuation: [Actuator drivers](actuators.md), [Your own device](device.md).
 <!-- end -->

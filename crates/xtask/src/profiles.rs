@@ -234,6 +234,45 @@ impl Profiles {
     }
 }
 
+/// Renders the parts the stock runner reads, from the runner's own list, so the page never
+/// names a part the runner cannot open.
+///
+/// # Returns
+///
+/// The Markdown that replaces the `<!-- table: runner parts -->` region.
+pub fn parts_table() -> String {
+    use pamoja_profile::wiring::Part;
+
+    let mut out = String::from(
+        "| `part` | Measures, as `reads` names it | On | Usual address |\n| --- | --- | --- | --- |\n",
+    );
+    for part in Part::ALL {
+        let measures = if part == Part::Replay {
+            "whatever the profile reads, from its `readings`".to_owned()
+        } else {
+            part.measures()
+                .iter()
+                .map(|(quantity, unit)| format!("`{quantity}` in `{unit}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let (on, address) = match (part, part.default_address()) {
+            (Part::Replay, _) => ("nothing".to_owned(), "-".to_owned()),
+            (Part::Ds18b20, _) => (
+                "the kernel's 1-Wire files, by `serial`".to_owned(),
+                "-".to_owned(),
+            ),
+            (_, Some(address)) => ("an I2C `bus`".to_owned(), format!("`{address:#04x}`")),
+            (_, None) => ("an I2C `bus`".to_owned(), "-".to_owned()),
+        };
+        out.push_str(&format!(
+            "| `{}` | {measures} | {on} | {address} |\n",
+            part.name()
+        ));
+    }
+    out.trim_end().to_owned()
+}
+
 /// Rewrites every manifest into canonical form, or with `--check` reports the ones that
 /// are not.
 ///
