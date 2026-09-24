@@ -93,7 +93,9 @@ power = ["dep:pamoja-power"]
 telemetry = ["dep:pamoja-telemetry"]
 
 [dependencies]
-napi = { version = "3", default-features = false, features = ["napi4", "tokio_rt"] }
+# Node-API 6 brings BigInt, which a Basics Station xtime needs: its session byte puts it past
+# what a JavaScript number holds exactly. Every Node release the packages support has it.
+napi = { version = "3", default-features = false, features = ["napi6", "tokio_rt"] }
 napi-derive = "3"
 pamoja-core = { path = "../../crates/pamoja-core" }
 pamoja-mqtt = { path = "../../crates/pamoja-mqtt", optional = true }

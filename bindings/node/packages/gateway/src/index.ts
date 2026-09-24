@@ -30,9 +30,12 @@ export type {
   GatewaySlot as Slot,
   GatewayStat as Stat,
   GatewayStationBroadcast as StationBroadcast,
+  GatewayStationDataRate as StationDataRate,
+  GatewayStationJoinRange as StationJoinRange,
   GatewayStationLevels as StationLevels,
   GatewayStationMessage as StationMessage,
   GatewayStationRouter as StationRouter,
+  GatewayStationWindow as StationWindow,
   GatewayTxpk as Txpk,
 } from '@pamoja/native'
 
@@ -89,21 +92,28 @@ export {
    * Reads a frame the radio heard into the message that reports it.
    *
    * A station holds no key, so nothing is verified here: the frame is split into the fields
-   * the protocol names and the server judges them.
+   * the protocol names and the server judges them. The station clock is a bigint, because the
+   * session byte an xtime carries puts it past what a number holds exactly.
    *
    * @example
    * ```ts
-   * const heard = stationHeard(frame, 5, 868_100_000, { rctx: 0, xtime: 1_000_000, rssi: -35, snr: 5.1 })
+   * const heard = stationHeard(frame, 5, 868_100_000, { rctx: 0, xtime: 1_000_000n, rssi: -35, snr: 5.1 })
    * socket.send(stationEncode(heard))
    * ```
    */
   stationHeard,
-  /** Writes a message as the websocket carries it. */
+  /** Writes a message of any kind as the websocket carries it. */
   stationEncode,
   /** Reads a message that arrived over the websocket. */
   stationParse,
   /** Writes the request a station sends on `/router-info` to find its network server. */
   stationDiscovery,
+  /** Reads the request a station sent on `/router-info`, as the server does, returning the station. */
+  stationDiscoveryParse,
+  /** Writes the answer that sends a station to the websocket its session runs on. */
+  stationRouterAccepted,
+  /** Writes the answer that refuses a station, saying why. */
+  stationRouterRefused,
   /** Reads the answer a discovery endpoint gives: where to connect, or why not. */
   stationRouterParse,
   /** Writes an identifier in the ID6 form the protocol prefers, such as `1:203:405:607`. */

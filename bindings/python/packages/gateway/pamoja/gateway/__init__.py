@@ -8,6 +8,12 @@ socket of your own, and :func:`parse` whatever arrives.
 Frequencies are in hertz, payloads are ``bytes`` rather than base64, and a reception time is a
 count of microseconds, so nothing has to be formatted by hand.
 
+The Basics Station protocol is here from both sides too. A server reads a station's discovery
+request with :func:`station_discovery_parse` and answers it with
+:func:`station_router_accepted`; a station reports a frame it heard with :func:`station_heard`;
+and any other message is a :class:`StationMessage` built from the fields of its kind and
+written with :func:`station_encode`.
+
 Example::
 
     from pamoja.gateway import Packet, PacketKind, Rxpk, encode
@@ -35,20 +41,26 @@ from pamoja._native import GatewaySlot as Slot
 from pamoja._native import GatewayStat as Stat
 from pamoja._native import GatewayTxpk as Txpk
 from pamoja._native import GatewayStationBroadcast as StationBroadcast
+from pamoja._native import GatewayStationDataRate as StationDataRate
+from pamoja._native import GatewayStationJoinRange as StationJoinRange
 from pamoja._native import GatewayStationLevels as StationLevels
 from pamoja._native import GatewayStationMessage as StationMessage
 from pamoja._native import GatewayStationRouter as StationRouter
+from pamoja._native import GatewayStationWindow as StationWindow
 from pamoja._native import gateway_acknowledgment as acknowledgment
 from pamoja._native import gateway_encode as encode
 from pamoja._native import gateway_parse as parse
 from pamoja._native import chirpstack_uplink_topic
 from pamoja._native import station_discovery
+from pamoja._native import station_discovery_parse
 from pamoja._native import station_encode
 from pamoja._native import station_eui_of
 from pamoja._native import station_heard
 from pamoja._native import station_id6
 from pamoja._native import station_parse
+from pamoja._native import station_router_accepted
 from pamoja._native import station_router_parse
+from pamoja._native import station_router_refused
 
 __all__ = [
     "CHIRPSTACK_UPLINK_TOPIC",
@@ -68,10 +80,13 @@ __all__ = [
     "Slot",
     "Stat",
     "StationBroadcast",
+    "StationDataRate",
+    "StationJoinRange",
     "StationKind",
     "StationLevels",
     "StationMessage",
     "StationRouter",
+    "StationWindow",
     "TxStatus",
     "Txpk",
     "acknowledgment",
@@ -79,12 +94,15 @@ __all__ = [
     "encode",
     "parse",
     "station_discovery",
+    "station_discovery_parse",
     "station_encode",
     "station_eui_of",
     "station_heard",
     "station_id6",
     "station_parse",
+    "station_router_accepted",
     "station_router_parse",
+    "station_router_refused",
 ]
 
 #: The port a packet forwarder sends to by convention, which the protocol itself does not fix.

@@ -4835,6 +4835,24 @@ export interface GatewayStationBroadcast {
   rctx?: number
 }
 
+/** One number of a configuration's data-rate table. */
+export interface GatewayStationDataRate {
+  /** The spreading factor, 0 for FSK. */
+  spreadingFactor: number
+  /** The bandwidth in hertz. */
+  bandwidthHz: number
+  /** Whether the rate is used only for downlinks. */
+  downlinkOnly: boolean
+}
+
+/** A range of join identifiers whose join requests a station forwards, both ends included. */
+export interface GatewayStationJoinRange {
+  /** The first identifier, as sixteen hexadecimal digits. */
+  first: string
+  /** The last identifier, as sixteen hexadecimal digits. */
+  last: string
+}
+
 /** Which kind of message this is. */
 export declare const enum GatewayStationKind {
   /** What the station reports about itself when a session opens. */
@@ -4864,7 +4882,7 @@ export interface GatewayStationLevels {
   /** The radio the packet arrived on, which an answer goes back out on. */
   rctx: number
   /** The station clock, in microseconds. */
-  xtime: number
+  xtime: bigint
   /** The GPS time, when the station has one. */
   gpstime?: number
   /** The received signal strength, in dBm. */
@@ -4882,8 +4900,8 @@ export interface GatewayStationMessage {
   /** Which kind of message. */
   kind: GatewayStationKind
   /**
-   * The kind as the protocol writes it, such as `jreq`, for a kind this build does not
-   * model.
+   * The kind as the protocol writes it, such as `jreq`; the word a kind this build does not
+   * model is written with.
    */
   msgtype?: string
   /** The station software, for a version. */
@@ -4898,8 +4916,17 @@ export interface GatewayStationMessage {
   protocol?: number
   /** What it can do, for a version. */
   features?: string
-  /** The networks whose frames are carried, for a configuration. */
+  /**
+   * The networks whose data frames a configuration forwards, absent to forward every
+   * network's. A station matches each against the top seven bits of a device address, so an
+   * empty list forwards no data frame at all.
+   */
   netId?: Array<number>
+  /**
+   * The join identifier ranges a configuration forwards; empty or absent forwards every
+   * join.
+   */
+  joinEuiRanges?: Array<GatewayStationJoinRange>
   /** The region name, for a configuration. */
   region?: string
   /** The highest radiated power the region allows, in dBm, for a configuration. */
@@ -4910,6 +4937,11 @@ export interface GatewayStationMessage {
   freqMin?: number
   /** The highest frequency the station may use, in hertz, for a configuration. */
   freqMax?: number
+  /**
+   * A configuration's data rates, indexed by data-rate number, with `null` for a number the
+   * table leaves undefined.
+   */
+  dataRates?: Array<GatewayStationDataRate | undefined | null>
   /** The MAC header byte, for a join request or a data frame. */
   mhdr?: number
   /** The application being joined, as sixteen hexadecimal digits. */
@@ -4932,29 +4964,41 @@ export interface GatewayStationMessage {
   payload?: Buffer
   /** The message integrity code. */
   mic?: number
-  /** The data rate it arrived at, or is to be sent at. */
+  /** The data rate it arrived at. */
   dataRate?: number
   /** The frequency in hertz. */
   frequencyHz?: number
   /** How it was heard, for the kinds a station sends up. */
   levels?: GatewayStationLevels
-  /** Which class of downlink this is. */
+  /** Which class of downlink this is: 0 for A, 1 for B, 2 for C. */
   class?: number
-  /** The identifier a transmission report carries back. */
-  diid?: number
+  /** The identifier a downlink and its transmission report share. */
+  diid?: bigint
   /** The frame to transmit, for a downlink. */
   pdu?: Buffer
   /** The delay before the first receive window, in seconds. */
   rxDelay?: number
+  /** The first receive window a downlink names. */
+  rx1?: GatewayStationWindow
+  /** The second receive window a downlink names. */
+  rx2?: GatewayStationWindow
+  /** The ping slot a class B downlink goes out in. */
+  pingSlot?: GatewayStationWindow
   /** How urgent a downlink is. */
   priority?: number
-  /** The station clock, for a downlink or a report. */
-  xtime?: number
+  /**
+   * The station clock in microseconds: the uplink a downlink answers, the moment a reported
+   * frame went out, or the one a time sync carries.
+   */
+  xtime?: bigint
   /** The radio, for a downlink or a report. */
   rctx?: number
-  /** When a frame went out, in seconds. */
+  /**
+   * When a frame went out, in seconds, or the station time a time sync carries, in
+   * microseconds.
+   */
   txtime?: number
-  /** The GPS time, when the station has one. */
+  /** The GPS time in microseconds since the GPS epoch. */
   gpstime?: number
   /** What to transmit to a group, for a schedule. */
   schedule?: Array<GatewayStationBroadcast>
@@ -4970,6 +5014,14 @@ export interface GatewayStationRouter {
   uri?: string
   /** Why the station was refused, when it was. */
   error?: string
+}
+
+/** A receive window, or the ping slot a class B frame goes out in. */
+export interface GatewayStationWindow {
+  /** The data rate, as the network's table numbers it. */
+  dataRate: number
+  /** The frequency in hertz. */
+  frequencyHz: number
 }
 
 /** A packet the server asks the gateway to transmit. */
@@ -8910,6 +8962,12 @@ export declare function splitUpdateBlock(block: Buffer): UpdateBlock
 /** Writes the request a station sends to find its network server. */
 export declare function stationDiscovery(router: string): string
 
+/**
+ * Reads the request a station sent to find its network server, as the server does, and
+ * returns the station asking as sixteen hexadecimal digits.
+ */
+export declare function stationDiscoveryParse(text: string): string
+
 /** Writes a message as the websocket carries it. */
 export declare function stationEncode(message: GatewayStationMessage): string
 
@@ -8925,8 +8983,14 @@ export declare function stationId6(eui: string): string
 /** Reads a message that arrived over the websocket. */
 export declare function stationParse(text: string): GatewayStationMessage
 
+/** Writes the answer that sends a station to the websocket its session runs on. */
+export declare function stationRouterAccepted(router: string, muxs: string, uri: string): string
+
 /** Reads the answer a discovery endpoint gives. */
 export declare function stationRouterParse(text: string): GatewayStationRouter
+
+/** Writes the answer that refuses a station, saying why. */
+export declare function stationRouterRefused(router: string, error: string): string
 
 /** Which way to step a motor. */
 export declare const enum StepDirection {

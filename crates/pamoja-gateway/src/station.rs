@@ -76,6 +76,10 @@ const CONFIRMED_UP: u8 = 4;
 /// A frame this protocol does not describe, which a station passes along whole.
 const PROPRIETARY: u8 = 7;
 
+/// The spreading factor a data-rate table writes for a number it leaves undefined, which the
+/// reference station reads as no data rate at all.
+const UNDEFINED_DATA_RATE: i8 = -1;
+
 /// Writes an identifier in the ID6 form the protocol prefers.
 ///
 /// The eight bytes are read as four groups of sixteen bits and written like an IPv6 address:
@@ -446,11 +450,17 @@ pub enum Message {
     },
     /// How the server tells the station to configure its radios.
     RouterConfig {
-        /// The network identifiers whose frames are carried.
-        net_id: Vec<u32>,
-        /// The join identifier ranges that are admitted, as inclusive pairs.
+        /// The networks whose data frames the station forwards, or `None` to forward every
+        /// network's.
+        ///
+        /// A station matches each entry against the top seven bits of a frame's device
+        /// address, so an empty list forwards no data frame at all, while `None`, written as
+        /// `null`, filters nothing.
+        net_id: Option<Vec<u32>>,
+        /// The join identifier ranges whose join requests are forwarded, as inclusive pairs;
+        /// an empty list filters nothing.
         join_eui: Vec<(u64, u64)>,
-        /// The region name, such as `EU863`.
+        /// The region name, such as `EU868`.
         region: String,
         /// The highest radiated power the region allows, in dBm.
         max_eirp: f64,
@@ -458,9 +468,13 @@ pub enum Message {
         hwspec: String,
         /// The lowest and highest frequency the station may use, in hertz.
         freq_range: (u32, u32),
-        /// The data rates, each a spreading factor, a bandwidth, and whether it is
-        /// downlink only.
-        data_rates: Vec<(u8, u32, bool)>,
+        /// The data rates, indexed by data-rate number, each a spreading factor, a bandwidth
+        /// in hertz, and whether it is downlink only.
+        ///
+        /// A spreading factor of 0 is FSK. `None` is a number the table leaves undefined,
+        /// which the protocol writes as a spreading factor of -1 so the entries after it keep
+        /// their numbers.
+        data_rates: Vec<Option<(u8, u32, bool)>>,
     },
     /// A join request the station heard.
     JoinRequest {
@@ -518,10 +532,14 @@ pub enum Message {
         levels: Levels,
     },
     /// A frame the server asks the station to transmit.
+    ///
+    /// A class A frame, and a class C frame answering an uplink, are timed from that uplink's
+    /// `xtime` and go out in `rx1` or `rx2`, the first preferred. A class B frame goes out at
+    /// `gpstime` in a ping slot. A class C frame answering nothing names `rx2` alone.
     Downlink {
         /// The device it is for.
         dev_eui: Eui,
-        /// Which class of downlink this is.
+        /// Which class of downlink this is: 0 for A, 1 for B, 2 for C.
         class: u8,
         /// The identifier the transmission report carries back.
         diid: i64,
@@ -533,12 +551,17 @@ pub enum Message {
         rx1: Option<(u8, u32)>,
         /// The second window, as a data rate and a frequency in hertz.
         rx2: Option<(u8, u32)>,
+        /// The ping slot a class B frame goes out in, as a data rate and a frequency in
+        /// hertz.
+        ping_slot: Option<(u8, u32)>,
         /// How urgent it is.
         priority: u8,
         /// The station clock the first window is counted from.
         xtime: Option<i64>,
         /// The radio context the uplink was heard on.
         rctx: Option<i64>,
+        /// When a class B frame goes out, in microseconds since the GPS epoch.
+        gpstime: Option<i64>,
     },
     /// Frames the server asks the station to transmit to a group at a given time.
     ///
@@ -789,7 +812,10 @@ impl Message {
                     Value::Array(
                         data_rates
                             .iter()
-                            .map(|(sf, bw, down)| json!([sf, bw / 1_000, u8::from(*down)]))
+                            .map(|entry| match entry {
+                                Some((sf, bw, down)) => json!([sf, bw / 1_000, u8::from(*down)]),
+                                None => json!([UNDEFINED_DATA_RATE, 0, 0]),
+                            })
                             .collect(),
                     ),
                 );
@@ -857,9 +883,11 @@ impl Message {
                 rx_delay,
                 rx1,
                 rx2,
+                ping_slot,
                 priority,
                 xtime,
                 rctx,
+                gpstime,
             } => {
                 object.insert("DevEui".to_owned(), Value::String(id6(*dev_eui)));
                 object.insert("dC".to_owned(), json!(class));
@@ -876,12 +904,19 @@ impl Message {
                     object.insert("RX2DR".to_owned(), json!(data_rate));
                     object.insert("RX2Freq".to_owned(), json!(frequency_hz));
                 }
+                if let Some((data_rate, frequency_hz)) = ping_slot {
+                    object.insert("DR".to_owned(), json!(data_rate));
+                    object.insert("Freq".to_owned(), json!(frequency_hz));
+                }
                 object.insert("priority".to_owned(), json!(priority));
                 if let Some(xtime) = xtime {
                     object.insert("xtime".to_owned(), json!(xtime));
                 }
                 if let Some(rctx) = rctx {
                     object.insert("rctx".to_owned(), json!(rctx));
+                }
+                if let Some(gpstime) = gpstime {
+                    object.insert("gpstime".to_owned(), json!(gpstime));
                 }
             }
             Message::Schedule { frames } => {
@@ -965,15 +1000,13 @@ impl Message {
             },
             "router_config" => Message::RouterConfig {
                 net_id: numbers(object, "NetID")
-                    .into_iter()
-                    .map(|value| value as u32)
-                    .collect(),
+                    .map(|ids| ids.into_iter().map(|id| id as u32).collect()),
                 join_eui: pairs(object, "JoinEui"),
                 region: text(object, "region").unwrap_or_default(),
                 max_eirp: number(object, "max_eirp").unwrap_or(0.0),
                 hwspec: text(object, "hwspec").unwrap_or_default(),
                 freq_range: {
-                    let range = numbers(object, "freq_range");
+                    let range = numbers(object, "freq_range").unwrap_or_default();
                     (
                         range.first().copied().unwrap_or(0) as u32,
                         range.get(1).copied().unwrap_or(0) as u32,
@@ -1026,9 +1059,11 @@ impl Message {
                 rx_delay: whole(object, "RxDelay").map(|value| value as u8),
                 rx1: window(object, "RX1DR", "RX1Freq"),
                 rx2: window(object, "RX2DR", "RX2Freq"),
+                ping_slot: window(object, "DR", "Freq"),
                 priority: whole(object, "priority").unwrap_or(0) as u8,
                 xtime: whole(object, "xtime"),
                 rctx: whole(object, "rctx"),
+                gpstime: whole(object, "gpstime"),
             },
             "dnsched" => {
                 let mut frames = Vec::new();
@@ -1127,45 +1162,49 @@ fn window(object: &Map<String, Value>, rate: &str, frequency: &str) -> Option<(u
 
 /// Reads the data rates, each a spreading factor, a bandwidth in hertz, and whether it is
 /// downlink only. The protocol writes the bandwidth in kilohertz.
-fn data_rates(object: &Map<String, Value>) -> Vec<(u8, u32, bool)> {
+///
+/// The table is read by position, so an entry the table leaves undefined, or one that cannot
+/// be read, stays in place as `None` rather than moving every entry after it down a number.
+fn data_rates(object: &Map<String, Value>) -> Vec<Option<(u8, u32, bool)>> {
     let Some(Value::Array(entries)) = object.get("DRs") else {
         return Vec::new();
     };
     entries
         .iter()
-        .filter_map(|entry| {
+        .map(|entry| {
             let triple = entry.as_array()?;
-            let spreading = triple.first()?.as_f64()? as u8;
-            let bandwidth = triple.get(1)?.as_f64()? as u32;
-            let down = triple.get(2).and_then(Value::as_f64).unwrap_or(0.0) != 0.0;
-            Some((spreading, bandwidth * 1_000, down))
+            let spreading = u8::try_from(integer(triple.first()?)?).ok()?;
+            let bandwidth = u32::try_from(integer(triple.get(1)?)?).ok()?;
+            let down = triple.get(2).and_then(integer).unwrap_or(0) != 0;
+            Some((spreading, bandwidth.saturating_mul(1_000), down))
         })
         .collect()
 }
 
-/// Reads an array of numbers.
-fn numbers(object: &Map<String, Value>, key: &str) -> Vec<i64> {
-    let Some(Value::Array(entries)) = object.get(key) else {
-        return Vec::new();
-    };
-    entries
-        .iter()
-        .filter_map(|entry| entry.as_f64().map(|value| value.round() as i64))
-        .collect()
+/// Reads an array of whole numbers, or `None` when the field is absent or not an array.
+fn numbers(object: &Map<String, Value>, key: &str) -> Option<Vec<i64>> {
+    let entries = object.get(key)?.as_array()?;
+    Some(entries.iter().filter_map(integer).collect())
 }
 
 /// Reads an array of inclusive pairs, as the admitted join identifiers are written.
+///
+/// Each bound is a join identifier read as a number, which a double cannot hold exactly, so
+/// it is read as the integer it was written as.
 fn pairs(object: &Map<String, Value>, key: &str) -> Vec<(u64, u64)> {
     let Some(Value::Array(entries)) = object.get(key) else {
         return Vec::new();
+    };
+    let bound = |value: &Value| {
+        value
+            .as_u64()
+            .or_else(|| value.as_f64().map(|number| number as u64))
     };
     entries
         .iter()
         .filter_map(|entry| {
             let pair = entry.as_array()?;
-            let begin = pair.first()?.as_f64()? as u64;
-            let end = pair.get(1)?.as_f64()? as u64;
-            Some((begin, end))
+            Some((bound(pair.first()?)?, bound(pair.get(1)?)?))
         })
         .collect()
 }
@@ -1182,7 +1221,17 @@ fn number(object: &Map<String, Value>, key: &str) -> Option<f64> {
 
 /// Reads a whole number field.
 fn whole(object: &Map<String, Value>, key: &str) -> Option<i64> {
-    number(object, key).map(|value| value.round() as i64)
+    object.get(key).and_then(integer)
+}
+
+/// Reads a whole number, exactly when it was written as an integer.
+///
+/// An `xtime` carries a session byte in bits 48 to 55, so it is routinely larger than a
+/// double holds exactly, and reading it through one would move the moment it names.
+fn integer(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_f64().map(|number| number.round() as i64))
 }
 
 /// Reads an identifier that arrived least significant byte first.
@@ -1497,13 +1546,17 @@ mod tests {
                 features: "gps".to_owned(),
             },
             Message::RouterConfig {
-                net_id: vec![0],
+                net_id: Some(vec![0]),
                 join_eui: vec![(0, u64::MAX)],
-                region: "EU863".to_owned(),
+                region: "EU868".to_owned(),
                 max_eirp: 16.0,
                 hwspec: "sx1301/1".to_owned(),
                 freq_range: (863_000_000, 870_000_000),
-                data_rates: vec![(12, 125_000, false), (7, 250_000, false), (0, 0, true)],
+                data_rates: vec![
+                    Some((12, 125_000, false)),
+                    Some((7, 250_000, false)),
+                    Some((0, 0, true)),
+                ],
             },
             Message::JoinRequest {
                 mhdr: 0x00,
@@ -1536,9 +1589,11 @@ mod tests {
                 rx_delay: Some(1),
                 rx1: Some((5, 868_100_000)),
                 rx2: Some((0, 869_525_000)),
+                ping_slot: None,
                 priority: 10,
                 xtime: Some(3_513_348_611),
                 rctx: Some(1),
+                gpstime: None,
             },
             Message::Transmitted {
                 diid: 42,
@@ -1585,6 +1640,164 @@ mod tests {
                 "a message names its kind"
             );
         }
+    }
+
+    // lorabasics/basicstation src/ral.h puts a random session byte, never zero, in bits 48
+    // to 55 of every xtime, so the value a server echoes back is past what a double holds.
+    #[test]
+    fn an_xtime_a_double_cannot_hold_comes_back_to_the_microsecond() {
+        let xtime = (0xa5_i64 << 48) | 3_512_348_611;
+        assert!(
+            xtime > 1 << 53,
+            "the session byte puts it out of a double's reach"
+        );
+        let answer = Message::Downlink {
+            dev_eui: Eui::from_hex("70b3d57ed0001234").expect("sixteen digits"),
+            class: 0,
+            diid: i64::MAX - 1,
+            pdu: vec![0x60],
+            rx_delay: Some(1),
+            rx1: Some((5, 868_100_000)),
+            rx2: Some((0, 869_525_000)),
+            ping_slot: None,
+            priority: 0,
+            xtime: Some(xtime + 1_000_001),
+            rctx: Some(0),
+            gpstime: None,
+        };
+        let read = Message::from_json(answer.to_json().as_bytes()).expect("it is well formed");
+        assert_eq!(read, answer);
+    }
+
+    #[test]
+    fn a_join_identifier_range_reads_back_exactly() {
+        let first = u64::from_be_bytes(
+            Eui::from_hex("70b3d57ed0000001")
+                .expect("sixteen digits")
+                .bytes(),
+        );
+        let config = Message::RouterConfig {
+            net_id: None,
+            join_eui: vec![(first, first + 0xff)],
+            region: "EU868".to_owned(),
+            max_eirp: 16.0,
+            hwspec: "sx1301/1".to_owned(),
+            freq_range: (863_000_000, 870_000_000),
+            data_rates: Vec::new(),
+        };
+        let read = Message::from_json(config.to_json().as_bytes()).expect("it is well formed");
+        assert_eq!(read, config);
+    }
+
+    // lorabasics/basicstation src/s2e.c handle_router_config reads the table by position and
+    // takes a negative spreading factor as a number with no data rate.
+    #[test]
+    fn a_table_with_undefined_numbers_keeps_every_rate_at_its_number() {
+        let mut table: Vec<Option<(u8, u32, bool)>> = (0..=3)
+            .map(|index| Some((10 - index, 125_000, false)))
+            .collect();
+        table.push(Some((8, 500_000, false)));
+        table.extend([None, None, None]);
+        table.extend((0..=5).map(|index| Some((12 - index, 500_000, true))));
+        let config = Message::RouterConfig {
+            net_id: Some(vec![0x13]),
+            join_eui: Vec::new(),
+            region: "US915".to_owned(),
+            max_eirp: 30.0,
+            hwspec: "sx1301/1".to_owned(),
+            freq_range: (902_000_000, 928_000_000),
+            data_rates: table.clone(),
+        };
+
+        let written = config.to_json();
+        assert!(
+            written.contains("[8,500,0],[-1,0,0],[-1,0,0],[-1,0,0],[12,500,1]"),
+            "{written}"
+        );
+        let Message::RouterConfig { data_rates, .. } =
+            Message::from_json(written.as_bytes()).expect("it is well formed")
+        else {
+            panic!("a configuration reads back as one");
+        };
+        assert_eq!(data_rates, table);
+        assert_eq!(data_rates[8], Some((12, 500_000, true)));
+    }
+
+    #[test]
+    fn an_entry_that_cannot_be_read_holds_its_place() {
+        let read = Message::from_json(
+            br#"{"msgtype":"router_config","DRs":[[12,125,0],"none",[-1,0,0],[7,125,0]]}"#,
+        )
+        .expect("it is well formed");
+        let Message::RouterConfig { data_rates, .. } = read else {
+            panic!("a configuration reads back as one");
+        };
+        assert_eq!(
+            data_rates,
+            vec![
+                Some((12, 125_000, false)),
+                None,
+                None,
+                Some((7, 125_000, false))
+            ]
+        );
+    }
+
+    // lorabasics/basicstation src/s2e.c: a null NetID accepts every network, while a list
+    // clears the filter and accepts only what it names, so an empty one accepts none.
+    #[test]
+    fn no_network_filter_is_written_as_null_and_an_empty_one_as_empty() {
+        let filtered = |net_id: Option<Vec<u32>>| Message::RouterConfig {
+            net_id,
+            join_eui: Vec::new(),
+            region: "EU868".to_owned(),
+            max_eirp: 16.0,
+            hwspec: "sx1301/1".to_owned(),
+            freq_range: (863_000_000, 870_000_000),
+            data_rates: Vec::new(),
+        };
+
+        let open = filtered(None);
+        assert!(open.to_json().contains("\"NetID\":null"));
+        assert_eq!(
+            Message::from_json(open.to_json().as_bytes()).expect("well formed"),
+            open
+        );
+
+        let closed = filtered(Some(Vec::new()));
+        assert!(closed.to_json().contains("\"NetID\":[]"));
+        assert_eq!(
+            Message::from_json(closed.to_json().as_bytes()).expect("well formed"),
+            closed
+        );
+    }
+
+    #[test]
+    fn a_class_b_frame_carries_its_ping_slot_and_gps_time() {
+        let beaconed = Message::Downlink {
+            dev_eui: Eui::from_hex("70b3d57ed0001234").expect("sixteen digits"),
+            class: 1,
+            diid: 7,
+            pdu: vec![0x60, 0x01],
+            rx_delay: None,
+            rx1: None,
+            rx2: None,
+            ping_slot: Some((3, 869_525_000)),
+            priority: 0,
+            xtime: None,
+            rctx: Some(0),
+            gpstime: Some(1_442_000_000_000_000),
+        };
+        let written = beaconed.to_json();
+        assert!(written.contains("\"DR\":3"), "{written}");
+        assert!(written.contains("\"Freq\":869525000"), "{written}");
+        assert!(
+            written.contains("\"gpstime\":1442000000000000"),
+            "{written}"
+        );
+        assert!(!written.contains("RX1DR"), "{written}");
+        let read = Message::from_json(written.as_bytes()).expect("it is well formed");
+        assert_eq!(read, beaconed);
     }
 
     #[test]
@@ -1856,13 +2069,13 @@ mod live {
         let address = listener.local_addr().expect("a bound port");
 
         let configuration = Message::RouterConfig {
-            net_id: vec![0],
+            net_id: Some(vec![0]),
             join_eui: vec![(0, u64::MAX)],
-            region: "EU863".to_owned(),
+            region: "EU868".to_owned(),
             max_eirp: 16.0,
             hwspec: "sx1301/1".to_owned(),
             freq_range: (863_000_000, 870_000_000),
-            data_rates: vec![(12, 125_000, false), (7, 250_000, false)],
+            data_rates: vec![Some((12, 125_000, false)), Some((7, 250_000, false))],
         };
         let sent_down = Message::Downlink {
             dev_eui: Eui::from_hex("1111111111111111").expect("sixteen digits"),
@@ -1872,9 +2085,11 @@ mod live {
             rx_delay: Some(1),
             rx1: Some((5, 868_100_000)),
             rx2: None,
+            ping_slot: None,
             priority: 0,
             xtime: Some(3_513_348_611),
             rctx: Some(1),
+            gpstime: None,
         };
 
         let answering = tokio::spawn({

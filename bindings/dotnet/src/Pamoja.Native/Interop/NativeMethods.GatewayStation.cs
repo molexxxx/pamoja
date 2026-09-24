@@ -43,6 +43,150 @@ public static partial class NativeMethods
     /// <summary>A kind this build does not model, readable only as its text.</summary>
     public const byte GatewayStationOther = 9;
 
+    /// <summary>The station software a version reports.</summary>
+    public const byte GatewayStationTextStation = 0;
+
+    /// <summary>The firmware a version reports.</summary>
+    public const byte GatewayStationTextFirmware = 1;
+
+    /// <summary>The package a version reports.</summary>
+    public const byte GatewayStationTextPackage = 2;
+
+    /// <summary>The hardware model a version reports.</summary>
+    public const byte GatewayStationTextModel = 3;
+
+    /// <summary>What a version says the station can do.</summary>
+    public const byte GatewayStationTextFeatures = 4;
+
+    /// <summary>The region a configuration names.</summary>
+    public const byte GatewayStationTextRegion = 5;
+
+    /// <summary>The concentrator a configuration is written for.</summary>
+    public const byte GatewayStationTextHwspec = 6;
+
+    /// <summary>The word a message calls itself on the wire.</summary>
+    public const byte GatewayStationTextMsgtype = 7;
+
+    /// <summary>Builds a message of any kind from its fixed fields.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_gateway_station_message_new(
+        in PamojaGatewayStationFields fields);
+
+    /// <summary>Returns a piece of text a message carries.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_text(
+        IntPtr message,
+        byte field,
+        out IntPtr outText);
+
+    /// <summary>Sets a piece of text a message carries.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_set_text(
+        IntPtr message,
+        byte field,
+        ReadOnlySpan<byte> text,
+        nuint textLen);
+
+    /// <summary>Sets the bytes a message carries.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_set_payload(
+        IntPtr message,
+        ReadOnlySpan<byte> bytes,
+        nuint bytesLen);
+
+    /// <summary>Sets the frame options a data frame carries.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_set_options(
+        IntPtr message,
+        ReadOnlySpan<byte> bytes,
+        nuint bytesLen);
+
+    /// <summary>Adds a network whose data frames a configuration forwards.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_add_net_id(
+        IntPtr message,
+        uint netId);
+
+    /// <summary>Adds a range of join identifiers a configuration forwards.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_add_join_range(
+        IntPtr message,
+        in PamojaGatewayStationJoinRange range);
+
+    /// <summary>Adds the next number of a configuration's data-rate table.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_add_data_rate(
+        IntPtr message,
+        in PamojaGatewayStationDataRate rate);
+
+    /// <summary>Adds a frame to a schedule.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_add_broadcast(
+        IntPtr message,
+        in PamojaGatewayStationBroadcast frame,
+        ReadOnlySpan<byte> pdu,
+        nuint pduLen);
+
+    /// <summary>Reads one network a configuration names.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_net_id(
+        IntPtr message,
+        nuint index,
+        out uint outNetId);
+
+    /// <summary>Reads one join identifier range a configuration names.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_join_range(
+        IntPtr message,
+        nuint index,
+        out PamojaGatewayStationJoinRange outRange);
+
+    /// <summary>Reads one number of a configuration's data-rate table.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_data_rate(
+        IntPtr message,
+        nuint index,
+        out PamojaGatewayStationDataRate outRate);
+
+    /// <summary>Reads one frame of a schedule.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_message_broadcast(
+        IntPtr message,
+        nuint index,
+        out PamojaGatewayStationBroadcast outFrame,
+        out IntPtr outPdu);
+
+    /// <summary>Reads the request a station sent to find its network server.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_discovery_parse(
+        ReadOnlySpan<byte> text,
+        nuint textLen,
+        Span<byte> outRouter);
+
+    /// <summary>Writes the answer that sends a station to its session's websocket.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_router_accepted(
+        ReadOnlySpan<byte> router,
+        ReadOnlySpan<byte> muxs,
+        ReadOnlySpan<byte> uri,
+        nuint uriLen,
+        out IntPtr outText);
+
+    /// <summary>Writes the answer that refuses a station, saying why.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_router_refused(
+        ReadOnlySpan<byte> router,
+        ReadOnlySpan<byte> error,
+        nuint errorLen,
+        out IntPtr outText);
+
+    /// <summary>Reads the identities a discovery answer names.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_gateway_station_router_identities(
+        ReadOnlySpan<byte> text,
+        nuint textLen,
+        out PamojaGatewayStationRouterIds outIds);
+
     /// <summary>Reads a frame the radio heard into the message that reports it.</summary>
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_gateway_station_heard(

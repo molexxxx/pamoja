@@ -841,7 +841,7 @@ where
 
     // Fixed for the run, so an xtime the server echoes back belongs to this session and not
     // to the one before a restart.
-    let session = seconds_now() as u8;
+    let session = session_byte(seconds_now());
 
     let mut counter = Counter::new();
     let mut clock = Clock::new();
@@ -919,7 +919,7 @@ where
 fn overheard(
     packet: &rx::Packet<'_>,
     config: &Config,
-    data_rates: &[(u8, u32, bool)],
+    data_rates: &[Option<(u8, u32, bool)>],
     clock: &Clock,
     counter: &Counter,
     session: u8,
@@ -932,14 +932,13 @@ fn overheard(
 
     // A station counts in the server's own data rates, so the spreading factor and bandwidth
     // have to be looked up rather than sent. An uplink cannot arrive on a downlink-only rate.
-    let data_rate =
-        data_rates
-            .iter()
-            .position(|(spreading_factor, bandwidth_hz, downlink_only)| {
-                !downlink_only
-                    && *spreading_factor == packet.datarate
-                    && *bandwidth_hz == MULTI_BANDWIDTH_HZ
-            })?;
+    let data_rate = data_rates.iter().position(|entry| {
+        entry.is_some_and(|(spreading_factor, bandwidth_hz, downlink_only)| {
+            !downlink_only
+                && spreading_factor == packet.datarate
+                && bandwidth_hz == MULTI_BANDWIDTH_HZ
+        })
+    })?;
 
     let levels = Levels {
         rctx: 0,
@@ -1372,6 +1371,14 @@ fn seconds_now() -> u64 {
         .unwrap_or_default()
 }
 
+/// The session byte a run's xtimes carry, taken from the clock so a restart picks another.
+///
+/// The reference station keeps it between 1 and 255, so that no valid xtime is zero, and
+/// this keeps to the same range.
+fn session_byte(seconds: u64) -> u8 {
+    (seconds % 255) as u8 + 1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1404,6 +1411,16 @@ mod tests {
         // figure. Getting this wrong breaks downlink timing about seventy minutes in.
         clock.advance(&counter_at(0));
         assert_eq!(clock.at(0, 0) - before, 1_i64 << 32);
+    }
+
+    // lorabasics/basicstation src/ral.h: the session byte is never zero, so no valid xtime is.
+    #[test]
+    fn a_session_byte_is_never_zero() {
+        for seconds in [0, 254, 255, 256, 509, 510, u64::MAX] {
+            assert_ne!(session_byte(seconds), 0, "after {seconds} seconds");
+        }
+        assert_eq!(session_byte(0), 1);
+        assert_eq!(session_byte(254), 255);
     }
 
     #[test]

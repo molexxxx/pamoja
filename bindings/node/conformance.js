@@ -3935,14 +3935,37 @@ function stationVectors() {
 
   const routed = gateway.stationRouterParse(vector.routerAnswer);
   assert.strictEqual(routed.router, vector.router, "the station the server answered");
-  assert.ok(routed.uri, "an accepted station is sent somewhere");
+  assert.strictEqual(routed.muxs, vector.muxs, "the endpoint carrying the session");
+  assert.strictEqual(routed.uri, vector.uri, "an accepted station is sent somewhere");
+
+  // The server side of the same exchange: it reads who asked, and answers or refuses.
+  assert.strictEqual(
+    gateway.stationDiscoveryParse(vector.discovery),
+    vector.router,
+    "the station that asked",
+  );
+  assert.strictEqual(
+    gateway.stationRouterAccepted(vector.router, vector.muxs, vector.uri),
+    vector.routerAnswer,
+    "the answer a server writes",
+  );
+  assert.strictEqual(
+    gateway.stationRouterRefused(vector.router, vector.refusal.error),
+    vector.refusal.json,
+    "the refusal a server writes",
+  );
+  assert.strictEqual(
+    gateway.stationRouterParse(vector.refusal.json).error,
+    vector.refusal.error,
+    "the refusal read back",
+  );
 
   // A join request the radio heard, split into the fields the protocol names.
   const join = gateway.stationHeard(
     Buffer.from(vector.join.frame, "hex"),
     vector.dataRate,
     vector.frequencyHz,
-    { rctx: 0, xtime: 1_000_000, rssi: -35, snr: 5.1 },
+    { rctx: 0, xtime: 1_000_000n, rssi: -35, snr: 5.1 },
   );
   assert.strictEqual(join.kind, "JoinRequest", "a join request is read as one");
   assert.strictEqual(join.joinEui, vector.join.joinEui, "the application it joins");
@@ -3956,7 +3979,7 @@ function stationVectors() {
     Buffer.from(vector.uplink.frame, "hex"),
     vector.dataRate,
     vector.frequencyHz,
-    { rctx: 0, xtime: 1_000_000, rssi: -35, snr: 5.1 },
+    { rctx: 0, xtime: 1_000_000n, rssi: -35, snr: 5.1 },
   );
   assert.strictEqual(uplink.kind, "Uplink", "a data frame is read as one");
   assert.strictEqual(uplink.devAddr, vector.uplink.devAddr, "the address it came from");
@@ -3970,6 +3993,46 @@ function stationVectors() {
   const read = gateway.stationParse(vector.uplink.message);
   assert.strictEqual(read.devAddr, vector.uplink.devAddr, "the address read back");
   assert.strictEqual(read.fcnt, vector.uplink.fcnt, "the counter read back");
+
+  // Every kind of message reads and writes back unchanged, so no field is dropped either way.
+  for (const wanted of vector.messages) {
+    const message = gateway.stationParse(wanted.json);
+    const kind = wanted.kind;
+    assert.strictEqual(message.msgtype, kind, `a ${kind} names its kind`);
+    assert.strictEqual(gateway.stationEncode(message), wanted.json, `a ${kind} written back`);
+    if (wanted.xtime !== undefined) {
+      const xtime = message.levels ? message.levels.xtime : message.xtime;
+      assert.strictEqual(xtime, BigInt(wanted.xtime), `the ${kind} clock to the microsecond`);
+    }
+    if (wanted.dataRates !== undefined) {
+      assert.deepStrictEqual(
+        message.dataRates.map((rate) => rate ?? null),
+        wanted.dataRates,
+        `the ${kind} data rates at their numbers`,
+      );
+    }
+    if (wanted.filtersNetworks !== undefined) {
+      assert.strictEqual(message.netId != null, wanted.filtersNetworks, `the ${kind} network filter`);
+    }
+    if (wanted.netIds !== undefined) {
+      assert.deepStrictEqual(message.netId, wanted.netIds, `the ${kind} networks`);
+    }
+    if (wanted.joinEuiRanges !== undefined) {
+      assert.deepStrictEqual(
+        message.joinEuiRanges.map((range) => [range.first, range.last]),
+        wanted.joinEuiRanges,
+        `the ${kind} join ranges`,
+      );
+    }
+    for (const window of ["rx1", "rx2", "pingSlot"]) {
+      if (wanted[window] !== undefined) {
+        assert.deepStrictEqual({ ...message[window] }, wanted[window], `the ${kind} ${window}`);
+      }
+    }
+    if (wanted.gpstime !== undefined) {
+      assert.strictEqual(message.gpstime, wanted.gpstime, `the ${kind} GPS time`);
+    }
+  }
 }
 
 function gatewayNetworkVectors() {

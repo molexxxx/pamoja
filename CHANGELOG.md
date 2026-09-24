@@ -847,6 +847,20 @@ released together, so one entry covers all of them.
   `detect`, as a relay's scan does, where only Rust could.
 - `LoraBandwidth::from_code` in both radio families' `config` modules names the bandwidth a
   register or command code carries.
+- Every Basics Station message in every language, from both sides. C# builds any kind as a
+  `GatewayStationMessage` from the fields of that kind and writes it with
+  `GatewayStation.Encode`, and reads every field back, where it could write only what a
+  station heard; C carries the same through `pamoja_gateway_station_message_new` and the
+  calls beside it. Python builds any kind with `StationMessage(kind, ...)`. The data-rate
+  table, the join ranges, and the windows are `StationDataRate`, `StationJoinRange`, and
+  `StationWindow` (`GatewayStation*` in C#).
+- A server's half of the Basics Station discovery exchange in every language: reading which
+  station asked with `stationDiscoveryParse`, `station_discovery_parse`, and
+  `GatewayStation.DiscoveryParse`, and answering with `stationRouterAccepted` and
+  `stationRouterRefused` and their counterparts. The C# answer reads back the station and
+  endpoint it names, as the others did.
+- A class B downlink's ping slot and GPS time, `ping_slot` and `gpstime` on
+  `station::Message::Downlink`, written as the protocol's `DR`, `Freq`, and `gpstime`.
 
 ### Changed
 
@@ -1090,6 +1104,19 @@ released together, so one entry covers all of them.
   sizes a duty cycle from what a panel harvests. It prints the same twelve lines in every
   language, and the page gains a paragraph for each language, tables of the modes, the
   duty cycle, and the calls, and a section on what goes wrong.
+- A Basics Station configuration's network filter is an `Option`: `None` is written as
+  `null` and forwards every network's data frames, while an empty list forwards none, as the
+  reference station reads the two. Its data-rate table holds an `Option` per number, so a
+  number the table leaves undefined keeps its place and is written with a spreading factor
+  of -1, which a US915 table needs for DR5 to DR7.
+- A station clock and a downlink identifier are bigints in TypeScript, since the session
+  byte an xtime carries puts it past what a number holds exactly.
+- The C# `GatewayStationMessage` no longer carries `Json`, which a copy made with `with`
+  kept from the message it was copied from. `GatewayStation.Encode` writes what the record
+  holds.
+- The C ABI's `PamojaGatewayStationFields` carries every fixed field of every kind, and a
+  transmission report's clock is in its `xtime`, `rctx`, and `gpstime` rather than in
+  `levels`.
 
 ### Fixed
 
@@ -1362,6 +1389,18 @@ released together, so one entry covers all of them.
 - The C# LoRa calls read a negative payload length as a vast one. They throw
   `ArgumentOutOfRangeException` now, and `MessagesPerHour` takes the count from the core
   rather than adding two numbers that could wrap.
+- TypeScript and Python dropped a Basics Station configuration's data rates and join ranges
+  and a downlink's receive windows, reading and writing, and Python wrote a configuration or
+  a schedule it had read back as its kind alone. A server in either language could not tell
+  a station how to count data rates, or answer a device in a window. Every field survives
+  now, and the conformance vectors pin one message of every kind in all four languages.
+- Basics Station integers were read through a double, so an xtime, whose session byte in
+  bits 48 to 55 puts it past 2^53, came back up to 8 µs off, and a join identifier range
+  lost its low bits. They are read exactly now.
+- A data-rate table entry with a spreading factor of -1, which the reference station reads
+  as no data rate, was read as FSK.
+- The gateway daemon took its session byte from the clock and could take 0, which the
+  reference station never uses so that no valid xtime is zero. It runs from 1 to 255 now.
 
 ## [0.1.18] - 2026-09-10
 

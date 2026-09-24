@@ -6,9 +6,11 @@
 //! {@link stationEncode} writes, and reads whatever arrives with {@link stationParse}.
 //!
 //! Frequencies are in hertz and payloads are buffers rather than hexadecimal text, so nothing
-//! has to be formatted by hand.
+//! has to be formatted by hand. A station clock and a downlink identifier are bigints: the
+//! session byte in bits 48 to 55 of an xtime puts it past what a JavaScript number holds
+//! exactly.
 
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{BigInt, Buffer};
 use napi_derive::napi;
 use pamoja_gateway::station::{eui_of, id6, Broadcast, Discovery, Levels, Message, Router};
 use pamoja_gateway::udp::Eui;
@@ -44,13 +46,42 @@ pub struct GatewayStationLevels {
     /// The radio the packet arrived on, which an answer goes back out on.
     pub rctx: i64,
     /// The station clock, in microseconds.
-    pub xtime: i64,
+    pub xtime: BigInt,
     /// The GPS time, when the station has one.
     pub gpstime: Option<i64>,
     /// The received signal strength, in dBm.
     pub rssi: f64,
     /// The signal-to-noise ratio, in dB.
     pub snr: f64,
+}
+
+/// A receive window, or the ping slot a class B frame goes out in.
+#[napi(object, js_name = "GatewayStationWindow")]
+pub struct GatewayStationWindow {
+    /// The data rate, as the network's table numbers it.
+    pub data_rate: u8,
+    /// The frequency in hertz.
+    pub frequency_hz: u32,
+}
+
+/// One number of a configuration's data-rate table.
+#[napi(object, js_name = "GatewayStationDataRate")]
+pub struct GatewayStationDataRate {
+    /// The spreading factor, 0 for FSK.
+    pub spreading_factor: u8,
+    /// The bandwidth in hertz.
+    pub bandwidth_hz: u32,
+    /// Whether the rate is used only for downlinks.
+    pub downlink_only: bool,
+}
+
+/// A range of join identifiers whose join requests a station forwards, both ends included.
+#[napi(object, js_name = "GatewayStationJoinRange")]
+pub struct GatewayStationJoinRange {
+    /// The first identifier, as sixteen hexadecimal digits.
+    pub first: String,
+    /// The last identifier, as sixteen hexadecimal digits.
+    pub last: String,
 }
 
 /// One frame of a schedule, transmitted to a group rather than a device.
@@ -77,8 +108,8 @@ pub struct GatewayStationBroadcast {
 pub struct GatewayStationMessage {
     /// Which kind of message.
     pub kind: GatewayStationKind,
-    /// The kind as the protocol writes it, such as `jreq`, for a kind this build does not
-    /// model.
+    /// The kind as the protocol writes it, such as `jreq`; the word a kind this build does not
+    /// model is written with.
     pub msgtype: Option<String>,
     /// The station software, for a version.
     pub station: Option<String>,
@@ -92,8 +123,13 @@ pub struct GatewayStationMessage {
     pub protocol: Option<u32>,
     /// What it can do, for a version.
     pub features: Option<String>,
-    /// The networks whose frames are carried, for a configuration.
+    /// The networks whose data frames a configuration forwards, absent to forward every
+    /// network's. A station matches each against the top seven bits of a device address, so an
+    /// empty list forwards no data frame at all.
     pub net_id: Option<Vec<u32>>,
+    /// The join identifier ranges a configuration forwards; empty or absent forwards every
+    /// join.
+    pub join_eui_ranges: Option<Vec<GatewayStationJoinRange>>,
     /// The region name, for a configuration.
     pub region: Option<String>,
     /// The highest radiated power the region allows, in dBm, for a configuration.
@@ -104,6 +140,9 @@ pub struct GatewayStationMessage {
     pub freq_min: Option<u32>,
     /// The highest frequency the station may use, in hertz, for a configuration.
     pub freq_max: Option<u32>,
+    /// A configuration's data rates, indexed by data-rate number, with `null` for a number the
+    /// table leaves undefined.
+    pub data_rates: Option<Vec<Option<GatewayStationDataRate>>>,
     /// The MAC header byte, for a join request or a data frame.
     pub mhdr: Option<u8>,
     /// The application being joined, as sixteen hexadecimal digits.
@@ -126,29 +165,37 @@ pub struct GatewayStationMessage {
     pub payload: Option<Buffer>,
     /// The message integrity code.
     pub mic: Option<i32>,
-    /// The data rate it arrived at, or is to be sent at.
+    /// The data rate it arrived at.
     pub data_rate: Option<u8>,
     /// The frequency in hertz.
     pub frequency_hz: Option<u32>,
     /// How it was heard, for the kinds a station sends up.
     pub levels: Option<GatewayStationLevels>,
-    /// Which class of downlink this is.
+    /// Which class of downlink this is: 0 for A, 1 for B, 2 for C.
     pub class: Option<u8>,
-    /// The identifier a transmission report carries back.
-    pub diid: Option<i64>,
+    /// The identifier a downlink and its transmission report share.
+    pub diid: Option<BigInt>,
     /// The frame to transmit, for a downlink.
     pub pdu: Option<Buffer>,
     /// The delay before the first receive window, in seconds.
     pub rx_delay: Option<u8>,
+    /// The first receive window a downlink names.
+    pub rx1: Option<GatewayStationWindow>,
+    /// The second receive window a downlink names.
+    pub rx2: Option<GatewayStationWindow>,
+    /// The ping slot a class B downlink goes out in.
+    pub ping_slot: Option<GatewayStationWindow>,
     /// How urgent a downlink is.
     pub priority: Option<u8>,
-    /// The station clock, for a downlink or a report.
-    pub xtime: Option<i64>,
+    /// The station clock in microseconds: the uplink a downlink answers, the moment a reported
+    /// frame went out, or the one a time sync carries.
+    pub xtime: Option<BigInt>,
     /// The radio, for a downlink or a report.
     pub rctx: Option<i64>,
-    /// When a frame went out, in seconds.
+    /// When a frame went out, in seconds, or the station time a time sync carries, in
+    /// microseconds.
     pub txtime: Option<f64>,
-    /// The GPS time, when the station has one.
+    /// The GPS time in microseconds since the GPS epoch.
     pub gpstime: Option<i64>,
     /// What to transmit to a group, for a schedule.
     pub schedule: Option<Vec<GatewayStationBroadcast>>,
@@ -175,7 +222,7 @@ pub fn station_heard(
     frequency_hz: u32,
     levels: GatewayStationLevels,
 ) -> napi::Result<GatewayStationMessage> {
-    let heard = Message::heard(&frame, data_rate, frequency_hz, levels_of(levels))
+    let heard = Message::heard(&frame, data_rate, frequency_hz, levels_of(&levels)?)
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(message_to_js(&heard))
 }
@@ -198,6 +245,27 @@ pub fn station_parse(text: String) -> napi::Result<GatewayStationMessage> {
 #[napi(js_name = "stationDiscovery")]
 pub fn station_discovery(router: String) -> napi::Result<String> {
     Ok(Discovery::new(identifier(&router)?).to_json())
+}
+
+/// Reads the request a station sent to find its network server, as the server does, and
+/// returns the station asking as sixteen hexadecimal digits.
+#[napi(js_name = "stationDiscoveryParse")]
+pub fn station_discovery_parse(text: String) -> napi::Result<String> {
+    let asked = Discovery::from_json(text.as_bytes())
+        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    Ok(asked.router.to_hex())
+}
+
+/// Writes the answer that sends a station to the websocket its session runs on.
+#[napi(js_name = "stationRouterAccepted")]
+pub fn station_router_accepted(router: String, muxs: String, uri: String) -> napi::Result<String> {
+    Ok(Router::accepted(identifier(&router)?, identifier(&muxs)?, uri).to_json())
+}
+
+/// Writes the answer that refuses a station, saying why.
+#[napi(js_name = "stationRouterRefused")]
+pub fn station_router_refused(router: String, error: String) -> napi::Result<String> {
+    Ok(Router::refused(identifier(&router)?, error).to_json())
 }
 
 /// Reads the answer a discovery endpoint gives.
@@ -234,22 +302,59 @@ fn identifier(text: &str) -> napi::Result<Eui> {
     })
 }
 
+/// Reads a 64-bit value JavaScript passed as a bigint, refusing one it does not fit.
+fn exact(value: &BigInt, name: &str) -> napi::Result<i64> {
+    match value.get_i64() {
+        (read, true) => Ok(read),
+        (_, false) => Err(napi::Error::from_reason(format!(
+            "{name} does not fit a signed 64-bit integer"
+        ))),
+    }
+}
+
+/// Reads a join identifier range.
+fn range_of(range: &GatewayStationJoinRange) -> napi::Result<(u64, u64)> {
+    let bound = |text: &str| identifier(text).map(|eui| u64::from_be_bytes(eui.bytes()));
+    Ok((bound(&range.first)?, bound(&range.last)?))
+}
+
+/// Writes a join identifier range.
+fn range_to_js((first, last): (u64, u64)) -> GatewayStationJoinRange {
+    GatewayStationJoinRange {
+        first: Eui::new(first.to_be_bytes()).to_hex(),
+        last: Eui::new(last.to_be_bytes()).to_hex(),
+    }
+}
+
+/// Reads a window.
+fn window_of(window: &GatewayStationWindow) -> (u8, u32) {
+    (window.data_rate, window.frequency_hz)
+}
+
+/// Writes a window.
+fn window_to_js(window: Option<(u8, u32)>) -> Option<GatewayStationWindow> {
+    window.map(|(data_rate, frequency_hz)| GatewayStationWindow {
+        data_rate,
+        frequency_hz,
+    })
+}
+
 /// Reads how a packet was heard.
-fn levels_of(levels: GatewayStationLevels) -> Levels {
-    Levels {
+fn levels_of(levels: &GatewayStationLevels) -> napi::Result<Levels> {
+    Ok(Levels {
         rctx: levels.rctx,
-        xtime: levels.xtime,
+        xtime: exact(&levels.xtime, "xtime")?,
         gpstime: levels.gpstime,
         rssi: levels.rssi,
         snr: levels.snr,
-    }
+    })
 }
 
 /// Writes how a packet was heard.
 fn levels_to_js(levels: Levels) -> GatewayStationLevels {
     GatewayStationLevels {
         rctx: levels.rctx,
-        xtime: levels.xtime,
+        xtime: BigInt::from(levels.xtime),
         gpstime: levels.gpstime,
         rssi: levels.rssi,
         snr: levels.snr,
@@ -257,10 +362,10 @@ fn levels_to_js(levels: Levels) -> GatewayStationLevels {
 }
 
 /// An empty message of the given kind, which each arm then fills in.
-fn blank(kind: GatewayStationKind) -> GatewayStationMessage {
+fn blank(kind: GatewayStationKind, msgtype: &str) -> GatewayStationMessage {
     GatewayStationMessage {
         kind,
-        msgtype: None,
+        msgtype: Some(msgtype.to_owned()),
         station: None,
         firmware: None,
         package: None,
@@ -268,11 +373,13 @@ fn blank(kind: GatewayStationKind) -> GatewayStationMessage {
         protocol: None,
         features: None,
         net_id: None,
+        join_eui_ranges: None,
         region: None,
         max_eirp: None,
         hwspec: None,
         freq_min: None,
         freq_max: None,
+        data_rates: None,
         mhdr: None,
         join_eui: None,
         dev_eui: None,
@@ -291,6 +398,9 @@ fn blank(kind: GatewayStationKind) -> GatewayStationMessage {
         diid: None,
         pdu: None,
         rx_delay: None,
+        rx1: None,
+        rx2: None,
+        ping_slot: None,
         priority: None,
         xtime: None,
         rctx: None,
@@ -302,6 +412,7 @@ fn blank(kind: GatewayStationKind) -> GatewayStationMessage {
 
 /// Writes a message JavaScript reads.
 fn message_to_js(message: &Message) -> GatewayStationMessage {
+    let msgtype = message.msgtype();
     match message {
         Message::Version {
             station,
@@ -311,7 +422,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             protocol,
             features,
         } => {
-            let mut held = blank(GatewayStationKind::Version);
+            let mut held = blank(GatewayStationKind::Version, msgtype);
             held.station = Some(station.clone());
             held.firmware = Some(firmware.clone());
             held.package = Some(package.clone());
@@ -322,19 +433,35 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
         }
         Message::RouterConfig {
             net_id,
+            join_eui,
             region,
             max_eirp,
             hwspec,
             freq_range,
-            ..
+            data_rates,
         } => {
-            let mut held = blank(GatewayStationKind::RouterConfig);
-            held.net_id = Some(net_id.clone());
+            let mut held = blank(GatewayStationKind::RouterConfig, msgtype);
+            held.net_id = net_id.clone();
+            held.join_eui_ranges = Some(join_eui.iter().copied().map(range_to_js).collect());
             held.region = Some(region.clone());
             held.max_eirp = Some(*max_eirp);
             held.hwspec = Some(hwspec.clone());
             held.freq_min = Some(freq_range.0);
             held.freq_max = Some(freq_range.1);
+            held.data_rates = Some(
+                data_rates
+                    .iter()
+                    .map(|entry| {
+                        entry.map(|(spreading_factor, bandwidth_hz, downlink_only)| {
+                            GatewayStationDataRate {
+                                spreading_factor,
+                                bandwidth_hz,
+                                downlink_only,
+                            }
+                        })
+                    })
+                    .collect(),
+            );
             held
         }
         Message::JoinRequest {
@@ -347,7 +474,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             frequency_hz,
             levels,
         } => {
-            let mut held = blank(GatewayStationKind::JoinRequest);
+            let mut held = blank(GatewayStationKind::JoinRequest, msgtype);
             held.mhdr = Some(*mhdr);
             held.join_eui = Some(join_eui.to_hex());
             held.dev_eui = Some(dev_eui.to_hex());
@@ -371,7 +498,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             frequency_hz,
             levels,
         } => {
-            let mut held = blank(GatewayStationKind::Uplink);
+            let mut held = blank(GatewayStationKind::Uplink, msgtype);
             held.mhdr = Some(*mhdr);
             held.dev_addr = Some(*dev_addr);
             held.fctrl = Some(*fctrl);
@@ -391,7 +518,7 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             frequency_hz,
             levels,
         } => {
-            let mut held = blank(GatewayStationKind::Proprietary);
+            let mut held = blank(GatewayStationKind::Proprietary, msgtype);
             held.payload = Some(Buffer::from(payload.clone()));
             held.data_rate = Some(*data_rate);
             held.frequency_hz = Some(*frequency_hz);
@@ -404,24 +531,31 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             diid,
             pdu,
             rx_delay,
+            rx1,
+            rx2,
+            ping_slot,
             priority,
             xtime,
             rctx,
-            ..
+            gpstime,
         } => {
-            let mut held = blank(GatewayStationKind::Downlink);
+            let mut held = blank(GatewayStationKind::Downlink, msgtype);
             held.dev_eui = Some(dev_eui.to_hex());
             held.class = Some(*class);
-            held.diid = Some(*diid);
+            held.diid = Some(BigInt::from(*diid));
             held.pdu = Some(Buffer::from(pdu.clone()));
             held.rx_delay = *rx_delay;
+            held.rx1 = window_to_js(*rx1);
+            held.rx2 = window_to_js(*rx2);
+            held.ping_slot = window_to_js(*ping_slot);
             held.priority = Some(*priority);
-            held.xtime = *xtime;
+            held.xtime = xtime.map(BigInt::from);
             held.rctx = *rctx;
+            held.gpstime = *gpstime;
             held
         }
         Message::Schedule { frames } => {
-            let mut held = blank(GatewayStationKind::Schedule);
+            let mut held = blank(GatewayStationKind::Schedule, msgtype);
             held.schedule = Some(
                 frames
                     .iter()
@@ -445,11 +579,11 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             txtime,
             gpstime,
         } => {
-            let mut held = blank(GatewayStationKind::Transmitted);
-            held.diid = Some(*diid);
+            let mut held = blank(GatewayStationKind::Transmitted, msgtype);
+            held.diid = Some(BigInt::from(*diid));
             held.dev_eui = Some(dev_eui.to_hex());
             held.rctx = Some(*rctx);
-            held.xtime = Some(*xtime);
+            held.xtime = Some(BigInt::from(*xtime));
             held.txtime = Some(*txtime);
             held.gpstime = *gpstime;
             held
@@ -459,23 +593,33 @@ fn message_to_js(message: &Message) -> GatewayStationMessage {
             xtime,
             gpstime,
         } => {
-            let mut held = blank(GatewayStationKind::TimeSync);
+            let mut held = blank(GatewayStationKind::TimeSync, msgtype);
             held.txtime = txtime.map(|value| value as f64);
-            held.xtime = *xtime;
+            held.xtime = xtime.map(BigInt::from);
             held.gpstime = *gpstime;
             held
         }
-        Message::Other { msgtype } => {
-            let mut held = blank(GatewayStationKind::Other);
-            held.msgtype = Some(msgtype.clone());
-            held
-        }
+        Message::Other { .. } => blank(GatewayStationKind::Other, msgtype),
     }
 }
 
 /// Reads a message JavaScript describes.
 fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
-    let levels = message.levels.map_or_else(Levels::default, levels_of);
+    let levels = match &message.levels {
+        Some(levels) => levels_of(levels)?,
+        None => Levels::default(),
+    };
+    let xtime = message
+        .xtime
+        .as_ref()
+        .map(|value| exact(value, "xtime"))
+        .transpose()?;
+    let diid = message
+        .diid
+        .as_ref()
+        .map(|value| exact(value, "diid"))
+        .transpose()?
+        .unwrap_or_default();
     Ok(match message.kind {
         GatewayStationKind::Version => Message::Version {
             station: message.station.unwrap_or_default(),
@@ -488,8 +632,13 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
             features: message.features.unwrap_or_default(),
         },
         GatewayStationKind::RouterConfig => Message::RouterConfig {
-            net_id: message.net_id.unwrap_or_default(),
-            join_eui: Vec::new(),
+            net_id: message.net_id,
+            join_eui: message
+                .join_eui_ranges
+                .unwrap_or_default()
+                .iter()
+                .map(range_of)
+                .collect::<napi::Result<_>>()?,
             region: message.region.unwrap_or_default(),
             max_eirp: message.max_eirp.unwrap_or_default(),
             hwspec: message.hwspec.unwrap_or_default(),
@@ -497,7 +646,14 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
                 message.freq_min.unwrap_or_default(),
                 message.freq_max.unwrap_or_default(),
             ),
-            data_rates: Vec::new(),
+            data_rates: message
+                .data_rates
+                .unwrap_or_default()
+                .into_iter()
+                .map(|entry| {
+                    entry.map(|rate| (rate.spreading_factor, rate.bandwidth_hz, rate.downlink_only))
+                })
+                .collect(),
         },
         GatewayStationKind::JoinRequest => Message::JoinRequest {
             mhdr: message.mhdr.unwrap_or_default(),
@@ -540,14 +696,16 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
         GatewayStationKind::Downlink => Message::Downlink {
             dev_eui: identifier(message.dev_eui.as_deref().unwrap_or_default())?,
             class: message.class.unwrap_or_default(),
-            diid: message.diid.unwrap_or_default(),
+            diid,
             pdu: message.pdu.map(|bytes| bytes.to_vec()).unwrap_or_default(),
             rx_delay: message.rx_delay,
-            rx1: None,
-            rx2: None,
+            rx1: message.rx1.as_ref().map(window_of),
+            rx2: message.rx2.as_ref().map(window_of),
+            ping_slot: message.ping_slot.as_ref().map(window_of),
             priority: message.priority.unwrap_or_default(),
-            xtime: message.xtime,
+            xtime,
             rctx: message.rctx,
+            gpstime: message.gpstime,
         },
         GatewayStationKind::Schedule => Message::Schedule {
             frames: message
@@ -565,20 +723,27 @@ fn message_of(message: GatewayStationMessage) -> napi::Result<Message> {
                 .collect(),
         },
         GatewayStationKind::Transmitted => Message::Transmitted {
-            diid: message.diid.unwrap_or_default(),
+            diid,
             dev_eui: identifier(message.dev_eui.as_deref().unwrap_or_default())?,
             rctx: message.rctx.unwrap_or_default(),
-            xtime: message.xtime.unwrap_or_default(),
+            xtime: xtime.unwrap_or_default(),
             txtime: message.txtime.unwrap_or_default(),
             gpstime: message.gpstime,
         },
         GatewayStationKind::TimeSync => Message::TimeSync {
-            txtime: message.txtime.map(|value| value as i64),
-            xtime: message.xtime,
+            txtime: message.txtime.map(|value| value.round() as i64),
+            xtime,
             gpstime: message.gpstime,
         },
         GatewayStationKind::Other => Message::Other {
-            msgtype: message.msgtype.unwrap_or_default(),
+            msgtype: message
+                .msgtype
+                .filter(|word| !word.is_empty())
+                .ok_or_else(|| {
+                    napi::Error::from_reason(
+                        "a message of a kind this build does not model needs its msgtype",
+                    )
+                })?,
         },
     })
 }

@@ -612,7 +612,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <p class="hw-summary">The three ID6 identifier examples the protocol glossary prints.</p><div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://doc.sm.tc/station/"><span class="hw-main"><b>The document</b><small>LoRa Basics Station 2.0.6</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/station.rs#L1418"><span class="hw-main"><b>The test</b><small><code>station.rs</code> line 1418</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-gateway/src/station.rs#L1467"><span class="hw-main"><b>The test</b><small><code>station.rs</code> line 1467</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="crc-16-ibm-3740">

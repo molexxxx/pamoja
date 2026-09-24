@@ -2968,7 +2968,16 @@ def test_station_vectors_match():
 
     routed = gateway.station_router_parse(vector["routerAnswer"])
     assert routed.router == vector["router"]
-    assert routed.uri
+    assert routed.muxs == vector["muxs"]
+    assert routed.uri == vector["uri"]
+
+    # The server side of the same exchange: it reads who asked, and answers or refuses.
+    assert gateway.station_discovery_parse(vector["discovery"]) == vector["router"]
+    answer = gateway.station_router_accepted(vector["router"], vector["muxs"], vector["uri"])
+    assert answer == vector["routerAnswer"]
+    refusal = vector["refusal"]
+    assert gateway.station_router_refused(vector["router"], refusal["error"]) == refusal["json"]
+    assert gateway.station_router_parse(refusal["json"]).error == refusal["error"]
 
     # A join request the radio heard, split into the fields the protocol names.
     join = gateway.station_heard(
@@ -3003,6 +3012,44 @@ def test_station_vectors_match():
     read = gateway.station_parse(vector["uplink"]["message"])
     assert read.dev_addr == vector["uplink"]["devAddr"]
     assert read.fcnt == vector["uplink"]["fcnt"]
+
+    # Every kind of message reads and writes back unchanged, so no field is dropped either way.
+    for wanted in vector["messages"]:
+        message = gateway.station_parse(wanted["json"])
+        kind = wanted["kind"]
+        assert message.msgtype == kind
+        assert gateway.station_encode(message) == wanted["json"], kind
+        if "xtime" in wanted:
+            xtime = message.levels.xtime if message.levels else message.xtime
+            assert xtime == int(wanted["xtime"]), kind
+        if "dataRates" in wanted:
+            read_rates = [
+                None
+                if rate is None
+                else {
+                    "spreadingFactor": rate.spreading_factor,
+                    "bandwidthHz": rate.bandwidth_hz,
+                    "downlinkOnly": rate.downlink_only,
+                }
+                for rate in message.data_rates
+            ]
+            assert read_rates == wanted["dataRates"], kind
+        if "filtersNetworks" in wanted:
+            assert (message.net_id is not None) == wanted["filtersNetworks"], kind
+        if "netIds" in wanted:
+            assert message.net_id == wanted["netIds"], kind
+        if "joinEuiRanges" in wanted:
+            ranges = [[bounds.first, bounds.last] for bounds in message.join_eui_ranges]
+            assert ranges == wanted["joinEuiRanges"], kind
+        for field, window in (("rx1", "rx1"), ("rx2", "rx2"), ("ping_slot", "pingSlot")):
+            if window in wanted:
+                read_window = getattr(message, field)
+                assert {
+                    "dataRate": read_window.data_rate,
+                    "frequencyHz": read_window.frequency_hz,
+                } == wanted[window], kind
+        if "gpstime" in wanted:
+            assert message.gpstime == wanted["gpstime"], kind
 
 
 def test_gateway_vectors_match():
