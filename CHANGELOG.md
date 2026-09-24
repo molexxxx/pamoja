@@ -869,6 +869,11 @@ released together, so one entry covers all of them.
   its own clock with it.
 - `udp::DEFAULT_PORT` in Rust, the port a packet forwarder sends to by convention, as the
   other languages already had.
+- A routing table lists the routes it holds, in the order it holds them, in every
+  language: `routes()` on `Router` and `DynamicRouter` in Rust and on `Router` in
+  TypeScript and Python, `Routes()` in C#, and `pamoja_router_route_at` in C. `Router<N>`
+  gains `capacity()`, as the table sized at run time has. In Python, a `Route` and a
+  `ForwardDecision` print their fields.
 
 ### Changed
 
@@ -1151,6 +1156,15 @@ released together, so one entry covers all of them.
   copy again, and a payload too large for a frame. The page gains a paragraph for each
   language, tables of the frame on the air, the limits, the checksum and its check value,
   what a node does with a frame, and the refusals, and a section on what goes wrong.
+- The routing guide says in words that a forgotten node floods again, where it printed a
+  boolean that read differently in each language. It follows six reports about one node
+  through a table, four that change the route and two that do not, lists the table, and
+  gains two parts: a full table that gives its costliest route's slot to a cheaper one and
+  refuses a costlier one, beside a route to the node itself and a table with no room, and a
+  site of seven nodes where one flood teaches every node the way back and an answer then
+  takes 2 sends where a flood of it takes 6. The page gains a paragraph for each language,
+  tables of what a report does to the table, what a packet gets, the table's size and
+  memory, and the costs the site learned, and a section on what goes wrong.
 
 ### Fixed
 
@@ -1435,6 +1449,10 @@ released together, so one entry covers all of them.
   as no data rate, was read as FSK.
 - The gateway daemon took its session byte from the clock and could take 0, which the
   reference station never uses so that no valid xtime is zero. It runs from 1 to 255 now.
+- A routing table asked for a negative capacity took down the process. C# passed -1 on as
+  the largest native size and TypeScript wrapped it to four billion routes, and neither
+  allocation could be made. C# throws `ArgumentOutOfRangeException` now, and TypeScript
+  refuses it, or a fraction, with `a capacity must be a whole number from 0 up, not -1`.
 
 ## [0.1.18] - 2026-09-10
 

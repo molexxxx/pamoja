@@ -2888,27 +2888,16 @@ fn routing() -> Value {
 
     let route = router.route(0x09).expect("a route to 0x09 was learned");
     let learned = router.len();
+    let held: Vec<Value> = router.routes().map(route_json).collect();
     router.forget(0x09);
 
     json!({
         "capacity": 64,
         "address": router.address(),
-        "observations": observations
-            .iter()
-            .zip(changed.iter())
-            .map(|(&(origin, via, cost), &changed)| json!({
-                "origin": origin,
-                "via": via,
-                "cost": cost,
-                "changed": changed,
-            }))
-            .collect::<Vec<Value>>(),
+        "observations": observed(&observations, &changed),
         "learned": learned,
-        "route": {
-            "dst": route.dst(),
-            "nextHop": route.next_hop(),
-            "cost": route.cost(),
-        },
+        "route": route_json(route),
+        "routes": held,
         "decisions": decisions,
         "afterForgetting": {
             "dst": 0x09,
@@ -2921,6 +2910,74 @@ fn routing() -> Value {
             "offered": 10,
             "learned": sized_table(3, 10),
         },
+        "full": full_table(),
+        "itself": route_to_itself(),
+        "empty": empty_table(),
+    })
+}
+
+/// Lists observations beside whether each one changed the table.
+fn observed(observations: &[(u32, u32, u16)], changed: &[bool]) -> Vec<Value> {
+    observations
+        .iter()
+        .zip(changed)
+        .map(|(&(origin, via, cost), &changed)| {
+            json!({ "origin": origin, "via": via, "cost": cost, "changed": changed })
+        })
+        .collect()
+}
+
+/// One route, in the spelling every binding exposes.
+fn route_json(route: pamoja_routing::Route) -> Value {
+    json!({ "dst": route.dst(), "nextHop": route.next_hop(), "cost": route.cost() })
+}
+
+/// A full table: a cheaper route takes the slot of the costliest one held, and a route
+/// costlier than every one held is refused and floods.
+fn full_table() -> Value {
+    let mut router = DynamicRouter::new(0x01, 2);
+    let observations = [
+        (0x0Au32, 0x05u32, 3u16),
+        (0x20, 0x03, 5),
+        (0x0B, 0x07, 2),
+        (0x0C, 0x07, 6),
+    ];
+    let changed: Vec<bool> = observations
+        .iter()
+        .map(|&(origin, via, cost)| router.observe(origin, via, cost))
+        .collect();
+    json!({
+        "capacity": 2,
+        "observations": observed(&observations, &changed),
+        "routes": router.routes().map(route_json).collect::<Vec<Value>>(),
+        "decisions": [decision(&router, 0x20), decision(&router, 0x0C)],
+    })
+}
+
+/// A route to the table's own node, which a flood's echo would teach, is never learned.
+fn route_to_itself() -> Value {
+    let mut router = DynamicRouter::new(0x01, 4);
+    let changed = router.observe(0x01, 0x05, 1);
+    json!({
+        "via": 0x05,
+        "cost": 1,
+        "changed": changed,
+        "learned": router.len(),
+        "decision": decision(&router, 0x01),
+    })
+}
+
+/// A table with no room learns nothing and floods, and still delivers its own packets.
+fn empty_table() -> Value {
+    let mut router = DynamicRouter::new(0x01, 0);
+    let changed = router.observe(0x09, 0x05, 2);
+    json!({
+        "capacity": 0,
+        "origin": 0x09,
+        "via": 0x05,
+        "cost": 2,
+        "changed": changed,
+        "decisions": [decision(&router, 0x09), decision(&router, 0x01)],
     })
 }
 

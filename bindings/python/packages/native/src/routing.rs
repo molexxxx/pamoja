@@ -32,6 +32,27 @@ pub struct Route {
     cost: u16,
 }
 
+impl From<pamoja_routing::Route> for Route {
+    fn from(route: pamoja_routing::Route) -> Self {
+        Route {
+            dst: route.dst(),
+            next_hop: route.next_hop(),
+            cost: route.cost(),
+        }
+    }
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl Route {
+    fn __repr__(&self) -> String {
+        format!(
+            "Route(dst={}, next_hop={}, cost={})",
+            self.dst, self.next_hop, self.cost
+        )
+    }
+}
+
 /// A routing decision, and the neighbor it names when there is one.
 #[gen_stub_pyclass]
 #[pyclass]
@@ -42,6 +63,20 @@ pub struct ForwardDecision {
     /// The neighbor to unicast to, or `None` unless the action is `Relay`.
     #[pyo3(get)]
     next_hop: Option<u32>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl ForwardDecision {
+    fn __repr__(&self) -> String {
+        match self.next_hop {
+            Some(next_hop) => format!(
+                "ForwardDecision(action='{}', next_hop={next_hop})",
+                self.action
+            ),
+            None => format!("ForwardDecision(action='{}', next_hop=None)", self.action),
+        }
+    }
 }
 
 /// One node routing table, learned from the traffic the node hears.
@@ -90,11 +125,13 @@ impl Router {
 
     /// The whole route to `dst`, or `None` when none is known.
     fn route(&self, dst: u32) -> Option<Route> {
-        self.inner.route(dst).map(|route| Route {
-            dst: route.dst(),
-            next_hop: route.next_hop(),
-            cost: route.cost(),
-        })
+        self.inner.route(dst).map(Route::from)
+    }
+
+    /// The routes the table holds, each once, in the order the table holds them
+    /// rather than sorted by destination or cost.
+    fn routes(&self) -> Vec<Route> {
+        self.inner.routes().map(Route::from).collect()
     }
 
     /// Decides what to do with a packet bound for `dst`.

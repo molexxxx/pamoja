@@ -6202,6 +6202,7 @@ static void ConformRouting(JsonElement vector)
     Assert(learned is not null, "the route was learned");
     Assert(learned!.Value.NextHop == route.GetProperty("nextHop").GetUInt32(), "the cheapest way");
     Assert(learned.Value.Cost == route.GetProperty("cost").GetUInt16(), "and what it costs");
+    AssertRoutes(router, vector.GetProperty("routes"));
 
     foreach (JsonElement want in vector.GetProperty("decisions").EnumerateArray())
     {
@@ -6228,6 +6229,66 @@ static void ConformRouting(JsonElement vector)
     Assert(
         small.Count == sized.GetProperty("learned").GetInt32(),
         "a table sized by the caller holds exactly what it was asked for");
+
+    JsonElement full = vector.GetProperty("full");
+    using var fullTable = new Router(0x01, full.GetProperty("capacity").GetInt32());
+    foreach (JsonElement observation in full.GetProperty("observations").EnumerateArray())
+    {
+        Assert(
+            fullTable.Observe(
+                observation.GetProperty("origin").GetUInt32(),
+                observation.GetProperty("via").GetUInt32(),
+                observation.GetProperty("cost").GetUInt16())
+                == observation.GetProperty("changed").GetBoolean(),
+            "a full table keeps its cheapest routes");
+    }
+
+    AssertRoutes(fullTable, full.GetProperty("routes"));
+    foreach (JsonElement want in full.GetProperty("decisions").EnumerateArray())
+    {
+        AssertDecision(fullTable, want);
+    }
+
+    JsonElement itself = vector.GetProperty("itself");
+    using var own = new Router(0x01, 4);
+    Assert(
+        own.Observe(0x01, itself.GetProperty("via").GetUInt32(), itself.GetProperty("cost").GetUInt16())
+            == itself.GetProperty("changed").GetBoolean(),
+        "a route to the node itself is never learned");
+    Assert(own.Count == itself.GetProperty("learned").GetInt32(), "so nothing is held");
+    AssertDecision(own, itself.GetProperty("decision"));
+
+    JsonElement empty = vector.GetProperty("empty");
+    using var none = new Router(0x01, empty.GetProperty("capacity").GetInt32());
+    Assert(
+        none.Observe(
+            empty.GetProperty("origin").GetUInt32(),
+            empty.GetProperty("via").GetUInt32(),
+            empty.GetProperty("cost").GetUInt16())
+            == empty.GetProperty("changed").GetBoolean(),
+        "a table with no room learns nothing");
+    foreach (JsonElement want in empty.GetProperty("decisions").EnumerateArray())
+    {
+        AssertDecision(none, want);
+    }
+
+    Catch<ArgumentOutOfRangeException>(() => new Router(0x01, -1));
+}
+
+static void AssertRoutes(Router router, JsonElement want)
+{
+    IReadOnlyList<Route> held = router.Routes();
+    Assert(held.Count == want.GetArrayLength(), "as many routes as the vector lists");
+    int index = 0;
+    foreach (JsonElement route in want.EnumerateArray())
+    {
+        Assert(
+            held[index++] == new Route(
+                route.GetProperty("dst").GetUInt32(),
+                route.GetProperty("nextHop").GetUInt32(),
+                route.GetProperty("cost").GetUInt16()),
+            "the routes held, in order");
+    }
 }
 
 static void ConformLorawan(JsonElement vector)

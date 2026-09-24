@@ -12915,6 +12915,89 @@
         "nextHop": null
       }
     ],
+    "empty": {
+      "capacity": 0,
+      "changed": false,
+      "cost": 2,
+      "decisions": [
+        {
+          "action": "Flood",
+          "dst": 9,
+          "nextHop": null
+        },
+        {
+          "action": "Deliver",
+          "dst": 1,
+          "nextHop": null
+        }
+      ],
+      "origin": 9,
+      "via": 5
+    },
+    "full": {
+      "capacity": 2,
+      "decisions": [
+        {
+          "action": "Flood",
+          "dst": 32,
+          "nextHop": null
+        },
+        {
+          "action": "Flood",
+          "dst": 12,
+          "nextHop": null
+        }
+      ],
+      "observations": [
+        {
+          "changed": true,
+          "cost": 3,
+          "origin": 10,
+          "via": 5
+        },
+        {
+          "changed": true,
+          "cost": 5,
+          "origin": 32,
+          "via": 3
+        },
+        {
+          "changed": true,
+          "cost": 2,
+          "origin": 11,
+          "via": 7
+        },
+        {
+          "changed": false,
+          "cost": 6,
+          "origin": 12,
+          "via": 7
+        }
+      ],
+      "routes": [
+        {
+          "cost": 3,
+          "dst": 10,
+          "nextHop": 5
+        },
+        {
+          "cost": 2,
+          "dst": 11,
+          "nextHop": 7
+        }
+      ]
+    },
+    "itself": {
+      "changed": false,
+      "cost": 1,
+      "decision": {
+        "action": "Deliver",
+        "dst": 1,
+        "nextHop": null
+      },
+      "learned": 0,
+      "via": 5
+    },
     "learned": 2,
     "observations": [
       {
@@ -12947,6 +13030,18 @@
       "dst": 9,
       "nextHop": 7
     },
+    "routes": [
+      {
+        "cost": 1,
+        "dst": 9,
+        "nextHop": 7
+      },
+      {
+        "cost": 3,
+        "dst": 10,
+        "nextHop": 5
+      }
+    ],
     "sized": {
       "capacity": 3,
       "learned": 3,

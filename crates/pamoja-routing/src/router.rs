@@ -103,6 +103,44 @@ impl<const N: usize> Router<N> {
         self.me
     }
 
+    /// Returns how many routes this table can hold.
+    ///
+    /// # Returns
+    ///
+    /// `N`, the size fixed in the type.
+    pub const fn capacity(&self) -> usize {
+        N
+    }
+
+    /// Lists the routes the table holds.
+    ///
+    /// # Returns
+    ///
+    /// Each route once, in the order the table holds them. A new route takes the first
+    /// free slot and one that displaces another takes that slot, so the order is the
+    /// table's own, not sorted by destination or cost.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_routing::Router;
+    ///
+    /// // A weather mast, node 1, has heard a rain gauge and a wind vane.
+    /// let (mast, rain_gauge, wind_vane, relay) = (1, 20, 21, 5);
+    /// let mut router: Router<4> = Router::new(mast);
+    /// router.observe(rain_gauge, relay, 2);
+    /// router.observe(wind_vane, wind_vane, 1);
+    ///
+    /// let held: Vec<(u32, u32, u16)> = router
+    ///     .routes()
+    ///     .map(|route| (route.dst(), route.next_hop(), route.cost()))
+    ///     .collect();
+    /// assert_eq!(held, [(rain_gauge, relay, 2), (wind_vane, wind_vane, 1)]);
+    /// ```
+    pub fn routes(&self) -> impl Iterator<Item = Route> + '_ {
+        self.routes.iter().flatten().copied()
+    }
+
     /// Learns the way to a node from a packet heard from it.
     ///
     /// A packet that originated at `origin` and reached this node via the neighbor `via`
@@ -347,6 +385,16 @@ impl DynamicRouter {
         self.routes.len()
     }
 
+    /// Lists the routes the table holds.
+    ///
+    /// # Returns
+    ///
+    /// Each route once, in the order the table holds them, which is the order
+    /// [`Router::routes`] gives for the same history.
+    pub fn routes(&self) -> impl Iterator<Item = Route> + '_ {
+        self.routes.iter().flatten().copied()
+    }
+
     /// Learns the way to a node from a packet heard from it.
     ///
     /// # Arguments
@@ -567,11 +615,50 @@ mod tests {
             assert_eq!(fixed.route(dst), dynamic.route(dst));
         }
         assert_eq!(fixed.len(), dynamic.len());
+        assert!(fixed.routes().eq(dynamic.routes()));
 
         fixed.forget(9);
         dynamic.forget(9);
         assert_eq!(fixed.forward(9), dynamic.forward(9));
         assert_eq!(fixed.len(), dynamic.len());
+        assert!(fixed.routes().eq(dynamic.routes()));
+    }
+
+    #[test]
+    fn a_fixed_table_reports_the_size_in_its_type() {
+        let router: Router<6> = Router::new(1);
+        assert_eq!(router.capacity(), 6);
+    }
+
+    #[test]
+    fn the_routes_held_are_listed_in_the_order_the_table_holds_them() {
+        let mut router: Router<4> = Router::new(1);
+        router.observe(9, 5, 2);
+        router.observe(10, 5, 3);
+        router.observe(11, 7, 1);
+        router.forget(10);
+        router.observe(12, 3, 4);
+        let held: Vec<u32> = router.routes().map(|route| route.dst()).collect();
+        assert_eq!(held, [9, 12, 11], "a new route takes the first free slot");
+    }
+
+    #[test]
+    fn a_displacing_route_takes_the_slot_of_the_route_it_displaced() {
+        let mut router: Router<2> = Router::new(1);
+        router.observe(10, 5, 3);
+        router.observe(32, 3, 5);
+        assert!(router.observe(11, 7, 2));
+        let held: Vec<(u32, u32, u16)> = router
+            .routes()
+            .map(|route| (route.dst(), route.next_hop(), route.cost()))
+            .collect();
+        assert_eq!(held, [(10, 5, 3), (11, 7, 2)]);
+    }
+
+    #[cfg(any(target_pointer_width = "32", target_pointer_width = "64"))]
+    #[test]
+    fn a_route_slot_costs_sixteen_bytes() {
+        assert_eq!(core::mem::size_of::<Router<64>>(), 4 + 64 * 16);
     }
 
     #[test]

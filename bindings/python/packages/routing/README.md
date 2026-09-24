@@ -38,37 +38,49 @@ SOUTH_RELAY = 3
 SILO = 32
 
 # A node learns the way to another from traffic it already hears: a packet from the pump
-# that arrived through the north relay proves that relay is a way back, at the cost the
-# packet reports.
+# that arrived through a relay proves that relay is a way back, at the cost the packet
+# reports. The table keeps the cheapest way it has heard, and a tie keeps the way in use so
+# two equal paths do not flap. Word from the relay already in use is taken even when it is
+# worse, which is how a failing link lets a detour win.
 router = Router(GATEWAY, 4)
-router.observe(PUMP, NORTH_RELAY, 2)
+for via, cost in [
+    (NORTH_RELAY, 2),
+    (EAST_RELAY, 1),
+    (SOUTH_RELAY, 4),
+    (NORTH_RELAY, 1),
+    (EAST_RELAY, 3),
+    (NORTH_RELAY, 2),
+]:
+    changed = router.observe(PUMP, via, cost)
+    route = router.route(PUMP)
+    outcome = "so the route is" if changed else "and the route stays"
+    print(
+        f"heard     the pump via {via} at cost {cost}, {outcome} {route.next_hop} "
+        f"at cost {route.cost}"
+    )
 
-# The table keeps only the cheapest way it knows to each node, so a cost-1 report through
-# the east relay takes over and the later cost-4 report changes nothing.
-router.observe(PUMP, EAST_RELAY, 1)
-router.observe(PUMP, SOUTH_RELAY, 4)
+# The table lists what it holds, one route for each node it has heard from.
 router.observe(TANK, NORTH_RELAY, 3)
+held = [f"to {route.dst} via {route.next_hop} at cost {route.cost}" for route in router.routes()]
+print(f"table     {len(router)} routes of {router.capacity}: {', '.join(held)}")
 
-route = router.route(PUMP)
-print(f"to the pump   via {route.next_hop} at cost {route.cost}")
-print(f"routes held   {len(router)}")
-
-# Every packet gets one of three answers: deliver it here, relay it to the neighbor on
-# the way, or flood it because no route is known yet.
+# Every packet gets one of three answers: deliver it here, relay it to the neighbor on the
+# way, or flood it because no route is known yet.
 for name, address in [("gateway", GATEWAY), ("pump", PUMP), ("silo", SILO)]:
     decision = router.forward(address)
     if decision.action == ForwardAction.DELIVER:
-        print(f"for the {name:<8} deliver here")
+        print(f"{name:<10}deliver here")
     elif decision.action == ForwardAction.RELAY:
-        print(f"for the {name:<8} relay via {decision.next_hop}")
+        print(f"{name:<10}relay via {decision.next_hop}")
     else:
-        print(f"for the {name:<8} flood, no route known")
+        print(f"{name:<10}flood, no route known")
 
-# Forgetting a node that has gone quiet returns its traffic to flooding, so routing is an
-# optimization over flooding rather than a second thing that can fail.
+# The table keeps no clock, so a route through a relay that has gone quiet stays until the
+# caller forgets it, typically when a relayed packet goes unanswered. Forgetting returns the
+# node's traffic to flooding, the answer that always works.
 router.forget(PUMP)
-after = router.forward(PUMP)
-print(f"pump forgotten, so it floods again: {after.action == ForwardAction.FLOOD}")
+if router.forward(PUMP).action == ForwardAction.FLOOD:
+    print(f"forgot    the pump, so it floods again, and {len(router)} route is left")
 ```
 
 ## The same capability in every language
