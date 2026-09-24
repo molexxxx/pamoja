@@ -1,8 +1,10 @@
-//! The search index: one entry per page and per section of every page.
+//! The search index: every page, with each of its sections.
 //!
 //! The header's search box fetches `search.json` on first focus and ranks entries in the
-//! browser, so the index stays a flat list a few hundred entries long rather than an inverted
-//! index, and a page's sections are found by their own headings.
+//! browser, so the index stays a flat list a few hundred pages long rather than an inverted
+//! index, and a page's sections are found by their own headings. A page carries its URL,
+//! title, and group once, with its sections beneath it, and the search box expands that into
+//! one entry per page and per section, so the index does not repeat them for every section.
 
 use serde_json::{json, Value};
 
@@ -21,35 +23,33 @@ const EXCERPT: usize = 240;
 ///
 /// # Returns
 ///
-/// A JSON array of `{u, p, h, s, b}`: the URL (with a fragment for a section), the page
-/// title, the section heading (empty for the page itself), the group, and the excerpt.
+/// A JSON array with one `{u, p, s, b, x}` per page: the URL, the page title, the group, the
+/// excerpt, and the sections, each an `[id, heading, excerpt]` triple.
 pub fn index(pages: &[Page], nav: &Nav) -> String {
-    let mut entries: Vec<Value> = Vec::new();
-    for page in pages {
-        let group = nav
-            .group_of(&page.url)
-            .and_then(|group| group.title.clone())
-            .unwrap_or_else(|| "Documentation".to_owned());
-        entries.push(json!({
-            "u": page.url,
-            "p": page.title,
-            "h": "",
-            "s": group,
-            "b": excerpt(&page.description),
-        }));
-        for section in &page.sections {
-            let Some(id) = &section.id else {
-                continue;
-            };
-            entries.push(json!({
-                "u": format!("{}#{id}", page.url),
+    let entries: Vec<Value> = pages
+        .iter()
+        .map(|page| {
+            let group = nav
+                .group_of(&page.url)
+                .and_then(|group| group.title.clone())
+                .unwrap_or_else(|| "Documentation".to_owned());
+            let sections: Vec<Value> = page
+                .sections
+                .iter()
+                .filter_map(|section| {
+                    let id = section.id.as_ref()?;
+                    Some(json!([id, section.heading, excerpt(&section.text)]))
+                })
+                .collect();
+            json!({
+                "u": page.url,
                 "p": page.title,
-                "h": section.heading,
                 "s": group,
-                "b": excerpt(&section.text),
-            }));
-        }
-    }
+                "b": excerpt(&page.description),
+                "x": sections,
+            })
+        })
+        .collect();
     serde_json::to_string(&entries).expect("a JSON array of strings")
 }
 
@@ -68,7 +68,7 @@ mod tests {
     use crate::catalog::Catalog;
 
     #[test]
-    fn every_page_and_every_named_section_is_an_entry() {
+    fn every_page_carries_every_named_section() {
         let catalog = Catalog::parse("").unwrap();
         let nav = Nav::from(&catalog);
         let page = super::super::pages::page(
@@ -77,13 +77,14 @@ mod tests {
             "# Install\n\nOne line.\n\n## Rust\n\nCargo.\n\n## Node\n\nnpm.\n",
         );
         let entries: Vec<Value> = serde_json::from_str(&index(&[page], &nav)).unwrap();
-        assert_eq!(entries.len(), 3);
+        assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["u"], "docs/install.html");
         assert_eq!(entries[0]["b"], "One line.");
-        assert_eq!(entries[1]["u"], "docs/install.html#rust");
-        assert_eq!(entries[1]["h"], "Rust");
-        assert_eq!(entries[1]["s"], "Documentation");
-        assert_eq!(entries[2]["b"], "npm.");
+        assert_eq!(entries[0]["s"], "Documentation");
+        assert_eq!(
+            entries[0]["x"],
+            json!([["rust", "Rust", "Cargo."], ["node", "Node", "npm."]])
+        );
     }
 
     #[test]

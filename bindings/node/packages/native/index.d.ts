@@ -7807,6 +7807,58 @@ export declare const MAVLINK_TYPEMASK_YAW_RATE: number
  */
 export declare function mavlinkCrc16Mcrf4Xx(bytes: Buffer): number
 
+/**
+ * Every entry of an enumeration, in dialect order.
+ *
+ * @param enumeration - the enumeration's name.
+ * @throws If the enumeration is unknown.
+ */
+export declare function mavlinkEnumEntries(enumeration: string): Array<MavlinkEnumEntry>
+
+/**
+ * Names the entry of an enumeration that stands for a value, or `null` if none does.
+ *
+ * @param enumeration - the enumeration's name, such as `MAV_STATE`.
+ * @param value - the value a field carried.
+ * @throws If the enumeration is unknown or the value is not a whole number from 0 up.
+ */
+export declare function mavlinkEnumEntry(enumeration: string, value: number): string | null
+
+/** One named value of a dialect enumeration. */
+export interface MavlinkEnumEntry {
+  /** The name the dialect gives the value, such as `MAV_STATE_STANDBY`. */
+  name: string
+  /** The value on the wire. */
+  value: number
+}
+
+/**
+ * Reports whether an enumeration's values combine as bits.
+ *
+ * @param enumeration - the enumeration's name.
+ * @throws If the enumeration is unknown.
+ */
+export declare function mavlinkEnumIsBitmask(enumeration: string): boolean
+
+/**
+ * Names the entries a value is made of: for a bitmask, each entry whose bits are set in it,
+ * in dialect order; otherwise the one entry that names it. Empty when none applies.
+ *
+ * @param enumeration - the enumeration's name, such as `MAV_MODE_FLAG`.
+ * @param value - the value a field carried.
+ * @throws If the enumeration is unknown or the value is not a whole number from 0 up.
+ */
+export declare function mavlinkEnumNames(enumeration: string, value: number): Array<string>
+
+/**
+ * Looks up the value a dialect entry name stands for, whichever enumeration it belongs to.
+ *
+ * @param entry - the entry's name, such as `MAV_CMD_COMPONENT_ARM_DISARM`.
+ * @returns The value.
+ * @throws If no entry of any dialect enumeration has that name.
+ */
+export declare function mavlinkEnumValue(entry: string): number
+
 /** One field of a message definition, as the `CRC_EXTRA` derivation reads it. */
 export interface MavlinkField {
   /** The field's type name as the dialect writes it, such as `uint8_t`. */
@@ -7848,6 +7900,12 @@ export interface MavlinkHeader {
  * null for an id outside it, which is what a `Dialect` is for.
  */
 export declare function mavlinkKnownCrcExtra(msgid: number): number | null
+
+/**
+ * The names of every enumeration the dialect table holds, in the order the dialect defines
+ * them.
+ */
+export declare function mavlinkKnownEnums(): Array<string>
 
 /**
  * The names of every message this build types, in message-id order.

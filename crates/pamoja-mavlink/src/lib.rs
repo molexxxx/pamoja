@@ -20,10 +20,14 @@
 //!   timestamp that let a ground station trust a command came from the vehicle it expects
 //!   and was not replayed.
 //! - [`dialect`] - a broad, typed slice of the common dialect (HEARTBEAT, the command,
-//!   parameter, and mission protocols, and core telemetry), plus message shapes as data:
-//!   a [`MessageDescriptor`](dialect::MessageDescriptor) gives any message's bytes named
+//!   parameter, and mission protocols, and core telemetry), each message with every MAVLink 2
+//!   extension field the dialect defines, plus message shapes as data: a
+//!   [`MessageDescriptor`](dialect::MessageDescriptor) gives any message's bytes named
 //!   fields, and a [builder](dialect::MessageDescriptorBuilder) describes one this crate
-//!   does not type, so a vendor or private dialect is usable at runtime.
+//!   does not type, so a vendor or private dialect is usable at runtime. Every enumeration
+//!   a typed message's fields name is there in full, as constants and as a table of the
+//!   dialect's own names ([`ENUMS`](dialect::ENUMS)), so `MAV_STATE_STANDBY` reads as 3 and
+//!   3 reads back as `MAV_STATE_STANDBY`.
 //! - [`protocol`] - the mission, command, and offboard exchanges as pure, allocation-free
 //!   state machines: the rules of order, matching, and retransmission that turn single
 //!   messages into a real conversation with an autopilot, with no IO of their own. Each

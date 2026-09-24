@@ -2655,6 +2655,7 @@ static void Conformance()
     ConformStation(vectors.GetProperty("station"));
     ConformChirpstack(vectors.GetProperty("chirpstack"));
     ConformMavlink(vectors.GetProperty("mavlink"));
+ConformMavlinkEnums(vectors.GetProperty("mavlinkEnums"));
     ConformMavlinkSchema(vectors.GetProperty("mavlinkSchema"));
     ConformMavlinkProtocol(vectors.GetProperty("mavlinkProtocol"));
     ConformMesh(vectors.GetProperty("mesh"));
@@ -5040,6 +5041,68 @@ static void ConformMavlink(JsonElement vector)
 // The message-shape layer: field order, offsets, and the seed they imply are what a
 // peer checks against, so a binding that reorders a field fails here rather than
 // against a vehicle.
+static void ConformMavlinkEnums(JsonElement vector)
+{
+    List<string> names = [];
+    foreach (JsonElement described in vector.GetProperty("table").EnumerateArray())
+    {
+        string name = described.GetProperty("name").GetString()!;
+        names.Add(name);
+        Assert(
+            MavlinkEnum.IsBitmask(name) == described.GetProperty("bitmask").GetBoolean(),
+            $"whether {name} is a bitmask");
+        IReadOnlyList<MavlinkEnumEntry> entries = MavlinkEnum.Entries(name);
+        List<JsonElement> want = [.. described.GetProperty("entries").EnumerateArray()];
+        Assert(entries.Count == want.Count, $"the entries of {name}");
+        for (int index = 0; index < want.Count; index += 1)
+        {
+            Assert(
+                entries[index].Name == want[index][0].GetString()
+                    && entries[index].Value == want[index][1].GetUInt64(),
+                $"entry {index} of {name}");
+        }
+    }
+    Assert(MavlinkEnum.Known().SequenceEqual(names), "the enumerations, in dialect order");
+
+    foreach (JsonElement want in vector.GetProperty("values").EnumerateArray())
+    {
+        string entry = want.GetProperty("entry").GetString()!;
+        Assert(
+            MavlinkEnum.Value(entry) == want.GetProperty("value").GetUInt64(),
+            $"the value of {entry}");
+    }
+    foreach (JsonElement want in vector.GetProperty("entries").EnumerateArray())
+    {
+        string enumeration = want.GetProperty("enumeration").GetString()!;
+        ulong value = want.GetProperty("value").GetUInt64();
+        Assert(
+            MavlinkEnum.Entry(enumeration, value) == want.GetProperty("entry").GetString(),
+            $"the {enumeration} entry for {value}");
+    }
+    foreach (JsonElement want in vector.GetProperty("names").EnumerateArray())
+    {
+        string enumeration = want.GetProperty("enumeration").GetString()!;
+        ulong value = want.GetProperty("value").GetUInt64();
+        IEnumerable<string> expected = want
+            .GetProperty("names")
+            .EnumerateArray()
+            .Select(name => name.GetString()!);
+        Assert(
+            MavlinkEnum.Names(enumeration, value).SequenceEqual(expected),
+            $"the {enumeration} names in {value}");
+    }
+    foreach (JsonElement entry in vector.GetProperty("unknownEntries").EnumerateArray())
+    {
+        string name = entry.GetString()!;
+        Catch<PamojaException>(() => MavlinkEnum.Value(name));
+    }
+    foreach (JsonElement enumeration in vector.GetProperty("unknownEnumerations").EnumerateArray())
+    {
+        string name = enumeration.GetString()!;
+        Catch<PamojaException>(() => MavlinkEnum.Entries(name));
+    }
+}
+
 static void ConformMavlinkSchema(JsonElement vector)
 {
     foreach (JsonElement entry in vector.GetProperty("fieldTypes").EnumerateArray())

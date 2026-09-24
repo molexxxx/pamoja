@@ -256,7 +256,8 @@ impl Frame {
     ///
     /// Returns [`MavlinkError::FrameTooShort`] if the bytes cannot hold a header,
     /// [`MavlinkError::BadMagic`] if the start marker is unrecognized,
-    /// [`MavlinkError::Truncated`] if the frame is shorter than its length field
+    /// [`MavlinkError::UnknownIncompatFlags`] if a v2 frame sets an incompatibility flag other
+    /// than signing, [`MavlinkError::Truncated`] if the frame is shorter than its length field
     /// promises, [`MavlinkError::UnknownMessage`] if the message id has no `CRC_EXTRA`,
     /// or [`MavlinkError::CrcMismatch`] if the checksum does not verify.
     pub fn parse_with<F>(bytes: &[u8], crc_extra_for: F) -> Result<Frame>
@@ -274,6 +275,9 @@ impl Frame {
         let header_len = Self::header_len(version);
         if bytes.len() < header_len {
             return Err(MavlinkError::FrameTooShort);
+        }
+        if version == Version::V2 && bytes[2] & !IFLAG_SIGNED != 0 {
+            return Err(MavlinkError::UnknownIncompatFlags(bytes[2]));
         }
         let plen = bytes[1] as usize;
         let signed = version == Version::V2 && bytes[2] & IFLAG_SIGNED != 0;
@@ -476,6 +480,41 @@ mod tests {
     // HEARTBEAT, the frame every MAVLink node emits, used to anchor the layout.
     const HEARTBEAT_ID: u32 = 0;
     const HEARTBEAT_CRC_EXTRA: u8 = 50;
+
+    // The serialization guide: an implementation must discard a packet if it does not
+    // understand any flag in its incompatibility flags. The checksum is good, so only the
+    // flag refuses it.
+    #[test]
+    fn a_frame_with_an_incompatibility_flag_it_does_not_know_is_dropped() {
+        let payload = [0x06, 0x08, 0x00, 0x00, 0x00, 0x02, 0x03, 0x59, 0x03];
+        let flagged = Frame::assemble_v2(
+            Header::new(1, 1, 0),
+            HEARTBEAT_ID,
+            &payload,
+            HEARTBEAT_CRC_EXTRA,
+            0x02,
+        )
+        .unwrap();
+        assert_eq!(
+            Frame::parse(flagged.as_bytes(), HEARTBEAT_CRC_EXTRA),
+            Err(MavlinkError::UnknownIncompatFlags(0x02))
+        );
+        let good = Frame::encode_v2(
+            Header::new(1, 1, 1),
+            HEARTBEAT_ID,
+            &payload,
+            HEARTBEAT_CRC_EXTRA,
+        )
+        .unwrap();
+        let mut parser = crate::Parser::new();
+        let heard: Vec<Frame> = [flagged.as_bytes(), good.as_bytes()]
+            .concat()
+            .iter()
+            .filter_map(|&byte| parser.push_byte(byte, &|_| Some(HEARTBEAT_CRC_EXTRA)))
+            .collect();
+        assert_eq!(heard.len(), 1, "the parser passes over the flagged frame");
+        assert_eq!(heard[0].sequence(), 1);
+    }
 
     #[test]
     fn a_v2_frame_round_trips_through_parse() {

@@ -324,7 +324,7 @@ next = ["mesh", "ladder", "sync"]
 key = "mavlink"
 chapter = "mavlink"
 title = "MAVLink"
-summary = "MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols"
+summary = "MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols"
 crates = ["pamoja-mavlink"]
 node = "mavlink"
 python = "mavlink"
@@ -334,7 +334,8 @@ dotnet = [
     "MavlinkSchemaBuilder", "MavlinkMessage", "MavlinkFieldInfo", "MavlinkFieldType",
     "MavlinkMissionReceiver", "MavlinkMissionSender", "MavlinkReceiverStep",
     "MavlinkSenderStep", "MavlinkReceiverKind", "MavlinkSenderKind", "MavlinkCommand",
-    "MavlinkAckOutcome", "MavlinkAckKind", "MavlinkOffboard", "MavlinkTypeMask",
+    "MavlinkAckOutcome", "MavlinkAckKind", "MavlinkOffboard", "MavlinkTypeMask", "MavlinkEnum",
+    "MavlinkEnumEntry",
 ]
 guide = "guides/mavlink.md"
 next = ["ros2", "serial", "telemetry"]

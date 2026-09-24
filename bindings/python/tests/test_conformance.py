@@ -1423,13 +1423,39 @@ def test_mavlink_vectors_match():
 
     verifier = mavlink.MavlinkVerifier(key)
     verifier.verify(frame)
-    with pytest.raises(ValueError):
+    with pytest.raises(PamojaError):
         verifier.verify(frame)
 
     for entry in vector["timestamps"]:
         assert (
             mavlink.timestamp_from_unix_micros(entry["unixMicros"]) == entry["timestamp"]
         ), entry["unixMicros"]
+
+
+def test_mavlink_enum_vectors_match():
+    """The dialect's named values read the same in every binding, whole table and lookups."""
+    from pamoja import mavlink
+
+    vector = VECTORS["mavlinkEnums"]
+
+    assert mavlink.known_enums() == [described["name"] for described in vector["table"]]
+    for described in vector["table"]:
+        assert mavlink.enum_is_bitmask(described["name"]) == described["bitmask"]
+        assert [list(entry) for entry in mavlink.enum_entries(described["name"])] == described[
+            "entries"
+        ], described["name"]
+    for want in vector["values"]:
+        assert mavlink.enum_value(want["entry"]) == want["value"], want["entry"]
+    for want in vector["entries"]:
+        assert mavlink.enum_entry(want["enumeration"], want["value"]) == want["entry"]
+    for want in vector["names"]:
+        assert mavlink.enum_names(want["enumeration"], want["value"]) == want["names"]
+    for entry in vector["unknownEntries"]:
+        with pytest.raises(ValueError):
+            mavlink.enum_value(entry)
+    for name in vector["unknownEnumerations"]:
+        with pytest.raises(ValueError):
+            mavlink.enum_entries(name)
 
 
 def test_mavlink_schema_vectors_match():
@@ -1504,7 +1530,7 @@ def test_mavlink_schema_vectors_match():
     # A value an integer field cannot hold exactly is refused rather than truncated.
     report = mavlink.message(shape)
     for refused in vector["refused"]:
-        with pytest.raises(ValueError):
+        with pytest.raises(PamojaError):
             report.set(refused["field"], refused["value"])
 
 

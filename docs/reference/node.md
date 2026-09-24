@@ -327,7 +327,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="node-mavlink">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><code class="pkg-import">@pamoja/mavlink</code><p>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mavlink.html">MAVLink</a><code class="pkg-import">@pamoja/mavlink</code><p>MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/mavlink</code><button class="copy" type="button" data-copy="npm install @pamoja/mavlink" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

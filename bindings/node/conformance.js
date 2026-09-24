@@ -838,6 +838,53 @@ actuatorVectors();
 // The message-shape layer: field order, offsets, and the seed they imply are what a peer
 // checks against, so a binding that reorders a field fails here rather than against a
 // vehicle.
+// The dialect's named values: the whole table, the lookups a program makes of it, and the
+// names nothing answers to.
+function mavlinkEnumVectors() {
+  const vector = VECTORS.mavlinkEnums;
+
+  assert.deepStrictEqual(
+    mavlink.knownEnums(),
+    vector.table.map((described) => described.name),
+    "the enumerations, in dialect order",
+  );
+  for (const described of vector.table) {
+    assert.strictEqual(
+      mavlink.enumIsBitmask(described.name),
+      described.bitmask,
+      `whether ${described.name} is a bitmask`,
+    );
+    assert.deepStrictEqual(
+      mavlink.enumEntries(described.name).map((entry) => [entry.name, entry.value]),
+      described.entries,
+      `the entries of ${described.name}`,
+    );
+  }
+  for (const want of vector.values) {
+    assert.strictEqual(mavlink.enumValue(want.entry), want.value, `the value of ${want.entry}`);
+  }
+  for (const want of vector.entries) {
+    assert.strictEqual(
+      mavlink.enumEntry(want.enumeration, want.value),
+      want.entry,
+      `the ${want.enumeration} entry for ${want.value}`,
+    );
+  }
+  for (const want of vector.names) {
+    assert.deepStrictEqual(
+      mavlink.enumNames(want.enumeration, want.value),
+      want.names,
+      `the ${want.enumeration} names in ${want.value}`,
+    );
+  }
+  for (const entry of vector.unknownEntries) {
+    assert.throws(() => mavlink.enumValue(entry), `no enumeration names ${entry}`);
+  }
+  for (const name of vector.unknownEnumerations) {
+    assert.throws(() => mavlink.enumEntries(name), `${name} is not an enumeration`);
+  }
+}
+
 function mavlinkSchemaVectors() {
   const vectors = VECTORS.mavlinkSchema;
 
@@ -2570,6 +2617,7 @@ loraVectors();
 loraBudgetVectors();
 loraRegionVectors();
 mavlinkVectors();
+mavlinkEnumVectors();
 mavlinkSchemaVectors();
 mavlinkProtocolVectors();
 meshVectors();

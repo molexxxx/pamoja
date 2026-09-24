@@ -242,4 +242,48 @@ public static partial class NativeMethods
         string field,
         ReadOnlySpan<byte> bytes,
         nuint bytesLen);
+
+    /// <summary>Looks up the value a dialect entry name stands for.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_value(string entry, out ulong outValue);
+
+    /// <summary>Names the entry of an enumeration that stands for a value, or null.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_entry(
+        string enumeration,
+        ulong value,
+        out IntPtr outName);
+
+    /// <summary>Names the entries a value is made of, joined by a vertical bar.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_names(
+        string enumeration,
+        ulong value,
+        out IntPtr outNames);
+
+    /// <summary>Returns how many enumerations the dialect table holds.</summary>
+    [LibraryImport(Library)]
+    public static partial nuint pamoja_mavlink_enum_count();
+
+    /// <summary>Returns the name of the enumeration at a position in the table.</summary>
+    [LibraryImport(Library)]
+    public static partial PamojaStatus pamoja_mavlink_enum_at(nuint index, out IntPtr outName);
+
+    /// <summary>Reports whether an enumeration's values combine as bits.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_is_bitmask(
+        string enumeration,
+        [MarshalAs(UnmanagedType.U1)] out bool outBitmask);
+
+    /// <summary>Returns how many entries an enumeration names.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_len(string enumeration, out nuint outLen);
+
+    /// <summary>Returns an enumeration's entry at a position, with its value.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial PamojaStatus pamoja_mavlink_enum_entry_at(
+        string enumeration,
+        nuint index,
+        out IntPtr outName,
+        out ulong outValue);
 }

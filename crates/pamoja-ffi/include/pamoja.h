@@ -17585,6 +17585,156 @@ PamojaStatus pamoja_mavlink_raw_message_to_frame(PamojaMavlinkHeader header,
                                                  uintptr_t payload_len,
                                                  PamojaMavlinkFrame **out_frame);
 
+// Looks up the value a dialect entry name stands for, whichever enumeration it belongs to.
+//
+// # Arguments
+//
+// * `entry` - the entry's name, such as `MAV_CMD_COMPONENT_ARM_DISARM`, as null-terminated
+//   UTF-8.
+// * `out_value` - receives the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if no entry has that name or an
+// argument is null.
+//
+// # Safety
+//
+// `entry` must be a valid null-terminated UTF-8 string or null, and `out_value` must be
+// valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_value(const char *entry, uint64_t *out_value);
+
+// Names the entry of an enumeration that stands for a value.
+//
+// # Arguments
+//
+// * `enumeration` - the enumeration's name, such as `MAV_STATE`, as null-terminated UTF-8.
+// * `value` - the value a field carried.
+// * `out_name` - receives the entry's name, which the caller releases with
+//   [`pamoja_string_free`](crate::pamoja_string_free), or null when no entry names the value.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], whether or not an entry names the value, or
+// [`PamojaStatus::InvalidArgument`] if the enumeration is unknown or an argument is null.
+//
+// # Safety
+//
+// `enumeration` must be a valid null-terminated UTF-8 string or null, and `out_name` must be
+// valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_entry(const char *enumeration,
+                                       uint64_t value,
+                                       PamojaString **out_name);
+
+// Names the entries a value is made of: for a bitmask, each entry whose bits are set in it;
+// otherwise the one entry that names it.
+//
+// # Arguments
+//
+// * `enumeration` - the enumeration's name, as null-terminated UTF-8.
+// * `value` - the value a field carried.
+// * `out_names` - receives the names in dialect order joined by `|`, empty when none applies,
+//   which the caller releases with [`pamoja_string_free`](crate::pamoja_string_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if the enumeration is unknown or
+// an argument is null.
+//
+// # Safety
+//
+// `enumeration` must be a valid null-terminated UTF-8 string or null, and `out_names` must be
+// valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_names(const char *enumeration,
+                                       uint64_t value,
+                                       PamojaString **out_names);
+
+// Returns how many enumerations the dialect table holds.
+//
+// # Returns
+//
+// The count, for walking the table with [`pamoja_mavlink_enum_at`].
+uintptr_t pamoja_mavlink_enum_count(void);
+
+// Returns the name of the enumeration at an index of the dialect table.
+//
+// # Arguments
+//
+// * `index` - the position, from `0` below [`pamoja_mavlink_enum_count`].
+// * `out_name` - receives the name, which the caller releases with
+//   [`pamoja_string_free`](crate::pamoja_string_free).
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if `index` is past the end or
+// `out_name` is null.
+//
+// # Safety
+//
+// `out_name` must be valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_at(uintptr_t index, PamojaString **out_name);
+
+// Reports whether an enumeration's values combine as bits.
+//
+// # Arguments
+//
+// * `enumeration` - the enumeration's name, as null-terminated UTF-8.
+// * `out_bitmask` - receives `true` for a bitmask.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if the enumeration is unknown or
+// an argument is null.
+//
+// # Safety
+//
+// `enumeration` must be a valid null-terminated UTF-8 string or null, and `out_bitmask` must
+// be valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_is_bitmask(const char *enumeration, bool *out_bitmask);
+
+// Returns how many entries an enumeration names.
+//
+// # Arguments
+//
+// * `enumeration` - the enumeration's name, as null-terminated UTF-8.
+// * `out_len` - receives the count, for walking the entries with
+//   [`pamoja_mavlink_enum_entry_at`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if the enumeration is unknown or
+// an argument is null.
+//
+// # Safety
+//
+// `enumeration` must be a valid null-terminated UTF-8 string or null, and `out_len` must be
+// valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_len(const char *enumeration, uintptr_t *out_len);
+
+// Returns an enumeration's entry at an index, in dialect order.
+//
+// # Arguments
+//
+// * `enumeration` - the enumeration's name, as null-terminated UTF-8.
+// * `index` - the position, from `0` below the count [`pamoja_mavlink_enum_len`] gives.
+// * `out_name` - receives the entry's name, which the caller releases with
+//   [`pamoja_string_free`](crate::pamoja_string_free).
+// * `out_value` - receives the value it names.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] if the enumeration is unknown,
+// `index` is past the end, or an argument is null.
+//
+// # Safety
+//
+// `enumeration` must be a valid null-terminated UTF-8 string or null, and `out_name` and
+// `out_value` must be valid for a write or null.
+PamojaStatus pamoja_mavlink_enum_entry_at(const char *enumeration,
+                                          uintptr_t index,
+                                          PamojaString **out_name,
+                                          uint64_t *out_value);
+
 // Creates a receiver for a plan from a target vehicle.
 //
 // # Arguments

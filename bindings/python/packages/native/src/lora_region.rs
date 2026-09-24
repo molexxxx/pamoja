@@ -29,6 +29,7 @@ use pamoja_lora::region::{
 };
 
 use crate::lora::LoraLink;
+use crate::PamojaError;
 
 /// Resolves a region name to its published plan.
 ///
@@ -1412,7 +1413,7 @@ impl ChannelPlanBuilder {
 
     /// Finishes the plan.
     ///
-    /// Raises `ValueError` if the plan would answer a question wrongly, for
+    /// Raises `PamojaError` if the plan would answer a question wrongly, for
     /// example because an RX1 row is narrower than the plan's offsets allow, or
     /// because the second receive window listens at a data rate the plan does not
     /// define.
@@ -1429,7 +1430,7 @@ impl ChannelPlanBuilder {
                 inner,
                 published: None,
             }),
-            Err(error) => Err(PyValueError::new_err(error.to_string())),
+            Err(error) => Err(PamojaError::new_err(error.to_string())),
         }
     }
 }

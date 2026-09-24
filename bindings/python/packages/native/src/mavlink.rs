@@ -30,9 +30,11 @@ use pamoja_mavlink::{
     Version,
 };
 
+use crate::PamojaError;
+
 /// Turns a MAVLink error into the exception a caller sees.
 fn error_of(error: MavlinkError) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    PamojaError::new_err(error.to_string())
 }
 
 /// The addressing fields a sender stamps on every frame.
@@ -166,7 +168,7 @@ impl Dialect {
         let mut seeds = self
             .seeds
             .lock()
-            .map_err(|_| PyValueError::new_err("the dialect is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the dialect is poisoned"))?;
         match seeds.iter_mut().find(|(id, _)| *id == msgid) {
             Some(entry) => entry.1 = crc_extra,
             None => seeds.push((msgid, crc_extra)),
@@ -258,7 +260,7 @@ impl MavlinkFrame {
 
     /// Parses one frame, checking it against a known `CRC_EXTRA`.
     ///
-    /// Raises `ValueError` if the bytes are not a whole frame or the checksum
+    /// Raises `PamojaError` if the bytes are not a whole frame or the checksum
     /// does not match, which is what rejects a frame mangled in transit.
     #[staticmethod]
     fn parse(data: Vec<u8>, crc_extra: u8) -> PyResult<Self> {
@@ -405,7 +407,7 @@ impl MavlinkParser {
         let mut state = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the parser is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the parser is poisoned"))?;
         let seed = |msgid: u32| lookup(dialect, msgid);
         let mut found = Vec::new();
         for byte in data {
@@ -422,7 +424,7 @@ impl MavlinkParser {
         let mut state = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the parser is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the parser is poisoned"))?;
         let seed = |msgid: u32| lookup(dialect, msgid);
         for byte in data {
             if let Some(frame) = state.parser.push_byte(byte, &seed) {
@@ -437,7 +439,7 @@ impl MavlinkParser {
         let mut state = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the parser is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the parser is poisoned"))?;
         Ok(state.ready.pop_front().map(|inner| MavlinkFrame { inner }))
     }
 
@@ -447,7 +449,7 @@ impl MavlinkParser {
         let state = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the parser is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the parser is poisoned"))?;
         Ok(state.ready.len())
     }
 }
@@ -491,7 +493,7 @@ impl MavlinkSigner {
         let mut signer = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the signer is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the signer is poisoned"))?;
         signer
             .sign(header.into(), msgid, &payload, crc_extra)
             .map(|inner| MavlinkFrame { inner })
@@ -504,7 +506,7 @@ impl MavlinkSigner {
         let signer = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the signer is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the signer is poisoned"))?;
         Ok(signer.link_id())
     }
 }
@@ -538,7 +540,7 @@ impl MavlinkVerifier {
         let mut held = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the verifier is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the verifier is poisoned"))?;
         if let Some(verifier) = held.take() {
             *held = Some(verifier.with_window(window));
         }
@@ -547,16 +549,16 @@ impl MavlinkVerifier {
 
     /// Checks a frame's signature and its place in the timestamp sequence.
     ///
-    /// Raises `ValueError` when the frame is unsigned, the signature does not
+    /// Raises `PamojaError` when the frame is unsigned, the signature does not
     /// match the key, or the timestamp has been seen before.
     fn verify(&self, frame: &MavlinkFrame) -> PyResult<()> {
         let mut held = self
             .inner
             .lock()
-            .map_err(|_| PyValueError::new_err("the verifier is poisoned"))?;
+            .map_err(|_| PamojaError::new_err("the verifier is poisoned"))?;
         let verifier = held
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("the verifier is unusable"))?;
+            .ok_or_else(|| PamojaError::new_err("the verifier is unusable"))?;
         verifier.verify(&frame.inner).map_err(error_of)
     }
 }

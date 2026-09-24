@@ -26,10 +26,11 @@ use pamoja_mavlink::dialect::{
 use pamoja_mavlink::{Header, MavlinkError};
 
 use crate::mavlink::{MavlinkFrame, MavlinkHeader};
+use crate::PamojaError;
 
 /// Turns a MAVLink error into the exception a caller sees.
 fn error_of(error: MavlinkError) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    PamojaError::new_err(error.to_string())
 }
 
 /// Resolves a field type given either its code or the name a dialect writes.
@@ -266,8 +267,8 @@ impl MessageSchemaBuilder {
 
     /// Puts the declared fields in wire order and finishes the shape.
     ///
-    /// Raises `ValueError` if two fields share a name, the fields do not fit a
-    /// MAVLink payload, or the shape has already been built.
+    /// Raises `PamojaError` if two fields share a name or the fields do not fit a
+    /// MAVLink payload, and `ValueError` if the shape has already been built.
     fn build(&self) -> PyResult<MessageSchema> {
         let mut held = self
             .builder
@@ -329,7 +330,7 @@ impl MavlinkMessage {
 impl MavlinkMessage {
     /// Creates a message with every field zero.
     ///
-    /// Raises `ValueError` if the shape does not fit a MAVLink payload.
+    /// Raises `PamojaError` if the shape does not fit a MAVLink payload.
     #[staticmethod]
     fn empty(schema: &MessageSchema) -> PyResult<Self> {
         let shape = schema.shape().clone();
@@ -346,7 +347,7 @@ impl MavlinkMessage {
     ///
     /// A payload shorter than the shape is zero-extended, as MAVLink 2
     /// truncation requires, so a frame from a peer that trimmed trailing zeros or
-    /// predates an extension field still decodes. Raises `ValueError` if the
+    /// predates an extension field still decodes. Raises `PamojaError` if the
     /// payload is longer than the shape describes.
     #[staticmethod]
     fn decode(schema: &MessageSchema, payload: Vec<u8>) -> PyResult<Self> {
@@ -386,7 +387,7 @@ impl MavlinkMessage {
 
     /// Builds a v2 frame carrying this message.
     ///
-    /// Raises `ValueError` if the message does not fit a frame.
+    /// Raises `PamojaError` if the message does not fit a frame.
     fn to_frame(&self, header: MavlinkHeader) -> PyResult<MavlinkFrame> {
         let held = self
             .payload

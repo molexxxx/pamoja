@@ -23,6 +23,11 @@ pub enum MavlinkError {
     /// The buffer ended before the frame its length field promised was complete.
     Truncated,
 
+    /// A v2 frame sets an incompatibility flag this parser does not understand, so its
+    /// layout cannot be trusted, and the specification requires the frame be dropped.
+    /// Carries the flags byte.
+    UnknownIncompatFlags(u8),
+
     /// The trailing checksum did not match the one computed over the frame.
     CrcMismatch {
         /// The checksum computed over the received bytes.
@@ -78,6 +83,10 @@ impl fmt::Display for MavlinkError {
             Self::FrameTooShort => f.write_str("frame is shorter than a valid frame"),
             Self::BadMagic(byte) => write!(f, "unrecognized start marker: {byte:#04x}"),
             Self::Truncated => f.write_str("frame is shorter than its length field promises"),
+            Self::UnknownIncompatFlags(flags) => write!(
+                f,
+                "frame sets incompatibility flags {flags:#04x}, which this parser does not understand"
+            ),
             Self::CrcMismatch { expected, found } => {
                 write!(
                     f,

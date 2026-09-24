@@ -39,6 +39,7 @@ import {
   MissionSender,
   ReceiverStep,
   SenderStep,
+  type MavlinkEnumEntry,
   type MavlinkField,
   type MavlinkFieldInfo,
   type MavlinkHeader,
@@ -67,7 +68,13 @@ import {
   MAVLINK_TYPEMASK_YAW,
   MAVLINK_TYPEMASK_YAW_RATE,
   mavlinkCrc16Mcrf4Xx,
+  mavlinkEnumEntries,
+  mavlinkEnumEntry,
+  mavlinkEnumIsBitmask,
+  mavlinkEnumNames,
+  mavlinkEnumValue,
   mavlinkKnownCrcExtra,
+  mavlinkKnownEnums,
   mavlinkKnownMessages,
   mavlinkMessageCrcExtra,
   mavlinkOffboardGlobalPosition,
@@ -90,6 +97,7 @@ export {
   MissionSender,
   ReceiverStep,
   SenderStep,
+  type MavlinkEnumEntry,
   type MavlinkField,
   type MavlinkFieldInfo,
   type MavlinkHeader,
@@ -292,6 +300,89 @@ export function knownMessages(): string[] {
 }
 
 /**
+ * Returns the value a dialect entry name stands for, whichever enumeration it belongs to.
+ *
+ * MAVLink writes each enum value's name with its enumeration in front, such as
+ * `MAV_TYPE_QUADROTOR`, and the names are unique across the dialect, so the name alone is
+ * enough.
+ *
+ * @param entry - The entry's name, such as `MAV_CMD_COMPONENT_ARM_DISARM`.
+ * @returns The value, ready to set on a field.
+ * @throws If no entry of any dialect enumeration has that name.
+ *
+ * @example
+ * ```ts
+ * const heartbeat = message('HEARTBEAT')
+ * heartbeat.set('type', enumValue('MAV_TYPE_GCS'))
+ * ```
+ */
+export function enumValue(entry: string): number {
+  return mavlinkEnumValue(entry)
+}
+
+/**
+ * Names the entry of an enumeration that stands for a value.
+ *
+ * @param enumeration - The enumeration's name, such as `MAV_STATE`.
+ * @param value - The value a field carried.
+ * @returns The entry's name, or `null` if no entry names the value.
+ * @throws If the enumeration is unknown, or the value is not a whole number from 0 up.
+ *
+ * @example
+ * ```ts
+ * enumEntry('MAV_STATE', heartbeat.get('system_status')) // 'MAV_STATE_STANDBY'
+ * ```
+ */
+export function enumEntry(enumeration: string, value: number): string | null {
+  return mavlinkEnumEntry(enumeration, value)
+}
+
+/**
+ * Names the entries a value is made of: for a bitmask such as `MAV_MODE_FLAG`, each entry
+ * whose bits are set in it, and otherwise the one entry that names it.
+ *
+ * @param enumeration - The enumeration's name.
+ * @param value - The value a field carried.
+ * @returns The names in dialect order, empty when none applies.
+ * @throws If the enumeration is unknown, or the value is not a whole number from 0 up.
+ */
+export function enumNames(enumeration: string, value: number): string[] {
+  return mavlinkEnumNames(enumeration, value)
+}
+
+/**
+ * Returns every entry of an enumeration, in dialect order.
+ *
+ * @param enumeration - The enumeration's name.
+ * @returns Each entry's name and value.
+ * @throws If the enumeration is unknown.
+ */
+export function enumEntries(enumeration: string): MavlinkEnumEntry[] {
+  return mavlinkEnumEntries(enumeration)
+}
+
+/**
+ * Reports whether an enumeration's values combine as bits.
+ *
+ * @param enumeration - The enumeration's name.
+ * @returns `true` for a bitmask such as `MAV_MODE_FLAG`.
+ * @throws If the enumeration is unknown.
+ */
+export function enumIsBitmask(enumeration: string): boolean {
+  return mavlinkEnumIsBitmask(enumeration)
+}
+
+/**
+ * Returns the names of every enumeration this build names values for: each one a field of a
+ * typed message names, in the order the dialect defines them.
+ *
+ * @returns The enumeration names, each usable with {@link enumEntries}.
+ */
+export function knownEnums(): string[] {
+  return mavlinkKnownEnums()
+}
+
+/**
  * Creates a message with every field zero.
  *
  * @param shape - The shape to build, or the id or name of a message the engine types.
@@ -300,8 +391,8 @@ export function knownMessages(): string[] {
  * @example
  * ```ts
  * const heartbeat = message('HEARTBEAT')
- * heartbeat.set('type', 18)
- * heartbeat.set('system_status', 4)
+ * heartbeat.set('type', enumValue('MAV_TYPE_ONBOARD_CONTROLLER'))
+ * heartbeat.set('system_status', enumValue('MAV_STATE_ACTIVE'))
  * const frame = heartbeat.toFrame({ systemId: 1, componentId: 1, sequence: 0 })
  * ```
  */

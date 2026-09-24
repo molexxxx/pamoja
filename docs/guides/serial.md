@@ -947,7 +947,7 @@ The mistakes that cost an afternoon:
 
 <!-- table: next serial -->
 - [Modbus RTU](modbus.md): Modbus RTU for RS485 field devices.
-- [MAVLink](mavlink.md): MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols.
+- [MAVLink](mavlink.md): MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols.
 - [Buses](hal.md): The embedded-hal traits every driver takes, a bit-banged 1-Wire bus, simulated parts and scripted buses that stand in for hardware, the Linux backends over i2c-dev, spidev, and the GPIO character device, one I2C bus and one serial port a program and its drivers share, and delays that sleep or only count.
 - Beside it: [Buses and links](../buses.md).
 - Also in Field I/O: [CAN and J1939](can.md), [I2C, SPI, and GPIO](gpio.md).

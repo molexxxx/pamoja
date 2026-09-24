@@ -431,7 +431,11 @@
       try
       {
         const response = await fetch(base + 'search.json');
-        index = await response.json();
+        const pages = await response.json();
+        index = pages.flatMap((page) => [
+          { u: page.u, p: page.p, h: '', s: page.s, b: page.b },
+          ...page.x.map(([id, h, b]) => ({ u: `${page.u}#${id}`, p: page.p, h, s: page.s, b })),
+        ]);
       } catch
       {
         index = [];

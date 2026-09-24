@@ -651,6 +651,15 @@ mod tests {
         let site = site();
         let index = search::index(&site.pages, &site.nav);
         assert!(index.len() < 250 * 1024, "{} bytes", index.len());
-        assert!(index.contains("docs/guides/modbus.html#what-the-example-does"));
+        let pages: Vec<serde_json::Value> = serde_json::from_str(&index).unwrap();
+        let modbus = pages
+            .iter()
+            .find(|page| page["u"] == "docs/guides/modbus.html")
+            .expect("the Modbus guide");
+        assert!(modbus["x"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|section| section[0] == "what-the-example-does"));
     }
 }

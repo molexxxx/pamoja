@@ -4,7 +4,7 @@
     <PackageId>Pamoja.Mavlink</PackageId>
     <AssemblyName>Pamoja.Mavlink</AssemblyName>
     <RootNamespace>Pamoja.Mavlink</RootNamespace>
-    <Description>MAVLink v1 and v2 framing, signing, named message fields, and the mission, command, and offboard protocols.</Description>
+    <Description>MAVLink v1 and v2 framing, signing, named message fields and enum values, and the mission, command, and offboard protocols.</Description>
     <PackageTags>pamoja;iot;robotics;mavlink</PackageTags>
     <PackageProjectUrl>https://pamoja.molex.cloud/docs/guides/mavlink.html</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
