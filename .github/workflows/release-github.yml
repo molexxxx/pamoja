@@ -59,6 +59,31 @@ jobs:
             exit 1
           fi
 
+          # GitHub refuses a release body over 125,000 characters. An entry too long to
+          # fit keeps its opening paragraph and the first sentence of each change, with a
+          # link to the whole entry, leaving room for the pull requests below.
+          if [ "$(wc -c < notes.md)" -gt 100000 ]; then
+            awk '
+              function flush(  cut) {
+                if (item == "") return
+                cut = index(item, ". ")
+                if (cut > 0) item = substr(item, 1, cut)
+                print item
+                item = ""
+              }
+              /^### / { flush(); section = 1; print ""; print; print ""; next }
+              /^- / { flush(); item = $0; next }
+              /^[ ]+[^ ]/ && item != "" { line = $0; sub(/^[ ]+/, "", line); item = item " " line; next }
+              { flush(); if (!section) print }
+              END { flush() }
+            ' notes.md > short.md
+            {
+              cat short.md
+              echo
+              echo "Each change in full is in [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/CHANGELOG.md)."
+            } > notes.md
+          fi
+
           # The pull requests that landed since the previous tag, grouped by label.
           previous=$(git tag --list 'v*' --sort=-version:refname | grep -v "^${TAG}$" | head -1)
           {
