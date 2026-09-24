@@ -1336,7 +1336,7 @@ that cost an afternoon:
 - [Rules](rules.md): Rules between nodes as a file.
 - [Your own device](device.md): A sensor and an actuator pamoja has never heard of, written against the core traits, run against a rule, and published with nothing plugged in.
 - [Sensor drivers](sensors.md): Datasheet-anchored drivers for eleven parts, from every language.
-- Beside it: [Profiles](../profiles.md).
+- Beside it: [Profiles](../profiles.md), [Running a profile](../run.md).
 - Also in Profiles and robotics: [Robot motion](motion.md), [ROS 2 rules](ros2.md), [Zenoh keys](zenoh.md).
 <!-- end -->
 

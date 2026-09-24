@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://pamoja.molex.cloud/schema/wiring-1.json",
+  "title": "pamoja wiring",
+  "description": "One site's wiring: the part that reads what a profile reads, the line its output drives, the link its readings go over, and the battery it runs from. pamoja-node reads it with the profile it names and runs the node.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["site", "profile", "sensor", "link"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "pattern": "(^|/)wiring-1\\.json$",
+      "description": "The format the file is written in: this schema's address, or a copy of it by the same file name. An editor reads it to check the file as it is typed."
+    },
+    "site": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "The site's name, such as coop-2, which the node's logs and its MQTT client id carry."
+    },
+    "profile": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "The profile to run, as a path relative to this file, such as brooder-heater.json."
+    },
+    "sensor": {
+      "$ref": "#/definitions/sensor"
+    },
+    "output": {
+      "$ref": "#/definitions/output"
+    },
+    "link": {
+      "$ref": "#/definitions/link"
+    },
+    "battery": {
+      "$ref": "#/definitions/battery"
+    }
+  },
+  "definitions": {
+    "sensor": {
+      "type": "object",
+      "description": "The part that takes the readings. It must measure the quantity the profile reads.",
+      "additionalProperties": false,
+      "required": ["part"],
+      "properties": {
+        "part": {
+          "enum": ["bme280", "bmp280", "sht3x", "hdc1080", "tmp117", "scd4x", "opt3001", "ina219", "ina226", "ds18b20", "replay"],
+          "description": "The part, as the table of parts names it."
+        },
+        "bus": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The I2C bus the part is on, such as /dev/i2c-1, or sim for the part's simulated twin, which answers with one fixed measurement. Every part but a ds18b20 and a replay needs one."
+        },
+        "address": {
+          "description": "The part's I2C address, as a number or as hexadecimal text such as \"0x77\", when it is not the part's usual one.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0, "maximum": 127 },
+            { "type": "string", "pattern": "^0[xX][0-9a-fA-F]{1,2}$" }
+          ]
+        },
+        "serial": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "A ds18b20's 1-Wire serial, such as 28-0316a2795cff, as the kernel names its folder under /sys/bus/w1/devices."
+        },
+        "readings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "number" },
+          "description": "The readings a replay plays back in turn, in the profile's unit, for trying a profile with nothing wired."
+        },
+        "offset": {
+          "type": "number",
+          "default": 0,
+          "description": "Added to each reading once it is in the profile's unit, to correct a probe that reads high or low."
+        },
+        "scale": {
+          "type": "number",
+          "default": 1,
+          "not": { "const": 0 },
+          "description": "Multiplied into each reading before the offset is added."
+        }
+      }
+    },
+    "output": {
+      "description": "The output a setpoint profile switches: a GPIO line, or a printed line for trying a profile with nothing wired. Leave it out for a profile that switches nothing.",
+      "oneOf": [
+        {
+          "type": "object",
+          "title": "gpio",
+          "description": "A GPIO line, such as the input of a relay board.",
+          "additionalProperties": false,
+          "required": ["gpio", "line"],
+          "properties": {
+            "gpio": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "The GPIO chip, such as /dev/gpiochip0."
+            },
+            "line": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The line on the chip, which on a Raspberry Pi is the GPIO number, such as 17."
+            },
+            "active_low": {
+              "type": "boolean",
+              "default": false,
+              "description": "true when the line is driven low to switch the output on, as most relay boards want."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "title": "print",
+          "description": "Names the output in each tick's line instead of driving a line.",
+          "additionalProperties": false,
+          "required": ["print"],
+          "properties": {
+            "print": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "What the output is called in the text, such as heat lamp."
+            }
+          }
+        }
+      ]
+    },
+    "link": {
+      "description": "The link each reading is published over.",
+      "oneOf": [
+        {
+          "type": "object",
+          "title": "mqtt",
+          "description": "An MQTT broker.",
+          "additionalProperties": false,
+          "required": ["mqtt"],
+          "properties": {
+            "mqtt": {
+              "type": "string",
+              "pattern": "\\S",
+              "description": "The broker's host name or address."
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "The broker's port: 1883 unless given, or 8883 with tls."
+            },
+            "client_id": {
+              "type": "string",
+              "description": "The client id; the site's name unless given."
+            },
+            "username": {
+              "type": "string",
+              "description": "The username to sign in with."
+            },
+            "password": {
+              "type": "string",
+              "description": "The password to sign in with, which goes with a username."
+            },
+            "tls": {
+              "$ref": "#/definitions/tls"
+            }
+          },
+          "dependencies": { "password": ["username"] }
+        },
+        {
+          "type": "object",
+          "title": "print",
+          "description": "Prints each reading with its topic instead of publishing it.",
+          "additionalProperties": false,
+          "required": ["print"],
+          "properties": {
+            "print": {
+              "const": true,
+              "description": "true."
+            }
+          }
+        }
+      ]
+    },
+    "tls": {
+      "type": "object",
+      "description": "TLS to the broker. An empty object trusts the system's certificate authorities.",
+      "additionalProperties": false,
+      "properties": {
+        "ca": {
+          "type": "string",
+          "description": "The certificate authority to trust, as a PEM file; the system's own unless given."
+        },
+        "certificate": {
+          "type": "string",
+          "description": "The client certificate to present, as a PEM file, for a broker that asks for one."
+        },
+        "key": {
+          "type": "string",
+          "description": "The client certificate's private key, as a PEM file, which goes with a certificate."
+        }
+      },
+      "dependencies": { "certificate": ["key"], "key": ["certificate"] }
+    },
+    "battery": {
+      "type": "object",
+      "description": "The battery the node runs from, read as a voltage through a power monitor to set how often the node samples. Leave it out on mains power, and the node samples at the profile's active cadence.",
+      "additionalProperties": false,
+      "required": ["part", "bus", "empty_volts", "full_volts"],
+      "properties": {
+        "part": {
+          "enum": ["ina219", "ina226"],
+          "description": "The power monitor across the battery."
+        },
+        "bus": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "The I2C bus the monitor is on, or sim."
+        },
+        "address": {
+          "description": "The monitor's I2C address, when it is not 0x40.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0, "maximum": 127 },
+            { "type": "string", "pattern": "^0[xX][0-9a-fA-F]{1,2}$" }
+          ]
+        },
+        "empty_volts": {
+          "type": "number",
+          "description": "The voltage the battery reads when it is empty."
+        },
+        "full_volts": {
+          "type": "number",
+          "description": "The voltage the battery reads when it is full, above empty_volts."
+        }
+      }
+    }
+  }
+}

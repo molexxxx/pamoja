@@ -518,14 +518,14 @@ next = ["loopback", "device", "profile"]
 key = "profile"
 chapter = "profiles"
 title = "Device profiles"
-summary = "Named, ready-to-run device profiles from plain data or a JSON manifest"
+summary = "Named, ready-to-run device profiles from plain data or a JSON manifest, run as a node in every language"
 crates = ["pamoja-profile"]
 node = "profile"
 python = "profile"
 dotnet = ["Profile", "Node", "PolicyRegistry", "IPolicy", "Tick", "Reads", "ControlPolicy", "ControlKind", "Controller", "Reaction", "Alert", "AlertKind", "PowerSchedule", "Presentation", "ElementSpec", "Theme", "Viz", "LocalizedText"]
 guide = "guides/profile.md"
 next = ["rules", "device", "sensors"]
-pages = ["profiles.md"]
+pages = ["profiles.md", "run.md"]
 
 [[capability]]
 key = "rules"

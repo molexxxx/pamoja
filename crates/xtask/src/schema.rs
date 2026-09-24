@@ -139,11 +139,31 @@ const RULES: [(&str, &str, &str); 5] = [
     ),
 ];
 
+const WIRING: [(&str, &str, &str); 8] = [
+    ("", "The wiring file", "wiring-fields"),
+    ("/definitions/sensor", "sensor", "wiring-sensor"),
+    ("/definitions/output/oneOf/0", "output, gpio", "wiring-gpio"),
+    (
+        "/definitions/output/oneOf/1",
+        "output, print",
+        "wiring-print-output",
+    ),
+    ("/definitions/link/oneOf/0", "link, mqtt", "wiring-mqtt"),
+    (
+        "/definitions/link/oneOf/1",
+        "link, print",
+        "wiring-print-link",
+    ),
+    ("/definitions/tls", "link, tls", "wiring-tls"),
+    ("/definitions/battery", "battery", "wiring-battery"),
+];
+
 /// The objects a format's tables walk.
 fn sections(format: &str) -> Result<Vec<(&'static str, &'static str, &'static str)>, String> {
     match format {
         "profile" => Ok(PROFILE.to_vec()),
         "rules" => Ok(RULES.to_vec()),
+        "wiring" => Ok(WIRING.to_vec()),
         other => Err(format!("no schema is published for `{other}`")),
     }
 }
@@ -238,8 +258,20 @@ pub fn table(root: &Path, format: &str) -> Result<String, String> {
 fn value_of(property: &Value, sections: &[(&str, &str, &str)]) -> String {
     if let Some(target) = property["$ref"].as_str() {
         let pointer = target.trim_start_matches('#');
+        let prefix = format!("{pointer}/oneOf/");
+        let alternatives: Vec<String> = sections
+            .iter()
+            .filter(|(at, _, _)| at.starts_with(&prefix))
+            .map(|(_, heading, anchor)| {
+                let kind = heading.rsplit(", ").next().unwrap_or(heading);
+                format!("[{kind}](#{anchor})")
+            })
+            .collect();
         return match sections.iter().find(|(at, _, _)| *at == pointer) {
             Some((_, heading, anchor)) => format!("object, see [{heading}](#{anchor})"),
+            None if !alternatives.is_empty() => {
+                format!("object, {}", alternatives.join(" or "))
+            }
             None if pointer == "/definitions/control" => {
                 "object, one of the control kinds below".to_owned()
             }
@@ -589,9 +621,79 @@ mod tests {
         ));
     }
 
+    const COOP: &str = r#"{
+  "$schema": "https://pamoja.molex.cloud/schema/wiring-1.json",
+  "site": "coop-2",
+  "profile": "brooder-heater.json",
+  "sensor": { "part": "bme280", "bus": "/dev/i2c-1", "address": "0x77", "offset": -0.4 },
+  "output": { "gpio": "/dev/gpiochip0", "line": 17, "active_low": true },
+  "link": { "mqtt": "192.168.1.10", "username": "coop", "password": "hunter2", "tls": {} },
+  "battery": { "part": "ina219", "bus": "/dev/i2c-1", "empty_volts": 3.3, "full_volts": 4.2 }
+}"#;
+
+    #[test]
+    fn the_wiring_schema_and_the_parser_accept_and_refuse_the_same_files() {
+        use pamoja_profile::wiring::Wiring;
+
+        let wiring = validator("wiring");
+        let cases: &[(&str, &str, bool)] = &[
+            ("", "", true),
+            ("\"0x77\"", "119", true),
+            ("\"0x77\"", "\"77\"", false),
+            ("\"0x77\"", "200", false),
+            ("\"site\"", "\"stie\"", false),
+            ("\"bme280\"", "\"bme28O\"", false),
+            ("\"bme280\"", "\"tmp117\"", true),
+            (", \"line\": 17", "", false),
+            ("\"active_low\": true", "\"active_low\": true, \"print\": \"lamp\"", false),
+            ("{ \"gpio\": \"/dev/gpiochip0\", \"line\": 17, \"active_low\": true }", "{ \"print\": \"heat lamp\" }", true),
+            ("\"username\": \"coop\", ", "", false),
+            ("{ \"mqtt\": \"192.168.1.10\", \"username\": \"coop\", \"password\": \"hunter2\", \"tls\": {} }", "{ \"print\": true }", true),
+            ("{ \"mqtt\": \"192.168.1.10\", \"username\": \"coop\", \"password\": \"hunter2\", \"tls\": {} }", "{ \"print\": false }", false),
+            ("\"tls\": {}", "\"tls\": { \"certificate\": \"coop.pem\" }", false),
+            ("\"tls\": {}", "\"tls\": { \"certificate\": \"coop.pem\", \"key\": \"coop.key\" }", true),
+            ("\"part\": \"ina219\"", "\"part\": \"tmp117\"", false),
+            ("\"offset\": -0.4", "\"offset\": -0.4, \"scale\": 0", false),
+            ("\"offset\": -0.4", "\"offset\": -0.4, \"scale\": 1.02", true),
+            ("wiring-1.json", "wiring-2.json", false),
+        ];
+        for (from, to, accepted) in cases {
+            let text = if from.is_empty() {
+                COOP.to_owned()
+            } else {
+                assert!(COOP.contains(from), "{from} is not in the base wiring");
+                COOP.replacen(from, to, 1)
+            };
+            let parsed = Wiring::from_json(&text);
+            assert_eq!(
+                parsed.is_ok(),
+                *accepted,
+                "the parser on {from} -> {to}: {parsed:?}"
+            );
+            assert_eq!(
+                valid(&wiring, &text),
+                *accepted,
+                "the schema on {from} -> {to}"
+            );
+        }
+        for (from, to) in [
+            ("\"full_volts\": 4.2", "\"full_volts\": 3.0"),
+            ("\"bus\": \"/dev/i2c-1\", \"address\"", "\"address\""),
+            ("\"bme280\"", "\"scd4x\""),
+        ] {
+            let text = COOP.replacen(from, to, 1);
+            assert!(valid(&wiring, &text), "the schema allows {to}");
+            assert!(Wiring::from_json(&text).is_err(), "the parser refuses {to}");
+        }
+        assert!(valid(
+            &wiring,
+            &Wiring::from_json(COOP).unwrap().to_json().unwrap()
+        ));
+    }
+
     #[test]
     fn every_field_is_described_and_every_table_renders() {
-        for format in ["profile", "rules"] {
+        for format in ["profile", "rules", "wiring"] {
             let rendered = table(&repo_root(), format).expect("the tables render");
             for (_, heading, anchor) in sections(format).unwrap() {
                 assert!(

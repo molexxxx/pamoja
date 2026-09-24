@@ -16,7 +16,9 @@ and nothing else.
 Download the file, or copy its text, and load it where the node runs:
 `Profile::from_json`, `fromJson`, `from_json`, or `FromJson` reads it, and a `Node`
 runs it over a reading, an output, and a link of your own, in any of the four
-languages, as the [guide](guides/profile.md) shows. The numbers are a starting point: a
+languages, as the [guide](guides/profile.md) shows. With no program at all,
+[`pamoja-node`](run.md) runs it from a wiring file that names the site's part, relay
+line, and broker. The numbers are a starting point: a
 manifest is meant to be edited to the bed, the fridge, or the river in front of
 you, and shared back once it has run.
 

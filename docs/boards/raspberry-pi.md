@@ -13,9 +13,9 @@ Rust package at
 [`examples/boards/raspberry-pi`](https://github.com/molexxxx/pamoja/tree/main/examples/boards/raspberry-pi),
 built in CI on every change. The sensor read, the relay, and the radio are also in
 TypeScript, Python, and C#, compiled in CI against the packages each language installs.
-The whole node is Rust alone for now: it runs a profile's node loop, which is generic
-over the sensor, the output, the link, and the codec, and stays in Rust. The other
-languages have the profile's controller, which makes the same decisions.
+The whole node is written here in Rust. The [device profiles guide](../guides/profile.md)
+runs the same node in TypeScript, Python, and C#, and [`pamoja-node`](../run.md) runs it
+from a wiring file with no program at all.
 
 ## The header
 
@@ -1070,29 +1070,51 @@ runs on a microcontroller with a different two lines of setup at the top. The
 controller decides with it, and [`examples/brooder_node.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/brooder_node.rs)
 is a worked version with a flaky uplink and a second node driven by rules.
 
+This program is the one to start from when a node needs something of its own: a
+second probe, a display, a policy the library does not ship. When it does not, the
+stock runner does the same work with nothing to compile. Its wiring file names the
+BME280's bus and address, the relay's line, and the broker:
+
+```json
+{
+  "$schema": "https://pamoja.molex.cloud/schema/wiring-1.json",
+  "site": "coop-2",
+  "profile": "brooder-heater.json",
+  "sensor": { "part": "bme280", "bus": "/dev/i2c-1", "address": "0x77" },
+  "output": { "gpio": "/dev/gpiochip0", "line": 17, "active_low": true },
+  "link": { "mqtt": "192.168.1.10" }
+}
+```
+
+[Running a profile](../run.md) installs it, tries it with nothing wired, and lists
+the parts it reads.
+
 ## Running it as a service
 
 A node has to come back after a power cut without anyone logging in, which on a
-Pi means a systemd unit. The shape:
+Pi means a systemd unit. The shape, for the runner:
 
 ```ini
 [Unit]
 Description=pamoja node
 After=network-online.target
+Wants=network-online.target
 
 [Service]
-ExecStart=/home/pi/node broker.example.org /etc/pamoja/profile.json
-Restart=always
-RestartSec=5
-User=pi
+ExecStart=/usr/local/bin/pamoja-node /etc/pamoja/coop-2.json
+Restart=on-failure
+RestartSec=10
+DynamicUser=yes
+SupplementaryGroups=i2c gpio
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 Written to `/etc/systemd/system/pamoja-node.service` and enabled with
-`sudo systemctl enable --now pamoja-node`. `User=pi` keeps the earlier point
-honest: the account is in the `gpio` and `i2c` groups, so the service never
+`sudo systemctl enable --now pamoja-node`. For the program above, `ExecStart`
+names its binary and arguments instead. The service runs as an account of its own
+in the `i2c` and `gpio` groups, which keeps the earlier point honest: it never
 needs root. `journalctl -u pamoja-node -f` follows what it prints.
 
 ## Building on something faster
@@ -1124,6 +1146,8 @@ toolchain for C.
 - [Device profiles](../guides/profile.md), for the read-decide-act-publish loop
   a node runs, and the `gateway` and `fleet` examples in `pamoja-dashboard`,
   which serve the dashboard from a Pi.
+- [Running a profile](../run.md), for the stock runner and every field of its
+  wiring file.
 - [Node to dashboard](walkthrough.md), for a Pi that is both a LoRaWAN gateway and
   the dashboard of the nodes its network server hears.
 

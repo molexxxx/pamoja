@@ -9,6 +9,22 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- `pamoja-node`, a stock runner in `pamoja-profile` behind the `runner` feature, runs a
+  profile with no program to write. A wiring file names the site, the profile it runs,
+  the part that takes the readings, the GPIO line its output drives, the MQTT broker or
+  printed link it reports on, and an optional battery monitor that sets the sampling
+  cadence.
+  - The parts are the BME280, BMP280, SHT3x, HDC1080, TMP117, SCD4x, OPT3001, INA219,
+    INA226, and DS18B20 through their drivers on Linux, each part's simulated twin on
+    `sim`, and a replay of fixed readings for trying a profile with nothing wired.
+  - The wiring is checked against the profile before any part opens: the part has to
+    measure what the profile `reads`, its unit has to convert to the profile's, and a
+    profile that switches an output needs one wired. A misspelled field is refused with
+    the one it was probably meant to be.
+  - `--check` says what would run without touching hardware, `--ticks` stops after a
+    count, and a tick that fails is reported and tried again at the next interval.
+  - The wiring file has a published JSON Schema, `schema/wiring-1.json`, and a page,
+    Running a profile, with every field and every part generated from the code.
 - A profile runs as a node, and a rule file runs as an engine, in TypeScript, Python, and
   C# as in Rust.
   - `Node` takes the profile, a `read`, a `drive`, and a link. `tick` reads, decides,

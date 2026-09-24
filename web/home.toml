@@ -201,6 +201,7 @@ tags = [
   { text = "analog in: ADS1115", state = "ships", href = "docs/guides/sensors.html" },
   { text = "servos and PWM: PCA9685, stepper motors", state = "ships", crate = "pamoja-actuators", href = "docs/guides/actuators.html" },
   { text = "device profiles and rules between nodes", state = "ships", crate = "pamoja-profile", href = "docs/guides/profile.html" },
+  { text = "a stock runner: a profile and a wiring file, no code", state = "ships", href = "docs/run.html" },
   { text = "ultrasonic tank level (JSN-SR04T)", state = "next" },
   { text = "GPS (NEO-M8N)", state = "next" },
   { text = "DC motor drivers", state = "next" },

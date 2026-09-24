@@ -87,6 +87,13 @@ jobs:
           cargo test -p pamoja-gateway --features daemon
           (cd examples/boards/gateway && cargo build --release)
 
+      # The stock runner opens the sensor drivers, the Linux buses and GPIO lines, and an
+      # MQTT client, so it stays off the default graph; on Linux its GPIO output compiles too.
+      - name: Profile runner
+        run: |
+          cargo clippy -p pamoja-profile --features runner --all-targets -- -D warnings
+          cargo test -p pamoja-profile --features runner
+
       # The Linux bus backends, the kernel thermometer file, and the Linux side of the
       # radio opener only build on Linux, so the default-feature graph the rest of this
       # job covers never compiles them.

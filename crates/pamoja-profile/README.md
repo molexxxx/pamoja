@@ -2,7 +2,7 @@
 
 # pamoja-profile
 
-Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, transport, codec, and power schedule into a working node.
+Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, transport, codec, and power schedule into a working node, or run one from a site's wiring file with pamoja-node.
 
 <a href="https://pamoja.molex.cloud/docs/guides/profile.html"><img height="36" alt="read the guide" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg"></a>
 <a href="https://pamoja.molex.cloud/docs/reference/rust/pamoja_profile/index.html"><img height="36" alt="API reference" src="https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-api.svg"></a>
@@ -43,6 +43,10 @@ This guide runs from the simplest use to a fully themed dashboard. Skip to
   `Sensor`, an `Actuator`, a
   `Transport`, and a `Codec`. Each
   `tick` reads, decides, drives the output, and publishes.
+- `wiring::Wiring` is one site's wiring file: the part that takes the readings, the
+  GPIO line the output drives, the link, and the battery. With the `runner` feature, the
+  `pamoja-node` binary reads it beside a profile and runs the node with no program to
+  write.
 
 The decision logic is a `Controller` that composes the `pamoja-kit` helpers, so a
 profile is glue over field-tested math rather than new behavior. Its I/O is async; its

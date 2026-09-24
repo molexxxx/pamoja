@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-profile"
-description = "Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, transport, codec, and power schedule into a working node."
+description = "Named, ready-to-run device profiles for pamoja: assemble a sensor, actuator, transport, codec, and power schedule into a working node, or run one from a site's wiring file with pamoja-node."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,6 +16,30 @@ authors.workspace = true
 # A profile is always serializable; the `json` loader is opt-in but on by default.
 default = ["json"]
 json = ["dep:serde_json"]
+# The stock runner, `pamoja-node`, which runs a profile from a wiring file: the drivers,
+# the Linux buses and GPIO lines, an MQTT client, and a runtime to wait on.
+runner = [
+    "json",
+    "pamoja-codec/json",
+    "dep:pamoja-gpio",
+    "dep:pamoja-hal",
+    "dep:pamoja-mqtt",
+    "dep:pamoja-sensors",
+    "dep:tokio",
+    "tokio/rt-multi-thread",
+    "tokio/macros",
+    "tokio/time",
+    "tokio/signal",
+]
+
+[[bin]]
+name = "pamoja-node"
+path = "src/bin/pamoja-node.rs"
+required-features = ["runner"]
+
+[[test]]
+name = "runner"
+required-features = ["runner"]
 
 [dependencies]
 pamoja-core = { workspace = true }
@@ -28,6 +52,11 @@ pamoja-kit = { path = "../pamoja-kit", version = "0.1.18", default-features = fa
 pamoja-power = { path = "../pamoja-power", version = "0.1.18" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
+pamoja-gpio = { path = "../pamoja-gpio", version = "0.1.18", features = ["std"], optional = true }
+pamoja-hal = { path = "../pamoja-hal", version = "0.1.18", features = ["std", "linux"], optional = true }
+pamoja-mqtt = { path = "../pamoja-mqtt", version = "0.1.18", optional = true }
+pamoja-sensors = { path = "../pamoja-sensors", version = "0.1.18", features = ["std", "linux"], optional = true }
+tokio = { version = "1", default-features = false, optional = true }
 
 [dev-dependencies]
 # The tests and doctests publish real readings, so they pull in the CBOR codec and
