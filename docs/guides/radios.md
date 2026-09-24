@@ -1,73 +1,63 @@
 # LoRa radios
 
 `pamoja-lora` works out what a LoRa link costs and how far it reaches, and a radio
-chip has to be told all of it, one SPI command at a time. The Semtech SX1261,
-SX1262, and SX1268, and the LLCC68 that shares their command set, sit on boards
-such as the Heltec WiFi LoRa 32 V3 and the Wio-SX1262 for XIAO. pamoja builds the
-bytes of every command they take and decodes every answer they give, chooses the
-amplifier setting a regional EIRP ceiling allows behind a given antenna, and holds
-the radio silent for the off time a duty-cycle limit owes. The older SX1276 family,
-inside the RFM95W, is driven through registers instead, and for it pamoja gives the
-value each register takes and decodes what the chip reads back.
+chip has to be told all of it over SPI. The Semtech SX1261, SX1262, and SX1268, and
+the LLCC68 that shares their command set, sit on boards such as the Heltec WiFi
+LoRa 32 V3 and the Wio-SX1262 for XIAO, and take commands. The older SX1276 family,
+inside the RFM95W, is driven through registers instead. pamoja drives both families
+behind the same calls: tune the chip from a carrier, a link, and an output power,
+then transmit, receive, and listen. It chooses the amplifier setting a regional
+EIRP ceiling allows behind a given antenna, and holds the radio silent for the off
+time a duty-cycle limit owes.
 
-In Rust, `pamoja-radios` also drives either family over any `embedded-hal` SPI bus
-and carries mesh frames on it as a pamoja transport. The other languages bind the
-command set, the decoders, and the duty-cycle guard, so a host can plan a
-transmission, check a logic-analyzer capture, or drive the chip over a bus of its
+The same radio runs in every language. On a Linux board it opens a module through
+the kernel's spidev and GPIO character devices. Anywhere else, and in tests, a
+simulated chip stands in for the module: the driver talks to it exactly as it talks
+to a real one, the program says what arrives on the air, and the chip reports what
+it was tuned to and what it sent. Underneath, the command set, the register map,
+and every decoder are there for a program that drives the chip over a bus of its
 own.
 
 ## What the example does
 
-It plans one transmission from an SX1262 node: a ten-byte reading on 868.1 MHz at
-DR3 of the EU863-870 plan, sent through a 2.15 dBi whip on half a decibel of
-pigtail. It picks the amplifier setting that keeps the EIRP under the plan's
-ceiling, prints the bytes of the nine commands that configure the chip and start
-the frame, decodes what the chip answers once the frame has gone and when a frame
-arrives, and records the silence the frame owes.
+It sends one reading from an SX1262 node: ten bytes on 868.1 MHz at DR3 of the
+EU863-870 plan, through a 2.15 dBi whip on half a decibel of pigtail. It picks the
+amplifier setting that keeps the EIRP under the plan's ceiling, tunes a simulated
+SX1262 with it, and reads back what the chip was told. The reading goes out, the
+duty-cycle guard records the silence it owes, a gateway's answer arrives from the
+edge of range, and then nothing does, and then a frame whose CRC fails.
 
-The command bytes are pinned in the conformance vectors every binding checks
-itself against, so this page prints each command beside its name instead of
-asserting it. The only hex typed out is the chip's answers, which on a real node
-come back over the same SPI bus.
+The second part does the same on an RFM95W, whose SX1276 is tuned through
+registers. The chip's own synthesizer shows in what it reports: it steps in 61 Hz,
+so it lands 24 Hz under 868.1 MHz. It gives a frame's strength in whole decibels,
+and the part ends by asking whether an LLCC68 could carry the same data rates.
 
-The third part opens a radio rather than planning for one: the same RFM95W on a
-Raspberry Pi's SPI bus, reached through the kernel's spidev and GPIO character
-devices. It prints the channel and the power it would use, then opens the chip,
-which with nothing wired says so instead of pretending.
-
-The second part plans the same reading on an RFM95W, whose SX1276 is driven
-through registers rather than commands: the amplifier settings on its PA_BOOST
-output, the carrier and modem registers, the transmit mode, a received packet's
-interrupts and signal levels, and whether an LLCC68 could carry the same data rate.
+The third part opens a real radio: the same RFM95W on a Raspberry Pi's SPI bus. It
+prints the channel and the power it would use, then opens the chip, which with
+nothing wired says so instead of pretending.
 
 It proves:
 
 - The plan's 16 dBm EIRP ceiling, less 2.15 dBi of antenna gain and plus 0.5 dB of
   pigtail loss, leaves 14.35 dBm at the chip, so the amplifier is set to 14 dBm: a
   radio takes whole decibels, and rounding down keeps the ceiling.
-- The link settings a data rate names turn straight into the SetModulationParams
-  and SetPacketParams bytes, with no spreading factor or bandwidth code typed by
-  hand.
-- The transmit timeout is the frame's airtime plus a second, counted in the chip's
-  15.625 microsecond steps.
-- A GetIrqStatus answer of `00 01` is TxDone and nothing else, and a status byte of
-  `0x2C` is the chip back in RC standby reporting a finished transmission.
-- A GetPacketStatus answer turns into the RSSI and SNR a frame was heard at.
-- A 1% sub-band owes ninety-nine times the frame's airtime in silence, and the
-  guard refuses the next frame until that has passed.
+- The driver tunes the chip to exactly what the plan's data rate names: 868.1 MHz,
+  SF9 at 125 kHz, and 14 dBm, read back from the chip rather than from the program's
+  own settings.
+- Ten bytes at DR3 hold the air for 144,384 microseconds, and a 1% sub-band makes
+  the next frame wait until a hundred times that has passed since this one started.
+- An answer heard at -109 dBm with an SNR of -2.5 dB comes back with those levels.
+- A reception with nothing on the air ends with a timeout, and a frame whose CRC
+  fails is reported as corrupt and dropped, never handed over.
 - An RFM95W behind the same whip takes the same 14 dBm on its PA_BOOST amplifier,
-  which RegPaConfig carries as OutputPower 12 with RegPaDac at its default and the
-  100 mA current limit.
-- DR3 turns into RegModemConfig1 0x72, RegModemConfig2 0x94 and RegModemConfig3
-  0x04, and TX mode on the LoRa register page is RegOpMode 0x8B.
-- A packet read back with PacketSnr 0xF6 and PacketRssi 0x30 at 868.1 MHz was
-  heard at -109 dBm with an SNR of -2.5 dB, so its own strength was -111.5 dBm.
+  and its carrier lands on the 61 Hz step nearest 868.1 MHz.
+- The SX1276 reports the same answer at -109 dBm, and works out the signal itself
+  at -111.5 dBm, 2.5 dB under, because it arrived below the noise.
 - An LLCC68 carries DR3, at SF9, but not DR2, at SF10, the first rate it gives up
   at 125 kHz.
 - Opening a radio resets the chip and reads its version back, so a swapped MISO and
-  MOSI is caught there rather than on the first frame.
-- Where no radio is wired, and on every platform that has no spidev, opening one
-  says so in a line rather than failing later or pretending it worked.
+  MOSI is caught there rather than on the first frame, and where no radio is wired
+  it says so in a line.
 
 ## Run it
 
@@ -85,6 +75,16 @@ repository:
 
 ## Rust
 
+In Rust, `pamoja-radios` holds each family in its own module, `sx126x` and
+`sx127x`: the commands or registers, their decoders, the settings a link turns into,
+and an `embedded-hal` driver. `radio::Radio` drives either family behind one set of
+calls, configured from a `RadioConfig` of carrier, link, and output power, and
+answers a reception with a `Reception`. `sim::Chip`, with the `sim` feature, is a
+simulated chip whose `radio` is that same driver; `linux::open_sx126x` and
+`open_sx127x`, with the `linux` feature, open a module on a board. Each family's
+`config::TxPower::under_ceiling` picks the amplifier setting, and `duty::DutyCycle`
+guards the air. Calls block for a transmission's airtime or a reception's timeout.
+
 <!-- snippet: examples/guides/radios.rs#example -->
 From [`examples/guides/radios.rs`](https://github.com/molexxxx/pamoja/blob/main/examples/guides/radios.rs):
 
@@ -92,21 +92,10 @@ From [`examples/guides/radios.rs`](https://github.com/molexxxx/pamoja/blob/main/
 use pamoja_lora::budget::{Decibels, LinkBudget};
 use pamoja_lora::region::Region;
 use pamoja_radios::duty::DutyCycle;
-use pamoja_radios::sx126x::command;
-use pamoja_radios::sx126x::config::{
-    self, LoraModulation, LoraPacket, PacketType, PowerAmplifier, RampTime, StandbyMode,
-    TxPower,
-};
-use pamoja_radios::sx126x::irq::Irq;
-use pamoja_radios::sx126x::status::{PacketStatus, Status};
-
-let hex = |bytes: &[u8]| {
-    bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(" ")
-};
+use pamoja_radios::radio::{RadioConfig, Reception};
+use pamoja_radios::sim::Chip;
+use pamoja_radios::sx126x::config::{PowerAmplifier, TxPower};
+use pamoja_radios::sx126x::Board;
 
 // An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
 // 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the antenna
@@ -130,74 +119,58 @@ println!(
     power.setting_dbm
 );
 
-// The commands in the order section 14.2 of the datasheet gives, each sent in its own SPI
-// transaction once BUSY is low. The chip gives up on the frame a second after its airtime.
-let airtime = link.airtime_us(10);
-let events = Irq::TX_DONE | Irq::TIMEOUT;
-let modulation = LoraModulation::from_link(&link).expect("125 kHz is an SX126x bandwidth");
-let commands = [
-    ("standby", command::set_standby(StandbyMode::Rc)),
-    ("packet type", command::set_packet_type(PacketType::Lora)),
-    (
-        "frequency",
-        command::set_rf_frequency(config::frequency_word(frequency)),
-    ),
-    ("pa config", command::set_pa_config(power.pa)),
-    (
-        "tx params",
-        command::set_tx_params(power.setting_dbm, RampTime::at_least(40)),
-    ),
-    (
-        "modulation",
-        command::set_lora_modulation_params(modulation),
-    ),
-    (
-        "packet",
-        command::set_lora_packet_params(LoraPacket::from_link(&link, 10, false)),
-    ),
-    (
-        "irq",
-        command::set_dio_irq_params(events, events, Irq::NONE, Irq::NONE),
-    ),
-    (
-        "tx",
-        command::set_tx(config::timeout_steps(airtime + 1_000_000)),
-    ),
-];
-for (name, bytes) in &commands {
-    println!("{name:<12}{}", hex(bytes.as_bytes()));
-}
-
-// Once the frame has left, GetIrqStatus answers with TxDone, and the status byte shows the
-// chip back in standby.
-let irq = Irq::from_bytes([0x00, 0x01]);
-let sent = irq.contains(Irq::TX_DONE);
-let timed_out = irq.contains(Irq::TIMEOUT);
-println!("sent      tx done {sent}, timed out {timed_out}");
-let status = Status::from_byte(0x2C);
+// A simulated SX1262 stands in for the chip on the node's board, driven by the same code
+// that drives a real one, and it reports what that code told it.
+let chip = Chip::sx126x(Board::new(PowerAmplifier::HighPower));
+let mut radio = chip.radio();
+radio.init()?;
+radio.configure(RadioConfig::new(frequency, link, power.setting_dbm))?;
+let tuned = chip.tuning();
 println!(
-    "status    {:?}, {:?}",
-    status.chip_mode, status.command_status
+    "tuned     {:.1} MHz, SF{} at {} kHz, {} dBm",
+    f64::from(tuned.frequency_hz) / 1e6,
+    tuned.link.spreading_factor(),
+    tuned.link.bandwidth_hz() / 1000,
+    tuned.output_dbm
 );
 
-// A frame that arrives later comes with the signal levels it was heard at.
-let heard = PacketStatus::from_bytes([0xDB, 0xF6, 0xE0]);
+// The reading goes out, and the airtime comes back for the duty-cycle guard. The sub-band
+// that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine times as long
+// in silence before the next.
+let reading = b"level=0.42";
+let airtime = radio.transmit(reading)?;
 println!(
-    "received  RSSI {} dBm, SNR {} dB",
-    heard.rssi_dbm, heard.snr_db
+    "sent      {} bytes, {airtime} us on air",
+    chip.sent()[0].payload.len()
 );
-
-// The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
-// ninety-nine times as long in silence before the next.
 let permille = eu868
     .duty_cycle_permille(frequency)
     .expect("868.1 MHz is in a sub-band");
 let mut guard = DutyCycle::new(permille);
-let held = guard.transmitted(0, &link, 10);
+guard.transmitted(0, &link, reading.len());
 println!(
-    "airtime   {held} us, next frame after {} us",
+    "silence   the next frame starts {} us after this one did",
     guard.wait_us(0)
 );
+
+// A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+chip.hear(b"ack", Decibels::from_db(-109), Decibels::from_tenths(-25));
+let mut buffer = [0u8; 255];
+if let Reception::Frame { len, levels } = radio.receive(&mut buffer, 1_000_000)? {
+    println!(
+        "received  {} at {} dBm, SNR {} dB",
+        String::from_utf8_lossy(&buffer[..len]),
+        levels.rssi_dbm,
+        levels.snr_db
+    );
+}
+
+// With nothing on the air the reception times out, and a frame whose CRC fails is dropped
+// rather than handed over.
+let quiet = radio.receive(&mut buffer, 1_000_000)?;
+chip.hear_corrupt(Decibels::from_db(-121), Decibels::from_db(-12));
+let broken = radio.receive(&mut buffer, 1_000_000)?;
+println!("then      {quiet:?}, then {broken:?}");
 ```
 <!-- end -->
 
@@ -209,14 +182,14 @@ From [`examples/guides/radios.rs`](https://github.com/molexxxx/pamoja/blob/main/
 ```rust
 use pamoja_lora::budget::{Decibels, LinkBudget};
 use pamoja_lora::region::Region;
+use pamoja_radios::radio::{RadioConfig, Reception};
+use pamoja_radios::sim::Chip;
 use pamoja_radios::sx126x::config::{llcc68_supports, LoraModulation as Sx126xModulation};
-use pamoja_radios::sx127x::config::{frequency_word, LoraModulation, PaOutput, TxPower};
-use pamoja_radios::sx127x::irq::IrqFlags;
-use pamoja_radios::sx127x::register::{lora_op_mode, Mode};
-use pamoja_radios::sx127x::status::{PacketStatus, Port};
+use pamoja_radios::sx127x::config::{PaOutput, TxPower};
+use pamoja_radios::sx127x::Board;
 
 // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the
-// same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+// same 16 dBm ceiling leave it the same 14 dBm.
 let band = Region::Eu868.plan();
 let channel = 868_100_000;
 let dr3 = band.link_settings(3).expect("DR3 is a LoRa data rate");
@@ -227,44 +200,47 @@ let antenna = LinkBudget {
 };
 let limit = Decibels::from_db(band.max_eirp_dbm(channel).into());
 let rfm95w = TxPower::under_ceiling(PaOutput::PaBoost, &antenna, limit);
+
+// The same driver calls tune it, through registers this time. Its synthesizer steps in
+// 61 Hz, so the carrier lands on the step nearest the one asked for.
+let chip = Chip::sx127x(Board::new(PaOutput::PaBoost));
+let mut radio = chip.radio();
+radio.init()?;
+radio.configure(RadioConfig::new(channel, dr3, rfm95w.output_dbm))?;
+let tuned = chip.tuning();
 println!(
-    "rfm95w    {} dBm on PA_BOOST: RegPaConfig {:02x}, RegPaDac {:02x}, RegOcp {:02x}",
-    rfm95w.output_dbm, rfm95w.pa_config, rfm95w.pa_dac, rfm95w.ocp
+    "rfm95w    {} dBm on PA_BOOST, carrier {} Hz, {} Hz from {channel}",
+    tuned.output_dbm,
+    tuned.frequency_hz,
+    channel.abs_diff(tuned.frequency_hz)
 );
 
-// The carrier and the modem go into registers while the chip stands by, and TX mode sends
-// the frame the FIFO holds.
-let modem = LoraModulation::from_link(&dr3).expect("DR3 fits an SX1276");
-println!("carrier   RegFrf {:06x}", frequency_word(channel));
-println!(
-    "modem     RegModemConfig {:02x} {:02x} {:02x}",
-    modem.modem_config_1(),
-    modem.modem_config_2(0),
-    modem.modem_config_3()
-);
-println!("tx mode   RegOpMode {:02x}", lora_op_mode(Mode::Tx));
-
-// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
-// its levels on the high frequency port.
-let flags = IrqFlags::from_bits(0x50);
-let received = flags.contains(IrqFlags::RX_DONE);
-let corrupt = flags.contains(IrqFlags::PAYLOAD_CRC_ERROR);
-println!("irq       rx done {received}, crc error {corrupt}");
-let packet = PacketStatus::from_bytes([0xF6, 0x30], Port::for_frequency(channel));
-println!(
-    "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
-    packet.rssi_dbm, packet.snr_db, packet.signal_rssi_dbm
-);
+// The SX1276 gives a packet's strength in whole decibels, and works out the strength of
+// the signal itself from the SNR when it arrived under the noise.
+chip.hear(b"ack", Decibels::from_db(-109), Decibels::from_tenths(-25));
+let mut buffer = [0u8; 255];
+if let Reception::Frame { levels, .. } = radio.receive(&mut buffer, 1_000_000)? {
+    println!(
+        "received  RSSI {} dBm, SNR {} dB, signal {} dBm",
+        levels.rssi_dbm, levels.snr_db, levels.signal_rssi_dbm
+    );
+}
 
 // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-let fits = |data_rate: u8| {
-    band.link_settings(data_rate)
+let carries = |data_rate: u8| {
+    let fits = band
+        .link_settings(data_rate)
         .and_then(|link| Sx126xModulation::from_link(&link))
         .is_some_and(|modulation| {
             llcc68_supports(modulation.spreading_factor, modulation.bandwidth)
-        })
+        });
+    if fits {
+        "carries"
+    } else {
+        "cannot carry"
+    }
 };
-println!("llcc68    DR3 {}, DR2 {}", fits(3), fits(2));
+println!("llcc68    {} DR3 and {} DR2", carries(3), carries(2));
 ```
 <!-- end -->
 
@@ -324,64 +300,75 @@ match linux::open_sx127x(&wiring, Board::new(PaOutput::PaBoost)) {
 
 ## TypeScript
 
+In TypeScript, `@pamoja/radios` exports `LoraRadio`, whose calls return promises and
+wait on a worker thread rather than the event loop, and `SimulatedLoraChip`, whose
+`radio()` gives the same class on any platform. `LoraRadio.openSx126x` and
+`openSx127x` open a module on Linux. A configuration is a plain object,
+`{ frequencyHz, link, outputDbm, syncWord? }`, and `receive` resolves an object whose
+`outcome` is `Frame`, `Timeout`, or `Corrupt`, with the payload and levels of a
+frame. The `sx126x` and `sx127x` namespaces hold `txPowerUnderCeiling`, the command
+and register builders, and the decoders; `DutyCycle` guards the air, and `close`
+releases a radio.
+
 <!-- snippet: bindings/node/guides/radios.ts#example -->
 From [`bindings/node/guides/radios.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/radios.ts):
 
 ```typescript
-import { LoraRegion, airtimeUs, linkBudget, planFor } from '@pamoja/lora'
-import { DutyCycle, sx126x } from '@pamoja/radios'
+import { LoraRegion, linkBudget, planFor } from '@pamoja/lora'
+import { DutyCycle, SimulatedLoraChip, sx126x } from '@pamoja/radios'
 
-const hex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
+async function onTheBench() {
+  // An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
+  // 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the
+  // antenna and pigtail decide how hard the amplifier may drive under that cap.
+  const eu868 = planFor(LoraRegion.Eu868)
+  const frequency = 868_100_000
+  const link = eu868.linkSettings(3)!
+  const whip = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+  const ceiling = eu868.maxEirpDbm(frequency)
+  const power = sx126x.txPowerUnderCeiling(sx126x.Amplifier.HighPower, whip, ceiling)
+  console.log(`power     ${power.settingDbm} dBm under a ${ceiling} dBm EIRP ceiling`)
 
-// An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
-// 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the antenna
-// and pigtail decide how hard the amplifier may drive under that cap.
-const eu868 = planFor(LoraRegion.Eu868)
-const frequency = 868_100_000
-const link = eu868.linkSettings(3)!
-const whip = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
-const ceiling = eu868.maxEirpDbm(frequency)
-const power = sx126x.txPowerUnderCeiling(sx126x.Amplifier.HighPower, whip, ceiling)
-console.log(`power     ${power.settingDbm} dBm under a ${ceiling} dBm EIRP ceiling`)
+  // A simulated SX1262 stands in for the chip on the node's board, driven by the same code
+  // that drives a real one, and it reports what that code told it.
+  const chip = SimulatedLoraChip.sx126x({ amplifier: sx126x.Amplifier.HighPower })
+  const radio = chip.radio()
+  await radio.configure({ frequencyHz: frequency, link, outputDbm: power.settingDbm })
+  const tuned = chip.tuning()
+  console.log(
+    `tuned     ${(tuned.frequencyHz / 1e6).toFixed(1)} MHz, SF${tuned.link.spreadingFactor} ` +
+      `at ${tuned.link.bandwidthHz / 1000} kHz, ${tuned.outputDbm} dBm`,
+  )
 
-// The commands in the order section 14.2 of the datasheet gives, each sent in its own SPI
-// transaction once BUSY is low. The chip gives up on the frame a second after its airtime.
-const airtime = airtimeUs(link, 10)
-const events = sx126x.Irq.TxDone | sx126x.Irq.Timeout
-const commands: [string, Uint8Array][] = [
-  ['standby', sx126x.setStandby()],
-  ['packet type', sx126x.setPacketTypeLora()],
-  ['frequency', sx126x.setRfFrequency(frequency)],
-  ['pa config', sx126x.setPaConfig(power)],
-  ['tx params', sx126x.setTxParams(power, 40)],
-  ['modulation', sx126x.setLoraModulationParams(link)],
-  ['packet', sx126x.setLoraPacketParams(link, 10, false)],
-  ['irq', sx126x.setDioIrqParams(events, events)],
-  ['tx', sx126x.setTx(airtime + 1_000_000)],
-]
-for (const [name, bytes] of commands) {
-  console.log(`${name.padEnd(12)}${hex(bytes)}`)
+  // The reading goes out, and the airtime comes back for the duty-cycle guard. The sub-band
+  // that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine times as long
+  // in silence before the next.
+  const reading = Buffer.from('level=0.42')
+  const airtime = await radio.transmit(reading)
+  console.log(`sent      ${chip.sent()[0].payload.length} bytes, ${airtime} us on air`)
+  const guard = new DutyCycle(eu868.dutyCyclePermille(frequency)!)
+  guard.transmitted(0, link, reading.length)
+  console.log(`silence   the next frame starts ${guard.waitUs(0)} us after this one did`)
+
+  // A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+  chip.hear(Buffer.from('ack'), -109, -2.5)
+  const heard = await radio.receive(1_000_000)
+  if (heard.outcome === 'Frame') {
+    console.log(
+      `received  ${heard.payload!.toString()} at ${heard.rssiDbm!.toFixed(2)} dBm, ` +
+        `SNR ${heard.snrDb!.toFixed(2)} dB`,
+    )
+  }
+
+  // With nothing on the air the reception times out, and a frame whose CRC fails is dropped
+  // rather than handed over.
+  const quiet = (await radio.receive(1_000_000)).outcome
+  chip.hearCorrupt(-121, -12)
+  const broken = (await radio.receive(1_000_000)).outcome
+  console.log(`then      ${quiet}, then ${broken}`)
+  radio.close()
+  return { power, tuned, airtime, link, reading, guard, chip, quiet, broken }
 }
-
-// Once the frame has left, GetIrqStatus answers with TxDone, and the status byte shows the
-// chip back in standby.
-const irq = sx126x.irq(Buffer.from([0x00, 0x01]))
-const sent = (irq & sx126x.Irq.TxDone) !== 0
-const timedOut = (irq & sx126x.Irq.Timeout) !== 0
-console.log(`sent      tx done ${sent}, timed out ${timedOut}`)
-const status = sx126x.status(0x2c)
-console.log(`status    ${status.chipMode}, ${status.commandStatus}`)
-
-// A frame that arrives later comes with the signal levels it was heard at.
-const heard = sx126x.packetStatus(Buffer.from([0xdb, 0xf6, 0xe0]))
-console.log(`received  RSSI ${heard.rssiDbm} dBm, SNR ${heard.snrDb} dB`)
-
-// The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
-// ninety-nine times as long in silence before the next.
-const guard = new DutyCycle(eu868.dutyCyclePermille(frequency)!)
-const held = guard.transmitted(0, link, 10)
-console.log(`airtime   ${held} us, next frame after ${guard.waitUs(0)} us`)
 ```
 <!-- end -->
 
@@ -393,43 +380,49 @@ From [`bindings/node/guides/radios.ts`](https://github.com/molexxxx/pamoja/blob/
 ```typescript
 import { sx127x } from '@pamoja/radios'
 
-// An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
-// 16 dBm ceiling leave it the same 14 dBm, set through three registers.
-const band = planFor(LoraRegion.Eu868)
-const channel = 868_100_000
-const dr3 = band.linkSettings(3)!
-const antenna = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
-const rfm95w = sx127x.txPowerUnderCeiling(sx127x.PaOutput.PaBoost, antenna, band.maxEirpDbm(channel))
-const byte = (value: number): string => value.toString(16).padStart(2, '0')
-console.log(
-  `rfm95w    ${rfm95w.outputDbm} dBm on PA_BOOST: RegPaConfig ${byte(rfm95w.paConfig)}, ` +
-    `RegPaDac ${byte(rfm95w.paDac)}, RegOcp ${byte(rfm95w.ocp)}`,
-)
+async function anRfm95w() {
+  // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the
+  // same 16 dBm ceiling leave it the same 14 dBm.
+  const band = planFor(LoraRegion.Eu868)
+  const channel = 868_100_000
+  const dr3 = band.linkSettings(3)!
+  const antenna = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+  const rfm95w = sx127x.txPowerUnderCeiling(
+    sx127x.PaOutput.PaBoost,
+    antenna,
+    band.maxEirpDbm(channel),
+  )
 
-// The carrier and the modem go into registers while the chip stands by, and TX mode sends
-// the frame the FIFO holds.
-const modem = sx127x.modem(dr3, channel)
-console.log(`carrier   RegFrf ${sx127x.frequencyWord(channel).toString(16).padStart(6, '0')}`)
-console.log(
-  `modem     RegModemConfig ${byte(modem.modemConfig1)} ${byte(modem.modemConfig2)} ` +
-    `${byte(modem.modemConfig3)}`,
-)
-console.log(`tx mode   RegOpMode ${byte(sx127x.loraOpMode(sx127x.Mode.Tx))}`)
+  // The same driver calls tune it, through registers this time. Its synthesizer steps in
+  // 61 Hz, so the carrier lands on the step nearest the one asked for.
+  const chip = SimulatedLoraChip.sx127x({ output: sx127x.PaOutput.PaBoost })
+  const radio = chip.radio()
+  await radio.configure({ frequencyHz: channel, link: dr3, outputDbm: rfm95w.outputDbm })
+  const tuned = chip.tuning()
+  const off = Math.abs(channel - tuned.frequencyHz)
+  console.log(
+    `rfm95w    ${tuned.outputDbm} dBm on PA_BOOST, carrier ${tuned.frequencyHz} Hz, ` +
+      `${off} Hz from ${channel}`,
+  )
 
-// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give
-// its levels on the high frequency port.
-const flags = 0x50
-const received = (flags & sx127x.Irq.RxDone) !== 0
-const corrupt = (flags & sx127x.Irq.PayloadCrcError) !== 0
-console.log(`irq       rx done ${received}, crc error ${corrupt}`)
-const packet = sx127x.packetStatus(Buffer.from([0xf6, 0x30]), channel)
-console.log(
-  `received  RSSI ${packet.rssiDbm} dBm, SNR ${packet.snrDb} dB, signal ${packet.signalRssiDbm} dBm`,
-)
+  // The SX1276 gives a packet's strength in whole decibels, and works out the strength of
+  // the signal itself from the SNR when it arrived under the noise.
+  chip.hear(Buffer.from('ack'), -109, -2.5)
+  const heard = await radio.receive(1_000_000)
+  if (heard.outcome === 'Frame') {
+    console.log(
+      `received  RSSI ${heard.rssiDbm!.toFixed(2)} dBm, SNR ${heard.snrDb!.toFixed(2)} dB, ` +
+        `signal ${heard.signalRssiDbm!.toFixed(2)} dBm`,
+    )
+  }
+  radio.close()
 
-// An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-const fits = (dataRate: number): boolean => sx126x.llcc68Supports(band.linkSettings(dataRate)!)
-console.log(`llcc68    DR3 ${fits(3)}, DR2 ${fits(2)}`)
+  // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
+  const carries = (dataRate: number): string =>
+    sx126x.llcc68Supports(band.linkSettings(dataRate)!) ? 'carries' : 'cannot carry'
+  console.log(`llcc68    ${carries(3)} DR3 and ${carries(2)} DR2`)
+  return { rfm95w, tuned, channel, carries }
+}
 ```
 <!-- end -->
 
@@ -446,6 +439,15 @@ async function onALinuxBoard(): Promise<void> {
   // on GPIO25. The SX1276 family has no BUSY line, so the wiring names none.
   const wiring = { spi: '/dev/spidev0.0', gpioChip: '/dev/gpiochip0', resetLine: 25 }
   console.log(`radio     an RFM95W on ${wiring.spi}, reset on GPIO${wiring.resetLine}`)
+
+  // The channel and the power the same whip leaves under the same ceiling, now as the number
+  // the radio is set to rather than the registers it goes into.
+  const band = planFor(LoraRegion.Eu868)
+  const channel = 868_100_000
+  const dr3 = band.linkSettings(3)!
+  const antenna = linkBudget({ transmitAntennaGainDbi: 2.15, transmitCableLossDb: 0.5 })
+  const ceiling = band.maxEirpDbm(channel)
+  const rfm95w = sx127x.txPowerUnderCeiling(sx127x.PaOutput.PaBoost, antenna, ceiling)
   console.log(`plan      ${channel} Hz at DR3, ${rfm95w.outputDbm} dBm on PA_BOOST`)
 
   // Opening resets the chip and reads its version back, so a wiring mistake is caught here
@@ -470,12 +472,21 @@ async function onALinuxBoard(): Promise<void> {
 
 ## Python
 
+In Python, `pamoja.radios` exports `LoraRadio` and `SimulatedLoraChip`. A radio's
+calls block, releasing the interpreter lock while the chip works, and a radio closes
+with `close` or at the end of a `with` block. `configure` takes the carrier, the
+link, and the output power, with the sync word and the IQ polarity as keywords, and
+`receive` returns a `LoraReception` whose `outcome` is `"Frame"`, `"Timeout"`, or
+`"Corrupt"`. The `sx126x` and `sx127x` modules hold `tx_power_under_ceiling`, the
+builders, and the decoders, and `DutyCycle` guards the air. Amplifier and output
+names are strings or the modules' enums.
+
 <!-- snippet: bindings/python/guides/radios.py#example -->
 From [`bindings/python/guides/radios.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/radios.py):
 
 ```python
 from pamoja.lora import LinkBudget, plan_for
-from pamoja.radios import DutyCycle, sx126x
+from pamoja.radios import DutyCycle, SimulatedLoraChip, sx126x
 
 # An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
 # 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the antenna
@@ -488,42 +499,43 @@ ceiling = eu868.max_eirp_dbm(frequency)
 power = sx126x.tx_power_under_ceiling(sx126x.Amplifier.HIGH_POWER, whip, ceiling)
 print(f"power     {power.setting_dbm} dBm under a {ceiling} dBm EIRP ceiling")
 
-# The commands in the order section 14.2 of the datasheet gives, each sent in its own SPI
-# transaction once BUSY is low. The chip gives up on the frame a second after its airtime.
-airtime = link.airtime_us(10)
-events = sx126x.Irq.TX_DONE | sx126x.Irq.TIMEOUT
-commands = [
-    ("standby", sx126x.set_standby()),
-    ("packet type", sx126x.set_packet_type_lora()),
-    ("frequency", sx126x.set_rf_frequency(frequency)),
-    ("pa config", sx126x.set_pa_config(power)),
-    ("tx params", sx126x.set_tx_params(power, 40)),
-    ("modulation", sx126x.set_lora_modulation_params(link)),
-    ("packet", sx126x.set_lora_packet_params(link, 10, False)),
-    ("irq", sx126x.set_dio_irq_params(events, events)),
-    ("tx", sx126x.set_tx(airtime + 1_000_000)),
-]
-for name, data in commands:
-    print(f"{name:<12}{data.hex(' ')}")
+# A simulated SX1262 stands in for the chip on the node's board, driven by the same code that
+# drives a real one, and it reports what that code told it.
+chip = SimulatedLoraChip.sx126x(sx126x.Amplifier.HIGH_POWER)
+bench = chip.radio()
+bench.configure(frequency, link, power.setting_dbm)
+tuned = chip.tuning()
+print(
+    f"tuned     {tuned.frequency_hz / 1e6:.1f} MHz, SF{tuned.link.spreading_factor} "
+    f"at {tuned.link.bandwidth_hz // 1000} kHz, {tuned.output_dbm} dBm"
+)
 
-# Once the frame has left, GetIrqStatus answers with TxDone, and the status byte shows the
-# chip back in standby.
-irq = sx126x.irq(bytes([0x00, 0x01]))
-sent = sx126x.Irq.TX_DONE in irq
-timed_out = sx126x.Irq.TIMEOUT in irq
-print(f"sent      tx done {sent}, timed out {timed_out}")
-status = sx126x.status(0x2C)
-print(f"status    {status.chip_mode}, {status.command_status}")
-
-# A frame that arrives later comes with the signal levels it was heard at.
-heard = sx126x.packet_status(bytes([0xDB, 0xF6, 0xE0]))
-print(f"received  RSSI {heard.rssi_dbm} dBm, SNR {heard.snr_db} dB")
-
-# The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
-# ninety-nine times as long in silence before the next.
+# The reading goes out, and the airtime comes back for the duty-cycle guard. The sub-band that
+# holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine times as long in silence
+# before the next.
+reading = b"level=0.42"
+airtime = bench.transmit(reading)
+print(f"sent      {len(chip.sent()[0].payload)} bytes, {airtime} us on air")
 guard = DutyCycle(eu868.duty_cycle_permille(frequency))
-held = guard.transmitted(0, link, 10)
-print(f"airtime   {held} us, next frame after {guard.wait_us(0)} us")
+guard.transmitted(0, link, len(reading))
+print(f"silence   the next frame starts {guard.wait_us(0)} us after this one did")
+
+# A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+chip.hear(b"ack", -109, -2.5)
+heard = bench.receive(1_000_000)
+if heard.outcome == "Frame":
+    print(
+        f"received  {heard.payload.decode()} at {heard.rssi_dbm:.2f} dBm, "
+        f"SNR {heard.snr_db:.2f} dB"
+    )
+
+# With nothing on the air the reception times out, and a frame whose CRC fails is dropped
+# rather than handed over.
+quiet = bench.receive(1_000_000).outcome
+chip.hear_corrupt(-121, -12)
+broken = bench.receive(1_000_000).outcome
+print(f"then      {quiet}, then {broken}")
+bench.close()
 ```
 <!-- end -->
 
@@ -534,10 +546,10 @@ From [`bindings/python/guides/radios.py`](https://github.com/molexxxx/pamoja/blo
 
 ```python
 from pamoja.lora import LinkBudget, plan_for
-from pamoja.radios import sx126x, sx127x
+from pamoja.radios import SimulatedLoraChip, sx126x, sx127x
 
 # An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
-# 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+# 16 dBm ceiling leave it the same 14 dBm.
 band = plan_for("EU868")
 channel = 868_100_000
 dr3 = band.link_settings(3)
@@ -545,40 +557,37 @@ antenna = LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
 rfm95w = sx127x.tx_power_under_ceiling(
     sx127x.PaOutput.PA_BOOST, antenna, band.max_eirp_dbm(channel)
 )
+
+# The same driver calls tune it, through registers this time. Its synthesizer steps in 61 Hz,
+# so the carrier lands on the step nearest the one asked for.
+module = SimulatedLoraChip.sx127x(sx127x.PaOutput.PA_BOOST)
+radio = module.radio()
+radio.configure(channel, dr3, rfm95w.output_dbm)
+carrier = module.tuning()
 print(
-    f"rfm95w    {rfm95w.output_dbm} dBm on PA_BOOST: RegPaConfig {rfm95w.pa_config:02x}, "
-    f"RegPaDac {rfm95w.pa_dac:02x}, RegOcp {rfm95w.ocp:02x}"
+    f"rfm95w    {carrier.output_dbm} dBm on PA_BOOST, carrier {carrier.frequency_hz} Hz, "
+    f"{abs(channel - carrier.frequency_hz)} Hz from {channel}"
 )
 
-# The carrier and the modem go into registers while the chip stands by, and TX mode sends the
-# frame the FIFO holds.
-modem = sx127x.modem(dr3, channel)
-print(f"carrier   RegFrf {sx127x.frequency_word(channel):06x}")
-print(
-    f"modem     RegModemConfig {modem.modem_config_1:02x} {modem.modem_config_2:02x} "
-    f"{modem.modem_config_3:02x}"
-)
-print(f"tx mode   RegOpMode {sx127x.lora_op_mode(sx127x.Mode.TX):02x}")
-
-# A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give its
-# levels on the high frequency port.
-flags = sx127x.Irq(0x50)
-received = sx127x.Irq.RX_DONE in flags
-corrupt = sx127x.Irq.PAYLOAD_CRC_ERROR in flags
-print(f"irq       rx done {received}, crc error {corrupt}")
-packet = sx127x.packet_status(bytes([0xF6, 0x30]), channel)
-print(
-    f"received  RSSI {packet.rssi_dbm} dBm, SNR {packet.snr_db} dB, "
-    f"signal {packet.signal_rssi_dbm} dBm"
-)
+# The SX1276 gives a packet's strength in whole decibels, and works out the strength of the
+# signal itself from the SNR when it arrived under the noise.
+module.hear(b"ack", -109, -2.5)
+packet = radio.receive(1_000_000)
+if packet.outcome == "Frame":
+    print(
+        f"received  RSSI {packet.rssi_dbm:.2f} dBm, SNR {packet.snr_db:.2f} dB, "
+        f"signal {packet.signal_rssi_dbm:.2f} dBm"
+    )
+radio.close()
 
 
-# An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-def fits(data_rate: int) -> bool:
-    return sx126x.llcc68_supports(band.link_settings(data_rate))
+def carries(data_rate: int) -> str:
+    """Whether an LLCC68 in the RFM95W's place could carry a data rate: DR3, but not DR2,
+    which is SF10 at 125 kHz."""
+    return "carries" if sx126x.llcc68_supports(band.link_settings(data_rate)) else "cannot carry"
 
 
-print(f"llcc68    DR3 {fits(3)}, DR2 {fits(2)}")
+print(f"llcc68    {carries(3)} DR3 and {carries(2)} DR2")
 ```
 <!-- end -->
 
@@ -616,6 +625,15 @@ else:
 
 ## C#
 
+In C#, `Pamoja.Radios` holds `LoraRadio` and `SimulatedLoraChip`, both disposable.
+`LoraRadio.OpenSx126x` and `OpenSx127x` open a module on Linux and throw
+`PlatformNotSupportedException` elsewhere, and `SimulatedLoraChip.Radio` gives the
+same class on any platform. `Configure` takes a `LoraRadioConfig` record with the
+sync word and IQ polarity as init properties, and `Receive` returns a
+`LoraReception` with its `LoraReceptionOutcome`. The static `Sx126x` and `Sx127x`
+classes hold `TxPowerUnderCeiling`, the builders, and the decoders, and
+`RadioDutyCycle` guards the air.
+
 <!-- snippet: bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs#example -->
 From [`bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs):
 
@@ -632,46 +650,40 @@ sbyte ceiling = eu868.MaxEirpDbm(Frequency);
 Sx126xTxPower power = Sx126x.TxPowerUnderCeiling(Sx126xAmplifier.HighPower, whip, ceiling);
 Console.WriteLine($"power     {power.SettingDbm} dBm under a {ceiling} dBm EIRP ceiling");
 
-// The commands in the order section 14.2 of the datasheet gives, each sent in its
-// own SPI transaction once BUSY is low. The chip gives up on the frame a second
-// after its airtime.
-ulong airtime = link.AirtimeMicros(10);
-Sx126xIrq events = Sx126xIrq.TxDone | Sx126xIrq.Timeout;
-(string Name, byte[] Bytes)[] commands =
-[
-    ("standby", Sx126x.SetStandby()),
-    ("packet type", Sx126x.SetPacketTypeLora()),
-    ("frequency", Sx126x.SetRfFrequency(Frequency)),
-    ("pa config", Sx126x.SetPaConfig(power)),
-    ("tx params", Sx126x.SetTxParams(power, 40)),
-    ("modulation", Sx126x.SetLoraModulationParams(link)),
-    ("packet", Sx126x.SetLoraPacketParams(link, 10, false)),
-    ("irq", Sx126x.SetDioIrqParams(events, events)),
-    ("tx", Sx126x.SetTx(airtime + 1_000_000)),
-];
-foreach ((string name, byte[] bytes) in commands)
+// A simulated SX1262 stands in for the chip on the node's board, driven by the same
+// code that drives a real one, and it reports what that code told it.
+using SimulatedLoraChip chip = SimulatedLoraChip.Sx126x(new Sx126xBoard(Sx126xAmplifier.HighPower));
+using LoraRadio bench = chip.Radio();
+bench.Configure(new LoraRadioConfig(Frequency, link, power.SettingDbm));
+LoraTuning tuned = chip.Tuning();
+Console.WriteLine(Invariant(
+    $"tuned     {tuned.FrequencyHz / 1e6:F1} MHz, SF{tuned.Link.SpreadingFactor} at {tuned.Link.BandwidthHz / 1000} kHz, {tuned.OutputDbm} dBm"));
+
+// The reading goes out, and the airtime comes back for the duty-cycle guard. The
+// sub-band that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine
+// times as long in silence before the next.
+byte[] reading = "level=0.42"u8.ToArray();
+ulong airtime = bench.Transmit(reading);
+Console.WriteLine($"sent      {chip.Sent()[0].Payload.Length} bytes, {airtime} us on air");
+using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
+guard.Transmitted(0, link, reading.Length);
+Console.WriteLine($"silence   the next frame starts {guard.WaitMicros(0)} us after this one did");
+
+// A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+chip.Hear("ack"u8, -109, -2.5);
+LoraReception heard = bench.Receive(TimeSpan.FromSeconds(1));
+if (heard.Outcome == LoraReceptionOutcome.Frame)
 {
-    Console.WriteLine($"{name,-12}{string.Join(" ", bytes.Select(b => b.ToString("x2")))}");
+    Console.WriteLine(Invariant(
+        $"received  {Encoding.UTF8.GetString(heard.Payload!)} at {heard.RssiDbm:F2} dBm, SNR {heard.SnrDb:F2} dB"));
 }
 
-// Once the frame has left, GetIrqStatus answers with TxDone, and the status byte
-// shows the chip back in standby.
-Sx126xIrq irq = Sx126x.Irq([0x00, 0x01]);
-bool sent = irq.HasFlag(Sx126xIrq.TxDone);
-bool timedOut = irq.HasFlag(Sx126xIrq.Timeout);
-Console.WriteLine($"sent      tx done {sent}, timed out {timedOut}");
-Sx126xStatus status = Sx126x.Status(0x2C);
-Console.WriteLine($"status    {status.ChipMode}, {status.CommandStatus}");
-
-// A frame that arrives later comes with the signal levels it was heard at.
-Sx126xPacketStatus heard = Sx126x.PacketStatus([0xDB, 0xF6, 0xE0]);
-Console.WriteLine($"received  RSSI {heard.RssiDbm} dBm, SNR {heard.SnrDb} dB");
-
-// The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime
-// buys ninety-nine times as long in silence before the next.
-using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
-ulong held = guard.Transmitted(0, link, 10);
-Console.WriteLine($"airtime   {held} us, next frame after {guard.WaitMicros(0)} us");
+// With nothing on the air the reception times out, and a frame whose CRC fails is
+// dropped rather than handed over.
+LoraReceptionOutcome quiet = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+chip.HearCorrupt(-121, -12);
+LoraReceptionOutcome broken = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+Console.WriteLine($"then      {quiet}, then {broken}");
 ```
 <!-- end -->
 
@@ -682,39 +694,38 @@ From [`bindings/dotnet/samples/Pamoja.Guides/RadiosGuide.cs`](https://github.com
 
 ```csharp
 // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and
-// the same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+// the same 16 dBm ceiling leave it the same 14 dBm.
 using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
 const uint Channel = 868_100_000;
 LoraLink dr3 = band.LinkSettings(3)!;
 var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
 Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
     Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
-Console.WriteLine(
-    $"rfm95w    {rfm95w.OutputDbm} dBm on PA_BOOST: RegPaConfig {rfm95w.PaConfig:x2}, " +
-    $"RegPaDac {rfm95w.PaDac:x2}, RegOcp {rfm95w.Ocp:x2}");
 
-// The carrier and the modem go into registers while the chip stands by, and TX mode
-// sends the frame the FIFO holds.
-Sx127xModem modem = Sx127x.Modem(dr3, Channel);
-Console.WriteLine($"carrier   RegFrf {Sx127x.FrequencyWord(Channel):x6}");
+// The same driver calls tune it, through registers this time. Its synthesizer steps
+// in 61 Hz, so the carrier lands on the step nearest the one asked for.
+using SimulatedLoraChip module = SimulatedLoraChip.Sx127x(new Sx127xBoard(Sx127xPaOutput.PaBoost));
+using LoraRadio radio = module.Radio();
+radio.Configure(new LoraRadioConfig(Channel, dr3, rfm95w.OutputDbm));
+LoraTuning carrier = module.Tuning();
+uint off = carrier.FrequencyHz > Channel ? carrier.FrequencyHz - Channel : Channel - carrier.FrequencyHz;
 Console.WriteLine(
-    $"modem     RegModemConfig {modem.ModemConfig1:x2} {modem.ModemConfig2:x2} " +
-    $"{modem.ModemConfig3:x2}");
-Console.WriteLine($"tx mode   RegOpMode {Sx127x.LoraOpMode(Sx127xMode.Tx):x2}");
+    $"rfm95w    {carrier.OutputDbm} dBm on PA_BOOST, carrier {carrier.FrequencyHz} Hz, {off} Hz from {Channel}");
 
-// A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers
-// give its levels on the high frequency port.
-var flags = (Sx127xIrq)0x50;
-bool received = flags.HasFlag(Sx127xIrq.RxDone);
-bool corrupt = flags.HasFlag(Sx127xIrq.PayloadCrcError);
-Console.WriteLine($"irq       rx done {received}, crc error {corrupt}");
-Sx127xPacketStatus packet = Sx127x.PacketStatus([0xF6, 0x30], Channel);
-Console.WriteLine(
-    $"received  RSSI {packet.RssiDbm} dBm, SNR {packet.SnrDb} dB, signal {packet.SignalRssiDbm} dBm");
+// The SX1276 gives a packet's strength in whole decibels, and works out the strength
+// of the signal itself from the SNR when it arrived under the noise.
+module.Hear("ack"u8, -109, -2.5);
+LoraReception packet = radio.Receive(TimeSpan.FromSeconds(1));
+if (packet.Outcome == LoraReceptionOutcome.Frame)
+{
+    Console.WriteLine(Invariant(
+        $"received  RSSI {packet.RssiDbm:F2} dBm, SNR {packet.SnrDb:F2} dB, signal {packet.SignalRssiDbm:F2} dBm"));
+}
 
 // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-bool Fits(byte dataRate) => Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!);
-Console.WriteLine($"llcc68    DR3 {Fits(3)}, DR2 {Fits(2)}");
+string Carries(byte dataRate) =>
+    Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!) ? "carries" : "cannot carry";
+Console.WriteLine($"llcc68    {Carries(3)} DR3 and {Carries(2)} DR2");
 ```
 <!-- end -->
 
@@ -767,6 +778,146 @@ using (radio)
 }
 ```
 <!-- end -->
+
+## Values at a glance
+
+**The two families:**
+
+| | SX126x | SX127x |
+| --- | --- | --- |
+| Chips | SX1261, SX1262, SX1268, LLCC68 | SX1276, SX1277, SX1278, SX1279 |
+| Modules | Heltec WiFi LoRa 32 V3, Wio-SX1262 for XIAO | RFM95W |
+| Driven by | commands | registers |
+| BUSY line | yes, the wiring names it | none |
+| Amplifier | low power, -17 to +14 dBm (SX1261); high power, -9 to +22 dBm | RFO, -4 to +15 dBm; PA_BOOST, +2 to +20 dBm |
+| Spreading factors | SF5 to SF12 | SF6 to SF12, SF6 with an implicit header |
+| Carrier step | under a hertz | 61 Hz |
+| A frame's strength | to half a decibel | to a decibel |
+
+An LLCC68 takes the SX1262's commands but not all its rates: up to SF9 at 125 kHz,
+SF10 at 250 kHz, and SF11 at 500 kHz.
+
+**A radio's calls,** the same for either family:
+
+| Call | What it does |
+| --- | --- |
+| configure | tunes the chip to a carrier, a link, and an output power, with the sync word and IQ polarity |
+| transmit | sends one frame and returns its airtime once it has left |
+| receive | listens for one frame for up to a timeout |
+| listen, then take a frame | listens frame after frame, handing each over when asked |
+| detect | listens a few symbols for a preamble, as a relay's scan does |
+| random | draws thirty-two bits from the receiver's noise |
+| standby, sleep | stops the chip, or puts it to sleep until the next call |
+| read and write a register | reaches anything the calls above do not |
+
+**What a reception ends with:**
+
+| Outcome | Means |
+| --- | --- |
+| Frame | a frame checked, with its payload, RSSI, SNR, and the signal's own strength |
+| Timeout | nothing arrived before the timeout |
+| Corrupt | a frame arrived whose header or CRC failed, and was dropped |
+| Nothing | a listening radio has nothing new to hand over |
+
+**The sync words:**
+
+| Byte | For |
+| --- | --- |
+| 0x34 | a public network, such as LoRaWAN |
+| 0x12 | a private network, and both families' value out of reset |
+
+**A simulated chip** takes what a module takes and answers as it would, with no
+timing: a transmission is done as soon as it starts, and a reception with a timeout
+ends at once when nothing waits on the air.
+
+| To | Call |
+| --- | --- |
+| make one | a chip of either family from its board, out of reset |
+| drive it | its radio, the same class a module opens as |
+| put a frame on the air | hear, with the strength and SNR it arrives at; hear a corrupt one |
+| check the program | the tuning it holds now, and every frame it sent with the tuning of the moment |
+
+**The calls in each language:**
+
+### Rust
+
+| To | Call |
+| --- | --- |
+| simulate a chip | `sim::Chip::sx126x(board)`, `Chip::sx127x(board)`, then `radio()` |
+| open a module | `linux::open_sx126x(&wiring, board)`, `linux::open_sx127x(&wiring, board)` |
+| tune it | `configure(RadioConfig::new(hz, link, dbm))`, `with_sync_word`, `with_inverted_iq`, `lorawan_device()` |
+| send and listen | `transmit(payload)`, `receive(&mut buffer, timeout_us)`, `listen()`, `take_frame(&mut buffer)` |
+| pick the power | `sx126x::config::TxPower::under_ceiling(amplifier, &budget, ceiling)`, `sx127x::config::TxPower::under_ceiling(output, ..)` |
+| guard the air | `DutyCycle::new(permille)`, `transmitted(start_us, &link, len)`, `wait_us(now_us)` |
+| watch the chip | `hear(payload, rssi, snr)`, `hear_corrupt(rssi, snr)`, `tuning()`, `sent()` |
+
+### TypeScript
+
+| To | Call |
+| --- | --- |
+| simulate a chip | `SimulatedLoraChip.sx126x({ amplifier })`, `SimulatedLoraChip.sx127x({ output })`, then `radio()` |
+| open a module | `LoraRadio.openSx126x(wiring, board)`, `LoraRadio.openSx127x(wiring, board)` |
+| tune it | `await configure({ frequencyHz, link, outputDbm, syncWord? })` |
+| send and listen | `await transmit(payload)`, `await receive(timeoutUs)`, `await listen()`, `await takeFrame()` |
+| pick the power | `sx126x.txPowerUnderCeiling(amplifier, budget, ceiling)`, `sx127x.txPowerUnderCeiling(output, budget, ceiling)` |
+| guard the air | `new DutyCycle(permille)`, `transmitted(startUs, link, len)`, `waitUs(nowUs)` |
+| watch the chip | `hear(payload, rssiDbm, snrDb)`, `hearCorrupt(rssiDbm, snrDb)`, `tuning()`, `sent()` |
+
+### Python
+
+| To | Call |
+| --- | --- |
+| simulate a chip | `SimulatedLoraChip.sx126x(amplifier)`, `SimulatedLoraChip.sx127x(output)`, then `radio()` |
+| open a module | `LoraRadio.open_sx126x(spi, gpio_chip, busy_line, reset_line, amplifier)`, `LoraRadio.open_sx127x(spi, gpio_chip, reset_line, output)` |
+| tune it | `configure(frequency_hz, link, output_dbm, sync_word=None)` |
+| send and listen | `transmit(payload)`, `receive(timeout_us)`, `listen()`, `take_frame()` |
+| pick the power | `sx126x.tx_power_under_ceiling(amplifier, budget, ceiling)`, `sx127x.tx_power_under_ceiling(output, budget, ceiling)` |
+| guard the air | `DutyCycle(permille)`, `transmitted(start_us, link, len)`, `wait_us(now_us)` |
+| watch the chip | `hear(payload, rssi_dbm, snr_db)`, `hear_corrupt(rssi_dbm, snr_db)`, `tuning()`, `sent()` |
+
+### C#
+
+| To | Call |
+| --- | --- |
+| simulate a chip | `SimulatedLoraChip.Sx126x(board)`, `SimulatedLoraChip.Sx127x(board)`, then `Radio()` |
+| open a module | `LoraRadio.OpenSx126x(wiring, board)`, `LoraRadio.OpenSx127x(wiring, board)` |
+| tune it | `Configure(new LoraRadioConfig(hz, link, dbm) { SyncWord = ... })` |
+| send and listen | `Transmit(payload)`, `Receive(timeout)`, `Listen()`, `TakeFrame()` |
+| pick the power | `Sx126x.TxPowerUnderCeiling(amplifier, budget, ceiling)`, `Sx127x.TxPowerUnderCeiling(output, budget, ceiling)` |
+| guard the air | `new RadioDutyCycle(permille)`, `Transmitted(start, link, length)`, `WaitMicros(now)` |
+| watch the chip | `Hear(payload, rssiDbm, snrDb)`, `HearCorrupt(rssiDbm, snrDb)`, `Tuning()`, `Sent()` |
+
+<!-- languages end -->
+
+## When it goes wrong
+
+A radio refuses what the chip cannot do before it sends a byte, and says why. The
+mistakes that cost an afternoon:
+
+- **Opening a radio throws off Linux.** Only Linux has spidev and the GPIO
+  character device. Anywhere else, and in tests, use a simulated chip: its radio is
+  the same class, with the same calls.
+- **Opening finds no chip.** The reset pulse and the version check come first, so a
+  wrong SPI device, a wrong reset line, swapped MISO and MOSI, or an unpowered
+  module is caught when the radio opens. An SX126x also needs its BUSY line named.
+- **The radio refuses a configuration.** The chip lacks the setting: a bandwidth it
+  does not have, a rate an LLCC68 gives up such as SF10 at 125 kHz, an SX1276 below
+  SF6, or power settings made for the other amplifier. Take the power from the
+  board's own amplifier, as the example does.
+- **A transmission is refused.** A radio sends nothing until it is configured, and
+  one frame carries at most 255 bytes.
+- **Two radios hear nothing from each other.** Both ends must agree on the carrier,
+  the spreading factor, the bandwidth, the sync word, and the IQ polarity. A
+  LoRaWAN device uses the public sync word and hears downlinks with inverted IQ. In
+  Rust `lorawan_device` sets both; elsewhere the configuration names them.
+- **The radiated power is over the ceiling.** The ceiling limits what leaves the
+  antenna, so an antenna with gain needs less from the amplifier. Pick the setting
+  with the family's under-ceiling call, which rounds down.
+- **The next frame is held back.** The duty-cycle guard counts from the start of the
+  last frame. Ask how long it waits rather than sending again at once.
+- **A simulated reception times out at once.** Nothing is timed on a simulated
+  chip, so a frame has to be on the air before the radio listens. Put it there with
+  `hear` first.
 
 ## Where next
 

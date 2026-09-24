@@ -1,4 +1,4 @@
-//! The C ABI for a LoRa radio on a Linux board.
+//! The C ABI for a LoRa radio on a Linux board, or on a simulated chip anywhere.
 //!
 //! These functions open an SX126x or SX127x module through the kernel's spidev and GPIO
 //! character devices, as [`pamoja_radios::linux`] does, and drive either family with the same
@@ -9,15 +9,22 @@
 //! Only Linux has those devices. On every other platform the header and the functions are the
 //! same, and opening a radio returns [`PamojaStatus::Unsupported`] with a message saying why.
 //!
+//! A simulated chip, [`PamojaLoraSimChip`], stands in for a module on any platform. The radio
+//! [`pamoja_lora_sim_chip_radio`] gives drives it with the same calls, while the caller says
+//! what arrives on the air and reads back what the chip was tuned to and what it sent.
+//!
 //! Each call blocks until the chip answers: a transmission for its airtime, a reception for
 //! its timeout. A caller with an event loop makes these calls from a worker thread, and a
 //! handle is used by one thread at a time.
 
+use std::fmt;
 use std::os::raw::c_char;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use pamoja_radios::linux::{self, LinuxRadio, OpenError, SpiError, Wiring};
+use pamoja_lora::budget::Decibels;
+use pamoja_radios::linux::{self, LinuxRadio, OpenError, Wiring};
 use pamoja_radios::radio::{Family, RadioConfig, RadioError, Reception, SyncWord};
+use pamoja_radios::sim::{Chip, SimRadio, Tuning};
 use pamoja_radios::sx126x::config::{PowerAmplifier, TcxoVoltage};
 use pamoja_radios::sx127x::config::PaOutput;
 use pamoja_radios::{sx126x, sx127x};
@@ -56,9 +63,55 @@ const _: () = assert!(PAMOJA_LORA_RADIO_DEFAULT_SPI_HZ == linux::DEFAULT_SPI_HZ)
 const _: () = assert!(PAMOJA_LORA_RADIO_SYNC_WORD_PUBLIC == SyncWord::Public.to_byte());
 const _: () = assert!(PAMOJA_LORA_RADIO_SYNC_WORD_PRIVATE == SyncWord::Private.to_byte());
 
-/// A LoRa radio opened on a Linux board, released with [`pamoja_lora_radio_free`].
+/// A LoRa radio opened on a Linux board or wired to a simulated chip, released with
+/// [`pamoja_lora_radio_free`].
 pub struct PamojaLoraRadio {
-    radio: LinuxRadio,
+    radio: Held,
+}
+
+/// The radio a handle drives: a module on a Linux board, or a simulated chip.
+enum Held {
+    Linux(LinuxRadio),
+    Simulated(SimRadio),
+}
+
+impl Held {
+    fn family(&self) -> Family {
+        match self {
+            Held::Linux(radio) => radio.family(),
+            Held::Simulated(radio) => radio.family(),
+        }
+    }
+}
+
+/// Runs the same call on whichever radio a handle holds, turning its error into a refusal.
+macro_rules! on_radio {
+    ($held:expr, $radio:ident => $call:expr) => {
+        match $held {
+            Held::Linux($radio) => $call.map_err(refusal),
+            Held::Simulated($radio) => $call.map_err(refusal),
+        }
+    };
+}
+
+/// A simulated SX126x or SX127x, released with [`pamoja_lora_sim_chip_free`].
+pub struct PamojaLoraSimChip {
+    chip: Chip,
+}
+
+/// What a simulated chip is tuned to.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PamojaLoraTuning {
+    /// The carrier frequency in hertz, as the chip's synthesizer steps it: within a hertz of
+    /// the one asked for on an SX126x, and within 61 Hz on an SX127x.
+    pub frequency_hz: u32,
+    /// The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
+    pub link: PamojaLoraLink,
+    /// The output power the amplifier was asked for, in dBm.
+    pub output_dbm: i8,
+    /// The sync word byte.
+    pub sync_word: u8,
 }
 
 /// How a module wires its SX126x.
@@ -306,7 +359,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_configure(
     radio: *mut PamojaLoraRadio,
     config: PamojaLoraRadioConfig,
 ) -> PamojaStatus {
-    status(drive(radio, |radio| radio.configure(config_of(config))))
+    status(drive(
+        radio,
+        |held| on_radio!(held, radio => radio.configure(config_of(config))),
+    ))
 }
 
 /// Sends one frame and waits for it to leave.
@@ -343,7 +399,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_transmit(
     } else {
         std::slice::from_raw_parts(payload, len)
     };
-    match drive(radio, |radio| radio.transmit(payload)) {
+    match drive(
+        radio,
+        |held| on_radio!(held, radio => radio.transmit(payload)),
+    ) {
         Ok(airtime_us) => {
             if !out_airtime_us.is_null() {
                 *out_airtime_us = airtime_us;
@@ -390,7 +449,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_receive(
         set_last_error("out_reception must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    match drive(radio, |radio| radio.receive(buffer, timeout_us)) {
+    match drive(
+        radio,
+        |held| on_radio!(held, radio => radio.receive(buffer, timeout_us)),
+    ) {
         Ok(reception) => {
             *out_reception = reception_of(Some(reception));
             PamojaStatus::Ok
@@ -415,7 +477,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_receive(
 /// `radio` must be a live handle from one of the open functions, or null.
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_lora_radio_listen(radio: *mut PamojaLoraRadio) -> PamojaStatus {
-    status(drive(radio, |radio| radio.listen()))
+    status(drive(
+        radio,
+        |held| on_radio!(held, radio => radio.listen()),
+    ))
 }
 
 /// Takes the frame a listening radio has received, if one has arrived.
@@ -452,7 +517,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_take_frame(
         set_last_error("out_reception must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    match drive(radio, |radio| radio.take_frame(buffer)) {
+    match drive(
+        radio,
+        |held| on_radio!(held, radio => radio.take_frame(buffer)),
+    ) {
         Ok(taken) => {
             *out_reception = reception_of(taken);
             PamojaStatus::Ok
@@ -461,6 +529,45 @@ pub unsafe extern "C" fn pamoja_lora_radio_take_frame(
     }
 }
 
+/// Listens a few symbols for a LoRa preamble and reports whether one is there, as a relay's
+/// scan does, leaving the chip in standby.
+///
+/// # Arguments
+///
+/// * `radio` - the radio.
+/// * `symbols` - how many symbols an SX126x listens over: 1, 2, 4, 8, or 16, rounded down to
+///   one of them. An SX127x listens over one.
+/// * `out_detected` - receives whether a preamble was there.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument or a radio not
+/// yet configured; or [`PamojaStatus::Io`] when the chip does not answer.
+///
+/// # Safety
+///
+/// `radio` must be a live handle or null, and `out_detected` writable or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_radio_detect(
+    radio: *mut PamojaLoraRadio,
+    symbols: u8,
+    out_detected: *mut bool,
+) -> PamojaStatus {
+    if out_detected.is_null() {
+        set_last_error("out_detected must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    match drive(
+        radio,
+        |held| on_radio!(held, radio => radio.detect(symbols)),
+    ) {
+        Ok(detected) => {
+            *out_detected = detected;
+            PamojaStatus::Ok
+        }
+        Err(status) => status,
+    }
+}
 /// Puts a radio in standby, which stops a transmission or a reception.
 ///
 /// # Arguments
@@ -477,7 +584,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_take_frame(
 /// `radio` must be a live handle from one of the open functions, or null.
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_lora_radio_standby(radio: *mut PamojaLoraRadio) -> PamojaStatus {
-    status(drive(radio, |radio| radio.standby()))
+    status(drive(
+        radio,
+        |held| on_radio!(held, radio => radio.standby()),
+    ))
 }
 
 /// Puts a radio to sleep until the next call wakes it. An SX126x is configured again before
@@ -497,7 +607,7 @@ pub unsafe extern "C" fn pamoja_lora_radio_standby(radio: *mut PamojaLoraRadio) 
 /// `radio` must be a live handle from one of the open functions, or null.
 #[no_mangle]
 pub unsafe extern "C" fn pamoja_lora_radio_sleep(radio: *mut PamojaLoraRadio) -> PamojaStatus {
-    status(drive(radio, |radio| radio.sleep()))
+    status(drive(radio, |held| on_radio!(held, radio => radio.sleep())))
 }
 
 /// Draws a random number from the noise a radio's receiver hears, leaving the chip in standby.
@@ -527,7 +637,7 @@ pub unsafe extern "C" fn pamoja_lora_radio_random(
         set_last_error("out_value must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    match drive(radio, |radio| radio.random()) {
+    match drive(radio, |held| on_radio!(held, radio => radio.random())) {
         Ok(value) => {
             *out_value = value;
             PamojaStatus::Ok
@@ -562,7 +672,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_read_register(
         set_last_error("out_value must not be null".to_owned());
         return PamojaStatus::InvalidArgument;
     }
-    match drive(radio, |radio| radio.read_register(address)) {
+    match drive(
+        radio,
+        |held| on_radio!(held, radio => radio.read_register(address)),
+    ) {
         Ok(value) => {
             *out_value = value;
             PamojaStatus::Ok
@@ -593,7 +706,10 @@ pub unsafe extern "C" fn pamoja_lora_radio_write_register(
     address: u16,
     value: u8,
 ) -> PamojaStatus {
-    status(drive(radio, |radio| radio.write_register(address, value)))
+    status(drive(
+        radio,
+        |held| on_radio!(held, radio => radio.write_register(address, value)),
+    ))
 }
 
 /// Closes a radio's device files and releases it.
@@ -612,6 +728,382 @@ pub unsafe extern "C" fn pamoja_lora_radio_free(radio: *mut PamojaLoraRadio) {
     }
 }
 
+/// Creates a simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.
+///
+/// # Arguments
+///
+/// * `board` - how the module wires the chip, which the radio
+///   [`pamoja_lora_sim_chip_radio`] gives is told.
+/// * `out_chip` - receives the chip.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the chip in `out_chip`, or [`PamojaStatus::InvalidArgument`] for
+/// a null `out_chip` or a TCXO voltage past 7.
+///
+/// # Safety
+///
+/// `out_chip` must be a writable pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_sx126x(
+    board: PamojaSx126xBoard,
+    out_chip: *mut *mut PamojaLoraSimChip,
+) -> PamojaStatus {
+    if out_chip.is_null() {
+        set_last_error("out_chip must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    *out_chip = std::ptr::null_mut();
+    let Some(chip) = sx126x_board(board) else {
+        set_last_error(format!(
+            "TCXO voltage code {} is not one of 0 to 7",
+            board.tcxo_voltage
+        ));
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_chip = Box::into_raw(Box::new(PamojaLoraSimChip {
+        chip: Chip::sx126x(chip),
+    }));
+    PamojaStatus::Ok
+}
+
+/// Creates a simulated SX1276, SX1277, SX1278, or SX1279, out of reset.
+///
+/// # Arguments
+///
+/// * `pa_boost` - `true` when the antenna is on the PA_BOOST output, as on the RFM95W, and
+///   `false` for RFO.
+/// * `tcxo` - `true` when a TCXO drives the XTA pin instead of a crystal.
+/// * `out_chip` - receives the chip.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the chip in `out_chip`, or [`PamojaStatus::InvalidArgument`] for
+/// a null `out_chip`.
+///
+/// # Safety
+///
+/// `out_chip` must be a writable pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_sx127x(
+    pa_boost: bool,
+    tcxo: bool,
+    out_chip: *mut *mut PamojaLoraSimChip,
+) -> PamojaStatus {
+    if out_chip.is_null() {
+        set_last_error("out_chip must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    }
+    let output = if pa_boost {
+        PaOutput::PaBoost
+    } else {
+        PaOutput::Rfo
+    };
+    let mut board = sx127x::Board::new(output);
+    if tcxo {
+        board = board.with_tcxo();
+    }
+    *out_chip = Box::into_raw(Box::new(PamojaLoraSimChip {
+        chip: Chip::sx127x(board),
+    }));
+    PamojaStatus::Ok
+}
+
+/// Returns the family of a simulated chip.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+///
+/// # Returns
+///
+/// [`PAMOJA_LORA_RADIO_SX126X`] or [`PAMOJA_LORA_RADIO_SX127X`], or 255 if `chip` is null.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_family(chip: *const PamojaLoraSimChip) -> u8 {
+    match chip.as_ref().map(|chip| chip.chip.family()) {
+        Some(Family::Sx126x) => PAMOJA_LORA_RADIO_SX126X,
+        Some(Family::Sx127x) => PAMOJA_LORA_RADIO_SX127X,
+        None => u8::MAX,
+    }
+}
+
+/// Wires a radio to a simulated chip and resets it, as opening a module does.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `out_radio` - receives the radio, released with [`pamoja_lora_radio_free`].
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`] with the radio in `out_radio`, or [`PamojaStatus::InvalidArgument`]
+/// for a null argument.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null, and `out_radio` a writable pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_radio(
+    chip: *const PamojaLoraSimChip,
+    out_radio: *mut *mut PamojaLoraRadio,
+) -> PamojaStatus {
+    if !clear(out_radio) {
+        return PamojaStatus::InvalidArgument;
+    }
+    let Some(chip) = chip.as_ref() else {
+        set_last_error("chip must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let mut radio = chip.chip.radio();
+    if let Err(error) = radio.init() {
+        let refused = refusal(error);
+        set_last_error(refused.message);
+        return refused.status;
+    }
+    *out_radio = Box::into_raw(Box::new(PamojaLoraRadio {
+        radio: Held::Simulated(radio),
+    }));
+    PamojaStatus::Ok
+}
+
+/// Puts a frame on the air for a simulated chip to receive the next time it listens.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `payload` - the frame's payload; past 255 bytes it is cut to 255.
+/// * `len` - the payload length.
+/// * `rssi_centi_dbm` - the strength the chip hears the frame at, in hundredths of a dBm.
+/// * `snr_centi_db` - the signal-to-noise ratio it hears it with, in hundredths of a dB.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null chip or a null
+/// payload with a length.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null, and `payload` must point at `len` readable bytes or
+/// be null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_hear(
+    chip: *const PamojaLoraSimChip,
+    payload: *const u8,
+    len: usize,
+    rssi_centi_dbm: i32,
+    snr_centi_db: i32,
+) -> PamojaStatus {
+    let Some(chip) = chip.as_ref() else {
+        set_last_error("chip must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    let payload = if len == 0 {
+        &[][..]
+    } else if payload.is_null() {
+        set_last_error("payload must not be null when its length is non-zero".to_owned());
+        return PamojaStatus::InvalidArgument;
+    } else {
+        std::slice::from_raw_parts(payload, len)
+    };
+    chip.chip.hear(
+        payload,
+        Decibels::from_hundredths(rssi_centi_dbm),
+        Decibels::from_hundredths(snr_centi_db),
+    );
+    PamojaStatus::Ok
+}
+
+/// Puts a frame on the air whose CRC fails, which the chip reports and drops.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `rssi_centi_dbm` - the strength the chip hears the frame at, in hundredths of a dBm.
+/// * `snr_centi_db` - the signal-to-noise ratio it hears it with, in hundredths of a dB.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null chip.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_hear_corrupt(
+    chip: *const PamojaLoraSimChip,
+    rssi_centi_dbm: i32,
+    snr_centi_db: i32,
+) -> PamojaStatus {
+    let Some(chip) = chip.as_ref() else {
+        set_last_error("chip must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    chip.chip.hear_corrupt(
+        Decibels::from_hundredths(rssi_centi_dbm),
+        Decibels::from_hundredths(snr_centi_db),
+    );
+    PamojaStatus::Ok
+}
+
+/// Returns how many frames wait on the air for a simulated chip to receive.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+///
+/// # Returns
+///
+/// The number of frames heard and not yet received, or 0 if `chip` is null.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_waiting(chip: *const PamojaLoraSimChip) -> usize {
+    chip.as_ref().map_or(0, |chip| chip.chip.waiting())
+}
+
+/// Reads what a simulated chip is tuned to now.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `out_tuning` - receives the tuning.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null, and `out_tuning` writable or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_tuning(
+    chip: *const PamojaLoraSimChip,
+    out_tuning: *mut PamojaLoraTuning,
+) -> PamojaStatus {
+    let (Some(chip), false) = (chip.as_ref(), out_tuning.is_null()) else {
+        set_last_error("chip and out_tuning must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    *out_tuning = tuning_of(chip.chip.tuning());
+    PamojaStatus::Ok
+}
+
+/// Returns how many frames a simulated chip has put on the air.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+///
+/// # Returns
+///
+/// The number of frames sent, or 0 if `chip` is null.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_sent_count(chip: *const PamojaLoraSimChip) -> usize {
+    chip.as_ref().map_or(0, |chip| chip.chip.sent().len())
+}
+
+/// Reads what a simulated chip was tuned to when it sent a frame.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `index` - which frame, the oldest first.
+/// * `out_tuning` - receives the tuning.
+///
+/// # Returns
+///
+/// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or an index
+/// past the frames sent.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null, and `out_tuning` writable or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_sent_tuning(
+    chip: *const PamojaLoraSimChip,
+    index: usize,
+    out_tuning: *mut PamojaLoraTuning,
+) -> PamojaStatus {
+    let (Some(chip), false) = (chip.as_ref(), out_tuning.is_null()) else {
+        set_last_error("chip and out_tuning must not be null".to_owned());
+        return PamojaStatus::InvalidArgument;
+    };
+    match chip.chip.sent().get(index) {
+        Some(sent) => {
+            *out_tuning = tuning_of(sent.tuning);
+            PamojaStatus::Ok
+        }
+        None => {
+            set_last_error(format!("the chip has sent no frame {index}"));
+            PamojaStatus::InvalidArgument
+        }
+    }
+}
+
+/// Copies the payload of a frame a simulated chip sent.
+///
+/// # Arguments
+///
+/// * `chip` - the chip.
+/// * `index` - which frame, the oldest first.
+///
+/// # Returns
+///
+/// The payload, released with [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null for
+/// a null chip or an index past the frames sent.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_sent_payload(
+    chip: *const PamojaLoraSimChip,
+    index: usize,
+) -> *mut crate::PamojaBuffer {
+    match chip
+        .as_ref()
+        .and_then(|chip| chip.chip.sent().get(index).cloned())
+    {
+        Some(sent) => crate::PamojaBuffer::into_raw(sent.payload),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Releases a simulated chip. A radio wired to it keeps working until it is released too.
+///
+/// # Arguments
+///
+/// * `chip` - the chip, which must not be used again.
+///
+/// # Safety
+///
+/// `chip` must be a live handle or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_lora_sim_chip_free(chip: *mut PamojaLoraSimChip) {
+    if !chip.is_null() {
+        drop(Box::from_raw(chip));
+    }
+}
+
+/// Flattens a tuning for the boundary.
+fn tuning_of(tuning: Tuning) -> PamojaLoraTuning {
+    PamojaLoraTuning {
+        frequency_hz: tuning.frequency_hz,
+        link: crate::lora::link_of(tuning.link),
+        output_dbm: tuning.output_dbm,
+        sync_word: tuning.sync_word.to_byte(),
+    }
+}
 /// Nulls an out pointer before a radio is opened into it, refusing a null pointer.
 unsafe fn clear(out_radio: *mut *mut PamojaLoraRadio) -> bool {
     if out_radio.is_null() {
@@ -646,7 +1138,9 @@ unsafe fn open(
 ) -> PamojaStatus {
     match catch_unwind(AssertUnwindSafe(opening)) {
         Ok(Ok(radio)) => {
-            *out_radio = Box::into_raw(Box::new(PamojaLoraRadio { radio }));
+            *out_radio = Box::into_raw(Box::new(PamojaLoraRadio {
+                radio: Held::Linux(radio),
+            }));
             PamojaStatus::Ok
         }
         Ok(Err(error)) => {
@@ -664,21 +1158,35 @@ unsafe fn open(
     }
 }
 
+/// Why a radio refused a call: its message, and the status that classifies it.
+struct Refusal {
+    message: String,
+    status: PamojaStatus,
+}
+
+/// Turns a radio's error into a refusal.
+fn refusal<E: fmt::Debug>(error: RadioError<E>) -> Refusal {
+    Refusal {
+        message: error.to_string(),
+        status: radio_status(&error),
+    }
+}
+
 /// Runs a call on a live radio, turning a refusal or a panic into a status.
 unsafe fn drive<T>(
     radio: *mut PamojaLoraRadio,
-    call: impl FnOnce(&mut LinuxRadio) -> Result<T, RadioError<SpiError>>,
+    call: impl FnOnce(&mut Held) -> Result<T, Refusal>,
 ) -> Result<T, PamojaStatus> {
     if radio.is_null() {
         set_last_error("radio must not be null".to_owned());
         return Err(PamojaStatus::InvalidArgument);
     }
-    let radio = &mut (*radio).radio;
-    match catch_unwind(AssertUnwindSafe(|| call(radio))) {
+    let held = &mut (*radio).radio;
+    match catch_unwind(AssertUnwindSafe(|| call(held))) {
         Ok(Ok(value)) => Ok(value),
-        Ok(Err(error)) => {
-            set_last_error(error.to_string());
-            Err(radio_status(&error))
+        Ok(Err(refused)) => {
+            set_last_error(refused.message);
+            Err(refused.status)
         }
         Err(_) => Err(panicked()),
     }
@@ -977,5 +1485,164 @@ mod tests {
         assert_eq!(opened, PamojaStatus::Unsupported);
         assert!(radio.is_null());
         assert!(last_error().contains("only Linux"), "{}", last_error());
+    }
+
+    unsafe fn bytes<'a>(buffer: *mut crate::PamojaBuffer) -> &'a [u8] {
+        std::slice::from_raw_parts(
+            crate::pamoja_buffer_data(buffer),
+            crate::pamoja_buffer_len(buffer),
+        )
+    }
+
+    #[test]
+    fn a_simulated_chip_puts_one_frame_on_the_air_and_hands_another_over() {
+        unsafe {
+            let board = PamojaSx126xBoard {
+                high_power: true,
+                ..PamojaSx126xBoard::default()
+            };
+            let mut chip = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_sim_chip_sx126x(board, &mut chip),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lora_sim_chip_family(chip), PAMOJA_LORA_RADIO_SX126X);
+            let mut radio = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_sim_chip_radio(chip, &mut radio),
+                PamojaStatus::Ok
+            );
+            let link = pamoja_lora_link_default(9, 125_000);
+            let config = pamoja_lora_radio_config_default(868_100_000, link, 14);
+            assert_eq!(pamoja_lora_radio_configure(radio, config), PamojaStatus::Ok);
+
+            let reading = b"21.5";
+            let mut airtime = 0;
+            assert_eq!(
+                pamoja_lora_radio_transmit(radio, reading.as_ptr(), reading.len(), &mut airtime),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lora_sim_chip_sent_count(chip), 1);
+            let mut tuning = PamojaLoraTuning::default();
+            assert_eq!(
+                pamoja_lora_sim_chip_sent_tuning(chip, 0, &mut tuning),
+                PamojaStatus::Ok
+            );
+            assert_eq!(tuning.frequency_hz, 868_100_000);
+            assert_eq!(tuning.link.spreading_factor, 9);
+            assert_eq!(tuning.output_dbm, 14);
+            assert_eq!(tuning.sync_word, PAMOJA_LORA_RADIO_SYNC_WORD_PRIVATE);
+            let sent = pamoja_lora_sim_chip_sent_payload(chip, 0);
+            assert_eq!(bytes(sent), reading);
+            crate::pamoja_buffer_free(sent);
+            assert!(pamoja_lora_sim_chip_sent_payload(chip, 1).is_null());
+            assert_eq!(
+                pamoja_lora_sim_chip_sent_tuning(chip, 1, &mut tuning),
+                PamojaStatus::InvalidArgument
+            );
+
+            let answer = b"ok";
+            assert_eq!(
+                pamoja_lora_sim_chip_hear(chip, answer.as_ptr(), answer.len(), -10_900, -250),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lora_sim_chip_waiting(chip), 1);
+            let mut detected = false;
+            assert_eq!(
+                pamoja_lora_radio_detect(radio, 4, &mut detected),
+                PamojaStatus::Ok
+            );
+            assert!(detected, "a frame on the air is activity");
+            let mut buffer = [0u8; 255];
+            let mut reception = PamojaLoraRadioReception::default();
+            assert_eq!(
+                pamoja_lora_radio_receive(
+                    radio,
+                    buffer.as_mut_ptr(),
+                    buffer.len(),
+                    1_000_000,
+                    &mut reception
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(reception.outcome, PAMOJA_LORA_RADIO_FRAME);
+            assert_eq!(&buffer[..reception.len], answer);
+            assert_eq!(reception.rssi_centi_dbm, -10_900);
+            assert_eq!(reception.snr_centi_db, -250);
+            assert_eq!(reception.signal_rssi_centi_dbm, -11_150);
+
+            assert_eq!(
+                pamoja_lora_sim_chip_hear_corrupt(chip, -12_000, -1_000),
+                PamojaStatus::Ok
+            );
+            assert_eq!(
+                pamoja_lora_radio_receive(
+                    radio,
+                    buffer.as_mut_ptr(),
+                    buffer.len(),
+                    1_000_000,
+                    &mut reception
+                ),
+                PamojaStatus::Ok
+            );
+            assert_eq!(reception.outcome, PAMOJA_LORA_RADIO_CORRUPT);
+            pamoja_lora_radio_free(radio);
+            pamoja_lora_sim_chip_free(chip);
+        }
+    }
+
+    #[test]
+    fn a_simulated_rfm95w_is_tuned_through_its_registers() {
+        unsafe {
+            let mut chip = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_sim_chip_sx127x(true, false, &mut chip),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lora_sim_chip_family(chip), PAMOJA_LORA_RADIO_SX127X);
+            let mut radio = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_sim_chip_radio(chip, &mut radio),
+                PamojaStatus::Ok
+            );
+            assert_eq!(pamoja_lora_radio_family(radio), PAMOJA_LORA_RADIO_SX127X);
+            let link = pamoja_lora_link_default(9, 125_000);
+            let mut config = pamoja_lora_radio_config_default(868_100_000, link, 14);
+            config.sync_word = PAMOJA_LORA_RADIO_SYNC_WORD_PUBLIC;
+            assert_eq!(pamoja_lora_radio_configure(radio, config), PamojaStatus::Ok);
+            let mut tuning = PamojaLoraTuning::default();
+            assert_eq!(
+                pamoja_lora_sim_chip_tuning(chip, &mut tuning),
+                PamojaStatus::Ok
+            );
+            assert!(tuning.frequency_hz.abs_diff(868_100_000) <= 61);
+            assert_eq!(tuning.output_dbm, 14);
+            assert_eq!(tuning.sync_word, PAMOJA_LORA_RADIO_SYNC_WORD_PUBLIC);
+            pamoja_lora_radio_free(radio);
+            pamoja_lora_sim_chip_free(chip);
+        }
+    }
+
+    #[test]
+    fn a_null_chip_is_refused() {
+        unsafe {
+            let mut radio = ptr::null_mut();
+            assert_eq!(
+                pamoja_lora_sim_chip_radio(ptr::null(), &mut radio),
+                PamojaStatus::InvalidArgument
+            );
+            assert!(radio.is_null());
+            assert_eq!(
+                pamoja_lora_sim_chip_hear(ptr::null(), ptr::null(), 0, 0, 0),
+                PamojaStatus::InvalidArgument
+            );
+            assert_eq!(pamoja_lora_sim_chip_family(ptr::null()), u8::MAX);
+            assert_eq!(pamoja_lora_sim_chip_waiting(ptr::null()), 0);
+            assert!(pamoja_lora_sim_chip_sent_payload(ptr::null(), 0).is_null());
+            assert_eq!(
+                pamoja_lora_sim_chip_sx126x(PamojaSx126xBoard::default(), ptr::null_mut()),
+                PamojaStatus::InvalidArgument
+            );
+        }
     }
 }

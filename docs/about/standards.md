@@ -586,7 +586,7 @@ Reaching a network that is not there, and the rules a regulator sets for doing i
 </header>
 <div class="hw-foot">
 <section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://www.semtech.com/products/wireless-rf/lora-connect/sx1276"><span class="hw-main"><b>The document</b><small>SX1276/77/78/79 datasheet, Rev 7</small><small class="hw-note">Semtech serves its documents through share links that render page images, so a person opens this one.</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-radios/src/sx127x/config.rs#L809"><span class="hw-main"><b>The test</b><small><code>config.rs</code> line 809</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-radios/src/sx127x/config.rs#L833"><span class="hw-main"><b>The test</b><small><code>config.rs</code> line 833</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 <article class="hw-card" aria-labelledby="packet-forwarder">

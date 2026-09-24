@@ -11553,6 +11553,73 @@
       "reading": 21.5
     }
   },
+  "radioSim": {
+    "answer": "6f6b",
+    "bandwidthHz": 125000,
+    "chips": [
+      {
+        "activity": {
+          "idle": false,
+          "withAFrame": true
+        },
+        "airtimeUs": 123904,
+        "broken": "Corrupt",
+        "family": "Sx126x",
+        "quiet": "Timeout",
+        "received": {
+          "payload": "6f6b",
+          "rssiCentiDbm": -10900,
+          "signalRssiCentiDbm": -11150,
+          "snrCentiDb": -250
+        },
+        "resetFrequencyHz": 0,
+        "sent": {
+          "bandwidthHz": 125000,
+          "codingRateDenominator": 5,
+          "frequencyHz": 868100000,
+          "outputDbm": 14,
+          "payload": "32312e35",
+          "preambleSymbols": 8,
+          "spreadingFactor": 9,
+          "syncWord": 52
+        }
+      },
+      {
+        "activity": {
+          "idle": false,
+          "withAFrame": true
+        },
+        "airtimeUs": 123904,
+        "broken": "Corrupt",
+        "family": "Sx127x",
+        "quiet": "Timeout",
+        "received": {
+          "payload": "6f6b",
+          "rssiCentiDbm": -10900,
+          "signalRssiCentiDbm": -11150,
+          "snrCentiDb": -250
+        },
+        "resetFrequencyHz": 434000000,
+        "sent": {
+          "bandwidthHz": 125000,
+          "codingRateDenominator": 5,
+          "frequencyHz": 868099976,
+          "outputDbm": 14,
+          "payload": "32312e35",
+          "preambleSymbols": 8,
+          "spreadingFactor": 9,
+          "syncWord": 52
+        }
+      }
+    ],
+    "frequencyHz": 868100000,
+    "outputDbm": 14,
+    "reading": "32312e35",
+    "rssiCentiDbm": -10900,
+    "snrCentiDb": -250,
+    "spreadingFactor": 9,
+    "syncWord": 52
+  },
   "radios": {
     "commands": {
       "calibrateImage": {

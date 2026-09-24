@@ -1849,6 +1849,50 @@ function linkOf(described) {
   };
 }
 
+// A simulated chip of each family driven through a radio: what it was tuned to, what it sent,
+// and how it handed over a frame, a silence, and a corrupt frame.
+async function radioSimVectors() {
+  const vector = VECTORS.radioSim;
+  const boards = {
+    Sx126x: () => radios.SimulatedLoraChip.sx126x({ amplifier: "HighPower" }),
+    Sx127x: () => radios.SimulatedLoraChip.sx127x({ output: "PaBoost" }),
+  };
+  for (const described of vector.chips) {
+    const chip = boards[described.family]();
+    assert.strictEqual(chip.family, described.family, "the family");
+    assert.strictEqual(chip.tuning().frequencyHz, described.resetFrequencyHz, "out of reset");
+    const radio = chip.radio();
+    await radio.configure({
+      frequencyHz: vector.frequencyHz,
+      link: lora.link(vector.spreadingFactor, vector.bandwidthHz),
+      outputDbm: vector.outputDbm,
+      syncWord: vector.syncWord,
+    });
+    const airtime = await radio.transmit(unhex(vector.reading));
+    assert.strictEqual(airtime, described.airtimeUs, "the airtime");
+    const [sent] = chip.sent();
+    assert.strictEqual(sent.tuning.frequencyHz, described.sent.frequencyHz, "the carrier");
+    assert.strictEqual(sent.tuning.link.spreadingFactor, described.sent.spreadingFactor);
+    assert.strictEqual(sent.tuning.link.bandwidthHz, described.sent.bandwidthHz);
+    assert.strictEqual(sent.tuning.outputDbm, described.sent.outputDbm, "the power");
+    assert.strictEqual(sent.tuning.syncWord, described.sent.syncWord, "the sync word");
+    assert.strictEqual(sent.payload.toString("hex"), described.sent.payload, "the payload");
+
+    assert.strictEqual(await radio.detect(4), described.activity.idle, "quiet air");
+    chip.hear(unhex(vector.answer), vector.rssiCentiDbm / 100, vector.snrCentiDb / 100);
+    assert.strictEqual(await radio.detect(4), described.activity.withAFrame, "a frame waiting");
+    const heard = await radio.receive(1_000_000);
+    assert.strictEqual(heard.outcome, "Frame");
+    assert.strictEqual(heard.payload.toString("hex"), described.received.payload);
+    assert.strictEqual(heard.rssiDbm, described.received.rssiCentiDbm / 100, "the RSSI");
+    assert.strictEqual(heard.snrDb, described.received.snrCentiDb / 100, "the SNR");
+    assert.strictEqual(heard.signalRssiDbm, described.received.signalRssiCentiDbm / 100);
+    assert.strictEqual((await radio.receive(1_000_000)).outcome, described.quiet, "a silence");
+    chip.hearCorrupt(vector.rssiCentiDbm / 100, vector.snrCentiDb / 100);
+    assert.strictEqual((await radio.receive(1_000_000)).outcome, described.broken, "a bad CRC");
+    radio.close();
+  }
+}
 function radiosVectors() {
   const vector = VECTORS.radios;
   const links = new Map(VECTORS.lora.links.map((entry) => [entry.name, entry]));
@@ -3829,6 +3873,7 @@ zenohVectors();
 (async () => {
   await ladderVectors();
   await simulationVectors();
+  await radioSimVectors();
   console.log("conformance ok");
 })().catch((err) => {
   console.error(err);

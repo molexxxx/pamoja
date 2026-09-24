@@ -113,7 +113,9 @@ __all__ = [
     "LoraRadio",
     "LoraReception",
     "LoraRelayChannel",
+    "LoraSentFrame",
     "LoraSubBand",
+    "LoraTuning",
     "LorawanAckWindow",
     "LorawanAcknowledgment",
     "LorawanBackoff",
@@ -221,6 +223,7 @@ __all__ = [
     "Sht3xMeasurement",
     "Sht3xStatus",
     "Signals",
+    "SimulatedLoraChip",
     "SimulatedRobot",
     "SimulatedSensor",
     "SkidSteer",
@@ -5379,7 +5382,7 @@ class LoraPlanRules:
 @typing.final
 class LoraRadio:
     r"""
-    A LoRa radio opened on a Linux board.
+    A LoRa radio opened on a Linux board or wired to a simulated chip.
     """
     @property
     def family(self) -> builtins.str:
@@ -5429,6 +5432,12 @@ class LoraRadio:
     def take_frame(self) -> typing.Optional[LoraReception]:
         r"""
         Takes the frame a listening radio has received, or `None` when nothing has arrived.
+        """
+    def detect(self, symbols: builtins.int) -> builtins.bool:
+        r"""
+        Listens a few symbols for a LoRa preamble and returns whether one is there, as a relay's
+        scan does, leaving the chip in standby. An SX126x listens over 1, 2, 4, 8, or 16 symbols,
+        rounded down to one of them, and an SX127x over one.
         """
     def standby(self) -> None:
         r"""
@@ -5525,6 +5534,22 @@ class LoraRelayChannel:
     def __repr__(self) -> builtins.str: ...
 
 @typing.final
+class LoraSentFrame:
+    r"""
+    A frame a simulated chip put on the air.
+    """
+    @property
+    def tuning(self) -> LoraTuning:
+        r"""
+        What the chip was tuned to when the frame went out.
+        """
+    @property
+    def payload(self) -> bytes:
+        r"""
+        The frame's payload.
+        """
+
+@typing.final
 class LoraSubBand:
     r"""
     A slice of a band with its own transmit limits.
@@ -5552,6 +5577,33 @@ class LoraSubBand:
         """
     def __new__(cls, start_hz: builtins.int, end_hz: builtins.int, duty_cycle_permille: builtins.int, max_eirp_dbm: builtins.int) -> LoraSubBand: ...
     def __repr__(self) -> builtins.str: ...
+
+@typing.final
+class LoraTuning:
+    r"""
+    What a simulated chip is tuned to.
+    """
+    @property
+    def frequency_hz(self) -> builtins.int:
+        r"""
+        The carrier frequency in hertz, as the chip's synthesizer steps it: within a hertz of
+        the one asked for on an SX126x, and within 61 Hz on an SX127x.
+        """
+    @property
+    def output_dbm(self) -> builtins.int:
+        r"""
+        The output power the amplifier was asked for, in dBm.
+        """
+    @property
+    def sync_word(self) -> builtins.int:
+        r"""
+        The sync word byte.
+        """
+    @property
+    def link(self) -> LoraLink:
+        r"""
+        The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
+        """
 
 @typing.final
 class LorawanAckWindow:
@@ -10457,6 +10509,68 @@ class Signals:
         r"""
         Reads a two-byte little-endian signal, or `None` if it would run past the
         payload.
+        """
+
+@typing.final
+class SimulatedLoraChip:
+    r"""
+    A simulated SX126x or SX127x, which a `LoraRadio` drives with no radio attached.
+    
+    The program says what arrives on the air with `hear`, and reads back what the chip was
+    tuned to and what it sent with `tuning` and `sent`. Nothing is timed: a transmission is
+    done as soon as it starts, and a reception with a timeout ends at once when nothing is
+    waiting.
+    """
+    @property
+    def family(self) -> builtins.str:
+        r"""
+        The family of the chip: `"Sx126x"` or `"Sx127x"`.
+        """
+    @property
+    def waiting(self) -> builtins.int:
+        r"""
+        How many frames wait on the air for the chip to receive.
+        """
+    @staticmethod
+    def sx126x(amplifier: builtins.str, *, tcxo_volts: typing.Optional[builtins.float] = None, tcxo_settle_us: typing.Optional[builtins.int] = None, dio2_rf_switch: builtins.bool = False, dc_dc: builtins.bool = False, llcc68: builtins.bool = False) -> SimulatedLoraChip:
+        r"""
+        A simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.
+        
+        Raises `ValueError` for an amplifier name or a TCXO voltage the chip has no setting
+        for.
+        """
+    @staticmethod
+    def sx127x(output: builtins.str, *, tcxo: builtins.bool = False) -> SimulatedLoraChip:
+        r"""
+        A simulated SX1276, SX1277, SX1278, or SX1279, out of reset.
+        
+        Raises `ValueError` for an amplifier output name the chip has no setting for.
+        """
+    def radio(self) -> LoraRadio:
+        r"""
+        Returns a radio wired to the chip, reset as opening a module resets it.
+        """
+    def hear(self, payload: typing.Sequence[builtins.int], rssi_dbm: builtins.float, snr_db: builtins.float) -> None:
+        r"""
+        Puts a frame on the air for the chip to receive the next time it listens, heard at a
+        strength in dBm and a signal-to-noise ratio in dB. A payload past 255 bytes is cut to
+        255.
+        
+        Raises `ValueError` for a level that is not a finite number.
+        """
+    def hear_corrupt(self, rssi_dbm: builtins.float, snr_db: builtins.float) -> None:
+        r"""
+        Puts a frame on the air whose CRC fails, which the chip reports and drops.
+        
+        Raises `ValueError` for a level that is not a finite number.
+        """
+    def tuning(self) -> LoraTuning:
+        r"""
+        Returns what the chip is tuned to now.
+        """
+    def sent(self) -> builtins.list[LoraSentFrame]:
+        r"""
+        Returns every frame the chip has put on the air, oldest first.
         """
 
 @typing.final

@@ -2,7 +2,7 @@
 
 # ANCHOR: example
 from pamoja.lora import LinkBudget, plan_for
-from pamoja.radios import DutyCycle, sx126x
+from pamoja.radios import DutyCycle, SimulatedLoraChip, sx126x
 
 # An SX1262 node sends a ten-byte reading on 868.1 MHz at DR3, SF9 at 125 kHz, through a
 # 2.15 dBi whip on half a decibel of pigtail. The plan caps the EIRP there, and the antenna
@@ -15,59 +15,57 @@ ceiling = eu868.max_eirp_dbm(frequency)
 power = sx126x.tx_power_under_ceiling(sx126x.Amplifier.HIGH_POWER, whip, ceiling)
 print(f"power     {power.setting_dbm} dBm under a {ceiling} dBm EIRP ceiling")
 
-# The commands in the order section 14.2 of the datasheet gives, each sent in its own SPI
-# transaction once BUSY is low. The chip gives up on the frame a second after its airtime.
-airtime = link.airtime_us(10)
-events = sx126x.Irq.TX_DONE | sx126x.Irq.TIMEOUT
-commands = [
-    ("standby", sx126x.set_standby()),
-    ("packet type", sx126x.set_packet_type_lora()),
-    ("frequency", sx126x.set_rf_frequency(frequency)),
-    ("pa config", sx126x.set_pa_config(power)),
-    ("tx params", sx126x.set_tx_params(power, 40)),
-    ("modulation", sx126x.set_lora_modulation_params(link)),
-    ("packet", sx126x.set_lora_packet_params(link, 10, False)),
-    ("irq", sx126x.set_dio_irq_params(events, events)),
-    ("tx", sx126x.set_tx(airtime + 1_000_000)),
-]
-for name, data in commands:
-    print(f"{name:<12}{data.hex(' ')}")
+# A simulated SX1262 stands in for the chip on the node's board, driven by the same code that
+# drives a real one, and it reports what that code told it.
+chip = SimulatedLoraChip.sx126x(sx126x.Amplifier.HIGH_POWER)
+bench = chip.radio()
+bench.configure(frequency, link, power.setting_dbm)
+tuned = chip.tuning()
+print(
+    f"tuned     {tuned.frequency_hz / 1e6:.1f} MHz, SF{tuned.link.spreading_factor} "
+    f"at {tuned.link.bandwidth_hz // 1000} kHz, {tuned.output_dbm} dBm"
+)
 
-# Once the frame has left, GetIrqStatus answers with TxDone, and the status byte shows the
-# chip back in standby.
-irq = sx126x.irq(bytes([0x00, 0x01]))
-sent = sx126x.Irq.TX_DONE in irq
-timed_out = sx126x.Irq.TIMEOUT in irq
-print(f"sent      tx done {sent}, timed out {timed_out}")
-status = sx126x.status(0x2C)
-print(f"status    {status.chip_mode}, {status.command_status}")
-
-# A frame that arrives later comes with the signal levels it was heard at.
-heard = sx126x.packet_status(bytes([0xDB, 0xF6, 0xE0]))
-print(f"received  RSSI {heard.rssi_dbm} dBm, SNR {heard.snr_db} dB")
-
-# The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime buys
-# ninety-nine times as long in silence before the next.
+# The reading goes out, and the airtime comes back for the duty-cycle guard. The sub-band that
+# holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine times as long in silence
+# before the next.
+reading = b"level=0.42"
+airtime = bench.transmit(reading)
+print(f"sent      {len(chip.sent()[0].payload)} bytes, {airtime} us on air")
 guard = DutyCycle(eu868.duty_cycle_permille(frequency))
-held = guard.transmitted(0, link, 10)
-print(f"airtime   {held} us, next frame after {guard.wait_us(0)} us")
+guard.transmitted(0, link, len(reading))
+print(f"silence   the next frame starts {guard.wait_us(0)} us after this one did")
+
+# A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+chip.hear(b"ack", -109, -2.5)
+heard = bench.receive(1_000_000)
+if heard.outcome == "Frame":
+    print(
+        f"received  {heard.payload.decode()} at {heard.rssi_dbm:.2f} dBm, "
+        f"SNR {heard.snr_db:.2f} dB"
+    )
+
+# With nothing on the air the reception times out, and a frame whose CRC fails is dropped
+# rather than handed over.
+quiet = bench.receive(1_000_000).outcome
+chip.hear_corrupt(-121, -12)
+broken = bench.receive(1_000_000).outcome
+print(f"then      {quiet}, then {broken}")
+bench.close()
 # ANCHOR_END: example
 
-# The bytes each command carries are pinned once, in the crate tests and the generated
-# conformance vectors, so a guide asserts behavior instead.
 assert power.setting_dbm == 14
-assert len(commands) == 9
-assert sent and not timed_out
-assert held == airtime
-assert not guard.ready(0)
-assert guard.ready(held * 100)
+assert tuned.frequency_hz == frequency
+assert chip.sent()[0].payload == reading
+assert guard.wait_us(0) == airtime * 100
+assert (quiet, broken) == ("Timeout", "Corrupt")
 
 # ANCHOR: rfm95w
 from pamoja.lora import LinkBudget, plan_for
-from pamoja.radios import sx126x, sx127x
+from pamoja.radios import SimulatedLoraChip, sx126x, sx127x
 
 # An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and the same
-# 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+# 16 dBm ceiling leave it the same 14 dBm.
 band = plan_for("EU868")
 channel = 868_100_000
 dr3 = band.link_settings(3)
@@ -75,48 +73,43 @@ antenna = LinkBudget(transmit_antenna_gain_dbi=2.15, transmit_cable_loss_db=0.5)
 rfm95w = sx127x.tx_power_under_ceiling(
     sx127x.PaOutput.PA_BOOST, antenna, band.max_eirp_dbm(channel)
 )
+
+# The same driver calls tune it, through registers this time. Its synthesizer steps in 61 Hz,
+# so the carrier lands on the step nearest the one asked for.
+module = SimulatedLoraChip.sx127x(sx127x.PaOutput.PA_BOOST)
+radio = module.radio()
+radio.configure(channel, dr3, rfm95w.output_dbm)
+carrier = module.tuning()
 print(
-    f"rfm95w    {rfm95w.output_dbm} dBm on PA_BOOST: RegPaConfig {rfm95w.pa_config:02x}, "
-    f"RegPaDac {rfm95w.pa_dac:02x}, RegOcp {rfm95w.ocp:02x}"
+    f"rfm95w    {carrier.output_dbm} dBm on PA_BOOST, carrier {carrier.frequency_hz} Hz, "
+    f"{abs(channel - carrier.frequency_hz)} Hz from {channel}"
 )
 
-# The carrier and the modem go into registers while the chip stands by, and TX mode sends the
-# frame the FIFO holds.
-modem = sx127x.modem(dr3, channel)
-print(f"carrier   RegFrf {sx127x.frequency_word(channel):06x}")
-print(
-    f"modem     RegModemConfig {modem.modem_config_1:02x} {modem.modem_config_2:02x} "
-    f"{modem.modem_config_3:02x}"
-)
-print(f"tx mode   RegOpMode {sx127x.lora_op_mode(sx127x.Mode.TX):02x}")
-
-# A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers give its
-# levels on the high frequency port.
-flags = sx127x.Irq(0x50)
-received = sx127x.Irq.RX_DONE in flags
-corrupt = sx127x.Irq.PAYLOAD_CRC_ERROR in flags
-print(f"irq       rx done {received}, crc error {corrupt}")
-packet = sx127x.packet_status(bytes([0xF6, 0x30]), channel)
-print(
-    f"received  RSSI {packet.rssi_dbm} dBm, SNR {packet.snr_db} dB, "
-    f"signal {packet.signal_rssi_dbm} dBm"
-)
+# The SX1276 gives a packet's strength in whole decibels, and works out the strength of the
+# signal itself from the SNR when it arrived under the noise.
+module.hear(b"ack", -109, -2.5)
+packet = radio.receive(1_000_000)
+if packet.outcome == "Frame":
+    print(
+        f"received  RSSI {packet.rssi_dbm:.2f} dBm, SNR {packet.snr_db:.2f} dB, "
+        f"signal {packet.signal_rssi_dbm:.2f} dBm"
+    )
+radio.close()
 
 
-# An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-def fits(data_rate: int) -> bool:
-    return sx126x.llcc68_supports(band.link_settings(data_rate))
+def carries(data_rate: int) -> str:
+    """Whether an LLCC68 in the RFM95W's place could carry a data rate: DR3, but not DR2,
+    which is SF10 at 125 kHz."""
+    return "carries" if sx126x.llcc68_supports(band.link_settings(data_rate)) else "cannot carry"
 
 
-print(f"llcc68    DR3 {fits(3)}, DR2 {fits(2)}")
+print(f"llcc68    {carries(3)} DR3 and {carries(2)} DR2")
 # ANCHOR_END: rfm95w
 
 assert rfm95w.output_dbm == 14
-assert rfm95w.pa_config == 0xFC
-assert modem.modem_config_2 == 0x94
-assert received and not corrupt
-assert fits(3) and not fits(2)
-
+assert carrier.output_dbm == 14
+assert abs(channel - carrier.frequency_hz) <= 61
+assert carries(3) == "carries"
 # ANCHOR: hardware
 from pamoja.core import PamojaError
 from pamoja.radios import LoraRadio

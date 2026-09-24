@@ -113,7 +113,9 @@ pub mod lorawan_link;
 pub mod lorawan_mac;
 #[cfg(all(feature = "lora", feature = "lorawan"))]
 pub mod lorawan_packages;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
 pub mod lorawan_relay;
+#[cfg(all(feature = "lora", feature = "lorawan"))]
 pub mod lorawan_relay_node;
 #[cfg(feature = "mavlink")]
 pub mod mavlink;
@@ -238,6 +240,7 @@ pub(crate) fn set_last_error(message: String) {
 }
 
 /// Takes the calling thread's most recent error message, leaving none recorded.
+#[cfg(feature = "runtime")]
 pub(crate) fn take_last_error() -> Option<String> {
     LAST_ERROR
         .with(|slot| slot.borrow_mut().take())
@@ -310,6 +313,7 @@ pub(crate) unsafe fn read_bytes(ptr: *const u8, len: usize) -> Result<Vec<u8>, P
     feature = "hal",
     feature = "lorawan",
     feature = "modbus",
+    feature = "radios",
     feature = "ros2",
     feature = "security",
     feature = "serial",
@@ -328,6 +332,7 @@ pub struct PamojaBuffer {
     feature = "hal",
     feature = "lorawan",
     feature = "modbus",
+    feature = "radios",
     feature = "ros2",
     feature = "security",
     feature = "serial",
@@ -369,6 +374,7 @@ impl PamojaBuffer {
     feature = "hal",
     feature = "lorawan",
     feature = "modbus",
+    feature = "radios",
     feature = "ros2",
     feature = "security",
     feature = "serial",
@@ -400,6 +406,7 @@ pub unsafe extern "C" fn pamoja_buffer_data(buffer: *const PamojaBuffer) -> *con
     feature = "hal",
     feature = "lorawan",
     feature = "modbus",
+    feature = "radios",
     feature = "ros2",
     feature = "security",
     feature = "serial",
@@ -430,6 +437,7 @@ pub unsafe extern "C" fn pamoja_buffer_len(buffer: *const PamojaBuffer) -> usize
     feature = "hal",
     feature = "lorawan",
     feature = "modbus",
+    feature = "radios",
     feature = "ros2",
     feature = "security",
     feature = "serial",

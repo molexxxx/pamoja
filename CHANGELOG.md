@@ -835,6 +835,18 @@ released together, so one entry covers all of them.
   radio set up from those settings must match: `lowDataRateOptimization` in TypeScript,
   `low_data_rate_optimization` in Python, `LowDataRateOptimization` in C#, and
   `pamoja_lora_low_data_rate_optimization` in C. Only Rust could ask before.
+- Simulated LoRa radio chips. `pamoja_radios::sim::Chip`, with the `sim` feature, is an SX126x
+  or an SX127x that answers the radio driver over SPI as the part does, and the other languages
+  have it as `SimulatedLoraChip`, with `pamoja_lora_sim_chip_*` in C. Its radio is the same one
+  that opens a module on a Linux board, with the same calls, so a radio program runs and is
+  tested anywhere. The program puts frames on the air for it with `hear`, at the strength and
+  SNR they arrive with, and reads back what the chip was tuned to and every frame it sent.
+  Nothing is timed: a transmission is done as soon as it starts, and a reception with a
+  timeout ends at once when nothing waits.
+- The radio in TypeScript, Python, C#, and C listens a few symbols for a preamble with
+  `detect`, as a relay's scan does, where only Rust could.
+- `LoraBandwidth::from_code` in both radio families' `config` modules names the bandwidth a
+  register or command code carries.
 
 ### Changed
 
@@ -1058,6 +1070,12 @@ released together, so one entry covers all of them.
   docstrings, and they read the same way now.
 - The bus, loopback, store-and-forward, sensor, and actuator crates open with an example,
   where they had none, and the first three run rather than only compile.
+- The LoRa radios guide sends its reading through a simulated SX1262 and a simulated RFM95W,
+  reading back what each chip was told, where it printed command bytes and decoded chip
+  answers typed in as hex. It prints the same twelve lines in every language, with words where
+  it printed booleans, and the page gains a paragraph for each language, tables of the two
+  families, a radio's calls, a reception's outcomes, the sync words and a simulated chip, and a
+  section on what goes wrong.
 - The LoRaWAN guide says the network acknowledged the reading rather than printing a
   boolean, and the page gains a paragraph for each language, tables of what each end
   holds, the timings, counters, and ports, what an end device refuses, and the calls, and
@@ -1338,6 +1356,9 @@ released together, so one entry covers all of them.
 - The silence owed after a transmission wrapped round for a duty-cycle limit above 1000
   per mille, asking for about 18 quadrillion microseconds at 1001. A limit of the whole
   of the time or more owes none now.
+- The C ABI did not build with only some of its capabilities, as the crate documentation
+  shows it built, because its two LoRaWAN relay modules carried no feature gate. They build
+  with `lora` and `lorawan` now, and CI checks the documented build.
 - The C# LoRa calls read a negative payload length as a vast one. They throw
   `ArgumentOutOfRangeException` now, and `MessagesPerHour` takes the count from the core
   rather than adding two numbers that could wrap.

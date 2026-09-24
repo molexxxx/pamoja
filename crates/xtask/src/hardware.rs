@@ -43,6 +43,7 @@ const NOT_DRIVERS: &[&str] = &[
     "mesh.rs",
     "radio.rs",
     "relay.rs",
+    "sim.rs",
 ];
 
 /// A group of entries that share a heading on the page.

@@ -257,7 +257,7 @@ title = "Firmware over the air"
 key = "radios"
 chapter = "radio"
 title = "LoRa radios"
-summary = "The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard"
+summary = "The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, a duty-cycle guard, and simulated chips that stand in for a module"
 crates = ["pamoja-radios"]
 node = "radios"
 python = "radios"
@@ -268,7 +268,8 @@ dotnet = [
     "Sx127xPaOutput", "Sx127xMode", "Sx127xIrq", "Sx127xTxPower", "Sx127xModem",
     "Sx127xPacketStatus", "Sx127xModemStatus", "Sx127xHighBwOptimize", "Sx127xSpuriousReception",
     "LoraRadio", "LoraRadioWiring", "LoraRadioConfig", "LoraRadioFamily", "LoraReception",
-    "LoraReceptionOutcome", "Sx126xBoard", "Sx127xBoard",
+    "LoraReceptionOutcome", "Sx126xBoard", "Sx127xBoard", "SimulatedLoraChip", "LoraTuning",
+    "LoraSentFrame",
 ]
 guide = "guides/radios.md"
 next = ["lora", "gateway", "hal"]

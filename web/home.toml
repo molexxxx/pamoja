@@ -184,6 +184,7 @@ tags = [
   { text = "SX126x LoRa radios", state = "ships", crate = "pamoja-radios" },
   { text = "SX127x LoRa radios", state = "ships", crate = "pamoja-radios" },
   { text = "radios on a Linux board", state = "ships", crate = "pamoja-radios" },
+  { text = "simulated LoRa radio chips", state = "ships", crate = "pamoja-radios" },
   { text = "gateway packet forwarder protocol", state = "ships", crate = "pamoja-gateway" },
   { text = "LoRaWAN network side of a site", state = "ships", crate = "pamoja-gateway" },
   { text = "radio-to-uplink bridge", state = "ships", crate = "pamoja-gateway" },

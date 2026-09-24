@@ -19,6 +19,22 @@ internal static class NativeLora
         Crc = link.Crc ? (byte)1 : (byte)0,
     };
 
+    /// <summary>Reads link settings the C ABI carries.</summary>
+    /// <param name="link">The settings as the C ABI carries them.</param>
+    /// <returns>The link settings.</returns>
+    public static LoraLink FromLink(PamojaLoraLink link)
+    {
+        LoraLink built = new LoraLink(link.SpreadingFactor, link.BandwidthHz)
+            .WithCodingRate(link.CodingRateDenominator)
+            .WithPreamble(link.PreambleSymbols);
+        if (link.ExplicitHeader == 0)
+        {
+            built = built.WithImplicitHeader();
+        }
+
+        return link.Crc == 0 ? built.WithoutCrc() : built;
+    }
+
     /// <summary>Describes a link budget for the C ABI.</summary>
     /// <param name="budget">The link budget.</param>
     /// <returns>The budget in hundredths of a decibel.</returns>

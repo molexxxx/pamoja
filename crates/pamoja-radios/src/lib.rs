@@ -1,4 +1,4 @@
-#![cfg_attr(not(any(test, feature = "std")), no_std)]
+#![cfg_attr(not(any(test, feature = "std", feature = "sim")), no_std)]
 
 //! LoRa radio drivers for the pamoja SDK.
 //!
@@ -27,6 +27,8 @@
 //!   the GPIO character device, with a plain error on every other platform.
 //! - `mesh`, with the `std` feature - a pamoja transport over a radio, carrying topics in
 //!   pamoja-mesh frames that each node relays onward, under the duty-cycle guard.
+//! - `sim`, with the `sim` feature - simulated SX126x and SX127x chips that answer the
+//!   drivers with no radio attached, and report what they were tuned to and what they sent.
 //!
 //! # Examples
 //!
@@ -79,6 +81,8 @@ pub mod mesh;
 pub mod radio;
 #[cfg(feature = "lorawan")]
 pub mod relay;
+#[cfg(feature = "sim")]
+pub mod sim;
 pub mod sx126x;
 pub mod sx127x;
 pub mod sx1302;

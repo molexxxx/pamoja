@@ -113,11 +113,12 @@ public sealed record LoraReception(
     double? SnrDb,
     double? SignalRssiDbm);
 
-/// <summary>A LoRa radio opened on a Linux board.</summary>
+/// <summary>A LoRa radio opened on a Linux board or wired to a simulated chip.</summary>
 /// <remarks>
 /// <para>
-/// The radio is reached through the kernel's spidev and GPIO character devices, so it opens
+/// A module is reached through the kernel's spidev and GPIO character devices, so it opens
 /// only on Linux; every other platform throws <see cref="PlatformNotSupportedException"/>.
+/// <see cref="SimulatedLoraChip.Radio"/> gives the same class on any platform.
 /// </para>
 /// <para>
 /// Every call waits on the chip, a transmission for its airtime and a reception for its
@@ -155,23 +156,13 @@ public sealed class LoraRadio : IDisposable
         ArgumentNullException.ThrowIfNull(wiring);
         ArgumentNullException.ThrowIfNull(board);
 
-        var native = new PamojaSx126xBoard
-        {
-            HighPower = Flag(board.Amplifier == Sx126xAmplifier.HighPower),
-            Tcxo = Flag(board.TcxoVolts is not null),
-            TcxoVoltage = board.TcxoVolts is double volts ? TcxoVoltageCode(volts) : (byte)0,
-            Dio2RfSwitch = Flag(board.Dio2RfSwitch),
-            DcDc = Flag(board.DcDc),
-            Llcc68 = Flag(board.Llcc68),
-            TcxoSettleUs = board.TcxoSettleMicros,
-        };
         PamojaStatus status = NativeMethods.pamoja_lora_radio_open_sx126x(
             wiring.Spi,
             wiring.SpiHz ?? 0,
             wiring.GpioChip,
             wiring.BusyLine ?? uint.MaxValue,
             wiring.ResetLine,
-            native,
+            NativeBoard(board),
             out IntPtr radio);
         return Opened(status, radio);
     }
@@ -272,6 +263,24 @@ public sealed class LoraRadio : IDisposable
         return Heard(buffer, reception);
     }
 
+    /// <summary>
+    /// Listens a few symbols for a LoRa preamble and reports whether one is there, as a relay's
+    /// scan does, leaving the chip in standby.
+    /// </summary>
+    /// <param name="symbols">
+    /// How many symbols an SX126x listens over: 1, 2, 4, 8, or 16, rounded down to one of them.
+    /// An SX127x listens over one.
+    /// </param>
+    /// <returns>Whether a preamble was there.</returns>
+    /// <exception cref="PamojaException">The radio is unconfigured, or the chip did not answer.</exception>
+    public bool Detect(byte symbols)
+    {
+        bool detected = false;
+        NativeStatus.ThrowIfError(_handle.Use(handle =>
+            NativeMethods.pamoja_lora_radio_detect(handle, symbols, out detected)));
+        return detected;
+    }
+
     /// <summary>Puts the radio in standby, which stops a transmission or a reception.</summary>
     /// <exception cref="PamojaException">The chip did not answer.</exception>
     public void Standby() =>
@@ -329,7 +338,7 @@ public sealed class LoraRadio : IDisposable
     /// <param name="status">What the native open call returned.</param>
     /// <param name="radio">The radio it opened, when it did.</param>
     /// <returns>The radio.</returns>
-    private static LoraRadio Opened(PamojaStatus status, IntPtr radio)
+    internal static LoraRadio Opened(PamojaStatus status, IntPtr radio)
     {
         if (status == PamojaStatus.Unsupported)
         {
@@ -384,6 +393,21 @@ public sealed class LoraRadio : IDisposable
             NativeLora.Db(reception.SnrCentiDb),
             NativeLora.Db(reception.SignalRssiCentiDbm));
     }
+
+    /// <summary>Describes an SX126x board the way the C ABI carries it.</summary>
+    /// <param name="board">How the module wires the chip.</param>
+    /// <returns>The board as the C ABI carries it.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">DIO3 cannot supply the TCXO voltage.</exception>
+    internal static PamojaSx126xBoard NativeBoard(Sx126xBoard board) => new()
+    {
+        HighPower = Flag(board.Amplifier == Sx126xAmplifier.HighPower),
+        Tcxo = Flag(board.TcxoVolts is not null),
+        TcxoVoltage = board.TcxoVolts is double volts ? TcxoVoltageCode(volts) : (byte)0,
+        Dio2RfSwitch = Flag(board.Dio2RfSwitch),
+        DcDc = Flag(board.DcDc),
+        Llcc68 = Flag(board.Llcc68),
+        TcxoSettleUs = board.TcxoSettleMicros,
+    };
 
     /// <summary>Describes a flag the way the C ABI carries it.</summary>
     /// <param name="set">Whether the flag is set.</param>

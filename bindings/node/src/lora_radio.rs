@@ -1,4 +1,4 @@
-//! Generated Node bindings for a LoRa radio on a Linux board.
+//! Generated Node bindings for a LoRa radio on a Linux board, or on a simulated chip.
 //!
 //! These open an SX126x or SX127x module through the kernel's spidev and GPIO character
 //! devices and drive either family with the same calls, as `pamoja_radios::linux` does. A
@@ -9,19 +9,25 @@
 //!
 //! Only Linux has spidev and the GPIO character device. On every other platform the class
 //! still loads, and opening a radio throws an error saying so.
+//!
+//! A `SimulatedLoraChip` stands in for a module on any platform. The radio it gives is the same
+//! class with the same calls, while the program says what arrives on the air and reads back
+//! what the chip was tuned to and what it sent.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use napi::bindgen_prelude::{spawn_blocking, Buffer};
 use napi_derive::napi;
+use pamoja_lora::budget::Decibels;
 use pamoja_radios::linux::{self, LinuxRadio, OpenError, Wiring};
 use pamoja_radios::radio::{Family, RadioConfig, Reception, SignalLevels, SyncWord};
+use pamoja_radios::sim::{Chip, Sent, SimRadio, Tuning};
 use pamoja_radios::sx126x::config::{PowerAmplifier, TcxoVoltage};
 use pamoja_radios::sx126x::DEFAULT_TCXO_SETTLE_US;
 use pamoja_radios::sx127x::config::PaOutput;
 use pamoja_radios::{sx126x, sx127x};
 
-use crate::lora::{db, settings, LoraLink};
+use crate::lora::{db, decibels, lora_link_of, settings, LoraLink};
 use crate::radios::{Sx126xAmplifier, Sx127xPaOutput};
 
 /// The most bytes one LoRa frame carries.
@@ -126,11 +132,27 @@ pub struct LoraReception {
     pub signal_rssi_dbm: Option<f64>,
 }
 
-/// A LoRa radio opened on a Linux board.
+/// A LoRa radio opened on a Linux board or wired to a simulated chip.
 #[napi(js_name = "LoraRadio")]
 pub struct LoraRadio {
-    inner: Arc<Mutex<Option<LinuxRadio>>>,
+    inner: Arc<Mutex<Option<Held>>>,
     family: Family,
+}
+
+/// The radio a `LoraRadio` drives: a module on a Linux board, or a simulated chip.
+enum Held {
+    Linux(LinuxRadio),
+    Simulated(SimRadio),
+}
+
+/// Runs the same call on whichever radio is held, turning its error into a message.
+macro_rules! on_radio {
+    ($held:expr, $radio:ident => $call:expr) => {
+        match $held {
+            Held::Linux($radio) => $call.map_err(|error| error.to_string()),
+            Held::Simulated($radio) => $call.map_err(|error| error.to_string()),
+        }
+    };
 }
 
 #[napi]
@@ -151,15 +173,10 @@ impl LoraRadio {
     /// Throws when the platform is not Linux, a device cannot be opened, or no chip answers.
     #[napi(factory, js_name = "openSx127x")]
     pub fn open_sx127x(wiring: LoraRadioWiring, board: Sx127xBoard) -> napi::Result<Self> {
-        let output = match board.output {
-            Sx127xPaOutput::Rfo => PaOutput::Rfo,
-            Sx127xPaOutput::PaBoost => PaOutput::PaBoost,
-        };
-        let mut chip = sx127x::Board::new(output);
-        if board.tcxo.unwrap_or(false) {
-            chip = chip.with_tcxo();
-        }
-        opened(linux::open_sx127x(&wiring_of(&wiring), chip))
+        opened(linux::open_sx127x(
+            &wiring_of(&wiring),
+            sx127x_board(&board),
+        ))
     }
 
     /// The family of the radio's chip.
@@ -175,11 +192,10 @@ impl LoraRadio {
     #[napi]
     pub async fn configure(&self, config: LoraRadioConfig) -> napi::Result<()> {
         let radio_config = config_of(&config)?;
-        drive(&self.inner, move |radio| {
-            radio
-                .configure(radio_config)
-                .map_err(|error| error.to_string())
-        })
+        drive(
+            &self.inner,
+            move |held| on_radio!(held, radio => radio.configure(radio_config)),
+        )
         .await
     }
 
@@ -187,9 +203,10 @@ impl LoraRadio {
     #[napi]
     pub async fn transmit(&self, payload: Buffer) -> napi::Result<f64> {
         let payload = payload.to_vec();
-        let airtime_us = drive(&self.inner, move |radio| {
-            radio.transmit(&payload).map_err(|error| error.to_string())
-        })
+        let airtime_us = drive(
+            &self.inner,
+            move |held| on_radio!(held, radio => radio.transmit(&payload)),
+        )
         .await?;
         Ok(airtime_us as f64)
     }
@@ -198,12 +215,10 @@ impl LoraRadio {
     #[napi]
     pub async fn receive(&self, timeout_us: f64) -> napi::Result<LoraReception> {
         let timeout_us = micros(timeout_us)?;
-        let heard = drive(&self.inner, move |radio| {
+        let heard = drive(&self.inner, move |held| {
             let mut buffer = [0u8; FRAME_MAX];
-            radio
-                .receive(&mut buffer, timeout_us)
+            on_radio!(held, radio => radio.receive(&mut buffer, timeout_us))
                 .map(|reception| heard(reception, &buffer))
-                .map_err(|error| error.to_string())
         })
         .await?;
         Ok(heard.into())
@@ -212,33 +227,42 @@ impl LoraRadio {
     /// Starts listening, frame after frame, until another call changes the mode.
     #[napi]
     pub async fn listen(&self) -> napi::Result<()> {
-        drive(&self.inner, |radio| {
-            radio.listen().map_err(|error| error.to_string())
-        })
-        .await
+        drive(&self.inner, |held| on_radio!(held, radio => radio.listen())).await
     }
 
     /// Takes the frame a listening radio has received, or resolves `null` when nothing has
     /// arrived.
     #[napi(js_name = "takeFrame")]
     pub async fn take_frame(&self) -> napi::Result<Option<LoraReception>> {
-        let taken = drive(&self.inner, |radio| {
+        let taken = drive(&self.inner, |held| {
             let mut buffer = [0u8; FRAME_MAX];
-            radio
-                .take_frame(&mut buffer)
+            on_radio!(held, radio => radio.take_frame(&mut buffer))
                 .map(|taken| taken.map(|reception| heard(reception, &buffer)))
-                .map_err(|error| error.to_string())
         })
         .await?;
         Ok(taken.map(LoraReception::from))
     }
 
+    /// Listens a few symbols for a LoRa preamble and resolves whether one is there, as a
+    /// relay's scan does, leaving the chip in standby. An SX126x listens over 1, 2, 4, 8, or 16
+    /// symbols, rounded down to one of them, and an SX127x over one.
+    #[napi]
+    pub async fn detect(&self, symbols: u32) -> napi::Result<bool> {
+        let symbols = u8::try_from(symbols).unwrap_or(u8::MAX);
+        drive(
+            &self.inner,
+            move |held| on_radio!(held, radio => radio.detect(symbols)),
+        )
+        .await
+    }
+
     /// Puts the radio in standby, which stops a transmission or a reception.
     #[napi]
     pub async fn standby(&self) -> napi::Result<()> {
-        drive(&self.inner, |radio| {
-            radio.standby().map_err(|error| error.to_string())
-        })
+        drive(
+            &self.inner,
+            |held| on_radio!(held, radio => radio.standby()),
+        )
         .await
     }
 
@@ -246,10 +270,7 @@ impl LoraRadio {
     /// before its next frame; an SX127x keeps its registers.
     #[napi]
     pub async fn sleep(&self) -> napi::Result<()> {
-        drive(&self.inner, |radio| {
-            radio.sleep().map_err(|error| error.to_string())
-        })
-        .await
+        drive(&self.inner, |held| on_radio!(held, radio => radio.sleep())).await
     }
 
     /// Draws a random number from the noise the receiver hears, leaving the chip in standby.
@@ -258,21 +279,17 @@ impl LoraRadio {
     /// for a join nonce on a device that has no other.
     #[napi]
     pub async fn random(&self) -> napi::Result<u32> {
-        drive(&self.inner, |radio| {
-            radio.random().map_err(|error| error.to_string())
-        })
-        .await
+        drive(&self.inner, |held| on_radio!(held, radio => radio.random())).await
     }
 
     /// Reads one register: a 16-bit address on the SX126x, 0x00 to 0x7F on the SX127x.
     #[napi(js_name = "readRegister")]
     pub async fn read_register(&self, address: u32) -> napi::Result<u32> {
         let address = register_address(address)?;
-        let value = drive(&self.inner, move |radio| {
-            radio
-                .read_register(address)
-                .map_err(|error| error.to_string())
-        })
+        let value = drive(
+            &self.inner,
+            move |held| on_radio!(held, radio => radio.read_register(address)),
+        )
         .await?;
         Ok(u32::from(value))
     }
@@ -284,11 +301,10 @@ impl LoraRadio {
         let value = u8::try_from(value).map_err(|_| {
             napi::Error::from_reason(format!("a register holds one byte, not {value}"))
         })?;
-        drive(&self.inner, move |radio| {
-            radio
-                .write_register(address, value)
-                .map_err(|error| error.to_string())
-        })
+        drive(
+            &self.inner,
+            move |held| on_radio!(held, radio => radio.write_register(address, value)),
+        )
         .await
     }
 
@@ -303,6 +319,163 @@ impl LoraRadio {
     }
 }
 
+/// What a simulated chip is tuned to.
+#[napi(object, js_name = "LoraTuning")]
+pub struct LoraTuning {
+    /// The carrier frequency in hertz, as the chip's synthesizer steps it: within a hertz of
+    /// the one asked for on an SX126x, and within 61 Hz on an SX127x.
+    pub frequency_hz: u32,
+    /// The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
+    pub link: LoraLink,
+    /// The output power the amplifier was asked for, in dBm.
+    pub output_dbm: i32,
+    /// The sync word byte.
+    pub sync_word: u32,
+}
+
+/// A frame a simulated chip put on the air.
+#[napi(object, js_name = "LoraSentFrame")]
+pub struct LoraSentFrame {
+    /// What the chip was tuned to when the frame went out.
+    pub tuning: LoraTuning,
+    /// The frame's payload.
+    pub payload: Buffer,
+}
+
+/// A simulated SX126x or SX127x, which a `LoraRadio` drives with no radio attached.
+///
+/// The program says what arrives on the air with `hear`, and reads back what the chip was
+/// tuned to and what it sent with `tuning` and `sent`. Nothing is timed: a transmission is
+/// done as soon as it starts, and a reception with a timeout ends at once when nothing is
+/// waiting.
+#[napi(js_name = "SimulatedLoraChip")]
+pub struct SimulatedLoraChip {
+    chip: Chip,
+}
+
+#[napi]
+impl SimulatedLoraChip {
+    /// A simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.
+    ///
+    /// Throws for a TCXO voltage DIO3 cannot supply.
+    #[napi(factory, js_name = "sx126x")]
+    pub fn sx126x(board: Sx126xBoard) -> napi::Result<Self> {
+        Ok(SimulatedLoraChip {
+            chip: Chip::sx126x(sx126x_board(&board)?),
+        })
+    }
+
+    /// A simulated SX1276, SX1277, SX1278, or SX1279, out of reset.
+    #[napi(factory, js_name = "sx127x")]
+    pub fn sx127x(board: Sx127xBoard) -> Self {
+        SimulatedLoraChip {
+            chip: Chip::sx127x(sx127x_board(&board)),
+        }
+    }
+
+    /// The family of the chip.
+    #[napi(getter)]
+    pub fn family(&self) -> LoraRadioFamily {
+        match self.chip.family() {
+            Family::Sx126x => LoraRadioFamily::Sx126x,
+            Family::Sx127x => LoraRadioFamily::Sx127x,
+        }
+    }
+
+    /// Returns a radio wired to the chip, reset as opening a module resets it.
+    #[napi]
+    pub fn radio(&self) -> napi::Result<LoraRadio> {
+        let mut radio = self.chip.radio();
+        radio
+            .init()
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        Ok(LoraRadio {
+            family: radio.family(),
+            inner: Arc::new(Mutex::new(Some(Held::Simulated(radio)))),
+        })
+    }
+
+    /// Puts a frame on the air for the chip to receive the next time it listens, heard at a
+    /// strength in dBm and a signal-to-noise ratio in dB. A payload past 255 bytes is cut to
+    /// 255.
+    #[napi]
+    pub fn hear(&self, payload: Buffer, rssi_dbm: f64, snr_db: f64) -> napi::Result<()> {
+        let rssi = level(rssi_dbm, "rssiDbm")?;
+        let snr = level(snr_db, "snrDb")?;
+        self.chip.hear(&payload, rssi, snr);
+        Ok(())
+    }
+
+    /// Puts a frame on the air whose CRC fails, which the chip reports and drops.
+    #[napi(js_name = "hearCorrupt")]
+    pub fn hear_corrupt(&self, rssi_dbm: f64, snr_db: f64) -> napi::Result<()> {
+        let rssi = level(rssi_dbm, "rssiDbm")?;
+        let snr = level(snr_db, "snrDb")?;
+        self.chip.hear_corrupt(rssi, snr);
+        Ok(())
+    }
+
+    /// How many frames wait on the air for the chip to receive.
+    #[napi(getter)]
+    pub fn waiting(&self) -> u32 {
+        u32::try_from(self.chip.waiting()).unwrap_or(u32::MAX)
+    }
+
+    /// Returns what the chip is tuned to now.
+    #[napi]
+    pub fn tuning(&self) -> LoraTuning {
+        tuning_of(self.chip.tuning())
+    }
+
+    /// Returns every frame the chip has put on the air, oldest first.
+    #[napi]
+    pub fn sent(&self) -> Vec<LoraSentFrame> {
+        self.chip.sent().into_iter().map(sent_of).collect()
+    }
+}
+
+/// Reads a level JavaScript passes, refusing one that is not a finite number.
+fn level(value: f64, name: &str) -> napi::Result<Decibels> {
+    if value.is_finite() {
+        Ok(decibels(value))
+    } else {
+        Err(napi::Error::from_reason(format!(
+            "{name} must be a finite number of decibels, not {value}"
+        )))
+    }
+}
+
+/// Describes a tuning the way JavaScript holds it.
+fn tuning_of(tuning: Tuning) -> LoraTuning {
+    LoraTuning {
+        frequency_hz: tuning.frequency_hz,
+        link: lora_link_of(tuning.link),
+        output_dbm: i32::from(tuning.output_dbm),
+        sync_word: u32::from(tuning.sync_word.to_byte()),
+    }
+}
+
+/// Describes a frame the chip sent the way JavaScript holds it.
+fn sent_of(sent: Sent) -> LoraSentFrame {
+    LoraSentFrame {
+        tuning: tuning_of(sent.tuning),
+        payload: Buffer::from(sent.payload),
+    }
+}
+
+/// Reads an SX127x board description.
+fn sx127x_board(board: &Sx127xBoard) -> sx127x::Board {
+    let output = match board.output {
+        Sx127xPaOutput::Rfo => PaOutput::Rfo,
+        Sx127xPaOutput::PaBoost => PaOutput::PaBoost,
+    };
+    let chip = sx127x::Board::new(output);
+    if board.tcxo.unwrap_or(false) {
+        chip.with_tcxo()
+    } else {
+        chip
+    }
+}
 /// What a reception produced, carried back from the worker thread.
 struct Heard {
     outcome: LoraReceptionOutcome,
@@ -327,14 +500,14 @@ fn opened(result: Result<LinuxRadio, OpenError>) -> napi::Result<LoraRadio> {
     let radio = result.map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(LoraRadio {
         family: radio.family(),
-        inner: Arc::new(Mutex::new(Some(radio))),
+        inner: Arc::new(Mutex::new(Some(Held::Linux(radio)))),
     })
 }
 
 /// Runs a call on the radio on a blocking worker thread.
 async fn drive<T: Send + 'static>(
-    inner: &Arc<Mutex<Option<LinuxRadio>>>,
-    call: impl FnOnce(&mut LinuxRadio) -> Result<T, String> + Send + 'static,
+    inner: &Arc<Mutex<Option<Held>>>,
+    call: impl FnOnce(&mut Held) -> Result<T, String> + Send + 'static,
 ) -> napi::Result<T> {
     let inner = Arc::clone(inner);
     let outcome = spawn_blocking(move || {

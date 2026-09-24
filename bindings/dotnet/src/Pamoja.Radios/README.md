@@ -1,6 +1,6 @@
 # Pamoja.Radios
 
-The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, and a duty-cycle guard. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+The Semtech SX126x and SX127x LoRa radios and the SX1302 and SX1303 gateway concentrators: their commands, registers, and decoders, the amplifier setting a regional EIRP ceiling allows, a duty-cycle guard, and simulated chips that stand in for a module. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/radios.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -37,46 +37,40 @@ sbyte ceiling = eu868.MaxEirpDbm(Frequency);
 Sx126xTxPower power = Sx126x.TxPowerUnderCeiling(Sx126xAmplifier.HighPower, whip, ceiling);
 Console.WriteLine($"power     {power.SettingDbm} dBm under a {ceiling} dBm EIRP ceiling");
 
-// The commands in the order section 14.2 of the datasheet gives, each sent in its
-// own SPI transaction once BUSY is low. The chip gives up on the frame a second
-// after its airtime.
-ulong airtime = link.AirtimeMicros(10);
-Sx126xIrq events = Sx126xIrq.TxDone | Sx126xIrq.Timeout;
-(string Name, byte[] Bytes)[] commands =
-[
-    ("standby", Sx126x.SetStandby()),
-    ("packet type", Sx126x.SetPacketTypeLora()),
-    ("frequency", Sx126x.SetRfFrequency(Frequency)),
-    ("pa config", Sx126x.SetPaConfig(power)),
-    ("tx params", Sx126x.SetTxParams(power, 40)),
-    ("modulation", Sx126x.SetLoraModulationParams(link)),
-    ("packet", Sx126x.SetLoraPacketParams(link, 10, false)),
-    ("irq", Sx126x.SetDioIrqParams(events, events)),
-    ("tx", Sx126x.SetTx(airtime + 1_000_000)),
-];
-foreach ((string name, byte[] bytes) in commands)
+// A simulated SX1262 stands in for the chip on the node's board, driven by the same
+// code that drives a real one, and it reports what that code told it.
+using SimulatedLoraChip chip = SimulatedLoraChip.Sx126x(new Sx126xBoard(Sx126xAmplifier.HighPower));
+using LoraRadio bench = chip.Radio();
+bench.Configure(new LoraRadioConfig(Frequency, link, power.SettingDbm));
+LoraTuning tuned = chip.Tuning();
+Console.WriteLine(Invariant(
+    $"tuned     {tuned.FrequencyHz / 1e6:F1} MHz, SF{tuned.Link.SpreadingFactor} at {tuned.Link.BandwidthHz / 1000} kHz, {tuned.OutputDbm} dBm"));
+
+// The reading goes out, and the airtime comes back for the duty-cycle guard. The
+// sub-band that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine
+// times as long in silence before the next.
+byte[] reading = "level=0.42"u8.ToArray();
+ulong airtime = bench.Transmit(reading);
+Console.WriteLine($"sent      {chip.Sent()[0].Payload.Length} bytes, {airtime} us on air");
+using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
+guard.Transmitted(0, link, reading.Length);
+Console.WriteLine($"silence   the next frame starts {guard.WaitMicros(0)} us after this one did");
+
+// A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+chip.Hear("ack"u8, -109, -2.5);
+LoraReception heard = bench.Receive(TimeSpan.FromSeconds(1));
+if (heard.Outcome == LoraReceptionOutcome.Frame)
 {
-    Console.WriteLine($"{name,-12}{string.Join(" ", bytes.Select(b => b.ToString("x2")))}");
+    Console.WriteLine(Invariant(
+        $"received  {Encoding.UTF8.GetString(heard.Payload!)} at {heard.RssiDbm:F2} dBm, SNR {heard.SnrDb:F2} dB"));
 }
 
-// Once the frame has left, GetIrqStatus answers with TxDone, and the status byte
-// shows the chip back in standby.
-Sx126xIrq irq = Sx126x.Irq([0x00, 0x01]);
-bool sent = irq.HasFlag(Sx126xIrq.TxDone);
-bool timedOut = irq.HasFlag(Sx126xIrq.Timeout);
-Console.WriteLine($"sent      tx done {sent}, timed out {timedOut}");
-Sx126xStatus status = Sx126x.Status(0x2C);
-Console.WriteLine($"status    {status.ChipMode}, {status.CommandStatus}");
-
-// A frame that arrives later comes with the signal levels it was heard at.
-Sx126xPacketStatus heard = Sx126x.PacketStatus([0xDB, 0xF6, 0xE0]);
-Console.WriteLine($"received  RSSI {heard.RssiDbm} dBm, SNR {heard.SnrDb} dB");
-
-// The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime
-// buys ninety-nine times as long in silence before the next.
-using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
-ulong held = guard.Transmitted(0, link, 10);
-Console.WriteLine($"airtime   {held} us, next frame after {guard.WaitMicros(0)} us");
+// With nothing on the air the reception times out, and a frame whose CRC fails is
+// dropped rather than handed over.
+LoraReceptionOutcome quiet = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+chip.HearCorrupt(-121, -12);
+LoraReceptionOutcome broken = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+Console.WriteLine($"then      {quiet}, then {broken}");
 ```
 
 ## The same capability in every language

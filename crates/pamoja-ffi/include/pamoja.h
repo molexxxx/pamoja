@@ -2515,8 +2515,12 @@ typedef struct PamojaLoraPlan PamojaLoraPlan;
 // hand to [`pamoja_lora_plan_builder_build`], which consumes it.
 typedef struct PamojaLoraPlanBuilder PamojaLoraPlanBuilder;
 
-// A LoRa radio opened on a Linux board, released with [`pamoja_lora_radio_free`].
+// A LoRa radio opened on a Linux board or wired to a simulated chip, released with
+// [`pamoja_lora_radio_free`].
 typedef struct PamojaLoraRadio PamojaLoraRadio;
+
+// A simulated SX126x or SX127x, released with [`pamoja_lora_sim_chip_free`].
+typedef struct PamojaLoraSimChip PamojaLoraSimChip;
 
 // An opaque handle to a device's count of how long the network has been silent.
 //
@@ -3518,6 +3522,19 @@ typedef struct {
   // The estimated strength of the LoRa signal itself, in hundredths of a dBm.
   int32_t signal_rssi_centi_dbm;
 } PamojaLoraRadioReception;
+
+// What a simulated chip is tuned to.
+typedef struct {
+  // The carrier frequency in hertz, as the chip's synthesizer steps it: within a hertz of
+  // the one asked for on an SX126x, and within 61 Hz on an SX127x.
+  uint32_t frequency_hz;
+  // The spreading factor, bandwidth, coding rate, preamble, header, and CRC.
+  PamojaLoraLink link;
+  // The output power the amplifier was asked for, in dBm.
+  int8_t output_dbm;
+  // The sync word byte.
+  uint8_t sync_word;
+} PamojaLoraTuning;
 
 // How a plan's channels are defined and used, read in one call.
 typedef struct {
@@ -11299,6 +11316,26 @@ PamojaStatus pamoja_lora_radio_take_frame(PamojaLoraRadio *radio,
                                           uintptr_t capacity,
                                           PamojaLoraRadioReception *out_reception);
 
+// Listens a few symbols for a LoRa preamble and reports whether one is there, as a relay's
+// scan does, leaving the chip in standby.
+//
+// # Arguments
+//
+// * `radio` - the radio.
+// * `symbols` - how many symbols an SX126x listens over: 1, 2, 4, 8, or 16, rounded down to
+//   one of them. An SX127x listens over one.
+// * `out_detected` - receives whether a preamble was there.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`]; [`PamojaStatus::InvalidArgument`] for a null argument or a radio not
+// yet configured; or [`PamojaStatus::Io`] when the chip does not answer.
+//
+// # Safety
+//
+// `radio` must be a live handle or null, and `out_detected` writable or null.
+PamojaStatus pamoja_lora_radio_detect(PamojaLoraRadio *radio, uint8_t symbols, bool *out_detected);
+
 // Puts a radio in standby, which stops a transmission or a reception.
 //
 // # Arguments
@@ -11402,6 +11439,214 @@ PamojaStatus pamoja_lora_radio_write_register(PamojaLoraRadio *radio,
 //
 // `radio` must be a live handle from one of the open functions, or null.
 void pamoja_lora_radio_free(PamojaLoraRadio *radio);
+
+// Creates a simulated SX1261, SX1262, SX1268, or LLCC68, out of reset.
+//
+// # Arguments
+//
+// * `board` - how the module wires the chip, which the radio
+//   [`pamoja_lora_sim_chip_radio`] gives is told.
+// * `out_chip` - receives the chip.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the chip in `out_chip`, or [`PamojaStatus::InvalidArgument`] for
+// a null `out_chip` or a TCXO voltage past 7.
+//
+// # Safety
+//
+// `out_chip` must be a writable pointer or null.
+PamojaStatus pamoja_lora_sim_chip_sx126x(PamojaSx126xBoard board, PamojaLoraSimChip **out_chip);
+
+// Creates a simulated SX1276, SX1277, SX1278, or SX1279, out of reset.
+//
+// # Arguments
+//
+// * `pa_boost` - `true` when the antenna is on the PA_BOOST output, as on the RFM95W, and
+//   `false` for RFO.
+// * `tcxo` - `true` when a TCXO drives the XTA pin instead of a crystal.
+// * `out_chip` - receives the chip.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the chip in `out_chip`, or [`PamojaStatus::InvalidArgument`] for
+// a null `out_chip`.
+//
+// # Safety
+//
+// `out_chip` must be a writable pointer or null.
+PamojaStatus pamoja_lora_sim_chip_sx127x(bool pa_boost, bool tcxo, PamojaLoraSimChip **out_chip);
+
+// Returns the family of a simulated chip.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+//
+// # Returns
+//
+// [`PAMOJA_LORA_RADIO_SX126X`] or [`PAMOJA_LORA_RADIO_SX127X`], or 255 if `chip` is null.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+uint8_t pamoja_lora_sim_chip_family(const PamojaLoraSimChip *chip);
+
+// Wires a radio to a simulated chip and resets it, as opening a module does.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `out_radio` - receives the radio, released with [`pamoja_lora_radio_free`].
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] with the radio in `out_radio`, or [`PamojaStatus::InvalidArgument`]
+// for a null argument.
+//
+// # Safety
+//
+// `chip` must be a live handle or null, and `out_radio` a writable pointer or null.
+PamojaStatus pamoja_lora_sim_chip_radio(const PamojaLoraSimChip *chip, PamojaLoraRadio **out_radio);
+
+// Puts a frame on the air for a simulated chip to receive the next time it listens.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `payload` - the frame's payload; past 255 bytes it is cut to 255.
+// * `len` - the payload length.
+// * `rssi_centi_dbm` - the strength the chip hears the frame at, in hundredths of a dBm.
+// * `snr_centi_db` - the signal-to-noise ratio it hears it with, in hundredths of a dB.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null chip or a null
+// payload with a length.
+//
+// # Safety
+//
+// `chip` must be a live handle or null, and `payload` must point at `len` readable bytes or
+// be null.
+PamojaStatus pamoja_lora_sim_chip_hear(const PamojaLoraSimChip *chip,
+                                       const uint8_t *payload,
+                                       uintptr_t len,
+                                       int32_t rssi_centi_dbm,
+                                       int32_t snr_centi_db);
+
+// Puts a frame on the air whose CRC fails, which the chip reports and drops.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `rssi_centi_dbm` - the strength the chip hears the frame at, in hundredths of a dBm.
+// * `snr_centi_db` - the signal-to-noise ratio it hears it with, in hundredths of a dB.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null chip.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+PamojaStatus pamoja_lora_sim_chip_hear_corrupt(const PamojaLoraSimChip *chip,
+                                               int32_t rssi_centi_dbm,
+                                               int32_t snr_centi_db);
+
+// Returns how many frames wait on the air for a simulated chip to receive.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+//
+// # Returns
+//
+// The number of frames heard and not yet received, or 0 if `chip` is null.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+uintptr_t pamoja_lora_sim_chip_waiting(const PamojaLoraSimChip *chip);
+
+// Reads what a simulated chip is tuned to now.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `out_tuning` - receives the tuning.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument.
+//
+// # Safety
+//
+// `chip` must be a live handle or null, and `out_tuning` writable or null.
+PamojaStatus pamoja_lora_sim_chip_tuning(const PamojaLoraSimChip *chip,
+                                         PamojaLoraTuning *out_tuning);
+
+// Returns how many frames a simulated chip has put on the air.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+//
+// # Returns
+//
+// The number of frames sent, or 0 if `chip` is null.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+uintptr_t pamoja_lora_sim_chip_sent_count(const PamojaLoraSimChip *chip);
+
+// Reads what a simulated chip was tuned to when it sent a frame.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `index` - which frame, the oldest first.
+// * `out_tuning` - receives the tuning.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`], or [`PamojaStatus::InvalidArgument`] for a null argument or an index
+// past the frames sent.
+//
+// # Safety
+//
+// `chip` must be a live handle or null, and `out_tuning` writable or null.
+PamojaStatus pamoja_lora_sim_chip_sent_tuning(const PamojaLoraSimChip *chip,
+                                              uintptr_t index,
+                                              PamojaLoraTuning *out_tuning);
+
+// Copies the payload of a frame a simulated chip sent.
+//
+// # Arguments
+//
+// * `chip` - the chip.
+// * `index` - which frame, the oldest first.
+//
+// # Returns
+//
+// The payload, released with [`pamoja_buffer_free`](crate::pamoja_buffer_free), or null for
+// a null chip or an index past the frames sent.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+PamojaBuffer *pamoja_lora_sim_chip_sent_payload(const PamojaLoraSimChip *chip, uintptr_t index);
+
+// Releases a simulated chip. A radio wired to it keeps working until it is released too.
+//
+// # Arguments
+//
+// * `chip` - the chip, which must not be used again.
+//
+// # Safety
+//
+// `chip` must be a live handle or null.
+void pamoja_lora_sim_chip_free(PamojaLoraSimChip *chip);
 
 // Returns the published channel plan for a region.
 //

@@ -1,8 +1,11 @@
+using System.Text;
+
 using Pamoja;
 using Pamoja.Lora;
 using Pamoja.Radios;
 
 using static Guides.Guide;
+using static System.FormattableString;
 
 namespace Guides;
 
@@ -25,100 +28,89 @@ public static class RadiosGuide
         Sx126xTxPower power = Sx126x.TxPowerUnderCeiling(Sx126xAmplifier.HighPower, whip, ceiling);
         Console.WriteLine($"power     {power.SettingDbm} dBm under a {ceiling} dBm EIRP ceiling");
 
-        // The commands in the order section 14.2 of the datasheet gives, each sent in its
-        // own SPI transaction once BUSY is low. The chip gives up on the frame a second
-        // after its airtime.
-        ulong airtime = link.AirtimeMicros(10);
-        Sx126xIrq events = Sx126xIrq.TxDone | Sx126xIrq.Timeout;
-        (string Name, byte[] Bytes)[] commands =
-        [
-            ("standby", Sx126x.SetStandby()),
-            ("packet type", Sx126x.SetPacketTypeLora()),
-            ("frequency", Sx126x.SetRfFrequency(Frequency)),
-            ("pa config", Sx126x.SetPaConfig(power)),
-            ("tx params", Sx126x.SetTxParams(power, 40)),
-            ("modulation", Sx126x.SetLoraModulationParams(link)),
-            ("packet", Sx126x.SetLoraPacketParams(link, 10, false)),
-            ("irq", Sx126x.SetDioIrqParams(events, events)),
-            ("tx", Sx126x.SetTx(airtime + 1_000_000)),
-        ];
-        foreach ((string name, byte[] bytes) in commands)
+        // A simulated SX1262 stands in for the chip on the node's board, driven by the same
+        // code that drives a real one, and it reports what that code told it.
+        using SimulatedLoraChip chip = SimulatedLoraChip.Sx126x(new Sx126xBoard(Sx126xAmplifier.HighPower));
+        using LoraRadio bench = chip.Radio();
+        bench.Configure(new LoraRadioConfig(Frequency, link, power.SettingDbm));
+        LoraTuning tuned = chip.Tuning();
+        Console.WriteLine(Invariant(
+            $"tuned     {tuned.FrequencyHz / 1e6:F1} MHz, SF{tuned.Link.SpreadingFactor} at {tuned.Link.BandwidthHz / 1000} kHz, {tuned.OutputDbm} dBm"));
+
+        // The reading goes out, and the airtime comes back for the duty-cycle guard. The
+        // sub-band that holds 868.1 MHz allows 1% of the time, so the frame buys ninety-nine
+        // times as long in silence before the next.
+        byte[] reading = "level=0.42"u8.ToArray();
+        ulong airtime = bench.Transmit(reading);
+        Console.WriteLine($"sent      {chip.Sent()[0].Payload.Length} bytes, {airtime} us on air");
+        using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
+        guard.Transmitted(0, link, reading.Length);
+        Console.WriteLine($"silence   the next frame starts {guard.WaitMicros(0)} us after this one did");
+
+        // A gateway's answer arrives from the edge of range, 2.5 dB under the noise.
+        chip.Hear("ack"u8, -109, -2.5);
+        LoraReception heard = bench.Receive(TimeSpan.FromSeconds(1));
+        if (heard.Outcome == LoraReceptionOutcome.Frame)
         {
-            Console.WriteLine($"{name,-12}{string.Join(" ", bytes.Select(b => b.ToString("x2")))}");
+            Console.WriteLine(Invariant(
+                $"received  {Encoding.UTF8.GetString(heard.Payload!)} at {heard.RssiDbm:F2} dBm, SNR {heard.SnrDb:F2} dB"));
         }
 
-        // Once the frame has left, GetIrqStatus answers with TxDone, and the status byte
-        // shows the chip back in standby.
-        Sx126xIrq irq = Sx126x.Irq([0x00, 0x01]);
-        bool sent = irq.HasFlag(Sx126xIrq.TxDone);
-        bool timedOut = irq.HasFlag(Sx126xIrq.Timeout);
-        Console.WriteLine($"sent      tx done {sent}, timed out {timedOut}");
-        Sx126xStatus status = Sx126x.Status(0x2C);
-        Console.WriteLine($"status    {status.ChipMode}, {status.CommandStatus}");
-
-        // A frame that arrives later comes with the signal levels it was heard at.
-        Sx126xPacketStatus heard = Sx126x.PacketStatus([0xDB, 0xF6, 0xE0]);
-        Console.WriteLine($"received  RSSI {heard.RssiDbm} dBm, SNR {heard.SnrDb} dB");
-
-        // The sub-band that holds 868.1 MHz allows 1% of the time, so the frame's airtime
-        // buys ninety-nine times as long in silence before the next.
-        using var guard = new RadioDutyCycle(eu868.DutyCyclePermille(Frequency)!.Value);
-        ulong held = guard.Transmitted(0, link, 10);
-        Console.WriteLine($"airtime   {held} us, next frame after {guard.WaitMicros(0)} us");
+        // With nothing on the air the reception times out, and a frame whose CRC fails is
+        // dropped rather than handed over.
+        LoraReceptionOutcome quiet = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+        chip.HearCorrupt(-121, -12);
+        LoraReceptionOutcome broken = bench.Receive(TimeSpan.FromSeconds(1)).Outcome;
+        Console.WriteLine($"then      {quiet}, then {broken}");
         // ANCHOR_END: example
 
-        // The bytes each command carries are pinned once, in the crate tests and the
-        // generated conformance vectors, so a guide asserts behavior instead.
         Expect(power.SettingDbm == 14, "the whip and pigtail leave 14 dBm under the ceiling");
-        Expect(commands.Length == 9, "a transmission takes nine commands");
-        Expect(sent && !timedOut, "the frame left before the chip gave up on it");
-        Expect(held == airtime, "the guard records the frame's own airtime");
-        Expect(!guard.Ready(0), "a 1% sub-band owes silence after a frame");
-        Expect(guard.Ready(held * 100), "and allows the next once it has passed");
+        Expect(tuned.FrequencyHz == Frequency, "the chip is tuned to the carrier asked for");
+        Expect(chip.Sent()[0].Payload.SequenceEqual(reading), "and sent the reading");
+        Expect(guard.WaitMicros(0) == airtime * 100, "a 1% sub-band owes ninety-nine airtimes");
+        Expect(quiet == LoraReceptionOutcome.Timeout, "a quiet air times out");
+        Expect(broken == LoraReceptionOutcome.Corrupt, "and a bad CRC is dropped");
 
         // ANCHOR: rfm95w
         // An RFM95W wires the SX1276's PA_BOOST amplifier to its antenna. The same whip and
-        // the same 16 dBm ceiling leave it the same 14 dBm, set through three registers.
+        // the same 16 dBm ceiling leave it the same 14 dBm.
         using LoraChannelPlan band = LoraChannelPlan.ForRegion(LoraRegion.Eu868);
         const uint Channel = 868_100_000;
         LoraLink dr3 = band.LinkSettings(3)!;
         var antenna = new LoraLinkBudget { TransmitAntennaGainDbi = 2.15, TransmitCableLossDb = 0.5 };
         Sx127xTxPower rfm95w = Sx127x.TxPowerUnderCeiling(
             Sx127xPaOutput.PaBoost, antenna, band.MaxEirpDbm(Channel));
-        Console.WriteLine(
-            $"rfm95w    {rfm95w.OutputDbm} dBm on PA_BOOST: RegPaConfig {rfm95w.PaConfig:x2}, " +
-            $"RegPaDac {rfm95w.PaDac:x2}, RegOcp {rfm95w.Ocp:x2}");
 
-        // The carrier and the modem go into registers while the chip stands by, and TX mode
-        // sends the frame the FIFO holds.
-        Sx127xModem modem = Sx127x.Modem(dr3, Channel);
-        Console.WriteLine($"carrier   RegFrf {Sx127x.FrequencyWord(Channel):x6}");
+        // The same driver calls tune it, through registers this time. Its synthesizer steps
+        // in 61 Hz, so the carrier lands on the step nearest the one asked for.
+        using SimulatedLoraChip module = SimulatedLoraChip.Sx127x(new Sx127xBoard(Sx127xPaOutput.PaBoost));
+        using LoraRadio radio = module.Radio();
+        radio.Configure(new LoraRadioConfig(Channel, dr3, rfm95w.OutputDbm));
+        LoraTuning carrier = module.Tuning();
+        uint off = carrier.FrequencyHz > Channel ? carrier.FrequencyHz - Channel : Channel - carrier.FrequencyHz;
         Console.WriteLine(
-            $"modem     RegModemConfig {modem.ModemConfig1:x2} {modem.ModemConfig2:x2} " +
-            $"{modem.ModemConfig3:x2}");
-        Console.WriteLine($"tx mode   RegOpMode {Sx127x.LoraOpMode(Sx127xMode.Tx):x2}");
+            $"rfm95w    {carrier.OutputDbm} dBm on PA_BOOST, carrier {carrier.FrequencyHz} Hz, {off} Hz from {Channel}");
 
-        // A packet that arrives raises RxDone and ValidHeader, and the SNR and RSSI registers
-        // give its levels on the high frequency port.
-        var flags = (Sx127xIrq)0x50;
-        bool received = flags.HasFlag(Sx127xIrq.RxDone);
-        bool corrupt = flags.HasFlag(Sx127xIrq.PayloadCrcError);
-        Console.WriteLine($"irq       rx done {received}, crc error {corrupt}");
-        Sx127xPacketStatus packet = Sx127x.PacketStatus([0xF6, 0x30], Channel);
-        Console.WriteLine(
-            $"received  RSSI {packet.RssiDbm} dBm, SNR {packet.SnrDb} dB, signal {packet.SignalRssiDbm} dBm");
+        // The SX1276 gives a packet's strength in whole decibels, and works out the strength
+        // of the signal itself from the SNR when it arrived under the noise.
+        module.Hear("ack"u8, -109, -2.5);
+        LoraReception packet = radio.Receive(TimeSpan.FromSeconds(1));
+        if (packet.Outcome == LoraReceptionOutcome.Frame)
+        {
+            Console.WriteLine(Invariant(
+                $"received  RSSI {packet.RssiDbm:F2} dBm, SNR {packet.SnrDb:F2} dB, signal {packet.SignalRssiDbm:F2} dBm"));
+        }
 
         // An LLCC68 in the RFM95W's place could carry DR3, but not DR2, which is SF10 at 125 kHz.
-        bool Fits(byte dataRate) => Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!);
-        Console.WriteLine($"llcc68    DR3 {Fits(3)}, DR2 {Fits(2)}");
+        string Carries(byte dataRate) =>
+            Sx126x.Llcc68Supports(band.LinkSettings(dataRate)!) ? "carries" : "cannot carry";
+        Console.WriteLine($"llcc68    {Carries(3)} DR3 and {Carries(2)} DR2");
         // ANCHOR_END: rfm95w
 
         Expect(rfm95w.OutputDbm == 14, "PA_BOOST takes the same 14 dBm under the ceiling");
-        Expect(rfm95w.PaConfig == 0xFC, "on PA_BOOST with OutputPower 12");
-        Expect(modem.ModemConfig2 == 0x94, "SF9 with a CRC");
-        Expect(received && !corrupt, "the packet arrived whole");
-        Expect(Fits(3) && !Fits(2), "an LLCC68 carries DR3 but not DR2");
-
+        Expect(carrier.OutputDbm == 14, "and the chip was set to it");
+        Expect(off <= 61, "the carrier is within one synthesizer step");
+        Expect(Carries(3) == "carries", "an LLCC68 carries DR3");
         OnALinuxBoard();
     }
 

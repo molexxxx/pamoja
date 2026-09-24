@@ -480,6 +480,27 @@ pub(crate) fn settings(link: PamojaLoraLink) -> LinkSettings {
     settings
 }
 
+/// Flattens link settings for the boundary.
+///
+/// # Arguments
+///
+/// * `link` - the settings.
+///
+/// # Returns
+///
+/// The settings as a caller reads them.
+#[cfg(feature = "radios")]
+pub(crate) fn link_of(link: LinkSettings) -> PamojaLoraLink {
+    PamojaLoraLink {
+        bandwidth_hz: link.bandwidth_hz(),
+        preamble_symbols: link.preamble_symbols(),
+        spreading_factor: link.spreading_factor(),
+        coding_rate_denominator: link.coding_rate_denominator(),
+        explicit_header: u8::from(link.explicit_header()),
+        crc: u8::from(link.crc()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

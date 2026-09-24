@@ -29,6 +29,9 @@ lorawan = ["embedded-hal", "dep:pamoja-lorawan"]
 # Opening a radio on a Linux board through the spidev and GPIO character device backends
 # of pamoja-hal. Every other platform builds it and reports that no radio opens there.
 linux = ["std", "dep:pamoja-hal", "pamoja-hal/linux"]
+# Simulated SX126x and SX127x chips that answer the drivers with no radio attached, for
+# tests and for trying a radio program at a desk.
+sim = ["embedded-hal"]
 
 [dependencies]
 pamoja-lora = { path = "../pamoja-lora", version = "0.1.18", default-features = false }

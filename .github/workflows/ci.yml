@@ -57,6 +57,11 @@ jobs:
       - name: no_std robotics build
         run: cargo build --no-default-features -p pamoja-kit --features "robotics geo"
 
+      # The C ABI crate's documentation shows a library built with only the capabilities
+      # that decode protocol bytes, so that build is checked here along with the full one.
+      - name: C ABI with only the decoding capabilities
+        run: cargo check -p pamoja-ffi --no-default-features --features "modbus,can,serial,gpio,sensors,codec,security"
+
       - name: Test
         run: cargo test --workspace
 

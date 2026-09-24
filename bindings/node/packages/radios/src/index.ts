@@ -23,6 +23,8 @@ export type {
   LoraRadioConfig,
   LoraRadioWiring,
   LoraReception,
+  LoraSentFrame,
+  LoraTuning,
   Sx126xBoard,
   Sx127xBoard,
 } from '@pamoja/native'
@@ -58,14 +60,23 @@ export type ReceptionOutcome = NativeLoraReceptionOutcome
 
 export {
   /**
-   * A LoRa radio opened on a Linux board.
+   * A LoRa radio opened on a Linux board or wired to a simulated chip.
    *
    * `LoraRadio.openSx126x` and `LoraRadio.openSx127x` open a module through the kernel's
    * spidev and GPIO character devices and reset it; every call after that is the same for
    * either family, and each waits on a worker thread rather than the event loop. Only Linux
-   * reaches a radio, and opening one anywhere else throws.
+   * reaches a module, and opening one anywhere else throws. `SimulatedLoraChip.radio` gives
+   * the same class on any platform.
    */
   LoraRadio,
+  /**
+   * A simulated SX126x or SX127x, which a `LoraRadio` drives with no radio attached.
+   *
+   * `SimulatedLoraChip.sx126x` and `SimulatedLoraChip.sx127x` make one out of reset, and
+   * `radio` wires a `LoraRadio` to it. `hear` puts a frame on the air for it to receive,
+   * and `tuning` and `sent` read back what the radio told it and what it sent.
+   */
+  SimulatedLoraChip,
   /**
    * The silence a radio owes after its transmissions under a duty-cycle limit.
    *
