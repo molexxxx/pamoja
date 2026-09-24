@@ -6679,6 +6679,26 @@ fn profile() -> Value {
     let built_drip = built(&drip);
     let built_guard = built(&guard);
 
+    // A heater whose probe fails for one reading: the reading is raised as invalid, and
+    // the lamp holds through it rather than switching on a number that is not there.
+    let mut heater = Controller::setpoint(32.0, 0.5, false, 4.0);
+    let failed_probe: Vec<Value> = [27.5, f32::NAN, 32.2]
+        .iter()
+        .map(|reading| reaction_value(*reading, heater.evaluate(*reading)))
+        .collect();
+
+    let plan = fridge.power.plan();
+    let charges: Vec<Value> = [0.9f32, 0.3, 0.1]
+        .iter()
+        .map(|&soc| {
+            json!({
+                "soc": soc,
+                "mode": format!("{:?}", plan.mode(soc)),
+                "intervalUs": u64::try_from(plan.interval(soc).as_micros()).expect("an interval"),
+            })
+        })
+        .collect();
+
     json!({
         "coldChain": {
             "name": fridge.name,
@@ -6686,7 +6706,13 @@ fn profile() -> Value {
             "control": control_value(&fridge.control),
             "power": schedule_value(fridge.power),
             "reactions": cold_chain,
+            "plan": charges,
         },
+        "failedProbe": {
+            "control": { "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safeBand": 4.0 },
+            "reactions": failed_probe,
+        },
+        "refused": refused_manifests(),
         "draining": {
             "name": well.name,
             "control": control_value(&well.control),
@@ -6751,7 +6777,9 @@ fn schedule_value(schedule: PowerSchedule) -> Value {
     })
 }
 
-/// Flattens one decision, tagged with the reading that produced it.
+/// Flattens one decision, tagged with the reading that produced it. JSON has no NaN, so
+/// a reading that is not a number is written as the text `"NaN"`, which every language
+/// parses back to one.
 fn reaction_value(reading: f32, reaction: Reaction) -> Value {
     let alert = match reaction.alert {
         None => json!({ "kind": "None" }),
@@ -6767,17 +6795,92 @@ fn reaction_value(reading: f32, reaction: Reaction) -> Value {
             "kind": "ChangingFast",
             "rate": rate,
         }),
+        Some(Alert::InvalidReading { .. }) => json!({ "kind": "InvalidReading" }),
         Some(Alert::Custom { code, value }) => json!({
             "kind": "Custom",
             "code": code,
             "value": value,
         }),
     };
+    let reading = if reading.is_finite() {
+        json!(reading)
+    } else {
+        json!(reading.to_string())
+    };
     json!({
         "reading": reading,
         "actuator": reaction.actuator,
         "alert": alert,
     })
+}
+
+/// Manifests every binding must refuse as it loads them, each with a phrase its reason
+/// carries.
+fn refused_manifests() -> Vec<Value> {
+    let manifest = |control: &str, power: &str, topic: &str| {
+        format!(
+            "{{ \"name\": \"brooder-heater\", \"topic\": \"{topic}\", \"control\": {control}, \"power\": {power} }}"
+        )
+    };
+    let heater = r#"{ "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.5, "cooling": false, "safe_band": 4.0 }"#;
+    let schedule = r#"{ "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }"#;
+    let topic = "poultry/brooder/temperature";
+    let cases = [
+        (
+            manifest(
+                r#"{ "kind": "setpoint", "setpoint": 32.0, "hysteresis": 0.0, "cooling": false, "safe_band": 4.0 }"#,
+                schedule,
+                topic,
+            ),
+            "chatters",
+        ),
+        (
+            manifest(
+                r#"{ "kind": "setpoint", "setpoint": 32.0, "hysteresis": 2.0, "cooling": false, "safe_band": 1.0 }"#,
+                schedule,
+                topic,
+            ),
+            "inside the deadband",
+        ),
+        (
+            manifest(
+                heater,
+                r#"{ "active_secs": 120, "saver_secs": 60, "critical_secs": 1800 }"#,
+                topic,
+            ),
+            "must not shorten",
+        ),
+        (
+            manifest(
+                heater,
+                r#"{ "active_secs": 120, "saver_secs": 600, "critical_secs": 1800, "saver_below": 0.2, "critical_below": 0.5 }"#,
+                topic,
+            ),
+            "`critical_below` must sit between",
+        ),
+        (
+            manifest(heater, schedule, "poultry/+/temperature"),
+            "is a filter",
+        ),
+        (
+            manifest(
+                r#"{ "kind": "surge", "rising": true, "limit": 0.0 }"#,
+                schedule,
+                topic,
+            ),
+            "every sample is a surge",
+        ),
+    ];
+    cases
+        .iter()
+        .map(|(manifest, reason)| {
+            let refused = Profile::from_json(manifest)
+                .expect_err("the manifest is refused")
+                .to_string();
+            assert!(refused.contains(reason), "{refused}");
+            json!({ "manifest": manifest, "reason": reason })
+        })
+        .collect()
 }
 
 /// The ROS 2 naming and encoding answers every binding must agree on.

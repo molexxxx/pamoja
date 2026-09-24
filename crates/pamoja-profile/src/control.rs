@@ -31,6 +31,17 @@ pub enum Alert {
         /// The change since the previous sample, as a positive number.
         rate: f32,
     },
+    /// A reading that is not a finite number, such as the NaN a failed probe or a
+    /// garbled payload produces.
+    ///
+    /// Every built-in kind but a monitor raises it, since a node that goes quiet when its
+    /// sensor fails looks exactly like one whose readings are fine. The reading changes
+    /// nothing: a setpoint's output holds its last state, and a level or a surge carries
+    /// on from the last good reading.
+    InvalidReading {
+        /// The reading as it arrived.
+        reading: f32,
+    },
     /// A condition a policy of your own raised, named by a code it chose.
     ///
     /// The code is a fixed identifier the policy's author picks, such as
@@ -54,13 +65,14 @@ impl Alert {
     ///
     /// # Returns
     ///
-    /// One of `"OutOfRange"`, `"RunningOut"`, or `"ChangingFast"`, or the code a
-    /// custom alert was raised with.
+    /// One of `"OutOfRange"`, `"RunningOut"`, `"ChangingFast"`, or `"InvalidReading"`,
+    /// or the code a custom alert was raised with.
     pub fn kind(self) -> &'static str {
         match self {
             Alert::OutOfRange { .. } => "OutOfRange",
             Alert::RunningOut { .. } => "RunningOut",
             Alert::ChangingFast { .. } => "ChangingFast",
+            Alert::InvalidReading { .. } => "InvalidReading",
             Alert::Custom { code, .. } => code,
         }
     }
@@ -509,15 +521,22 @@ impl Controller {
 
     /// Evaluates one reading and returns the action and any alert it calls for.
     ///
+    /// A controller remembers what it has seen: a setpoint whether its output is on, a
+    /// level and a surge the previous reading. Keep one controller for the life of the
+    /// node and hand it every reading in turn.
+    ///
     /// # Arguments
     ///
-    /// * `reading` - the latest measured value, in real-world units.
+    /// * `reading` - the latest measured value, in real-world units. One that is not a
+    ///   finite number raises [`Alert::InvalidReading`] under every kind but a monitor,
+    ///   and changes nothing.
     ///
     /// # Returns
     ///
     /// The [`Reaction`] for this reading: the actuator setting (if the profile drives
     /// one) and any alert the reading raised.
     pub fn evaluate(&mut self, reading: f32) -> Reaction {
+        let invalid = (!reading.is_finite()).then_some(Alert::InvalidReading { reading });
         match &mut self.policy {
             Builtin::Setpoint {
                 thermostat,
@@ -525,11 +544,10 @@ impl Controller {
                 safe_band,
             } => {
                 let on = thermostat.update(reading);
-                let alert = if (reading - *setpoint).abs() > *safe_band {
-                    Some(Alert::OutOfRange { reading })
-                } else {
-                    None
-                };
+                let alert = invalid.or_else(|| {
+                    ((reading - *setpoint).abs() > *safe_band)
+                        .then_some(Alert::OutOfRange { reading })
+                });
                 Reaction {
                     actuator: Some(on),
                     alert,
@@ -540,19 +558,23 @@ impl Controller {
                 warn_within,
             } => {
                 let warn_within = *warn_within;
-                let alert = depletion
-                    .update(reading)
-                    .filter(|samples| *samples <= warn_within)
-                    .map(|samples| Alert::RunningOut { samples });
+                let alert = invalid.or_else(|| {
+                    depletion
+                        .update(reading)
+                        .filter(|samples| *samples <= warn_within)
+                        .map(|samples| Alert::RunningOut { samples })
+                });
                 Reaction {
                     actuator: None,
                     alert,
                 }
             }
             Builtin::Surge { surge } => {
-                let alert = surge
-                    .update(reading)
-                    .map(|rate| Alert::ChangingFast { rate });
+                let alert = invalid.or_else(|| {
+                    surge
+                        .update(reading)
+                        .map(|rate| Alert::ChangingFast { rate })
+                });
                 Reaction {
                     actuator: None,
                     alert,
@@ -605,6 +627,57 @@ mod tests {
             Some(Alert::RunningOut { samples: 3 })
         ); // now within the window
         assert_eq!(control.evaluate(6.0).actuator, None); // never drives an output
+    }
+
+    #[test]
+    fn a_reading_that_is_not_a_number_is_raised_and_changes_nothing() {
+        let mut heater = Controller::setpoint(32.0, 0.5, false, 4.0);
+        assert_eq!(heater.evaluate(27.5).actuator, Some(true));
+        let failed = heater.evaluate(f32::NAN);
+        assert_eq!(
+            failed.actuator,
+            Some(true),
+            "the output holds its last state"
+        );
+        assert!(
+            matches!(failed.alert, Some(Alert::InvalidReading { reading }) if reading.is_nan())
+        );
+        assert_eq!(
+            heater.evaluate(f32::INFINITY).alert,
+            Some(Alert::InvalidReading {
+                reading: f32::INFINITY
+            })
+        );
+
+        let mut well = Controller::level(0.0, 3);
+        well.evaluate(10.0);
+        assert_eq!(
+            well.evaluate(f32::NAN).alert.map(Alert::kind),
+            Some("InvalidReading")
+        );
+        assert_eq!(
+            well.evaluate(8.0).alert,
+            None,
+            "the fall is measured from 10"
+        );
+        assert_eq!(
+            well.evaluate(6.0).alert,
+            Some(Alert::RunningOut { samples: 3 })
+        );
+
+        let mut river = Controller::surge(true, 0.5);
+        river.evaluate(1.0);
+        assert_eq!(
+            river.evaluate(f32::NEG_INFINITY).alert.map(Alert::kind),
+            Some("InvalidReading")
+        );
+        assert_eq!(
+            river.evaluate(1.25).alert,
+            None,
+            "the rise is measured from 1"
+        );
+
+        assert_eq!(Controller::monitor().evaluate(f32::NAN).alert, None);
     }
 
     #[test]

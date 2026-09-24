@@ -12,7 +12,7 @@
 //! The declaration is presentation only. Values still travel in the snapshot as raw
 //! numbers and stable keys; this names how to *show* them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -604,6 +604,118 @@ impl Presentation {
         self.messages.insert(key.into(), text.into());
         self
     }
+
+    /// Checks the presentation for what the dashboard could not draw.
+    ///
+    /// [`Profile::check`](crate::Profile::check) runs this on the presentation a profile
+    /// carries.
+    ///
+    /// # Returns
+    ///
+    /// Nothing when every element, message, and theme color is usable.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Codec`](pamoja_core::Error::Codec) naming the first problem: an
+    /// element with no key, unit, or label, a key declared twice, a band whose low end is
+    /// not below its high end, a starting value that is not a finite number, both a
+    /// starting value and a state, or a state that is not a `state.` code; a message whose
+    /// code is neither a `state.` nor an `event.` code, that is empty, or that gives no
+    /// `en` text; or a theme color that is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pamoja_profile::{ElementSpec, Presentation, Viz};
+    ///
+    /// let upside_down = Presentation::new().with_element(
+    ///     ElementSpec::new("water_turbidity", "ntu", "Turbidity", Viz::Gauge).with_band(5.0, 0.0),
+    /// );
+    /// let refused = upside_down.check().unwrap_err().to_string();
+    /// assert!(refused.contains("the low end comes first"));
+    /// ```
+    pub fn check(&self) -> pamoja_core::Result<()> {
+        let mut keys = BTreeSet::new();
+        for element in &self.elements {
+            let key = &element.key;
+            if key.trim().is_empty() {
+                return refuse("an element needs a key".to_owned());
+            }
+            if element.unit.trim().is_empty() {
+                return refuse(format!("the element `{key}` has no unit"));
+            }
+            if element.label.trim().is_empty() {
+                return refuse(format!("the element `{key}` has no label"));
+            }
+            if !keys.insert(key.as_str()) {
+                return refuse(format!("the element `{key}` is declared twice"));
+            }
+            if let Some([low, high]) = element.band {
+                if !(low.is_finite() && high.is_finite() && low < high) {
+                    return refuse(format!(
+                        "the element `{key}` has a band of {low} to {high}; the low end comes first"
+                    ));
+                }
+            }
+            if element.value.is_some_and(|value| !value.is_finite()) {
+                return refuse(format!(
+                    "the element `{key}` has a starting value that is not a finite number"
+                ));
+            }
+            if let Some(state) = &element.state {
+                if element.value.is_some() {
+                    return refuse(format!(
+                        "the element `{key}` starts with both a value and a state; a reading is one or the other"
+                    ));
+                }
+                if !state.starts_with("state.") {
+                    return refuse(format!(
+                        "the element `{key}` starts in `{state}`, which is not a `state.` code"
+                    ));
+                }
+            }
+        }
+        for (code, text) in &self.messages {
+            if !(code.starts_with("state.") || code.starts_with("event.")) {
+                return refuse(format!(
+                    "the message `{code}` is neither a `state.` nor an `event.` code"
+                ));
+            }
+            match text {
+                LocalizedText::Plain(text) if text.trim().is_empty() => {
+                    return refuse(format!("the message `{code}` is empty"));
+                }
+                LocalizedText::PerLocale(map) if !map.contains_key("en") => {
+                    return refuse(format!(
+                        "the message `{code}` gives no `en` text, which every other locale falls back to"
+                    ));
+                }
+                _ => {}
+            }
+        }
+        if let Some(theme) = &self.theme {
+            for (name, color) in [
+                ("accent", &theme.accent),
+                ("ok", &theme.ok),
+                ("warn", &theme.warn),
+                ("alarm", &theme.alarm),
+                ("track", &theme.track),
+            ] {
+                if color
+                    .as_deref()
+                    .is_some_and(|color| color.trim().is_empty())
+                {
+                    return refuse(format!("the theme's `{name}` color is empty"));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Refuses a profile or presentation, naming what is wrong with it.
+pub(crate) fn refuse(reason: String) -> pamoja_core::Result<()> {
+    Err(pamoja_core::Error::Codec(reason))
 }
 
 #[cfg(test)]

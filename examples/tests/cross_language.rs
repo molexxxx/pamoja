@@ -3773,6 +3773,36 @@ fn profile_vectors_match() {
     let mut control = fridge.controller();
     assert_reactions(&mut control, &cold_chain["reactions"]);
 
+    let plan = fridge.power.plan();
+    for charge in cold_chain["plan"].as_array().expect("the charges") {
+        let soc = float(&charge["soc"]);
+        assert_eq!(
+            format!("{:?}", plan.mode(soc)),
+            charge["mode"].as_str().expect("the mode")
+        );
+        assert_eq!(
+            u64::try_from(plan.interval(soc).as_micros()).expect("an interval"),
+            charge["intervalUs"].as_u64().expect("the interval")
+        );
+    }
+
+    let failed = &vector["failedProbe"]["control"];
+    let mut heater = Controller::setpoint(
+        float(&failed["setpoint"]),
+        float(&failed["hysteresis"]),
+        failed["cooling"].as_bool().expect("the direction"),
+        float(&failed["safeBand"]),
+    );
+    assert_reactions(&mut heater, &vector["failedProbe"]["reactions"]);
+
+    for case in vector["refused"].as_array().expect("the refused manifests") {
+        let refused = Profile::from_json(case["manifest"].as_str().expect("the manifest"))
+            .expect_err("the manifest is refused")
+            .to_string();
+        let reason = case["reason"].as_str().expect("the reason");
+        assert!(refused.contains(reason), "{refused} should say {reason}");
+    }
+
     let draining = &vector["draining"];
     let well = Profile::well_level();
     assert_eq!(well.name, draining["name"].as_str().expect("the name"));
@@ -3839,10 +3869,14 @@ fn spec_from(control: &Value) -> ControlSpec {
     }
 }
 
-/// Walks a controller through a recorded run and checks every decision.
+/// Walks a controller through a recorded run and checks every decision. A reading JSON
+/// cannot hold, such as NaN, is written as text.
 fn assert_reactions(control: &mut Controller, reactions: &Value) {
     for want in reactions.as_array().expect("the reactions") {
-        let reading = float(&want["reading"]);
+        let reading = match want["reading"].as_str() {
+            Some(text) => text.parse::<f32>().expect("a reading written as text"),
+            None => float(&want["reading"]),
+        };
         let reaction = control.evaluate(reading);
         assert_eq!(
             reaction.actuator,
@@ -3868,6 +3902,9 @@ fn assert_reactions(control: &mut Controller, reactions: &Value) {
             }
             Some(Alert::ChangingFast { rate }) => {
                 assert_eq!(rate, float(&alert["rate"]));
+            }
+            Some(Alert::InvalidReading { reading: offending }) => {
+                assert!(offending.is_nan() && reading.is_nan() || offending == reading);
             }
             Some(Alert::Custom { code, value }) => {
                 assert_eq!(code, alert["code"].as_str().expect("the code"));
@@ -3933,6 +3970,7 @@ fn alert_name(alert: Option<&Alert>) -> &'static str {
         Some(Alert::OutOfRange { .. }) => "OutOfRange",
         Some(Alert::RunningOut { .. }) => "RunningOut",
         Some(Alert::ChangingFast { .. }) => "ChangingFast",
+        Some(Alert::InvalidReading { .. }) => "InvalidReading",
         Some(Alert::Custom { .. }) => "Custom",
     }
 }

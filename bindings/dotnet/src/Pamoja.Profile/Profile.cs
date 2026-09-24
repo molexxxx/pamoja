@@ -43,12 +43,19 @@ public enum AlertKind
 
     /// <summary>A condition a policy of the program's own raised, named by its code.</summary>
     Custom = 4,
+
+    /// <summary>
+    /// A reading that is not a finite number, such as the NaN a failed probe produces. It
+    /// changes nothing: a setpoint's output holds, and a level or a surge carries on from
+    /// the last good reading.
+    /// </summary>
+    InvalidReading = 5,
 }
 
 /// <summary>An alert a reading raised.</summary>
 /// <remarks>Only the value belonging to <see cref="Kind"/> is set.</remarks>
 /// <param name="Kind">Which threshold the reading crossed.</param>
-/// <param name="Reading">The offending reading, for an out-of-range alert.</param>
+/// <param name="Reading">The offending reading, for an out-of-range or invalid-reading alert.</param>
 /// <param name="Samples">The samples until empty, for a running-out alert.</param>
 /// <param name="Rate">The change since the previous sample, for a changing-fast alert.</param>
 /// <param name="Code">The condition's name, for a custom alert.</param>
@@ -474,6 +481,8 @@ public sealed class Controller : IDisposable
                 new Alert(AlertKind.RunningOut, null, reaction.Samples, null),
             PamojaAlertKind.ChangingFast =>
                 new Alert(AlertKind.ChangingFast, null, null, reaction.Rate),
+            PamojaAlertKind.InvalidReading =>
+                new Alert(AlertKind.InvalidReading, reaction.Reading, null, null),
             PamojaAlertKind.Custom =>
                 new Alert(AlertKind.Custom, null, null, null, reaction.Code.ToText(), reaction.Value),
             _ => null,

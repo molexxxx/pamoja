@@ -114,6 +114,12 @@ export const AlertKind = {
   RunningOut: 'RunningOut' as AlertKindName,
   /** A reading is changing faster than its safe rate. */
   ChangingFast: 'ChangingFast' as AlertKindName,
+  /**
+   * A reading that is not a finite number, such as the NaN a failed probe produces.
+   * It changes nothing: a setpoint's output holds, and a level or a surge carries on
+   * from the last good reading.
+   */
+  InvalidReading: 'InvalidReading' as AlertKindName,
   /** A condition a policy of the program's own raised, named by `code`. */
   Custom: 'Custom' as AlertKindName,
 } as const

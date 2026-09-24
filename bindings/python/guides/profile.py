@@ -1,10 +1,10 @@
 """The device-profile guide example; see docs/guides/profile.md."""
 
 # ANCHOR: example
-from pamoja.profile import AlertKind, ControlKind, ElementSpec, Presentation, Profile, Viz
+from pamoja.profile import ElementSpec, Presentation, Profile, Viz
 
-# A profile is plain data, so a fleet ships one as a file rather than as code. The two
-# power thresholds are optional and fall back to the documented defaults.
+# A profile is plain data, so a fleet ships one as a file rather than as code. This
+# manifest names no battery thresholds, so the documented defaults apply.
 manifest = """{
     "name": "brooder-heater",
     "topic": "poultry/brooder/temperature",
@@ -14,28 +14,48 @@ manifest = """{
     },
     "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }"""
-
 profile = Profile.from_json(manifest)
-print(f"{profile.name} reports on {profile.topic}")
-print(f"wakes every {profile.power.active_secs}s while the battery is healthy")
-print(f"saver mode below {profile.power.saver_below * 100:.0f}% charge")
+print(f"profile   {profile.name} reports on {profile.topic}")
+print(
+    "defaults  the file names no battery thresholds, so saver starts below "
+    f"{profile.power.saver_below * 100:.0f}% and critical below "
+    f"{profile.power.critical_below * 100:.0f}%"
+)
 
-# The manifest is the whole control loop. At 27.5 C the reading is below the deadband, so
-# the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-cold = profile.controller().evaluate(27.5)
-print(f"at 27.5 C: lamp {cold.actuator}, alert {cold.alert.kind if cold.alert else None}")
+# The schedule becomes a power plan, which says what mode a charge puts the node in and
+# how long it waits between samples there, in microseconds.
+plan = profile.power_plan()
+for charge in [0.8, 0.3, 0.1]:
+    print(
+        f"battery   at {charge * 100:.0f}% it runs {plan.mode(charge)} "
+        f"and samples every {plan.interval_us(charge) // 1_000_000} s"
+    )
 
-# Back inside the deadband the lamp is left as it was, and nothing is raised.
-settled = profile.controller().evaluate(32.2)
-print(f"at 32.2 C: lamp {settled.actuator}, alert {settled.alert}")
+# One controller runs for the life of the node, because it remembers whether the lamp is
+# on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the setpoint
+# less and plus the hysteresis, and in between it stays as it was. A reading more than 4 C
+# from the setpoint raises an alert as well.
+controller = profile.controller()
+lamp = False
+for reading in [27.5, 31.8, 32.6, 32.1, 31.4]:
+    reaction = controller.evaluate(reading)
+    on = reaction.actuator is True
+    if on:
+        change = "lamp stays on" if lamp else "lamp on"
+    else:
+        change = "lamp off" if lamp else "lamp stays off"
+    alert = f", alert {reaction.alert.kind}" if reaction.alert else ""
+    print(f"{f'{reading:g} C':<10}{change}{alert}")
+    lamp = on
 
-# Serializing writes the defaulted fields out in full, so a profile edited on a device and
-# shared back carries no value the next reader has to infer.
+# Written back out, the manifest names the thresholds the file left to their defaults, so
+# the next reader has nothing to infer, and it loads as the same profile.
 shared = profile.to_json()
-print(f"shared form names its defaults: {'saver_below' in shared}")
+if "saver_below" in shared and Profile.from_json(shared).to_json() == shared:
+    print("shared    written back out, it names saver_below and loads as the same profile")
 
-# The manifest also carries how a dashboard draws the node: one element here, the
-# brooder's temperature as a thermometer with the band the chicks are safe in.
+# The manifest also carries how a dashboard draws the node: one element here, the brooder's
+# temperature on a thermometer with the band the chicks are safe in.
 drawn = profile.with_presentation(
     Presentation(
         [
@@ -48,19 +68,88 @@ drawn = profile.with_presentation(
 )
 element = drawn.presentation.elements[0]
 low, high = element.band
-print(f"draws {element.key} in {element.unit} with a safe band of {low:g} to {high:g}")
+print(
+    f"draws     {element.key} in {element.unit} on a {element.viz}, "
+    f"safe from {low:g} to {high:g}"
+)
 # ANCHOR_END: example
 
-assert profile.control.kind == ControlKind.SETPOINT
-assert profile.control.setpoint == 32.0
-assert profile.control.cooling is False
-assert profile.power.active_secs == 120
+assert lamp
 assert profile.power.saver_below == 0.5
-assert cold.actuator is True
-assert cold.alert.kind == AlertKind.OUT_OF_RANGE
-assert settled.alert is None
-assert "saver_below" in shared
-assert Profile.from_json(shared).name == profile.name
-assert element.viz == Viz.THERMOMETER
-assert element.band == (28.0, 36.0)
-assert '"viz": "thermometer"' in drawn.to_json()
+
+# ANCHOR: kinds
+from pamoja.profile import AlertKind
+
+# A level warns before a tank or a well runs dry. The shipped well profile counts 0.5 m as
+# dry and warns once the last fall puts dry six samples away or nearer.
+well = Profile.well_level().controller()
+for depth in [5.0, 4.4, 3.8]:
+    alert = well.evaluate(depth).alert
+    if alert and alert.kind == AlertKind.RUNNING_OUT:
+        print(f"well      {depth:g} m: dry in {alert.samples} samples at this rate, RunningOut")
+    else:
+        print(f"well      {depth:g} m: no warning yet")
+
+# A surge warns when a reading moves too far in one sample. The shipped flood sensor warns
+# when a river rises more than 0.3 m between two readings.
+river = Profile.flood_sensor().controller()
+for gauge in [1.2, 1.35, 1.9]:
+    alert = river.evaluate(gauge).alert
+    if alert and alert.kind == AlertKind.CHANGING_FAST:
+        print(f"river     {gauge:g} m: up {alert.rate:.2f} m in one sample, ChangingFast")
+    else:
+        print(f"river     {gauge:g} m: no warning")
+# ANCHOR_END: kinds
+
+# ANCHOR: wrong
+from pamoja.core import PamojaError
+from pamoja.profile import ControlKind
+
+# A probe that fails reports a reading that is not a number. The controller raises it
+# rather than going quiet, and the lamp holds its state; what off means for the chicks is
+# the node's call.
+failed = controller.evaluate(float("nan"))
+if failed.alert:
+    holds = "on" if failed.actuator is True else "off"
+    print(f"probe     a reading of NaN raises {failed.alert.kind}, and the lamp holds {holds}")
+
+# A controller built again for each reading forgets the lamp was on, so inside the deadband
+# it switches the lamp off.
+first = profile.controller().evaluate(27.5).actuator
+then = profile.controller().evaluate(31.8).actuator
+if first is True and then is False:
+    print("fresh     built again for each reading, the controller turns the lamp off at 31.8 C")
+
+# A manifest no node could run is refused as it loads, with the reason.
+for edited in [
+    manifest.replace('"hysteresis": 0.5', '"hysteresis": 0.0'),
+    manifest.replace('"saver_secs": 600', '"saver_secs": 60'),
+]:
+    try:
+        Profile.from_json(edited)
+        print("a manifest no node could run was accepted, which should never happen")
+    except PamojaError as error:
+        print(f"refused   {error}")
+
+# A misspelled optional field is not an error: it names no field, so the default stays.
+# Writing the profile back out shows what the node understood.
+misspelled = manifest.replace(
+    '"critical_secs": 1800 }', '"critical_secs": 1800, "saver_bellow": 0.3 }'
+)
+understood = Profile.from_json(misspelled)
+print(
+    "typo      saver_bellow names no field, so saver still starts below "
+    f"{understood.power.saver_below * 100:.0f}%"
+)
+
+# A kind the library does not ship loads with its parameters and runs as a monitor until
+# the node supplies the policy, so it drives nothing and raises nothing.
+custom = Profile.from_json(manifest.replace('"kind": "setpoint"', '"kind": "brooder_guard"'))
+if custom.control.kind == ControlKind.CUSTOM:
+    reaction = custom.controller().evaluate(27.5)
+    if reaction.actuator is None and reaction.alert is None:
+        print(
+            f"custom    {custom.control.custom_kind} loads with {len(custom.control.params)} "
+            "parameters, and with no policy behind it drives nothing"
+        )
+# ANCHOR_END: wrong

@@ -32,6 +32,9 @@ use pamoja_profile::{
     Profile as CoreProfile, Reaction as CoreReaction, Scope, Theme as CoreTheme, Viz,
 };
 
+use crate::power::PowerPlan;
+use crate::PamojaError;
+
 /// The graphics a dashboard draws with, by the name a manifest carries.
 const GRAPHICS: [(&str, Viz); 15] = [
     ("spark", Viz::Spark),
@@ -534,10 +537,11 @@ impl PowerScheduleSpec {
 #[pyclass]
 pub struct AlertReport {
     /// Which threshold the reading crossed: `OutOfRange`, `RunningOut`,
-    /// `ChangingFast`, or `Custom` for a condition the program's own policy raised.
+    /// `ChangingFast`, `InvalidReading` for a reading that is not a finite number, or
+    /// `Custom` for a condition the program's own policy raised.
     #[pyo3(get)]
     kind: String,
-    /// The offending reading, for an out-of-range alert.
+    /// The offending reading, for an out-of-range or invalid-reading alert.
     #[pyo3(get)]
     reading: Option<f32>,
     /// The estimated samples until empty, for a running-out alert.
@@ -673,7 +677,7 @@ fn spec_of(policy: &ControlPolicy) -> PyResult<ControlSpec> {
                 .ok_or_else(|| PyValueError::new_err("a Custom control needs custom_kind"))?;
             let params = policy.params.clone().unwrap_or_default();
             ControlSpec::custom(kind, Params::from(params))
-                .map_err(|error| PyValueError::new_err(error.to_string()))
+                .map_err(|error| PamojaError::new_err(error.to_string()))
         }
         _ => Ok(ControlSpec::Monitor),
     }
@@ -713,6 +717,10 @@ fn alert_of(alert: Alert) -> AlertReport {
             report.kind = "ChangingFast".to_owned();
             report.rate = Some(rate);
         }
+        Alert::InvalidReading { reading } => {
+            report.kind = "InvalidReading".to_owned();
+            report.reading = Some(reading);
+        }
         Alert::Custom { code, value } => {
             report.kind = "Custom".to_owned();
             report.code = Some(code.to_owned());
@@ -735,8 +743,10 @@ impl Profile {
     /// Creates a profile of the program's own from its parts, with no description and
     /// no presentation.
     ///
-    /// Raises `ValueError` if the control lacks a field its kind needs, or a custom kind
-    /// is empty, built in, or has a parameter named `kind`.
+    /// Raises `ValueError` if the control lacks a field its kind needs, and
+    /// `PamojaError` if a custom kind is empty, built in, or has a parameter named
+    /// `kind`, or the profile is one no node could run, such as a hysteresis of zero or
+    /// intervals that shorten as the battery drains.
     #[new]
     fn new(
         name: String,
@@ -751,9 +761,7 @@ impl Profile {
             saver_below: power.saver_below,
             critical_below: power.critical_below,
         };
-        Ok(Self {
-            inner: CoreProfile::new(name, topic, spec_of(&control)?, schedule),
-        })
+        checked(CoreProfile::new(name, topic, spec_of(&control)?, schedule))
     }
 
     /// A cold-chain fridge monitor, which holds 5 C and flags an excursion.
@@ -790,19 +798,20 @@ impl Profile {
 
     /// Loads a profile from its JSON manifest.
     ///
-    /// Raises `ValueError` if the manifest is malformed.
+    /// Raises `PamojaError` if the manifest is malformed, or describes a profile no node
+    /// could run.
     #[staticmethod]
     fn from_json(manifest: &str) -> PyResult<Self> {
         CoreProfile::from_json(manifest)
             .map(|inner| Self { inner })
-            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+            .map_err(|error| PamojaError::new_err(error.to_string()))
     }
 
     /// Serializes this profile to its JSON manifest.
     fn to_json(&self) -> PyResult<String> {
         self.inner
             .to_json()
-            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+            .map_err(|error| PamojaError::new_err(error.to_string()))
     }
 
     /// The profile's stable, human-readable name.
@@ -842,14 +851,15 @@ impl Profile {
 
     /// A copy of this profile carrying a dashboard presentation.
     ///
-    /// Raises `ValueError` if an element names a graphic the dashboard does not draw.
+    /// Raises `ValueError` if an element names a graphic the dashboard does not draw, and
+    /// `PamojaError` if the presentation holds something else the dashboard could not
+    /// draw, such as a band whose low end comes second.
     fn with_presentation(&self, presentation: &Presentation) -> PyResult<Self> {
-        Ok(Self {
-            inner: self
-                .inner
+        checked(
+            self.inner
                 .clone()
                 .with_presentation(presentation.to_core()?),
-        })
+        )
     }
 
     /// The control policy applied to each reading.
@@ -864,12 +874,30 @@ impl Profile {
         schedule_of(self.inner.power)
     }
 
+    /// The schedule assembled into the power governor, which says what mode a charge puts
+    /// the node in and how long it waits between samples there.
+    fn power_plan(&self) -> PowerPlan {
+        PowerPlan::of(self.inner.power.plan())
+    }
+
     /// Builds the decision logic this profile describes.
+    ///
+    /// Each call builds a new controller, so keep the one it returns for the life of the
+    /// node: one built again for each reading forgets whether its output was on and what
+    /// the reading before was.
     fn controller(&self) -> Controller {
         Controller {
             inner: Mutex::new(self.inner.controller()),
         }
     }
+}
+
+/// Hands a profile to Python once it passes its check, or says why it does not.
+fn checked(inner: CoreProfile) -> PyResult<Profile> {
+    inner
+        .check()
+        .map_err(|error| PamojaError::new_err(error.to_string()))?;
+    Ok(Profile { inner })
 }
 
 /// The decision logic a profile assembles.

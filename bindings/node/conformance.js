@@ -3570,6 +3570,25 @@ function profileVectors() {
   close(fridge.power.saverBelow, coldChain.power.saverBelow, "the saver threshold");
   assertReactions(fridge.controller(), coldChain.reactions);
 
+  const plan = fridge.powerPlan();
+  for (const charge of coldChain.plan) {
+    assert.strictEqual(plan.mode(charge.soc), charge.mode, `the mode at ${charge.soc}`);
+    assert.strictEqual(plan.intervalUs(charge.soc), charge.intervalUs, `the interval at ${charge.soc}`);
+  }
+
+  const failed = vector.failedProbe.control;
+  assertReactions(
+    profile.Controller.setpoint(failed.setpoint, failed.hysteresis, failed.cooling, failed.safeBand),
+    vector.failedProbe.reactions,
+  );
+
+  for (const { manifest, reason } of vector.refused) {
+    assert.throws(() => profile.Profile.fromJson(manifest), (error) => {
+      assert.ok(error.message.includes(reason), `${error.message} should say ${reason}`);
+      return true;
+    });
+  }
+
   const draining = vector.draining;
   const well = profile.Profile.wellLevel();
   assert.strictEqual(well.name, draining.name);
@@ -3596,10 +3615,11 @@ function profileVectors() {
   }
 }
 
-// Walks a controller through a recorded run and checks every decision.
+// Walks a controller through a recorded run and checks every decision. A reading JSON
+// cannot hold, such as NaN, is written as text.
 function assertReactions(control, reactions) {
   for (const want of reactions) {
-    const reaction = control.evaluate(want.reading);
+    const reaction = control.evaluate(Number(want.reading));
     const actuator = reaction.actuator ?? null;
     assert.strictEqual(
       actuator,
@@ -3615,6 +3635,8 @@ function assertReactions(control, reactions) {
       assert.strictEqual(reaction.alert.samples, want.alert.samples);
     } else if (kind === "ChangingFast") {
       close(reaction.alert.rate, want.alert.rate, "the rate of change");
+    } else if (kind === "InvalidReading") {
+      assert.ok(Object.is(reaction.alert.reading, Number(want.reading)), "the reading as it arrived");
     } else if (kind === "Custom") {
       assert.strictEqual(reaction.alert.code, want.alert.code, "the custom code");
       close(reaction.alert.value, want.alert.value, "the custom value");

@@ -21,10 +21,10 @@ The test that runs in CI, spliced here as it ran.
 From [`bindings/node/guides/profile.ts`](https://github.com/molexxxx/pamoja/blob/main/bindings/node/guides/profile.ts):
 
 ```typescript
-import { AlertKind, ControlKind, Profile, Viz } from '@pamoja/profile'
+import { Profile, Viz } from '@pamoja/profile'
 
-// A profile is plain data, so a fleet ships one as a file rather than as code. The two
-// power thresholds are optional and fall back to the documented defaults.
+// A profile is plain data, so a fleet ships one as a file rather than as code. This
+// manifest names no battery thresholds, so the documented defaults apply.
 const manifest = `{
   "name": "brooder-heater",
   "topic": "poultry/brooder/temperature",
@@ -34,28 +34,45 @@ const manifest = `{
   },
   "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }`
-
 const profile = Profile.fromJson(manifest)
-console.log(`${profile.name} reports on ${profile.topic}`)
-console.log(`wakes every ${profile.power.activeSecs}s while the battery is healthy`)
-console.log(`saver mode below ${(profile.power.saverBelow * 100).toFixed(0)}% charge`)
+console.log(`profile   ${profile.name} reports on ${profile.topic}`)
+console.log(
+  `defaults  the file names no battery thresholds, so saver starts below ${(profile.power.saverBelow * 100).toFixed(0)}% and critical below ${(profile.power.criticalBelow * 100).toFixed(0)}%`,
+)
 
-// The manifest is the whole control loop. At 27.5 C the reading is below the deadband, so
-// the lamp switches on, and it is more than 4 C from target, so the chicks are cold.
-const cold = profile.controller().evaluate(27.5)
-console.log(`at 27.5 C: lamp ${cold.actuator}, alert ${cold.alert?.kind}`)
+// The schedule becomes a power plan, which says what mode a charge puts the node in and
+// how long it waits between samples there, in microseconds.
+const plan = profile.powerPlan()
+for (const charge of [0.8, 0.3, 0.1]) {
+  console.log(
+    `battery   at ${(charge * 100).toFixed(0)}% it runs ${plan.mode(charge)} and samples every ${plan.intervalUs(charge) / 1_000_000} s`,
+  )
+}
 
-// Back inside the deadband the lamp is left as it was, and nothing is raised.
-const settled = profile.controller().evaluate(32.2)
-console.log(`at 32.2 C: lamp ${settled.actuator}, alert ${settled.alert}`)
+// One controller runs for the life of the node, because it remembers whether the lamp is
+// on. The lamp switches on at 31.5 C or below and off at 32.5 C or above, the setpoint
+// less and plus the hysteresis, and in between it stays as it was. A reading more than
+// 4 C from the setpoint raises an alert as well.
+const controller = profile.controller()
+let lamp = false
+for (const reading of [27.5, 31.8, 32.6, 32.1, 31.4]) {
+  const reaction = controller.evaluate(reading)
+  const on = reaction.actuator === true
+  const change = on ? (lamp ? 'lamp stays on' : 'lamp on') : lamp ? 'lamp off' : 'lamp stays off'
+  const alert = reaction.alert ? `, alert ${reaction.alert.kind}` : ''
+  console.log(`${`${reading} C`.padEnd(10)}${change}${alert}`)
+  lamp = on
+}
 
-// Serializing writes the defaulted fields out in full, so a profile edited on a device and
-// shared back carries no value the next reader has to infer.
+// Written back out, the manifest names the thresholds the file left to their defaults,
+// so the next reader has nothing to infer, and it loads as the same profile.
 const shared = profile.toJson()
-console.log(`shared form names its defaults: ${shared.includes('saver_below')}`)
+if (shared.includes('saver_below') && Profile.fromJson(shared).toJson() === shared) {
+  console.log('shared    written back out, it names saver_below and loads as the same profile')
+}
 
 // The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature as a thermometer with the band the chicks are safe in.
+// brooder's temperature on a thermometer with the band the chicks are safe in.
 const drawn = profile.withPresentation({
   elements: [
     {
@@ -69,7 +86,7 @@ const drawn = profile.withPresentation({
 })
 const element = drawn.presentation?.elements[0]
 console.log(
-  `draws ${element?.key} in ${element?.unit} with a safe band of ${element?.band?.[0]} to ${element?.band?.[1]}`,
+  `draws     ${element?.key} in ${element?.unit} on a ${element?.viz}, safe from ${element?.band?.[0]} to ${element?.band?.[1]}`,
 )
 ```
 

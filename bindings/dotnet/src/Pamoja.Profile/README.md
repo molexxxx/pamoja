@@ -25,8 +25,8 @@ The guide project's example, spliced here as it ran in CI.
 From [`bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs`](https://github.com/molexxxx/pamoja/blob/main/bindings/dotnet/samples/Pamoja.Guides/ProfileGuide.cs):
 
 ```csharp
-// A profile is plain data, so a fleet ships one as a file rather than as code. The
-// two power thresholds are optional and fall back to the documented defaults.
+// A profile is plain data, so a fleet ships one as a file rather than as code.
+// This manifest names no battery thresholds, so the documented defaults apply.
 const string manifest = """
 {
     "name": "brooder-heater",
@@ -38,31 +38,53 @@ const string manifest = """
     "power": { "active_secs": 120, "saver_secs": 600, "critical_secs": 1800 }
 }
 """;
-
 using var profile = Profile.FromJson(manifest);
-Console.WriteLine($"{profile.Name} reports on {profile.Topic}");
-Console.WriteLine(
-    $"wakes every {profile.Power.ActiveSecs}s while the battery is healthy");
-Console.WriteLine($"saver mode below {profile.Power.SaverBelow * 100:F0}% charge");
+Console.WriteLine($"profile   {profile.Name} reports on {profile.Topic}");
+Console.WriteLine(Invariant(
+    $"defaults  the file names no battery thresholds, so saver starts below {profile.Power.SaverBelow * 100:F0}% and critical below {profile.Power.CriticalBelow * 100:F0}%"));
 
-// The manifest is the whole control loop. At 27.5 C the reading is below the
-// deadband, so the lamp switches on, and it is more than 4 C from target, so the
-// chicks are cold.
-Reaction cold = profile.Controller().Evaluate(27.5f);
-Console.WriteLine($"at 27.5 C: lamp {cold.Actuator}, alert {cold.Alert?.Kind}");
+// The schedule becomes a power plan, which says what mode a charge puts the node
+// in and how long it waits between samples there, in microseconds.
+PowerPlan plan = profile.PowerPlan;
+foreach (float charge in new[] { 0.8f, 0.3f, 0.1f })
+{
+    Console.WriteLine(Invariant(
+        $"battery   at {charge * 100:F0}% it runs {plan.Mode(charge)} and samples every {plan.IntervalUs(charge) / 1_000_000} s"));
+}
 
-// Back inside the deadband the lamp is left as it was, and nothing is raised.
-Reaction settled = profile.Controller().Evaluate(32.2f);
-string quiet = settled.Alert?.Kind.ToString() ?? "none";
-Console.WriteLine($"at 32.2 C: lamp {settled.Actuator}, alert {quiet}");
+// One controller runs for the life of the node, because it remembers whether the
+// lamp is on. The lamp switches on at 31.5 C or below and off at 32.5 C or above,
+// the setpoint less and plus the hysteresis, and in between it stays as it was. A
+// reading more than 4 C from the setpoint raises an alert as well.
+using Controller controller = profile.Controller();
+bool lamp = false;
+foreach (float reading in new[] { 27.5f, 31.8f, 32.6f, 32.1f, 31.4f })
+{
+    Reaction reaction = controller.Evaluate(reading);
+    bool on = reaction.Actuator == true;
+    string change = on
+        ? lamp ? "lamp stays on" : "lamp on"
+        : lamp ? "lamp off" : "lamp stays off";
+    string alert = reaction.Alert is { } raised ? $", alert {raised.Kind}" : "";
+    string at = Invariant($"{reading} C");
+    Console.WriteLine($"{at,-10}{change}{alert}");
+    lamp = on;
+}
 
-// Serializing writes the defaulted fields out in full, so a profile edited on a
-// device and shared back carries no value the next reader has to infer.
+// Written back out, the manifest names the thresholds the file left to their
+// defaults, so the next reader has nothing to infer, and it loads as the same
+// profile.
 string shared = profile.ToJson();
-Console.WriteLine($"shared form names its defaults: {shared.Contains("saver_below")}");
+using (var reloaded = Profile.FromJson(shared))
+{
+    if (shared.Contains("saver_below") && reloaded.ToJson() == shared)
+    {
+        Console.WriteLine("shared    written back out, it names saver_below and loads as the same profile");
+    }
+}
 
 // The manifest also carries how a dashboard draws the node: one element here, the
-// brooder's temperature as a thermometer with the band the chicks are safe in.
+// brooder's temperature on a thermometer with the band the chicks are safe in.
 using var drawn = profile.WithPresentation(new Presentation(
 [
     new ElementSpec("brooder_temperature", "celsius", "Brooder temperature", Viz.Thermometer)
@@ -71,8 +93,9 @@ using var drawn = profile.WithPresentation(new Presentation(
     },
 ]));
 ElementSpec element = drawn.Presentation!.Elements[0];
-Console.WriteLine(
-    $"draws {element.Key} in {element.Unit} with a safe band of {element.Band![0]} to {element.Band![1]}");
+string graphic = element.Viz.ToString().ToLowerInvariant();
+Console.WriteLine(Invariant(
+    $"draws     {element.Key} in {element.Unit} on a {graphic}, safe from {element.Band![0]} to {element.Band[1]}"));
 ```
 
 ## The same capability in every language

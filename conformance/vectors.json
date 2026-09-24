@@ -11427,6 +11427,23 @@
         "setpoint": 5.0
       },
       "name": "vaccine-fridge-monitor",
+      "plan": [
+        {
+          "intervalUs": 60000000,
+          "mode": "Active",
+          "soc": 0.8999999761581421
+        },
+        {
+          "intervalUs": 300000000,
+          "mode": "Saver",
+          "soc": 0.30000001192092896
+        },
+        {
+          "intervalUs": 900000000,
+          "mode": "Critical",
+          "soc": 0.10000000149011612
+        }
+      ],
       "power": {
         "activeSecs": 60,
         "criticalBelow": 0.20000000298023224,
@@ -11545,13 +11562,71 @@
         }
       ]
     },
+    "failedProbe": {
+      "control": {
+        "cooling": false,
+        "hysteresis": 0.5,
+        "safeBand": 4.0,
+        "setpoint": 32.0
+      },
+      "reactions": [
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "OutOfRange",
+            "reading": 27.5
+          },
+          "reading": 27.5
+        },
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "InvalidReading"
+          },
+          "reading": "NaN"
+        },
+        {
+          "actuator": true,
+          "alert": {
+            "kind": "None"
+          },
+          "reading": 32.20000076293945
+        }
+      ]
+    },
     "observed": {
       "actuator": null,
       "alert": {
         "kind": "None"
       },
       "reading": 21.5
-    }
+    },
+    "refused": [
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/brooder/temperature\", \"control\": { \"kind\": \"setpoint\", \"setpoint\": 32.0, \"hysteresis\": 0.0, \"cooling\": false, \"safe_band\": 4.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 600, \"critical_secs\": 1800 } }",
+        "reason": "chatters"
+      },
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/brooder/temperature\", \"control\": { \"kind\": \"setpoint\", \"setpoint\": 32.0, \"hysteresis\": 2.0, \"cooling\": false, \"safe_band\": 1.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 600, \"critical_secs\": 1800 } }",
+        "reason": "inside the deadband"
+      },
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/brooder/temperature\", \"control\": { \"kind\": \"setpoint\", \"setpoint\": 32.0, \"hysteresis\": 0.5, \"cooling\": false, \"safe_band\": 4.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 60, \"critical_secs\": 1800 } }",
+        "reason": "must not shorten"
+      },
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/brooder/temperature\", \"control\": { \"kind\": \"setpoint\", \"setpoint\": 32.0, \"hysteresis\": 0.5, \"cooling\": false, \"safe_band\": 4.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 600, \"critical_secs\": 1800, \"saver_below\": 0.2, \"critical_below\": 0.5 } }",
+        "reason": "`critical_below` must sit between"
+      },
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/+/temperature\", \"control\": { \"kind\": \"setpoint\", \"setpoint\": 32.0, \"hysteresis\": 0.5, \"cooling\": false, \"safe_band\": 4.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 600, \"critical_secs\": 1800 } }",
+        "reason": "is a filter"
+      },
+      {
+        "manifest": "{ \"name\": \"brooder-heater\", \"topic\": \"poultry/brooder/temperature\", \"control\": { \"kind\": \"surge\", \"rising\": true, \"limit\": 0.0 }, \"power\": { \"active_secs\": 120, \"saver_secs\": 600, \"critical_secs\": 1800 } }",
+        "reason": "every sample is a surge"
+      }
+    ]
   },
   "radioSim": {
     "answer": "6f6b",

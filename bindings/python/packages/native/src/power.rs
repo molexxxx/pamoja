@@ -81,6 +81,13 @@ pub struct PowerPlan {
     inner: CorePlan,
 }
 
+impl PowerPlan {
+    /// Wraps a plan another module assembled, such as a profile's.
+    pub(crate) fn of(inner: CorePlan) -> Self {
+        Self { inner }
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl PowerPlan {

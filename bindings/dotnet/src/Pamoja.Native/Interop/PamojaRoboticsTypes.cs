@@ -39,6 +39,9 @@ public enum PamojaAlertKind
 
     /// <summary>A condition a policy of the host's own raised, named by its code.</summary>
     Custom = 4,
+
+    /// <summary>A reading that is not a finite number, such as the NaN a failed probe produces.</summary>
+    InvalidReading = 5,
 }
 
 /// <summary>The null-terminated code of a custom alert, as it crosses the boundary.</summary>
