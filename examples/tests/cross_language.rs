@@ -4068,12 +4068,14 @@ fn ros2_vectors_match() {
     }
 
     let prefixes = &vector["prefixes"];
+    let suffixes = &vector["suffixes"];
     for (name, kind) in [
         ("Topic", EntityKind::Topic),
         ("ServiceRequest", EntityKind::ServiceRequest),
         ("ServiceResponse", EntityKind::ServiceResponse),
     ] {
         assert_eq!(kind.prefix(), prefixes[name].as_str().expect("the prefix"));
+        assert_eq!(kind.suffix(), suffixes[name].as_str().expect("the suffix"));
     }
 
     let mangled = &vector["mangled"];

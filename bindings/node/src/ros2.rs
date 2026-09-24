@@ -17,14 +17,14 @@ use pamoja_ros2::msg::{CdrReader as CoreReader, CdrWriter as CoreWriter, Twist, 
 use pamoja_ros2::name::{dds_topic, is_fully_qualified, is_valid_name, percent_mangle, EntityKind};
 use pamoja_ros2::typehash::{dds_type_name, TypeHash};
 
-/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.
 #[napi(string_enum)]
 pub enum EntityKindName {
     /// A topic, which takes the `rt` prefix.
     Topic,
-    /// The request side of a service, which takes the `rq` prefix.
+    /// The request side of a service, which takes the `rq` prefix and the `Request` suffix.
     ServiceRequest,
-    /// The reply side of a service, which takes the `rr` prefix.
+    /// The reply side of a service, which takes the `rr` prefix and the `Reply` suffix.
     ServiceResponse,
 }
 
@@ -79,6 +79,13 @@ pub fn ros2_entity_kind_prefix(kind: EntityKindName) -> String {
     EntityKind::from(kind).prefix().to_owned()
 }
 
+/// Returns what the middleware appends to a name for a subsystem: nothing for a topic,
+/// `Request` for a service request, and `Reply` for a service response.
+#[napi]
+pub fn ros2_entity_kind_suffix(kind: EntityKindName) -> String {
+    EntityKind::from(kind).suffix().to_owned()
+}
+
 /// Returns the DDS topic a fully qualified name maps onto, or `null` if the
 /// name is not fully qualified.
 #[napi]
@@ -86,7 +93,7 @@ pub fn ros2_dds_topic(fqn: String, kind: EntityKindName) -> Option<String> {
     dds_topic(&fqn, kind.into())
 }
 
-/// Percent-mangles a name the way a DDS partition requires.
+/// Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`.
 #[napi]
 pub fn ros2_percent_mangle(name: String) -> String {
     percent_mangle(&name)

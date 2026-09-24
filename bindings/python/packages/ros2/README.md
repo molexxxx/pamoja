@@ -27,26 +27,50 @@ From [`bindings/python/guides/ros2.py`](https://github.com/molexxxx/pamoja/blob/
 ```python
 from pamoja.ros2 import EntityKind, dds_topic, dds_type_name, is_fully_qualified, is_valid_name
 
-# A name is slash-separated tokens. A token may hold letters, digits, and underscores, and
-# may not begin with a digit, which is the rule that catches most generated names.
-for name in ("/robot1/camera_left/image_raw", "/2foo"):
-    print(f"{name} is a valid name: {is_valid_name(name)}")
-print(f"chatter is fully qualified: {is_fully_qualified('chatter')}")
-print(f"/chatter is fully qualified: {is_fully_qualified('/chatter')}")
+# A name is slash-separated tokens of letters, digits, and underscores. A token may not start
+# with a digit, and a name may not end in a slash, hold an empty token, or double an
+# underscore.
+camera = "/robot1/camera_left/image_raw"
+if is_valid_name(camera):
+    print(f"valid     {camera}")
+for name, why in [
+    ("/2foo", "a token starts with a digit"),
+    ("/cmd_vel/", "it ends in a slash"),
+    ("/robot1//odom", "it has an empty token"),
+    ("/robot1/cmd__vel", "it doubles an underscore"),
+]:
+    if not is_valid_name(name):
+        print(f"invalid   {name}, since {why}")
 
-# On the wire a topic carries a prefix that says what kind of endpoint it is, so a
-# subscription and a service request never collide in the same DDS partition.
+# A name with no leading slash is relative, and one that starts with a tilde is private. Both
+# are valid, and both resolve against the node before they reach the wire, so neither is
+# fully qualified.
+for label, name, against in [
+    ("relative", "cmd_vel", "the node's namespace"),
+    ("private", "~/setpoint", "the node's own name"),
+]:
+    if is_valid_name(name) and not is_fully_qualified(name):
+        print(f"{label:<10}{name} is valid, and resolves against {against} first")
+
+# Only a fully qualified name reaches the wire. DDS puts a prefix before it that says what
+# kind of endpoint it is, and a service travels on two topics, each ending in the suffix the
+# middleware appends.
 published = dds_topic("/robot1/cmd_vel", EntityKind.TOPIC)
-asked = dds_topic("/robot1/add", EntityKind.SERVICE_REQUEST)
-answered = dds_topic("/robot1/add", EntityKind.SERVICE_RESPONSE)
-print(f"a topic    becomes {published}")
-print(f"a request  becomes {asked}")
-print(f"a response becomes {answered}")
+asked = dds_topic("/robot1/add_two_ints", EntityKind.SERVICE_REQUEST)
+answered = dds_topic("/robot1/add_two_ints", EntityKind.SERVICE_RESPONSE)
+print(f"topic     /robot1/cmd_vel travels on {published}")
+print(f"request   /robot1/add_two_ints asks on {asked}")
+print(f"reply     and answers on {answered}")
 
-# A message type maps to a DDS type name the same way, so both ends agree on what is being
-# carried before a byte is exchanged.
-print(f"std_msgs/msg/String becomes {dds_type_name('std_msgs/msg/String')}")
-print(f"a malformed type name becomes {dds_type_name('not a type')}")
+# A message type maps to a DDS type name the same way, so both ends agree on what is carried
+# before a byte is exchanged. A name that is not package/namespace/Type maps to nothing rather
+# than to something plausible.
+for ros_type in ["std_msgs/msg/String", "example_interfaces/srv/AddTwoInts", "std_msgs/String"]:
+    carried = dds_type_name(ros_type)
+    if carried is not None:
+        print(f"type      {ros_type} is named {carried}")
+    else:
+        print(f"malformed {ros_type} is not package/namespace/Type, so it has no DDS type name")
 ```
 
 ## The same capability in every language

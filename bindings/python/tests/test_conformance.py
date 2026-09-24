@@ -2952,6 +2952,8 @@ def test_ros2_vectors_match():
 
     for kind, prefix in vector["prefixes"].items():
         assert ros2.prefix_for(kind) == prefix
+    for kind, suffix in vector["suffixes"].items():
+        assert ros2.suffix_for(kind) == suffix
 
     assert ros2.percent_mangle(vector["mangled"]["name"]) == vector["mangled"]["mangled"]
 

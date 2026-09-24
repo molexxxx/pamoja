@@ -5,19 +5,21 @@
 //! underscores; a token never starts with a digit; the name never has an empty token (`//`), a
 //! doubled underscore (`__`), or a trailing `/`. A leading `/` makes it fully qualified; a leading
 //! `~/` is the private namespace; balanced `{}` are runtime substitutions. On the wire DDS adds a
-//! one-character subsystem prefix, `rt` for topics and `rq`/`rr` for the two halves of a service.
+//! one-character subsystem prefix, `rt` for topics and `rq`/`rr` for the two halves of a service,
+//! and the middleware appends `Request` and `Reply` to a service's two topics, as `rmw_fastrtps`
+//! and `rmw_cyclonedds` both build them.
 
 use alloc::format;
 use alloc::string::String;
 
-/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+/// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntityKind {
-    /// A topic; DDS prefix `rt`.
+    /// A topic; DDS prefix `rt`, no suffix.
     Topic,
-    /// The request side of a service; DDS prefix `rq`.
+    /// The request side of a service; DDS prefix `rq`, suffix `Request`.
     ServiceRequest,
-    /// The reply side of a service; DDS prefix `rr`.
+    /// The reply side of a service; DDS prefix `rr`, suffix `Reply`.
     ServiceResponse,
 }
 
@@ -32,6 +34,20 @@ impl EntityKind {
             EntityKind::Topic => "rt",
             EntityKind::ServiceRequest => "rq",
             EntityKind::ServiceResponse => "rr",
+        }
+    }
+
+    /// Returns what the middleware appends to a name for this subsystem.
+    ///
+    /// # Returns
+    ///
+    /// `""` for a topic, `"Request"` for a service request, and `"Reply"` for a service
+    /// response.
+    pub fn suffix(self) -> &'static str {
+        match self {
+            EntityKind::Topic => "",
+            EntityKind::ServiceRequest => "Request",
+            EntityKind::ServiceResponse => "Reply",
         }
     }
 }
@@ -131,8 +147,9 @@ pub fn is_fully_qualified(name: &str) -> bool {
 ///
 /// # Returns
 ///
-/// `Some(dds_name)` such as `rt/cmd_vel`, formed by prepending the subsystem prefix to the name;
-/// `None` if `fqn` is not fully qualified.
+/// `Some(dds_name)` such as `rt/cmd_vel`, formed by putting the subsystem prefix before the name
+/// and its suffix after, so a service's request travels on `rq/<name>Request` and its reply on
+/// `rr/<name>Reply`; `None` if `fqn` is not fully qualified.
 ///
 /// # Examples
 ///
@@ -144,14 +161,21 @@ pub fn is_fully_qualified(name: &str) -> bool {
 ///     dds_topic("/robot1/camera_left/image_raw", EntityKind::Topic).as_deref(),
 ///     Some("rt/robot1/camera_left/image_raw"),
 /// );
-/// assert_eq!(dds_topic("/add_two_ints", EntityKind::ServiceRequest).as_deref(), Some("rq/add_two_ints"));
+/// assert_eq!(
+///     dds_topic("/add_two_ints", EntityKind::ServiceRequest).as_deref(),
+///     Some("rq/add_two_intsRequest"),
+/// );
+/// assert_eq!(
+///     dds_topic("/add_two_ints", EntityKind::ServiceResponse).as_deref(),
+///     Some("rr/add_two_intsReply"),
+/// );
 /// assert_eq!(dds_topic("relative", EntityKind::Topic), None); // not fully qualified
 /// ```
 pub fn dds_topic(fqn: &str, kind: EntityKind) -> Option<String> {
     if !is_fully_qualified(fqn) {
         return None;
     }
-    Some(format!("{}{}", kind.prefix(), fqn))
+    Some(format!("{}{}{}", kind.prefix(), fqn, kind.suffix()))
 }
 
 /// Mangles a name by replacing each `/` with `%`, as `rmw_zenoh` does in liveliness tokens.
@@ -221,15 +245,22 @@ mod tests {
             dds_topic("/robot1/camera_left/image_raw", EntityKind::Topic).as_deref(),
             Some("rt/robot1/camera_left/image_raw"),
         );
+        assert_eq!(dds_topic("relative", EntityKind::Topic), None);
+    }
+
+    #[test]
+    fn a_service_travels_on_the_names_the_middleware_builds() {
+        // rmw_cyclonedds builds these in rmw_node.cpp with make_fqtopic, and rmw_fastrtps in
+        // rmw_service.cpp with _create_topic_name: the prefix, the name, then the suffix.
         assert_eq!(
             dds_topic("/add_two_ints", EntityKind::ServiceRequest).as_deref(),
-            Some("rq/add_two_ints"),
+            Some("rq/add_two_intsRequest"),
         );
         assert_eq!(
             dds_topic("/add_two_ints", EntityKind::ServiceResponse).as_deref(),
-            Some("rr/add_two_ints"),
+            Some("rr/add_two_intsReply"),
         );
-        assert_eq!(dds_topic("relative", EntityKind::Topic), None);
+        assert_eq!(EntityKind::Topic.suffix(), "");
     }
 
     #[test]

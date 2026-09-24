@@ -1154,6 +1154,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(ros2::ros2_is_valid_name, m)?)?;
         m.add_function(wrap_pyfunction!(ros2::ros2_is_fully_qualified, m)?)?;
         m.add_function(wrap_pyfunction!(ros2::ros2_entity_kind_prefix, m)?)?;
+        m.add_function(wrap_pyfunction!(ros2::ros2_entity_kind_suffix, m)?)?;
         m.add_function(wrap_pyfunction!(ros2::ros2_dds_topic, m)?)?;
         m.add_function(wrap_pyfunction!(ros2::ros2_percent_mangle, m)?)?;
         m.add_function(wrap_pyfunction!(ros2::ros2_dds_type_name, m)?)?;

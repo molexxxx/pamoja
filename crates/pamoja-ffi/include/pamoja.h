@@ -2203,13 +2203,13 @@ typedef uint8_t PamojaSx126xCommandStatus;
 #endif // __STDC_VERSION__ >= 202311L
 #endif // __cplusplus
 
-// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix.
+// The ROS 2 subsystem a name belongs to, which fixes its DDS prefix and suffix.
 typedef enum {
   // A topic, which takes the `rt` prefix.
   PamojaEntityKind_Topic = 0,
-  // The request side of a service, which takes the `rq` prefix.
+  // The request side of a service, which takes the `rq` prefix and the `Request` suffix.
   PamojaEntityKind_ServiceRequest = 1,
-  // The reply side of a service, which takes the `rr` prefix.
+  // The reply side of a service, which takes the `rr` prefix and the `Reply` suffix.
   PamojaEntityKind_ServiceResponse = 2,
 } PamojaEntityKind;
 
@@ -22663,12 +22663,27 @@ bool pamoja_ros2_name_is_fully_qualified(const char *name);
 // A null-terminated string with static lifetime, which the caller does not free.
 const char *pamoja_ros2_entity_kind_prefix(PamojaEntityKind kind);
 
+// Returns what the middleware appends to a name for a subsystem.
+//
+// # Arguments
+//
+// * `kind` - the subsystem.
+//
+// # Returns
+//
+// `""` for a topic, `"Request"` for a service request, and `"Reply"` for a service
+// response, as a null-terminated string with static lifetime, which the caller does not
+// free.
+const char *pamoja_ros2_entity_kind_suffix(PamojaEntityKind kind);
+
 // Returns the DDS topic a fully qualified ROS 2 name maps onto.
 //
 // # Arguments
 //
 // * `fqn` - the fully qualified name, as null-terminated UTF-8.
-// * `kind` - which subsystem the name belongs to, which fixes the prefix.
+// * `kind` - which subsystem the name belongs to, which fixes the prefix and the
+//   suffix, so a service's request travels on `rq/<name>Request` and its reply on
+//   `rr/<name>Reply`.
 //
 // # Returns
 //
@@ -22682,7 +22697,7 @@ const char *pamoja_ros2_entity_kind_prefix(PamojaEntityKind kind);
 // call, or null.
 PamojaString *pamoja_ros2_dds_topic(const char *fqn, PamojaEntityKind kind);
 
-// Percent-mangles a name the way a DDS partition requires.
+// Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`.
 //
 // # Arguments
 //

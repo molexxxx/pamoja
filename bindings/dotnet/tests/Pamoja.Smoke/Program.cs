@@ -1981,6 +1981,12 @@ static void ConformRos2(JsonElement vector, double tolerance)
         Assert(Ros2.PrefixFor(kind) == prefix.Value.GetString(), $"the {prefix.Name} prefix");
     }
 
+    foreach (JsonProperty suffix in vector.GetProperty("suffixes").EnumerateObject())
+    {
+        EntityKind kind = Enum.Parse<EntityKind>(suffix.Name);
+        Assert(Ros2.SuffixFor(kind) == suffix.Value.GetString(), $"the {suffix.Name} suffix");
+    }
+
     JsonElement mangled = vector.GetProperty("mangled");
     Assert(
         Ros2.PercentMangle(mangled.GetProperty("name").GetString()!)

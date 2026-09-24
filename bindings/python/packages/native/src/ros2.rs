@@ -53,6 +53,14 @@ pub fn ros2_entity_kind_prefix(kind: &str) -> PyResult<String> {
     Ok(kind_of(kind)?.prefix().to_owned())
 }
 
+/// Returns what the middleware appends to a name for a subsystem: nothing for a topic,
+/// `Request` for a service request, and `Reply` for a service response.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn ros2_entity_kind_suffix(kind: &str) -> PyResult<String> {
+    Ok(kind_of(kind)?.suffix().to_owned())
+}
+
 /// Returns the DDS topic a fully qualified name maps onto, or `None` if the
 /// name is not fully qualified.
 #[gen_stub_pyfunction]
@@ -61,7 +69,7 @@ pub fn ros2_dds_topic(fqn: &str, kind: &str) -> PyResult<Option<String>> {
     Ok(dds_topic(fqn, kind_of(kind)?))
 }
 
-/// Percent-mangles a name the way a DDS partition requires.
+/// Percent-mangles a name as `rmw_zenoh` writes it in a liveliness token, each `/` as `%`.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn ros2_percent_mangle(name: &str) -> String {

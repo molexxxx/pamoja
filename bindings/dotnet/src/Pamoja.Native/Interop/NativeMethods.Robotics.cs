@@ -208,11 +208,15 @@ public static partial class NativeMethods
     [LibraryImport(Library)]
     public static partial IntPtr pamoja_ros2_entity_kind_prefix(PamojaEntityKind kind);
 
+    /// <summary>Returns what the middleware appends to a name for a subsystem.</summary>
+    [LibraryImport(Library)]
+    public static partial IntPtr pamoja_ros2_entity_kind_suffix(PamojaEntityKind kind);
+
     /// <summary>Returns the DDS topic a fully qualified name maps onto.</summary>
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_ros2_dds_topic(string fqn, PamojaEntityKind kind);
 
-    /// <summary>Percent-mangles a name the way a DDS partition requires.</summary>
+    /// <summary>Percent-mangles a name as rmw_zenoh writes it in a liveliness token.</summary>
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_ros2_percent_mangle(string name);
 
