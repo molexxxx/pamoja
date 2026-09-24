@@ -53,7 +53,7 @@ Each package name opens its reference.
 | [`@pamoja/profile`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_profile.html) | Rules between nodes as a file: a condition over one node's topic with hysteresis, and the actions that drive another node's actuator or publish, run by an engine off any link or judged reading by reading from any language |
 | [`@pamoja/kit`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_kit.html) | Wheel speeds for differential, skid-steer, car-like, and mecanum chassis, a two-link arm and Denavit-Hartenberg forward kinematics, odometry, waypoint guidance, a safety gate, and servo, ESC, and encoder conversions |
 | [`@pamoja/ros2`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_ros2.html) | ROS 2 names, RIHS01 type hashes, CDR encoding, and rmw_zenoh key assembly, with no ROS 2 installed |
-| [`@pamoja/zenoh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html) | Zenoh key expressions: validity, canonical form, and wildcard matching |
+| [`@pamoja/zenoh`](https://pamoja.molex.cloud/docs/reference/node/modules/_pamoja_zenoh.html) | Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys |
 
 All of them run on `@pamoja/native`, the compiled engine, which is one binary whichever packages you install.
 

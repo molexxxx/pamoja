@@ -440,8 +440,11 @@ __all__ = [
     "json_to_cbor_bytes",
     "kelvin_to_celsius",
     "keyexpr_canonize",
+    "keyexpr_includes",
+    "keyexpr_intersects",
     "keyexpr_is_canon",
     "keyexpr_is_valid",
+    "keyexpr_join",
     "keyexpr_matches",
     "kilopascals_to_pascals",
     "link_cost_threshold",
@@ -12990,6 +12993,18 @@ def keyexpr_canonize(key: builtins.str) -> typing.Optional[builtins.str]:
     malformed.
     """
 
+def keyexpr_includes(a: builtins.str, b: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether `a` selects every key `b` selects. `False` if either is
+    malformed.
+    """
+
+def keyexpr_intersects(a: builtins.str, b: builtins.str) -> builtins.bool:
+    r"""
+    Reports whether two key expressions share at least one key, the relation
+    Zenoh routes by. `False` if either is malformed.
+    """
+
 def keyexpr_is_canon(key: builtins.str) -> builtins.bool:
     r"""
     Reports whether a key expression is already in its canonical form.
@@ -13000,9 +13015,16 @@ def keyexpr_is_valid(key: builtins.str) -> builtins.bool:
     Reports whether a key expression is well formed.
     """
 
+def keyexpr_join(prefix: builtins.str, suffix: builtins.str) -> typing.Optional[builtins.str]:
+    r"""
+    Joins two key expressions with a `/` and canonizes the result, or returns
+    `None` if either side is empty or the joined expression is malformed.
+    """
+
 def keyexpr_matches(pattern: builtins.str, key: builtins.str) -> builtins.bool:
     r"""
-    Reports whether a pattern selects a key.
+    Reports whether a pattern selects a key. A chunk that starts with `@` is
+    verbatim, and no wildcard selects it.
     """
 
 def kilopascals_to_pascals(kilopascals: builtins.float) -> builtins.float:

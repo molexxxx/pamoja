@@ -1,6 +1,6 @@
 # pamoja-zenoh
 
-Zenoh key expressions: validity, canonical form, and wildcard matching. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/zenoh.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -25,28 +25,46 @@ The script the test suite runs, spliced here as it ran.
 From [`bindings/python/guides/zenoh.py`](https://github.com/molexxxx/pamoja/blob/main/bindings/python/guides/zenoh.py):
 
 ```python
-from pamoja.zenoh import canonize, is_canon, is_valid, matches
+from pamoja.zenoh import canonize, is_canon, is_valid, join, matches
 
-# A key expression names a set of keys. `*` stands for exactly one chunk, so this selects
-# the battery of any node, and not a battery nested deeper.
-any_node = "fleet/*/battery"
-for key in ("fleet/n7/battery", "fleet/n7/rack/battery"):
-    print(f"{any_node} covers {key}: {matches(any_node, key)}")
 
-# `**` stands for any number of chunks, including none, which is what a subscription
-# covering a whole subtree wants.
-print(f"fleet/** covers a nested key: {matches('fleet/**', 'fleet/n7/rack/battery')}")
-print(f"fleet/**/battery covers fleet/battery: {matches('fleet/**/battery', 'fleet/battery')}")
+# A key expression names a set of keys. Chunks sit between slashes, `*` stands for exactly one
+# chunk, whatever it holds, and `**` for any number of them, including none.
+def selects(pattern: str, key: str) -> str:
+    verdict = "covers" if matches(pattern, key) else "misses"
+    return f"{verdict:<10}{pattern} {verdict} {key}"
 
-# Two expressions that select the same keys have one canonical form. Comparing or routing
-# on the written form would treat these as different subscriptions.
-written = "fleet/**/**/battery"
-canonical = canonize(written)
-print(f"{written} is canonical: {is_canon(written)}, and canonizes to {canonical}")
 
-# A malformed expression is rejected rather than canonized into something plausible.
-malformed = "fleet//battery"
-print(f"{malformed} is valid: {is_valid(malformed)}, canonizes to {canonize(malformed)}")
+print(selects("farm/*/power", "farm/t7/power"))
+print(selects("farm/*/power", "farm/substation/power"))
+print(f"{selects('farm/*/power', 'farm/row2/t14/power')}, since * is exactly one chunk")
+print(selects("farm/**/power", "farm/row2/t14/power"))
+print(f"{selects('farm/**/alarm', 'farm/alarm')}, where ** is no chunk at all")
+
+# `$*` stands for any run of characters inside one chunk, so it selects on part of a name.
+print(selects("farm/t$*/power", "farm/t7/power"))
+print(selects("farm/t$*/power", "farm/substation/power"))
+
+# One set of keys has one canonical spelling, and a Zenoh session accepts no other.
+for written in ("farm/*/**/power", "farm/**/*/power", "farm/**/**/power"):
+    canonical = canonize(written)
+    if is_canon(written):
+        print(f"canonical {written}, as written")
+    else:
+        print(f"rewritten {written} is spelled {canonical}")
+
+# Joining places one expression beneath another, and canonizes the seam between them.
+for prefix, suffix in (("farm/t7", "power"), ("farm/**", "*/power")):
+    print(f"joined    {prefix} and {suffix} make {join(prefix, suffix)}")
+
+# A malformed expression is refused rather than repaired into something plausible.
+for written, why in (
+    ("farm//power", "a chunk is empty"),
+    ("farm/t7*/power", "* stands alone in its chunk, or after $"),
+    ("farm/t7/power?", "? and # are reserved"),
+):
+    if not is_valid(written) and canonize(written) is None:
+        print(f"malformed {written}, since {why}")
 ```
 
 ## The same capability in every language

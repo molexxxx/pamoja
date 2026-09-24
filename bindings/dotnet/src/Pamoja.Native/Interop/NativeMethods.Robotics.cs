@@ -319,8 +319,22 @@ public static partial class NativeMethods
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr pamoja_keyexpr_canonize(string key);
 
+    /// <summary>Joins two key expressions with a slash and canonizes the result.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr pamoja_keyexpr_join(string prefix, string suffix);
+
     /// <summary>Reports whether a pattern selects a key.</summary>
     [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static partial bool pamoja_keyexpr_matches(string pattern, string key);
+
+    /// <summary>Reports whether two key expressions share at least one key.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_keyexpr_intersects(string a, string b);
+
+    /// <summary>Reports whether one key expression selects every key another selects.</summary>
+    [LibraryImport(Library, StringMarshalling = StringMarshalling.Utf8)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool pamoja_keyexpr_includes(string a, string b);
 }

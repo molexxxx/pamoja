@@ -746,7 +746,7 @@ The protocol a ground station and a flight controller speak.
 
 Naming, typing and carrying messages the way ROS 2 and Zenoh do.
 
-<nav class="hw-index" aria-label="Robotics index"><a href="#rep-103">REP-103</a><a href="#ros2-names">ROS 2 topic and service names</a><a href="#rihs01">REP-2011, RIHS01</a><a href="#dds-xtypes">DDS-XTypes 1.3, clause 7.4</a><a href="#rmw-zenoh">rmw_zenoh key expressions</a><a href="#zenoh-keyexpr">Zenoh key expressions</a></nav>
+<nav class="hw-index" aria-label="Robotics index"><a href="#rep-103">REP-103</a><a href="#ros2-names">ROS 2 topic and service names</a><a href="#rihs01">REP-2011, RIHS01</a><a href="#dds-xtypes">DDS-XTypes 1.3, clause 7.4</a><a href="#rmw-zenoh">rmw_zenoh key expressions</a><a href="#zenoh-keyexpr">The Key Expressions Language, Zenoh RFC</a></nav>
 <div class="hw-cards">
 <article class="hw-card" aria-labelledby="rep-103">
 <header class="hw-head">
@@ -816,14 +816,14 @@ Naming, typing and carrying messages the way ROS 2 and Zenoh do.
 <article class="hw-card" aria-labelledby="zenoh-keyexpr">
 <header class="hw-head">
 
-### Zenoh key expressions {#zenoh-keyexpr}
+### The Key Expressions Language, Zenoh RFC {#zenoh-keyexpr}
 
 <p class="hw-by">Zenoh project</p>
-<p class="hw-summary">Validity, canonical form, and how a wildcard matches</p>
+<p class="hw-summary">Validity, canonical form, verbatim chunks, and how two expressions intersect or include</p>
 </header>
-<p class="hw-summary">The specification's own canonical-form reordering examples.</p><div class="hw-foot">
-<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://zenoh.io/docs/manual/abstractions/"><span class="hw-main"><b>The document</b><small>Zenoh key expressions</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
-<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-zenoh/src/keyexpr.rs#L230"><span class="hw-main"><b>The test</b><small><code>keyexpr.rs</code> line 230</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<p class="hw-summary">Every intersection and inclusion vector from zenoh-keyexpr's own tests, the RFC's canonical-form statements, and a test that asks Zenoh's implementation the same questions.</p><div class="hw-foot">
+<section class="hw-buy"><h4>Read it</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/eclipse-zenoh/roadmap/blob/main/rfcs/ALL/Key%20Expressions.md"><span class="hw-main"><b>The document</b><small>The Key Expressions Language, Zenoh RFC</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
+<section class="hw-learn"><h4>Published vector</h4><ul class="hw-rows"><li><a class="hw-row" href="https://github.com/molexxxx/pamoja/blob/main/crates/pamoja-zenoh/src/keyexpr.rs#L633"><span class="hw-main"><b>The test</b><small><code>keyexpr.rs</code> line 633</small></span><span class="hw-go" aria-hidden="true">&#8599;</span></a></li></ul></section>
 </div>
 </article>
 </div>

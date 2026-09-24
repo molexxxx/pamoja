@@ -36,9 +36,34 @@ pub fn keyexpr_canonize(key: &str) -> Option<String> {
     keyexpr::canonize(key)
 }
 
-/// Reports whether a pattern selects a key.
+/// Joins two key expressions with a `/` and canonizes the result, or returns
+/// `None` if either side is empty or the joined expression is malformed.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn keyexpr_join(prefix: &str, suffix: &str) -> Option<String> {
+    keyexpr::join(prefix, suffix)
+}
+
+/// Reports whether a pattern selects a key. A chunk that starts with `@` is
+/// verbatim, and no wildcard selects it.
 #[gen_stub_pyfunction]
 #[pyfunction]
 pub fn keyexpr_matches(pattern: &str, key: &str) -> bool {
     keyexpr::matches(pattern, key)
+}
+
+/// Reports whether two key expressions share at least one key, the relation
+/// Zenoh routes by. `False` if either is malformed.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn keyexpr_intersects(a: &str, b: &str) -> bool {
+    keyexpr::intersects(a, b)
+}
+
+/// Reports whether `a` selects every key `b` selects. `False` if either is
+/// malformed.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn keyexpr_includes(a: &str, b: &str) -> bool {
+    keyexpr::includes(a, b)
 }

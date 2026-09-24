@@ -2076,6 +2076,15 @@ static void ConformZenoh(JsonElement vector)
             $"the canonical form of {key}");
     }
 
+    foreach (JsonElement want in vector.GetProperty("joined").EnumerateArray())
+    {
+        string prefix = want.GetProperty("prefix").GetString()!;
+        string suffix = want.GetProperty("suffix").GetString()!;
+        Assert(
+            KeyExpression.Join(prefix, suffix) == want.GetProperty("joined").GetString(),
+            $"{prefix} joined with {suffix}");
+    }
+
     foreach (JsonElement want in vector.GetProperty("matches").EnumerateArray())
     {
         string pattern = want.GetProperty("pattern").GetString()!;
@@ -2083,6 +2092,18 @@ static void ConformZenoh(JsonElement vector)
         Assert(
             KeyExpression.Matches(pattern, key) == want.GetProperty("matches").GetBoolean(),
             $"whether {pattern} selects {key}");
+    }
+
+    foreach (JsonElement want in vector.GetProperty("relations").EnumerateArray())
+    {
+        string a = want.GetProperty("a").GetString()!;
+        string b = want.GetProperty("b").GetString()!;
+        bool shared = want.GetProperty("intersects").GetBoolean();
+        Assert(KeyExpression.Intersects(a, b) == shared, $"whether {a} and {b} share a key");
+        Assert(KeyExpression.Intersects(b, a) == shared, $"whether {b} and {a} share a key");
+        Assert(
+            KeyExpression.Includes(a, b) == want.GetProperty("includes").GetBoolean(),
+            $"whether {a} covers {b}");
     }
 }
 

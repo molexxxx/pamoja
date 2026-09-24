@@ -14326,8 +14326,20 @@
         "key": "fleet/**/**/battery"
       },
       {
+        "canonical": "fleet/*/**/battery",
+        "key": "fleet/**/*/battery"
+      },
+      {
+        "canonical": "fleet/n$*/battery",
+        "key": "fleet/n$*$*/battery"
+      },
+      {
         "canonical": "fleet/*/battery",
         "key": "fleet/*/battery"
+      },
+      {
+        "canonical": null,
+        "key": "fleet//battery"
       }
     ],
     "expressions": [
@@ -14348,8 +14360,45 @@
       },
       {
         "canon": false,
+        "key": "fleet/**/*/battery",
+        "valid": true
+      },
+      {
+        "canon": false,
         "key": "fleet//battery",
         "valid": false
+      },
+      {
+        "canon": false,
+        "key": "fleet/n7*",
+        "valid": false
+      },
+      {
+        "canon": true,
+        "key": "@/router/status",
+        "valid": true
+      }
+    ],
+    "joined": [
+      {
+        "joined": "fleet/n7/battery",
+        "prefix": "fleet/n7",
+        "suffix": "battery"
+      },
+      {
+        "joined": "fleet/*/**/battery",
+        "prefix": "fleet/**",
+        "suffix": "*/battery"
+      },
+      {
+        "joined": null,
+        "prefix": "fleet/",
+        "suffix": "battery"
+      },
+      {
+        "joined": null,
+        "prefix": "fleet",
+        "suffix": ""
       }
     ],
     "matches": [
@@ -14372,6 +14421,82 @@
         "key": "fleet/n7/battery",
         "matches": true,
         "pattern": "fleet/**"
+      },
+      {
+        "key": "fleet/n7/battery",
+        "matches": true,
+        "pattern": "fleet/n$*/battery"
+      },
+      {
+        "key": "@/router/status",
+        "matches": false,
+        "pattern": "**"
+      },
+      {
+        "key": "@/router/status",
+        "matches": true,
+        "pattern": "@/**"
+      },
+      {
+        "key": "fleet/*",
+        "matches": false,
+        "pattern": "fleet/*"
+      }
+    ],
+    "relations": [
+      {
+        "a": "fleet/*/battery",
+        "b": "fleet/n7/**",
+        "includes": false,
+        "intersects": true
+      },
+      {
+        "a": "fleet/*/battery",
+        "b": "fleet/*/rack/**",
+        "includes": false,
+        "intersects": false
+      },
+      {
+        "a": "fleet/**",
+        "b": "fleet/*/battery",
+        "includes": true,
+        "intersects": true
+      },
+      {
+        "a": "fleet/*/battery",
+        "b": "fleet/**",
+        "includes": false,
+        "intersects": true
+      },
+      {
+        "a": "fleet/n$*",
+        "b": "fleet/n7",
+        "includes": true,
+        "intersects": true
+      },
+      {
+        "a": "fleet/**",
+        "b": "fleet/@v1/battery",
+        "includes": false,
+        "intersects": false
+      },
+      {
+        "a": "fleet/@v1/**",
+        "b": "fleet/@v1",
+        "includes": true,
+        "intersects": true
+      },
+      {
+        "a": "fleet/**/*/battery",
+        "b": "fleet/*/**/battery",
+        "includes": true,
+        "intersects": true
+      },
+      {
+        "a": "fleet//battery",
+        "b": "**",
+        "includes": false,
+        "intersects": false
       }
     ]
   }

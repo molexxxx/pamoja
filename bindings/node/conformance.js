@@ -3816,11 +3816,37 @@ function zenohVectors() {
     );
   }
 
+  for (const want of vector.joined) {
+    assert.strictEqual(
+      zenoh.keyexpr.join(want.prefix, want.suffix),
+      want.joined,
+      `${want.prefix} joined with ${want.suffix}`,
+    );
+  }
+
   for (const want of vector.matches) {
     assert.strictEqual(
       zenoh.keyexpr.matches(want.pattern, want.key),
       want.matches,
       `whether ${want.pattern} selects ${want.key}`,
+    );
+  }
+
+  for (const want of vector.relations) {
+    assert.strictEqual(
+      zenoh.keyexpr.intersects(want.a, want.b),
+      want.intersects,
+      `whether ${want.a} and ${want.b} share a key`,
+    );
+    assert.strictEqual(
+      zenoh.keyexpr.intersects(want.b, want.a),
+      want.intersects,
+      `whether ${want.b} and ${want.a} share a key`,
+    );
+    assert.strictEqual(
+      zenoh.keyexpr.includes(want.a, want.b),
+      want.includes,
+      `whether ${want.a} covers ${want.b}`,
     );
   }
 }

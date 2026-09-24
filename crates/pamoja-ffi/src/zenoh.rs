@@ -96,7 +96,46 @@ pub unsafe extern "C" fn pamoja_keyexpr_canonize(key: *const c_char) -> *mut Pam
     }
 }
 
+/// Joins two key expressions with a `/` and canonizes the result.
+///
+/// # Arguments
+///
+/// * `prefix` - the leading expression, as null-terminated UTF-8.
+/// * `suffix` - the expression to place beneath it, as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// A string the caller must release with
+/// [`pamoja_string_free`](crate::pamoja_string_free), or null if either side is
+/// empty or null, or the joined expression is malformed.
+///
+/// # Safety
+///
+/// Both arguments must be valid null-terminated UTF-8 strings for the duration
+/// of the call, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_keyexpr_join(
+    prefix: *const c_char,
+    suffix: *const c_char,
+) -> *mut PamojaString {
+    let (Some(prefix), Some(suffix)) = (read_str(prefix, "prefix"), read_str(suffix, "suffix"))
+    else {
+        return ptr::null_mut();
+    };
+    match keyexpr::join(prefix, suffix) {
+        Some(joined) => PamojaString::into_raw(joined),
+        None => {
+            crate::set_last_error(format!(
+                "`{prefix}` and `{suffix}` do not join into a valid key expression"
+            ));
+            ptr::null_mut()
+        }
+    }
+}
+
 /// Reports whether a pattern selects a key.
+///
+/// A chunk that starts with `@` is verbatim: no wildcard selects it.
 ///
 /// # Arguments
 ///
@@ -122,6 +161,58 @@ pub unsafe extern "C" fn pamoja_keyexpr_matches(
         return false;
     };
     keyexpr::matches(pattern, key)
+}
+
+/// Reports whether two key expressions share at least one key.
+///
+/// This is the relation Zenoh routes by: a publication on one reaches a
+/// subscriber on the other exactly when the two intersect.
+///
+/// # Arguments
+///
+/// * `a` - one expression, as null-terminated UTF-8.
+/// * `b` - the other expression, as null-terminated UTF-8.
+///
+/// # Returns
+///
+/// `true` when some key is selected by both, or `false` if none is, either
+/// expression is malformed, or either argument is null.
+///
+/// # Safety
+///
+/// Both arguments must be valid null-terminated UTF-8 strings for the duration
+/// of the call, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_keyexpr_intersects(a: *const c_char, b: *const c_char) -> bool {
+    let (Some(a), Some(b)) = (read_str(a, "a"), read_str(b, "b")) else {
+        return false;
+    };
+    keyexpr::intersects(a, b)
+}
+
+/// Reports whether one key expression selects every key another one selects.
+///
+/// # Arguments
+///
+/// * `a` - the expression that may be the wider one, as null-terminated UTF-8.
+/// * `b` - the expression tested for being covered by `a`, as null-terminated
+///   UTF-8.
+///
+/// # Returns
+///
+/// `true` when every key `b` selects is also selected by `a`, or `false` if
+/// not, either expression is malformed, or either argument is null.
+///
+/// # Safety
+///
+/// Both arguments must be valid null-terminated UTF-8 strings for the duration
+/// of the call, or null.
+#[no_mangle]
+pub unsafe extern "C" fn pamoja_keyexpr_includes(a: *const c_char, b: *const c_char) -> bool {
+    let (Some(a), Some(b)) = (read_str(a, "a"), read_str(b, "b")) else {
+        return false;
+    };
+    keyexpr::includes(a, b)
 }
 
 #[cfg(test)]
@@ -153,5 +244,34 @@ mod tests {
         assert!(!unsafe { pamoja_keyexpr_is_canon(ptr::null()) });
         assert!(unsafe { pamoja_keyexpr_canonize(ptr::null()) }.is_null());
         assert!(!unsafe { pamoja_keyexpr_matches(ptr::null(), ptr::null()) });
+        assert!(unsafe { pamoja_keyexpr_join(ptr::null(), ptr::null()) }.is_null());
+        assert!(!unsafe { pamoja_keyexpr_intersects(ptr::null(), ptr::null()) });
+        assert!(!unsafe { pamoja_keyexpr_includes(ptr::null(), ptr::null()) });
+    }
+
+    #[test]
+    fn a_key_joins_beneath_a_prefix_in_canonical_form() {
+        let prefix = CString::new("fleet/**").expect("static");
+        let suffix = CString::new("*").expect("static");
+        let joined = unsafe { pamoja_keyexpr_join(prefix.as_ptr(), suffix.as_ptr()) };
+        assert!(!joined.is_null());
+        let text = unsafe { std::ffi::CStr::from_ptr(crate::pamoja_string_data(joined)) };
+        assert_eq!(text.to_str().expect("utf-8"), "fleet/*/**");
+        unsafe { crate::pamoja_string_free(joined) };
+
+        let empty = CString::new("").expect("static");
+        assert!(unsafe { pamoja_keyexpr_join(prefix.as_ptr(), empty.as_ptr()) }.is_null());
+    }
+
+    #[test]
+    fn two_patterns_relate_as_the_keys_they_select() {
+        let battery = CString::new("fleet/*/battery").expect("static");
+        let node = CString::new("fleet/n7/**").expect("static");
+        let fleet = CString::new("fleet/**").expect("static");
+        let sealed = CString::new("fleet/@v1/**").expect("static");
+        assert!(unsafe { pamoja_keyexpr_intersects(battery.as_ptr(), node.as_ptr()) });
+        assert!(unsafe { pamoja_keyexpr_includes(fleet.as_ptr(), battery.as_ptr()) });
+        assert!(!unsafe { pamoja_keyexpr_includes(battery.as_ptr(), fleet.as_ptr()) });
+        assert!(!unsafe { pamoja_keyexpr_intersects(fleet.as_ptr(), sealed.as_ptr()) });
     }
 }

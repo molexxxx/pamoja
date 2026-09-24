@@ -898,6 +898,16 @@ released together, so one entry covers all of them.
   topic, `Request` for a service request, and `Reply` for a service reply, as
   `EntityKind::suffix()` in Rust, `name.suffixFor` in TypeScript, `suffix_for` in Python,
   `Ros2.SuffixFor` in C#, and `pamoja_ros2_entity_kind_suffix` in C.
+- How two Zenoh key expressions relate: `keyexpr::intersects` says whether they share a
+  key, the question a router asks before it forwards, and `keyexpr::includes` whether one
+  covers every key of the other, so a bridge knows a subscription adds nothing.
+  `keyexpr::join` places one expression beneath another in canonical form. All three
+  reach every language: `keyexpr.intersects`, `includes`, and `join` in TypeScript, the
+  same names in Python, `KeyExpression.Intersects`, `Includes`, and `Join` in C#, and
+  `pamoja_keyexpr_intersects`, `pamoja_keyexpr_includes`, and `pamoja_keyexpr_join` in C.
+  They pass every intersection and inclusion vector in Zenoh's own tests, and with the
+  `runtime` feature a test asks Zenoh the same questions of every expression that three
+  chunks of nine forms spell.
 
 ### Changed
 
@@ -1223,6 +1233,13 @@ released together, so one entry covers all of them.
   between an integer and a double and a message cut short. The page gains a paragraph for
   each language, tables of the name rules, where a name resolves, the DDS topics and type
   names, the `rmw_zenoh` key, CDR sizes, and the calls, and a section on what goes wrong.
+- The Zenoh guide says in words what C# printed as `True` and the other languages as
+  `true`. It runs the wildcards over a wind farm's keys, rewrites two spellings into the
+  canonical one, joins a key beneath a prefix, and refuses three malformed expressions,
+  and it gains two parts: whether two expressions share a key or one covers the other,
+  and a verbatim chunk no wildcard reaches. The page gains a paragraph for each language,
+  tables of the chunk forms, what makes an expression malformed, the canonical form, the
+  questions two expressions answer, and the calls, and a section on what goes wrong.
 
 ### Fixed
 
@@ -1531,6 +1548,12 @@ released together, so one entry covers all of them.
   the middleware builds.
 - The percent-mangling helpers said they wrote a name the way a DDS partition requires.
   They write it as `rmw_zenoh` does in a liveliness token, each `/` as `%`, and now say so.
+- A Zenoh wildcard selected a chunk that starts with `@`, which the Key Expressions RFC
+  has made verbatim since Zenoh 0.11: `keyexpr::matches("**", "@/router/status")`
+  answered true where Zenoh answers false, so a gateway judging subscriptions with it
+  would forward keys Zenoh keeps sealed, its own administration space among them. No
+  wildcard selects a verbatim chunk now, and only the same chunk matches it, in every
+  language.
 
 ## [0.1.18] - 2026-09-10
 

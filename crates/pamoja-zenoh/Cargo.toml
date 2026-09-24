@@ -1,6 +1,6 @@
 [package]
 name = "pamoja-zenoh"
-description = "Zenoh key-expression logic for the pamoja SDK: validity, canonical form, and matching of the chunk-based key-expression language (the `*`, `**`, and `$*` wildcards), no_std and allocation-light. The pure-logic half ahead of the Zenoh transport."
+description = "Zenoh key-expression logic for the pamoja SDK: validity, canonical form, matching, intersection, and inclusion for the chunk-based key-expression language (the `*`, `**`, and `$*` wildcards and verbatim `@` chunks), no_std, with an optional live Zenoh transport."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

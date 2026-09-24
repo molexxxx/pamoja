@@ -5749,6 +5749,24 @@ export declare function kelvinToCelsius(kelvin: number): number
  */
 export declare function keyexprCanonize(key: string): string | null
 
+/**
+ * Reports whether `a` selects every key `b` selects. `false` if either is
+ * malformed.
+ *
+ * @param a - the expression that may be the wider one.
+ * @param b - the expression tested for being covered by `a`.
+ */
+export declare function keyexprIncludes(a: string, b: string): boolean
+
+/**
+ * Reports whether two key expressions share at least one key, the relation
+ * Zenoh routes by. `false` if either is malformed.
+ *
+ * @param a - one expression.
+ * @param b - the other expression.
+ */
+export declare function keyexprIntersects(a: string, b: string): boolean
+
 /** Reports whether a key expression is already in its canonical form. */
 export declare function keyexprIsCanon(key: string): boolean
 
@@ -5756,7 +5774,17 @@ export declare function keyexprIsCanon(key: string): boolean
 export declare function keyexprIsValid(key: string): boolean
 
 /**
- * Reports whether a pattern selects a key.
+ * Joins two key expressions with a `/` and canonizes the result, or returns
+ * `null` if either side is empty or the joined expression is malformed.
+ *
+ * @param prefix - the leading expression.
+ * @param suffix - the expression to place beneath it.
+ */
+export declare function keyexprJoin(prefix: string, suffix: string): string | null
+
+/**
+ * Reports whether a pattern selects a key. A chunk that starts with `@` is
+ * verbatim, and no wildcard selects it.
  *
  * @param pattern - the expression that may carry wildcards.
  * @param key - the concrete key to test against it.

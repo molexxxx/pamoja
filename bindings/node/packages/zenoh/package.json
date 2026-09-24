@@ -1,7 +1,7 @@
 {
   "name": "@pamoja/zenoh",
   "version": "0.1.18",
-  "description": "Zenoh key expressions: validity, canonical form, and wildcard matching.",
+  "description": "Zenoh key expressions: validity, canonical form, matching, and whether two expressions share or cover keys.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

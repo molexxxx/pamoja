@@ -757,14 +757,14 @@ anchor = "rule"
 [[entry]]
 key = "zenoh-keyexpr"
 chapter = "profiles"
-designation = "Zenoh key expressions"
+designation = "The Key Expressions Language, Zenoh RFC"
 body = "Zenoh project"
-subject = "Validity, canonical form, and how a wildcard matches"
-url = "https://zenoh.io/docs/manual/abstractions/"
+subject = "Validity, canonical form, verbatim chunks, and how two expressions intersect or include"
+url = "https://github.com/eclipse-zenoh/roadmap/blob/main/rfcs/ALL/Key%20Expressions.md"
 evidence = "crates/pamoja-zenoh/src/keyexpr.rs"
-at = "fn validity_follows_the_chunk_rules"
+at = "fn intersection_matches_the_zenoh_vectors"
 anchor = "vector"
-note = "The specification's own canonical-form reordering examples."
+note = "Every intersection and inclusion vector from zenoh-keyexpr's own tests, the RFC's canonical-form statements, and a test that asks Zenoh's implementation the same questions."
 
 
 # Messaging
