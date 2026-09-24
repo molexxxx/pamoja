@@ -4705,11 +4705,49 @@ typedef struct {
   float wheel_radius;
 } PamojaQuadratureScale;
 
+// A message the broker publishes on the client's behalf if its connection ends without a
+// disconnect: the network dropped, the power failed, or the keep-alive ran out.
+//
+// `topic` is a borrowed null-terminated UTF-8 string with no wildcard, and `payload`
+// points at `payload_len` bytes, or is null when `payload_len` is 0.
+typedef struct {
+  // The topic the broker publishes it to.
+  const char *topic;
+  // What it publishes.
+  const uint8_t *payload;
+  // How many bytes `payload` holds.
+  uintptr_t payload_len;
+  // The quality of service it is published at.
+  PamojaQos qos;
+  // Whether the broker retains it for clients that subscribe later.
+  bool retain;
+} PamojaMqttWill;
+
+// How a connection is secured with TLS, conventionally on port 8883.
+//
+// Each PEM is a borrowed run of bytes with its length. A `ca_pem_len` of 0 trusts the
+// system's certificate authorities; a client certificate and its key are both given or
+// both left at 0.
+typedef struct {
+  // The certificate authorities to trust, as PEM.
+  const uint8_t *ca_pem;
+  // How many bytes `ca_pem` holds, or 0 to trust the system's authorities.
+  uintptr_t ca_pem_len;
+  // A client certificate to present, as PEM.
+  const uint8_t *certificate_pem;
+  // How many bytes `certificate_pem` holds, or 0 for none.
+  uintptr_t certificate_pem_len;
+  // The client certificate's private key, as PEM.
+  const uint8_t *key_pem;
+  // How many bytes `key_pem` holds, or 0 for none.
+  uintptr_t key_pem_len;
+} PamojaMqttTls;
+
 // Connection settings for an MQTT client.
 //
 // `client_id` and `host` are borrowed null-terminated UTF-8 strings. A
 // `keep_alive_secs`, `capacity`, or `max_packet_size` of `0` selects the core
-// default.
+// default. `username`, `password`, `will`, and `tls` are each null when unused.
 typedef struct {
   // The MQTT client identifier presented to the broker.
   const char *client_id;
@@ -4726,6 +4764,14 @@ typedef struct {
   // The largest packet the connection sends or accepts, in bytes, or 0 for the
   // default of 10,240.
   uint32_t max_packet_size;
+  // The name to sign in to the broker with, or null.
+  const char *username;
+  // The password to sign in with, which needs a username, or null.
+  const char *password;
+  // A message the broker publishes if the connection ends without a goodbye, or null.
+  const PamojaMqttWill *will;
+  // TLS settings, or null for plain TCP.
+  const PamojaMqttTls *tls;
 } PamojaMqttConfig;
 
 // The split between the time a node works and the time it sleeps.
@@ -20935,6 +20981,41 @@ PamojaStatus pamoja_mqtt_client_publish(PamojaMqttClient *client,
                                         const char *topic,
                                         const uint8_t *payload,
                                         uintptr_t payload_len);
+
+// Publishes a payload to a topic with options of its own, optionally waiting for the
+// broker to acknowledge it.
+//
+// # Arguments
+//
+// * `client` - the client.
+// * `topic` - the destination topic, with no wildcard.
+// * `payload` - the message.
+// * `payload_len` - how many bytes `payload` holds.
+// * `qos` - the quality of service for this message.
+// * `retain` - whether the broker keeps it for clients that subscribe later; an empty
+//   retained message clears the one the broker holds.
+// * `confirmed` - whether to return only once the broker acknowledges the message: its
+//   `PUBACK` at QoS 1, its `PUBCOMP` at QoS 2, and once the connection has taken it at
+//   QoS 0, where MQTT acknowledges nothing.
+//
+// # Returns
+//
+// [`PamojaStatus::Ok`] once the message is queued, or acknowledged when `confirmed` is
+// set, or an error status. A confirmed publish whose connection ends first fails with
+// [`PamojaStatus::Transport`], when the message may or may not have arrived.
+//
+// # Safety
+//
+// `client` must be a live handle from [`pamoja_mqtt_client_new`]; `topic` must be a valid
+// null-terminated UTF-8 string; and `payload` must point to at least `payload_len` bytes,
+// or be null when `payload_len` is 0.
+PamojaStatus pamoja_mqtt_client_publish_with(PamojaMqttClient *client,
+                                             const char *topic,
+                                             const uint8_t *payload,
+                                             uintptr_t payload_len,
+                                             PamojaQos qos,
+                                             bool retain,
+                                             bool confirmed);
 
 // Subscribes to a topic filter.
 //

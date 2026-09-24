@@ -1,6 +1,6 @@
 # Pamoja.Mqtt
 
-An MQTT client with the topic and wildcard rules, as the core transport. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
+An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport. One capability of [pamoja](https://github.com/molexxxx/pamoja), one memory-safe Rust core with bindings for TypeScript, Python, and C#.
 
 [![read the guide](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-guide.svg)](https://pamoja.molex.cloud/docs/guides/mqtt.html)
 [![documentation](https://raw.githubusercontent.com/molexxxx/pamoja/main/.github/badges/btn-docs.svg)](https://pamoja.molex.cloud/docs/)
@@ -47,13 +47,16 @@ await gateway.SubscribeAsync("sensors/+/temperature");
 Console.WriteLine("gateway   subscribed to sensors/+/temperature");
 
 // A node publishes under that pattern. At least once has the broker acknowledge
-// each message, where at most once would send it and forget it.
+// each message, where at most once would send it and forget it. It also leaves a
+// will: should it drop off the network without saying goodbye, the broker
+// publishes offline on its status topic for it.
 await using var node = new MqttClient(new MqttClientOptions
 {
     ClientId = "node-1",
     Host = Broker,
     Port = Port,
     Qos = Qos.AtLeastOnce,
+    Will = new MqttWill("sites/node-1/status", "offline") { Qos = Qos.AtLeastOnce, Retain = true },
 });
 await node.ConnectAsync();
 await node.PublishAsync("sensors/1/temperature", "21.5");
@@ -65,6 +68,24 @@ MqttMessage received = (await gateway.RecvAsync())!;
 Console.WriteLine(
     $"gateway   got {received.Text}"
     + $" on {received.Topic}");
+
+// The node says it is up, retained, so a dashboard that opens later sees it at
+// once. PublishConfirmedAsync completes once the broker acknowledges the message.
+await node.PublishConfirmedAsync("sites/node-1/status", "online", new MqttPublishOptions(Retain: true));
+Console.WriteLine("node      the broker holds online on sites/node-1/status");
+
+// A dashboard that subscribes afterwards still gets it, because the broker keeps
+// the last retained message on each topic for whoever subscribes next.
+await using var dashboard = new MqttClient(new MqttClientOptions
+{
+    ClientId = "site-dashboard",
+    Host = Broker,
+    Port = Port,
+});
+await dashboard.ConnectAsync();
+await dashboard.SubscribeAsync("sites/node-1/status");
+MqttMessage status = (await dashboard.RecvAsync())!;
+Console.WriteLine($"dashboard {status.Topic} is {status.Text}");
 
 // Two days of readings saved at one a minute, sent as one message, make a packet
 // over the connection's 10 KiB limit. The send is refused before anything leaves
@@ -83,6 +104,12 @@ catch (PamojaException error)
 
 bool afterRefusal = await node.IsConnectedAsync();
 Console.WriteLine($"node      {Connection(afterRefusal)}");
+
+// Before it leaves, the node says so itself. A clean disconnect discards the will,
+// which is only for a node that drops off without this goodbye.
+await node.PublishConfirmedAsync("sites/node-1/status", "offline", new MqttPublishOptions(Retain: true));
+MqttMessage goodbye = (await dashboard.RecvAsync())!;
+Console.WriteLine($"dashboard {goodbye.Topic} is {goodbye.Text}");
 
 // Disconnecting leaves the client reusable, so a node that loses its link can
 // reconnect the same object when the broker comes back.

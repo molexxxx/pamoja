@@ -136,6 +136,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         m.add_class::<mqtt::MqttClient>()?;
         m.add_class::<mqtt::MqttMessage>()?;
+        m.add_class::<mqtt::MqttWill>()?;
+        m.add_class::<mqtt::MqttTls>()?;
     }
     #[cfg(feature = "security")]
     {

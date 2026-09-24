@@ -13,13 +13,12 @@ namespace Pamoja.Mqtt;
 /// The native C ABI is synchronous, so every operation runs on the thread pool and
 /// is awaited here; failures surface as <see cref="PamojaException"/>. Construct the
 /// client with broker settings, <see cref="ConnectAsync"/>, then
-/// <see cref="PublishAsync(string, ReadOnlyMemory{byte})"/>,
+/// <see cref="PublishAsync(string, ReadOnlyMemory{byte}, MqttPublishOptions)"/>,
 /// <see cref="SubscribeAsync"/>, and read inbound messages with
 /// <see cref="RecvAsync()"/> or by iterating the client with <c>await foreach</c>.
 ///
-/// Calls on one client run one at a time, so a publish made while a receive is
-/// waiting runs once the receive returns. A client that both listens and publishes
-/// receives with a time limit, or iterates, and publishes between messages.
+/// A receive waits apart from the rest of the client, so one task can wait for
+/// commands while another publishes readings on the same client.
 /// </remarks>
 /// <example>
 /// <code>
@@ -43,42 +42,26 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     private static readonly TimeSpan CancellationCheck = TimeSpan.FromMilliseconds(250);
 
     private readonly NativeHandle _handle;
+    private readonly Qos _qos;
 
     /// <summary>Creates a disconnected client from the given options.</summary>
     /// <param name="options">The broker connection settings.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
     /// <exception cref="PamojaException">The native client could not be created.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The QoS is not one of the <see cref="Qos"/> values.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A QoS is not one of the <see cref="Qos"/> values.</exception>
+    /// <exception cref="ArgumentException">A password comes without a username, or a client certificate without its key.</exception>
     public MqttClient(MqttClientOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        using var native = new NativeMqttOptions(options);
+        _qos = options.Qos ?? Qos.AtLeastOnce;
 
-        IntPtr clientId = Marshal.StringToCoTaskMemUTF8(options.ClientId);
-        IntPtr host = Marshal.StringToCoTaskMemUTF8(options.Host);
-        try
-        {
-            var config = new PamojaMqttConfig
-            {
-                ClientId = clientId,
-                Host = host,
-                Port = options.Port,
-                KeepAliveSecs = options.KeepAliveSecs ?? 0,
-                Capacity = options.Capacity ?? 0,
-                Qos = (PamojaQos)NamedValue.Require(options.Qos ?? Qos.AtLeastOnce, nameof(options.Qos)),
-                MaxPacketSize = options.MaxPacketSize ?? 0,
-            };
-
-            _handle = NativeHandle.Create(
-                NativeMethods.pamoja_mqtt_client_new(ref config),
-                NativeMethods.pamoja_mqtt_client_free,
-                "MQTT client",
-                serialized: true);
-        }
-        finally
-        {
-            Marshal.FreeCoTaskMem(clientId);
-            Marshal.FreeCoTaskMem(host);
-        }
+        // The native client locks its own state and receives apart from it, so calls on
+        // one client may run together.
+        _handle = NativeHandle.Create(
+            NativeMethods.pamoja_mqtt_client_new(ref native.Config),
+            NativeMethods.pamoja_mqtt_client_free,
+            "MQTT client",
+            serialized: false);
     }
 
     /// <summary>Connects to the broker and starts the background event loop.</summary>
@@ -90,12 +73,62 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
     /// <summary>Publishes a payload to a topic.</summary>
     /// <param name="topic">The destination topic.</param>
     /// <param name="payload">The message body.</param>
-    /// <returns>A task that completes once the payload is handed to the transport.</returns>
+    /// <param name="options">The quality of service and retain flag for this message.</param>
+    /// <returns>
+    /// A task that completes once the payload is queued for the broker, before the broker
+    /// acknowledges it; <see cref="PublishConfirmedAsync(string, ReadOnlyMemory{byte}, MqttPublishOptions)"/>
+    /// waits for that.
+    /// </returns>
     /// <exception cref="PamojaException">The payload could not be sent.</exception>
-    public Task PublishAsync(string topic, ReadOnlyMemory<byte> payload)
+    public Task PublishAsync(string topic, ReadOnlyMemory<byte> payload, MqttPublishOptions options = default) =>
+        Publish(topic, payload, options, confirmed: false);
+
+    /// <summary>Publishes a UTF-8 string payload to a topic.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="payload">The message body, encoded as UTF-8.</param>
+    /// <param name="options">The quality of service and retain flag for this message.</param>
+    /// <returns>A task that completes once the payload is queued for the broker.</returns>
+    /// <exception cref="PamojaException">The payload could not be sent.</exception>
+    public Task PublishAsync(string topic, string payload, MqttPublishOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return PublishAsync(topic, System.Text.Encoding.UTF8.GetBytes(payload), options);
+    }
+
+    /// <summary>Publishes a payload to a topic and waits for the broker to acknowledge it.</summary>
+    /// <remarks>
+    /// The broker answers with a <c>PUBACK</c> at <see cref="Qos.AtLeastOnce"/> and a
+    /// <c>PUBCOMP</c> at <see cref="Qos.ExactlyOnce"/>; at <see cref="Qos.AtMostOnce"/> MQTT
+    /// acknowledges nothing, so the task completes once the connection has taken the message.
+    /// </remarks>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="payload">The message body.</param>
+    /// <param name="options">The quality of service and retain flag for this message.</param>
+    /// <returns>A task that completes once the broker holds the message.</returns>
+    /// <exception cref="PamojaException">
+    /// The payload could not be sent, or the connection ended before the acknowledgment, when
+    /// the message may or may not have arrived.
+    /// </exception>
+    public Task PublishConfirmedAsync(string topic, ReadOnlyMemory<byte> payload, MqttPublishOptions options = default) =>
+        Publish(topic, payload, options, confirmed: true);
+
+    /// <summary>Publishes a UTF-8 string payload and waits for the broker to acknowledge it.</summary>
+    /// <param name="topic">The destination topic.</param>
+    /// <param name="payload">The message body, encoded as UTF-8.</param>
+    /// <param name="options">The quality of service and retain flag for this message.</param>
+    /// <returns>A task that completes once the broker holds the message.</returns>
+    /// <exception cref="PamojaException">The payload could not be sent or was not acknowledged.</exception>
+    public Task PublishConfirmedAsync(string topic, string payload, MqttPublishOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return PublishConfirmedAsync(topic, System.Text.Encoding.UTF8.GetBytes(payload), options);
+    }
+
+    private Task Publish(string topic, ReadOnlyMemory<byte> payload, MqttPublishOptions options, bool confirmed)
     {
         ArgumentNullException.ThrowIfNull(topic);
         byte[] bytes = payload.ToArray();
+        var qos = (PamojaQos)NamedValue.Require(options.Qos ?? _qos, nameof(options.Qos));
         return _handle.UseAsync(handle =>
         {
             IntPtr topicPtr = Marshal.StringToCoTaskMemUTF8(topic);
@@ -108,8 +141,8 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                     Marshal.Copy(bytes, 0, payloadPtr, bytes.Length);
                 }
 
-                Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_publish(
-                    handle, topicPtr, payloadPtr, (nuint)bytes.Length));
+                Status.ThrowIfError(NativeMethods.pamoja_mqtt_client_publish_with(
+                    handle, topicPtr, payloadPtr, (nuint)bytes.Length, qos, options.Retain, confirmed));
             }
             finally
             {
@@ -121,17 +154,6 @@ public sealed class MqttClient : IAsyncEnumerable<MqttMessage>, IAsyncDisposable
                 Marshal.FreeCoTaskMem(topicPtr);
             }
         });
-    }
-
-    /// <summary>Publishes a UTF-8 string payload to a topic.</summary>
-    /// <param name="topic">The destination topic.</param>
-    /// <param name="payload">The message body, encoded as UTF-8.</param>
-    /// <returns>A task that completes once the payload is handed to the transport.</returns>
-    /// <exception cref="PamojaException">The payload could not be sent.</exception>
-    public Task PublishAsync(string topic, string payload)
-    {
-        ArgumentNullException.ThrowIfNull(payload);
-        return PublishAsync(topic, System.Text.Encoding.UTF8.GetBytes(payload));
     }
 
     /// <summary>Subscribes to a topic filter.</summary>

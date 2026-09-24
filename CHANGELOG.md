@@ -9,6 +9,22 @@ released together, so one entry covers all of them.
 
 ### Added
 
+- The MQTT client confirms delivery, retains messages, leaves a will, signs in, and speaks
+  TLS, in every language. `MqttTransport::publish(topic, payload, PublishOptions)` takes a
+  quality of service and retain flag for one message and returns a `Delivery` whose
+  `confirmed()` waits for the broker's `PUBACK` or `PUBCOMP`, following the packet
+  identifiers the event loop reports, and fails if the connection ends first. An empty
+  retained message clears the one the broker holds. `MqttConfig` gains
+  `credentials(username, password)`, `last_will(Will)`, and `tls(Tls)`, where `Tls` trusts the
+  system's certificate authorities or a PEM file and can present a client certificate, over
+  rustls with its ring provider named. A refused username or password is an
+  authentication error. `inbox()` hands out the incoming messages apart from the transport,
+  so one task waits for commands while another publishes. TypeScript gets `publishConfirmed`
+  and `username`, `password`, `will`, and `tls` options; Python `publish_confirmed`,
+  `MqttWill`, and `MqttTls`; C# `PublishConfirmedAsync`, `MqttWill`, `MqttTls`, and
+  `MqttPublishOptions`; the C ABI `pamoja_mqtt_client_publish_with` and the `PamojaMqttWill`
+  and `PamojaMqttTls` structures. The MQTT guide shows a retained status, a will, and a
+  confirmed publish.
 - The network side of a site knows which LoRaWAN revision each device follows.
   `Registration::with_version` names it, 1.0.4 unless told otherwise, and only a device
   registered as 1.0.3 has its frames refused once the counter runs `MAX_FCNT_GAP` ahead of
@@ -952,6 +968,13 @@ released together, so one entry covers all of them.
 
 ### Changed
 
+- An MQTT receive no longer holds the client in TypeScript, Python, or C#, so a publish runs
+  while a receive waits; the C# client stopped running its calls one at a time.
+  `publish` takes an optional options argument in each binding, and `PamojaMqttConfig` in the
+  C ABI ends with `username`, `password`, `will`, and `tls` pointers. `pamoja-mqtt` has a
+  default `tls` feature, which brings rustls with the ring provider; `deny.toml` records why
+  the rustls-webpki 0.102 and rustls-pemfile advisories that come with rumqttc do not reach
+  it.
 - A site no longer refuses a frame from a TS001-1.0.4 device whose counter jumped 16,384 or
   more ahead; register the device as 1.0.3 to keep that rule. `pamoja_gateway_network_register`
   in the C ABI takes the device's version as a fifth argument. The `gateway` feature of the C
@@ -1313,6 +1336,10 @@ released together, so one entry covers all of them.
 
 ### Fixed
 
+- `MqttTransport::disconnect` stopped the event loop before the `DISCONNECT` went out, so
+  the broker saw the connection drop and would have published the client's will. It sends the
+  goodbye first now. A transport dropped without disconnecting kept its connection open
+  until the process ended; it closes it now, and the broker publishes the will.
 - A site that had followed a device's counter to within 65,536 of 2^32 overflowed working
   out the next one, which panicked in a debug build and wrapped the counter in a release
   one. The frame is refused now with `the frame counter of 0x26010001 has run out; the device

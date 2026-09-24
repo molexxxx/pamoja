@@ -14,7 +14,7 @@ namespace, so a type is named the way it is when the package is referenced direc
 
 | Capability | Package | What it covers |
 | --- | --- | --- |
-| [MQTT](https://pamoja.molex.cloud/docs/guides/mqtt.html) | `Pamoja.Mqtt` | An MQTT client with the topic and wildcard rules, as the core transport |
+| [MQTT](https://pamoja.molex.cloud/docs/guides/mqtt.html) | `Pamoja.Mqtt` | An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport |
 | [CoAP](https://pamoja.molex.cloud/docs/guides/coap.html) | `Pamoja.Coap` | A CoAP client and the server it reports to, over UDP, with confirmable delivery and observe |
 | [Loopback](https://pamoja.molex.cloud/docs/guides/loopback.html) | `Pamoja.Loopback` | An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker |
 | [Store and forward](https://pamoja.molex.cloud/docs/guides/sync.html) | `Pamoja.Sync` | Offline-first queues in memory or on disk, bounded or not, the on-disk one surviving power loss, and the drain that forwards them in order when a link returns |

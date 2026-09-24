@@ -37,6 +37,13 @@ checked against the rules of the OASIS MQTT 3.1.1 standard, section 4.7, before
 anything is sent, and a message too large for the connection's packet limit is
 refused rather than ending the connection.
 
+Beyond `send`, `publish` takes the
+quality of service and retain flag of one message and returns a `Delivery` that
+settles when the broker acknowledges it. A configuration can carry a username and
+password, a last-will message the broker publishes if the client drops off without
+saying goodbye, and, with the default `tls` feature, `Tls` settings for a broker
+on port 8883.
+
 **Examples**
 
 ```rust
@@ -72,6 +79,182 @@ bytes.
 const DEFAULT_MAX_PACKET_SIZE: usize
 ```
 
+## struct `Will`
+
+A message the broker publishes on the client's behalf if the client's connection ends
+without a `DISCONNECT`: the network dropped, the power failed, or the keep-alive ran
+out.
+
+A device that publishes `online` to a status topic when it connects usually leaves a
+will of `offline` on the same topic, retained, so anyone watching sees it go (OASIS MQTT
+3.1.1, section 3.1.2.5). A client that disconnects on purpose leaves no will behind.
+
+**Examples**
+
+```rust
+use pamoja_mqtt::{MqttConfig, QualityOfService, Will};
+
+let will = Will::new("sites/pump-3/status", b"offline")
+    .qos(QualityOfService::AtLeastOnce)
+    .retained();
+let config = MqttConfig::new("pump-3", "localhost", 1883).last_will(will);
+assert_eq!(config.will().map(Will::topic), Some("sites/pump-3/status"));
+```
+
+### `Will::new`
+
+Creates a will to publish to a topic, at QoS 0 and not retained.
+
+**Arguments**
+
+* `topic` - where the broker publishes it; a topic name, with no wildcard.
+* `payload` - what it publishes.
+
+**Returns**
+
+The will.
+
+```rust
+fn new(topic: impl Into <String>, payload: impl Into <Vec <u8>>) -> Will
+```
+
+### `Will::qos`
+
+Sets the quality of service the broker publishes the will at.
+
+**Arguments**
+
+* `qos` - the delivery guarantee.
+
+**Returns**
+
+The updated will, for chaining.
+
+```rust
+fn qos(mut self, qos: QualityOfService) -> Will
+```
+
+### `Will::retained`
+
+Has the broker retain the will, so a client that subscribes later still sees it.
+
+**Returns**
+
+The updated will, for chaining.
+
+```rust
+fn retained(mut self) -> Will
+```
+
+### `Will::topic`
+
+Returns the topic the will is published to.
+
+**Returns**
+
+The topic.
+
+```rust
+fn topic(&self) -> &str
+```
+
+### `Will::payload`
+
+Returns what the will publishes.
+
+**Returns**
+
+The payload.
+
+```rust
+fn payload(&self) -> &[u8]
+```
+
+### `Will::quality_of_service`
+
+Returns the quality of service the will is published at.
+
+**Returns**
+
+The delivery guarantee.
+
+```rust
+fn quality_of_service(&self) -> QualityOfService
+```
+
+### `Will::is_retained`
+
+Returns whether the broker retains the will.
+
+**Returns**
+
+`true` for a retained will.
+
+```rust
+fn is_retained(&self) -> bool
+```
+
+## struct `PublishOptions`
+
+How one message is published: its quality of service, and whether the broker keeps it.
+
+A retained message is the one the broker hands to every client that subscribes to the
+topic later, so a new dashboard sees the last reading at once rather than waiting for the
+next (OASIS MQTT 3.1.1, section 3.3.1.3). Publishing an empty retained message clears the
+one the broker holds.
+
+### `PublishOptions::new`
+
+Options that publish at the connection's quality of service, not retained.
+
+**Returns**
+
+The options.
+
+```rust
+fn new() -> PublishOptions
+```
+
+### `PublishOptions::qos`
+
+Publishes at a quality of service other than the connection's.
+
+**Arguments**
+
+* `qos` - the delivery guarantee for this message.
+
+**Returns**
+
+The updated options, for chaining.
+
+```rust
+fn qos(mut self, qos: QualityOfService) -> PublishOptions
+```
+
+### `PublishOptions::retained`
+
+Has the broker retain the message for clients that subscribe later.
+
+**Returns**
+
+The updated options, for chaining.
+
+```rust
+fn retained(mut self) -> PublishOptions
+```
+
+### `PublishOptions::is_retained`
+
+Returns whether the message is retained.
+
+**Returns**
+
+`true` for a retained message.
+
+```rust
+fn is_retained(&self) -> bool
+```
+
 ## struct `MqttConfig`
 
 Connection settings for an `MqttTransport`.
@@ -98,6 +281,95 @@ packet limit of `DEFAULT_MAX_PACKET_SIZE`.
 
 ```rust
 fn new(client_id: impl Into <String>, host: impl Into <String>, port: u16) -> Self
+```
+
+### `MqttConfig::credentials`
+
+Signs in to the broker with a username and password.
+
+The password travels in the clear unless the connection uses TLS, so a broker
+reached over a network worth protecting wants both.
+
+**Arguments**
+
+* `username` - the name the broker knows the client by.
+* `password` - its password.
+
+**Returns**
+
+The updated configuration, for chaining.
+
+```rust
+fn credentials(mut self, username: impl Into <String>, password: impl Into <String>) -> Self
+```
+
+### `MqttConfig::last_will`
+
+Leaves a message for the broker to publish if the connection ends without a
+`DISCONNECT`.
+
+**Arguments**
+
+* `will` - the message, its topic, and how it is published.
+
+**Returns**
+
+The updated configuration, for chaining.
+
+```rust
+fn last_will(mut self, will: Will) -> Self
+```
+
+### `MqttConfig::tls`
+
+Secures the connection with TLS.
+
+**Arguments**
+
+* `tls` - the authorities to trust, and any client certificate to present.
+
+**Returns**
+
+The updated configuration, for chaining.
+
+```rust
+fn tls(mut self, tls: Tls) -> Self
+```
+
+### `MqttConfig::username`
+
+Returns the username the client signs in with.
+
+**Returns**
+
+The username, or `None` for a client that does not sign in.
+
+```rust
+fn username(&self) -> Option <&str>
+```
+
+### `MqttConfig::will`
+
+Returns the will the broker holds for this client.
+
+**Returns**
+
+The will, or `None` when there is none.
+
+```rust
+fn will(&self) -> Option <&Will>
+```
+
+### `MqttConfig::uses_tls`
+
+Returns whether the connection uses TLS.
+
+**Returns**
+
+`true` once `tls` has been set.
+
+```rust
+fn uses_tls(&self) -> bool
 ```
 
 ### `MqttConfig::max_packet_size`
@@ -172,6 +444,33 @@ The updated configuration, for chaining.
 fn qos(mut self, qos: QualityOfService) -> Self
 ```
 
+## struct `Inbox`
+
+The messages arriving on a transport's connection, readable apart from the transport.
+
+`recv` borrows the transport for as long as it waits, so a program that
+waits for commands in one task while it publishes readings from another takes an inbox
+with `MqttTransport::inbox` and waits on that instead. The inbox follows the transport
+across reconnects.
+
+### `Inbox::recv`
+
+Awaits the next message from any subscribed topic.
+
+**Returns**
+
+`Some(message)` for the next queued message, or `None` once the connection has
+ended and its reason has been reported.
+
+**Errors**
+
+Returns `Error::Closed` if the transport is not connected, or
+`Error::Transport` once, saying why, when the connection ended on its own.
+
+```rust
+async fn recv(&self) -> Result <Option <Message>>
+```
+
 ## struct `MqttTransport`
 
 An MQTT client that implements the core `Transport` and `Receive` traits.
@@ -203,6 +502,65 @@ A disconnected transport ready for `connect`.
 fn new(config: MqttConfig) -> Self
 ```
 
+### `MqttTransport::publish`
+
+Publishes a message with options of its own, and follows it to the broker.
+
+The call returns once the message is queued for the broker, as
+`send` does. The `Delivery` it hands back settles when the
+broker acknowledges the message, so a caller that needs to know the message arrived
+awaits it, and one that does not drops it.
+
+**Arguments**
+
+* `topic` - the topic to publish to, with no wildcard.
+* `payload` - the message.
+* `options` - the quality of service and retain flag for this message.
+
+**Returns**
+
+The delivery to await for the broker's acknowledgment.
+
+**Errors**
+
+Returns `Error::Transport` if MQTT does not allow the topic or the message is over
+the connection's packet limit, both before anything is sent, or `Error::Closed` if
+the transport is not connected.
+
+**Examples**
+
+```rust
+use pamoja_core::Transport;
+use pamoja_mqtt::{MqttConfig, MqttTransport, PublishOptions};
+
+let mut transport = MqttTransport::new(MqttConfig::new("sensor-1", "localhost", 1883));
+transport.connect().await?;
+
+// The last reading stays with the broker for any dashboard that subscribes later,
+// and the call waits until the broker says it has it.
+transport
+    .publish("sites/tank-2/level", b"73", PublishOptions::new().retained())
+    .await?
+    .confirmed()
+    .await?;
+```
+
+```rust
+async fn publish(&mut self, topic: &str, payload: &[u8], options: PublishOptions,) -> Result <Delivery>
+```
+
+### `MqttTransport::inbox`
+
+Returns a handle on the messages arriving on this transport's connection.
+
+**Returns**
+
+The inbox, which a task can wait on while another publishes through the transport.
+
+```rust
+fn inbox(&self) -> Inbox
+```
+
 ### `MqttTransport::is_connected`
 
 Reports whether the transport currently holds an active connection.
@@ -221,12 +579,16 @@ fn is_connected(&self) -> bool
 
 Closes the connection and stops the background event loop.
 
-Calling this on a transport that is not connected is a no-op.
+The client says goodbye with a `DISCONNECT`, so the broker discards the will
+rather than publishing it (OASIS MQTT 3.1.1, section 3.14). Calling this on a
+transport that is not connected is a no-op. A transport that is dropped without
+disconnecting closes its connection without a goodbye, and the broker publishes
+its will.
 
 **Returns**
 
-`Ok(())` once the disconnect request has been issued and the event loop
-task has been stopped.
+`Ok(())` once the goodbye has gone out, or a second has passed without the event
+loop sending it, and the loop has been stopped.
 
 **Errors**
 

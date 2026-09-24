@@ -37,4 +37,67 @@ public sealed class MqttClientOptions
     /// topic needs a limit that fits it.
     /// </remarks>
     public uint? MaxPacketSize { get; init; }
+
+    /// <summary>The name to sign in to the broker with.</summary>
+    public string? Username { get; init; }
+
+    /// <summary>The password to sign in with, which needs a <see cref="Username"/>.</summary>
+    /// <remarks>It travels in the clear unless the connection uses <see cref="Tls"/>.</remarks>
+    public string? Password { get; init; }
+
+    /// <summary>A message the broker publishes if the connection ends without a goodbye.</summary>
+    public MqttWill? Will { get; init; }
+
+    /// <summary>TLS settings; a connection with them is secured, conventionally on port 8883.</summary>
+    public MqttTls? Tls { get; init; }
 }
+
+/// <summary>
+/// A message the broker publishes on the client's behalf if its connection ends without a
+/// disconnect: the network dropped, the power failed, or the keep-alive ran out.
+/// </summary>
+/// <remarks>A client that calls <see cref="MqttClient.DisconnectAsync"/> leaves no will behind.</remarks>
+/// <param name="Topic">The topic the broker publishes it to, with no wildcard.</param>
+/// <param name="Payload">What it publishes.</param>
+public sealed record MqttWill(string Topic, ReadOnlyMemory<byte> Payload)
+{
+    /// <summary>Creates a will whose payload is text, encoded as UTF-8.</summary>
+    /// <param name="topic">The topic the broker publishes it to.</param>
+    /// <param name="payload">What it publishes.</param>
+    public MqttWill(string topic, string payload)
+        : this(topic, System.Text.Encoding.UTF8.GetBytes(payload))
+    {
+    }
+
+    /// <summary>The quality of service it is published at.</summary>
+    public Qos Qos { get; init; } = Qos.AtMostOnce;
+
+    /// <summary>Whether the broker retains it for clients that subscribe later.</summary>
+    public bool Retain { get; init; }
+}
+
+/// <summary>How a connection is secured with TLS.</summary>
+/// <remarks>
+/// Without <see cref="CaPem"/> the client trusts the certificate authorities the operating
+/// system trusts. A client certificate and its key are given together, for a broker that
+/// asks each client to prove who it is.
+/// </remarks>
+public sealed class MqttTls
+{
+    /// <summary>The certificate authorities to trust, as PEM.</summary>
+    public string? CaPem { get; init; }
+
+    /// <summary>A client certificate to present, as PEM.</summary>
+    public string? CertificatePem { get; init; }
+
+    /// <summary>The client certificate's private key, as PEM.</summary>
+    public string? KeyPem { get; init; }
+}
+
+/// <summary>How one message is published.</summary>
+/// <param name="Qos">The quality of service for this message, or null for the client's.</param>
+/// <param name="Retain">
+/// Whether the broker keeps it for clients that subscribe later. An empty retained message
+/// clears the one the broker holds.
+/// </param>
+public readonly record struct MqttPublishOptions(Qos? Qos = null, bool Retain = false);

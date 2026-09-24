@@ -13,8 +13,8 @@ use napi::Either;
 use napi_derive::napi;
 
 use crate::transport::{bytes_of, within};
-use pamoja_core::{Error, Receive, Transport};
-use pamoja_mqtt::{MqttConfig, MqttTransport, QualityOfService};
+use pamoja_core::{Error, Transport};
+use pamoja_mqtt::{Inbox, MqttConfig, MqttTransport, PublishOptions, QualityOfService, Tls, Will};
 use tokio::sync::Mutex;
 
 /// MQTT delivery guarantee, mirroring the protocol's quality-of-service levels.
@@ -60,6 +60,50 @@ pub struct MqttClientOptions {
     /// when omitted. A publish that would be larger is refused and the connection stays
     /// up, but a larger packet arriving from the broker ends the connection.
     pub max_packet_size: Option<checked::u32>,
+    /// The name to sign in to the broker with.
+    pub username: Option<String>,
+    /// The password to sign in with, which needs a username. It travels in the clear
+    /// unless the connection uses TLS.
+    pub password: Option<String>,
+    /// A message the broker publishes if the connection ends without a goodbye.
+    pub will: Option<MqttWill>,
+    /// TLS settings; a connection with them is secured, conventionally on port 8883.
+    pub tls: Option<MqttTls>,
+}
+
+/// A message the broker publishes on the client's behalf if its connection ends without a
+/// disconnect: the network dropped, the power failed, or the keep-alive ran out.
+#[napi(object)]
+pub struct MqttWill {
+    /// The topic the broker publishes it to, with no wildcard.
+    pub topic: String,
+    /// What it publishes; text is sent as UTF-8.
+    pub payload: Either<Buffer, String>,
+    /// The quality of service it is published at. Defaults to `AtMostOnce`.
+    pub qos: Option<Qos>,
+    /// Whether the broker retains it for clients that subscribe later.
+    pub retain: Option<bool>,
+}
+
+/// How a connection is secured with TLS.
+#[napi(object)]
+pub struct MqttTls {
+    /// The certificate authorities to trust, as PEM. Without it the system's are trusted.
+    pub ca_pem: Option<Either<Buffer, String>>,
+    /// A client certificate to present, as PEM, for a broker that asks for one.
+    pub certificate_pem: Option<Either<Buffer, String>>,
+    /// The client certificate's private key, as PEM.
+    pub key_pem: Option<Either<Buffer, String>>,
+}
+
+/// How one message is published.
+#[napi(object)]
+pub struct MqttPublishOptions {
+    /// The quality of service for this message. Defaults to the client's.
+    pub qos: Option<Qos>,
+    /// Whether the broker keeps it for clients that subscribe later. An empty retained
+    /// message clears the one the broker holds.
+    pub retain: Option<bool>,
 }
 
 /// A message received from a subscribed topic.
@@ -79,16 +123,22 @@ pub struct MqttMessage {
 #[napi]
 pub struct MqttClient {
     inner: Arc<Mutex<MqttTransport>>,
+    inbox: Inbox,
 }
 
 #[napi]
 impl MqttClient {
     /// Creates a disconnected client from the given options.
+    ///
+    /// @throws If a password comes without a username, or a TLS client certificate
+    ///   without its key.
     #[napi(constructor)]
-    pub fn new(options: MqttClientOptions) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(MqttTransport::new(settings(options)))),
-        }
+    pub fn new(options: MqttClientOptions) -> napi::Result<Self> {
+        let transport = MqttTransport::new(settings(options)?);
+        Ok(Self {
+            inbox: transport.inbox(),
+            inner: Arc::new(Mutex::new(transport)),
+        })
     }
 
     /// Connects to the broker and starts the background event loop.
@@ -99,17 +149,45 @@ impl MqttClient {
         transport.connect().await.map_err(to_napi)
     }
 
-    /// Publishes a payload to a topic.
+    /// Publishes a payload to a topic, resolving once it is queued for the broker.
     #[napi]
     pub async fn publish(
         &self,
         topic: String,
         payload: Either<Buffer, String>,
+        options: Option<MqttPublishOptions>,
     ) -> napi::Result<()> {
         let inner = Arc::clone(&self.inner);
         let payload = bytes_of(payload);
         let mut transport = inner.lock().await;
-        transport.send(&topic, &payload).await.map_err(to_napi)
+        transport
+            .publish(&topic, &payload, publish_options(options))
+            .await
+            .map(drop)
+            .map_err(to_napi)
+    }
+
+    /// Publishes a payload to a topic, resolving once the broker acknowledges it: its
+    /// `PUBACK` at `AtLeastOnce`, its `PUBCOMP` at `ExactlyOnce`, and once the connection
+    /// has taken it at `AtMostOnce`, where MQTT acknowledges nothing. It rejects if the
+    /// connection ends first, when the message may or may not have arrived.
+    #[napi]
+    pub async fn publish_confirmed(
+        &self,
+        topic: String,
+        payload: Either<Buffer, String>,
+        options: Option<MqttPublishOptions>,
+    ) -> napi::Result<()> {
+        let inner = Arc::clone(&self.inner);
+        let payload = bytes_of(payload);
+        let delivery = {
+            let mut transport = inner.lock().await;
+            transport
+                .publish(&topic, &payload, publish_options(options))
+                .await
+                .map_err(to_napi)?
+        };
+        delivery.confirmed().await.map_err(to_napi)
     }
 
     /// Subscribes to a topic filter.
@@ -128,10 +206,9 @@ impl MqttClient {
     /// waits for the next receive.
     #[napi]
     pub async fn recv(&self, timeout_ms: Option<f64>) -> napi::Result<Option<MqttMessage>> {
-        let inner = Arc::clone(&self.inner);
+        let inbox = self.inbox.clone();
         within(timeout_ms, async move {
-            let mut transport = inner.lock().await;
-            let message = transport.recv().await.map_err(to_napi)?;
+            let message = inbox.recv().await.map_err(to_napi)?;
             Ok(message.map(|message| MqttMessage {
                 text: message.text().ok().map(str::to_owned),
                 number: message.number().ok(),
@@ -164,12 +241,65 @@ fn to_napi(err: Error) -> napi::Error {
     napi::Error::from_reason(err.to_string())
 }
 
+/// Reads how one message is published.
+fn publish_options(options: Option<MqttPublishOptions>) -> PublishOptions {
+    let mut built = PublishOptions::new();
+    if let Some(options) = options {
+        if let Some(qos) = options.qos {
+            built = built.qos(qos.into());
+        }
+        if options.retain == Some(true) {
+            built = built.retained();
+        }
+    }
+    built
+}
+
 /// Reads the broker settings an options object describes.
 ///
 /// Shared with the composable transport, so a client and a ladder rung read the
 /// same fields the same way.
-pub(crate) fn settings(options: MqttClientOptions) -> MqttConfig {
+pub(crate) fn settings(options: MqttClientOptions) -> napi::Result<MqttConfig> {
     let mut config = MqttConfig::new(options.client_id, options.host, options.port.get());
+    match (options.username, options.password) {
+        (Some(username), password) => {
+            config = config.credentials(username, password.unwrap_or_default());
+        }
+        (None, Some(_)) => {
+            return Err(napi::Error::from_reason(
+                "a password needs a username: MQTT sends no password alone",
+            ))
+        }
+        (None, None) => {}
+    }
+    if let Some(will) = options.will {
+        let mut built = Will::new(will.topic, bytes_of(will.payload));
+        if let Some(qos) = will.qos {
+            built = built.qos(qos.into());
+        }
+        if will.retain == Some(true) {
+            built = built.retained();
+        }
+        config = config.last_will(built);
+    }
+    if let Some(tls) = options.tls {
+        let mut built = match tls.ca_pem {
+            Some(pem) => Tls::with_ca_pem(bytes_of(pem)),
+            None => Tls::system_roots(),
+        };
+        match (tls.certificate_pem, tls.key_pem) {
+            (Some(certificate), Some(key)) => {
+                built = built.client_certificate(bytes_of(certificate), bytes_of(key));
+            }
+            (None, None) => {}
+            _ => {
+                return Err(napi::Error::from_reason(
+                    "a client certificate and its key come together",
+                ))
+            }
+        }
+        config = config.tls(built);
+    }
     if let Some(secs) = options.keep_alive_secs.get() {
         config = config.keep_alive(Duration::from_secs(u64::from(secs)));
     }
@@ -182,5 +312,5 @@ pub(crate) fn settings(options: MqttClientOptions) -> MqttConfig {
     if let Some(bytes) = options.max_packet_size.get() {
         config = config.max_packet_size(bytes as usize);
     }
-    config
+    Ok(config)
 }

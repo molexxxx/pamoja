@@ -397,7 +397,7 @@ reference pages, one step away.
 <div class="pkgs">
 <div class="pkg" id="node-mqtt">
 <div class="pkg-head">
-<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><code class="pkg-import">@pamoja/mqtt</code><p>An MQTT client with the topic and wildcard rules, as the core transport</p></div>
+<div class="pkg-what"><a class="pkg-title" href="https://pamoja.molex.cloud/docs/guides/mqtt.html">MQTT</a><code class="pkg-import">@pamoja/mqtt</code><p>An MQTT client with the topic and wildcard rules, acknowledged delivery, retained messages, a last will, and TLS, as the core transport</p></div>
 <div class="pkg-get"><code class="cmd">npm install @pamoja/mqtt</code><button class="copy" type="button" data-copy="npm install @pamoja/mqtt" aria-label="Copy the install command">copy</button></div>
 </div>
 <div class="pkg-foot">

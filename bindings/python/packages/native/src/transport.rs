@@ -562,7 +562,8 @@ impl PyTransport {
     /// Creates an MQTT transport from broker settings.
     #[cfg(feature = "mqtt")]
     #[staticmethod]
-    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None, max_packet_size=None))]
+    #[pyo3(signature = (*, client_id, host, port, keep_alive_secs=None, capacity=None, qos=None, max_packet_size=None, username=None, password=None, will=None, tls=None))]
+    #[allow(clippy::too_many_arguments)]
     fn mqtt(
         client_id: String,
         host: String,
@@ -571,8 +572,12 @@ impl PyTransport {
         capacity: Option<u32>,
         qos: Option<String>,
         max_packet_size: Option<u32>,
+        username: Option<String>,
+        password: Option<String>,
+        will: Option<PyRef<'_, crate::mqtt::MqttWill>>,
+        tls: Option<PyRef<'_, crate::mqtt::MqttTls>>,
     ) -> PyResult<Self> {
-        let config = crate::mqtt::settings(
+        let config = crate::mqtt::settings(crate::mqtt::Broker {
             client_id,
             host,
             port,
@@ -580,7 +585,11 @@ impl PyTransport {
             capacity,
             qos,
             max_packet_size,
-        )?;
+            username,
+            password,
+            will: will.map(|will| will.clone()),
+            tls: tls.map(|tls| tls.clone()),
+        })?;
         Ok(Self::wrap(Kind::Mqtt(pamoja_mqtt::MqttTransport::new(
             config,
         ))))
