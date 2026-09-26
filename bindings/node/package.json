@@ -19,8 +19,8 @@
     "test:guides": "npm run guides"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.0",
-    "@types/node": "^26.6.1",
+    "@napi-rs/cli": "^3.10.5",
+    "@types/node": "^26.6.2",
     "typescript": "^7.0.2"
   }
 }
