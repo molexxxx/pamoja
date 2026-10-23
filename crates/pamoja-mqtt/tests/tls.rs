@@ -15,7 +15,7 @@ use std::time::Duration;
 use common::{connect_with_retry, listening, pick_port, spawn_broker};
 use pamoja_core::{Error, Receive, Transport};
 use pamoja_mqtt::{MqttConfig, MqttTransport, Tls};
-use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, KeyPair};
+use rcgen::{BasicConstraints, CertificateParams, CertifiedIssuer, DnType, IsCa, KeyPair};
 use rustls::crypto::ring::default_provider;
 use rustls::server::WebPkiClientVerifier;
 use rustls::{RootCertStore, ServerConfig};
@@ -38,12 +38,12 @@ fn issue(names: &str) -> Issued {
     authority
         .distinguished_name
         .push(DnType::CommonName, format!("{names} test authority"));
-    let authority = authority.self_signed(&authority_key).expect("self-signed");
+    let authority = CertifiedIssuer::self_signed(authority, authority_key).expect("self-signed");
 
     let server_key = KeyPair::generate().expect("a server key");
     let server = CertificateParams::new(vec!["localhost".to_owned()])
         .expect("params")
-        .signed_by(&server_key, &authority, &authority_key)
+        .signed_by(&server_key, &authority)
         .expect("issued");
 
     let client_key = KeyPair::generate().expect("a client key");
@@ -51,9 +51,7 @@ fn issue(names: &str) -> Issued {
     client
         .distinguished_name
         .push(DnType::CommonName, "field-node-7");
-    let client = client
-        .signed_by(&client_key, &authority, &authority_key)
-        .expect("issued");
+    let client = client.signed_by(&client_key, &authority).expect("issued");
 
     Issued {
         authority_pem: authority.pem(),
