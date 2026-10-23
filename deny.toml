@@ -27,6 +27,7 @@ ignore = [
     { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
     { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
     { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; no CRL is parsed" },
+    { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile parses PEM only for rumqttc's TlsConfiguration::Simple, which pamoja-mqtt does not use" },
 ]
 

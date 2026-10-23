@@ -606,7 +606,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pamoja-actuators"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -615,7 +615,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-can"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "libc",
  "nix 0.31.3",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-codec"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "ciborium",
  "pamoja-core",
@@ -633,11 +633,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-core"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pamoja-dashboard"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "flate2",
  "getrandom 0.4.3",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-gateway"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "pamoja-lora",
  "pamoja-lorawan",
@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-gpio"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-hal"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
@@ -677,18 +677,18 @@ dependencies = [
 
 [[package]]
 name = "pamoja-kit"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "pamoja-lora"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pamoja-lorawan"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "aes",
  "pamoja-lora",
@@ -696,18 +696,18 @@ dependencies = [
 
 [[package]]
 name = "pamoja-mesh"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pamoja-modbus"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "pamoja-hal",
 ]
 
 [[package]]
 name = "pamoja-mqtt"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "pamoja-core",
  "rumqttc",
@@ -719,11 +719,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-power"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pamoja-profile"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "pamoja-codec",
  "pamoja-core",
@@ -735,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-radios"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-sensors"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -756,11 +756,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-serial"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pamoja-session"
-version = "0.1.18"
+version = "0.2.0"
 dependencies = [
  "chacha20poly1305",
  "hkdf",
@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-telemetry"
-version = "0.1.18"
+version = "0.2.0"
 
 [[package]]
 name = "pin-project-lite"
@@ -865,15 +865,15 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.45"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.15",
+ "rustls-webpki 0.103.16",
  "subtle",
  "zeroize",
 ]
@@ -921,9 +921,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.15"
+version = "0.103.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
+checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
 dependencies = [
  "ring",
  "rustls-pki-types",

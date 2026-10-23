@@ -31,8 +31,8 @@ pamoja-core = { workspace = true }
 # rumqttc's own TLS features pick a crypto provider for the whole process; the `tls`
 # feature above turns on its rustls transport and brings the ring provider itself.
 rumqttc = { version = "0.25", default-features = false }
-# 0.23.45 carries the fix for RUSTSEC-2026-0285.
-rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
+# 0.23.46 carries the fixes for RUSTSEC-2026-0285 and RUSTSEC-2026-0346 through 0349.
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
 rustls-native-certs = { version = "0.8", optional = true }
 rustls-pki-types = { version = "1.9", features = ["std"], optional = true }
 tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
