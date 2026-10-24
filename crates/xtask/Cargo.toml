@@ -33,7 +33,7 @@ pamoja-profile = { path = "../pamoja-profile" }
 [dev-dependencies]
 # The schema tests validate the shipped manifests and rule files with a real JSON Schema
 # validator, the same kind an editor runs.
-jsonschema = { version = "0.57", default-features = false }
+jsonschema = { version = "0.59", default-features = false }
 
 [lints]
 workspace = true
