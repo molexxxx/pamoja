@@ -26,14 +26,15 @@ The engine is written to need very little. A build that names one capability com
 crate, `pamoja-core`, and nothing else from outside the workspace, which the table on the
 [install page](../install.md) measures per feature set.
 
-What the wider builds do pull in is audited. Continuous integration runs
-`cargo-deny` over the graph a user actually installs on every change, refusing a
-dependency whose license is not on the allowed list. The same graph is checked for
-security advisories every day, on every commit to `main`, and on every change that adds or
-updates a dependency, failing on any advisory against it. The policy is
-[`deny.toml`](https://github.com/molexxxx/pamoja/blob/main/deny.toml) in the repository,
-and the licenses of the crates in any particular build are listed by `cargo deny list`
-against your own lockfile.
+What the wider builds do pull in is audited. On every change, continuous integration runs
+`cargo-deny` over each graph a user actually installs: the workspace that the crates and
+the .NET native library are built from, and the lockfiles that the Node and Python native
+modules are built from. It refuses a dependency whose license is not on the allowed list.
+The same graphs are checked for security advisories every day, on every commit to `main`,
+and on every change that adds or updates a dependency. The policy, with the reason for each
+exception it grants, is [`deny.toml`](https://github.com/molexxxx/pamoja/blob/main/deny.toml)
+in the repository, and the licenses of the crates in any particular build are listed by
+`cargo deny list` against your own lockfile.
 
 The bindings add a runtime each: napi-rs for TypeScript, PyO3 for Python, and cbindgen
 with P/Invoke for C#. Each carries its own license, declared in its own package.

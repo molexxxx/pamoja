@@ -32,7 +32,14 @@ jobs:
         with:
           tool: cargo-deny
 
-      # The same default-feature graph and deny.toml policy as the license + source audit
-      # in ci.yml.
-      - name: cargo deny
+      # The same three graphs and deny.toml policy as the license + source audit in ci.yml.
+      - name: cargo deny (workspace)
         run: cargo deny check advisories
+
+      - name: cargo deny (Node binding)
+        if: ${{ !cancelled() }}
+        run: cargo deny --manifest-path bindings/node/Cargo.toml check advisories
+
+      - name: cargo deny (Python binding)
+        if: ${{ !cancelled() }}
+        run: cargo deny --manifest-path bindings/python/packages/native/Cargo.toml check advisories

@@ -20,6 +20,11 @@ yanked = "deny"
 # TlsConfiguration::Simple, which pamoja-mqtt never builds: it hands rumqttc a finished
 # rustls ClientConfig. Certificates are verified by rustls 0.23 through rustls-webpki
 # 0.103, which carries the fixes, and no CRL is parsed.
+#
+# pyo3-stub-gen writes the Python binding's type stub. It depends on chrono only to map
+# chrono's types to Python's datetime types, and pamoja names no chrono type. Its derive
+# macro parses Python syntax with rustpython-parser, which brings in the unic crates; the
+# macro runs at compile time, so none of them is linked into the published module.
 ignore = [
     "spin@0.9.8",
     { id = "RUSTSEC-2025-0141", reason = "bincode 1.3.3 is complete per its advisory and only loads syntect grammars inside xtask" },
@@ -29,6 +34,13 @@ ignore = [
     { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; no CRL is parsed" },
     { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.102 is named by rumqttc for an error type only; verification runs in rustls-webpki 0.103" },
     { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile parses PEM only for rumqttc's TlsConfiguration::Simple, which pamoja-mqtt does not use" },
+    { id = "RUSTSEC-2026-0543", reason = "chrono reaches only the Python binding, through pyo3-stub-gen's type mappings; pamoja names no chrono type" },
+    { id = "RUSTSEC-2025-0075", reason = "unic-char-range runs only inside pyo3-stub-gen's derive macro, at compile time" },
+    { id = "RUSTSEC-2025-0080", reason = "unic-common runs only inside pyo3-stub-gen's derive macro, at compile time" },
+    { id = "RUSTSEC-2025-0081", reason = "unic-char-property runs only inside pyo3-stub-gen's derive macro, at compile time" },
+    { id = "RUSTSEC-2025-0090", reason = "unic-emoji-char runs only inside pyo3-stub-gen's derive macro, at compile time" },
+    { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version runs only inside pyo3-stub-gen's derive macro, at compile time" },
+    { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident runs only inside pyo3-stub-gen's derive macro, at compile time" },
 ]
 
 [licenses]
@@ -45,8 +57,14 @@ allow = [
 ]
 
 # cbindgen generates pamoja.h at build time; it is a build tool and none of its
-# MPL-2.0 code is linked into any shipped artifact.
-exceptions = [{ allow = ["MPL-2.0"], crate = "cbindgen" }]
+# MPL-2.0 code is linked into any shipped artifact. tiny-keccak and unicode_names2 reach
+# only the Python binding, through the rustpython-parser that pyo3-stub-gen's derive macro
+# runs at compile time, so neither is linked into the published module.
+exceptions = [
+    { allow = ["MPL-2.0"], crate = "cbindgen" },
+    { allow = ["CC0-1.0"], crate = "tiny-keccak" },
+    { allow = ["Unicode-DFS-2016"], crate = "unicode_names2" },
+]
 
 [bans]
 multiple-versions = "warn"
