@@ -271,7 +271,7 @@ jobs:
             --exclude xtask --exclude pamoja-examples
 
   deny:
-    name: license + advisory audit
+    name: license + source audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -281,13 +281,14 @@ jobs:
         with:
           tool: cargo-deny
 
-      # Audits the shipped dependency graph against deny.toml: security advisories,
-      # license policy, duplicate-version bans, and unknown sources. Run over the
-      # default-feature graph a consumer actually installs; the heavy optional zenoh
-      # QUIC/TLS paths (which pull quinn/rsa/lz4 and their upstream advisories) are
-      # exercised instead in the ros2 + zenoh bridge job, not force-enabled here.
+      # Audits the shipped dependency graph against deny.toml: license policy,
+      # duplicate-version bans, and unknown sources. Run over the default-feature graph a
+      # consumer actually installs; the heavy optional zenoh QUIC/TLS paths (which pull
+      # quinn/rsa/lz4 and their upstream advisories) are exercised instead in the ros2 +
+      # zenoh bridge job, not force-enabled here. Security advisories are checked by
+      # advisories.yml.
       - name: cargo deny
-        run: cargo deny check
+        run: cargo deny check bans licenses sources
 
   ros-bridge:
     name: ros2 + zenoh bridge

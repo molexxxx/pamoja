@@ -26,9 +26,11 @@ The engine is written to need very little. A build that names one capability com
 crate, `pamoja-core`, and nothing else from outside the workspace, which the table on the
 [install page](../install.md) measures per feature set.
 
-What the wider builds do pull in is audited on every change. Continuous integration runs
-`cargo-deny` over the graph a user actually installs, refusing a dependency whose license
-is not on the allowed list and failing on any security advisory against it. The policy is
+What the wider builds do pull in is audited. Continuous integration runs
+`cargo-deny` over the graph a user actually installs on every change, refusing a
+dependency whose license is not on the allowed list. The same graph is checked for
+security advisories every day, on every commit to `main`, and on every change that adds or
+updates a dependency, failing on any advisory against it. The policy is
 [`deny.toml`](https://github.com/molexxxx/pamoja/blob/main/deny.toml) in the repository,
 and the licenses of the crates in any particular build are listed by `cargo deny list`
 against your own lockfile.

@@ -1,0 +1,38 @@
+name: advisories
+
+# A newly published advisory or a yanked release changes this result without any commit,
+# so it runs daily and on main rather than on every pull request, where it would fail
+# changes that never touched a dependency. A pull request that edits a manifest, a
+# lockfile, or the policy is still checked before it merges.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - deny.toml
+      - .github/workflows/advisories.yml
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: advisory audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2.87.29
+        with:
+          tool: cargo-deny
+
+      # The same default-feature graph and deny.toml policy as the license + source audit
+      # in ci.yml.
+      - name: cargo deny
+        run: cargo deny check advisories
