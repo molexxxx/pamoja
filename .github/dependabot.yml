@@ -57,6 +57,20 @@ updates:
           - minor
           - patch
 
+  # The toolchain that renders the Node binding's API reference: typedoc and the
+  # TypeScript it pins.
+  - package-ecosystem: npm
+    directory: /bindings/node/docs
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: npm
+    groups:
+      npm-docs-minor:
+        update-types:
+          - minor
+          - patch
+
   # The Python binding's build and test dependencies.
   - package-ecosystem: pip
     directory: /bindings/python/packages/native
