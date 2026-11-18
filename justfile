@@ -69,9 +69,11 @@ guides:
     cd bindings/python && python -m pytest tests/test_guides.py
     dotnet run --project bindings/dotnet/samples/Pamoja.Guides -c Release
 
-# audit dependencies against deny.toml (needs cargo-deny installed)
+# audit the workspace and both binding lockfiles against deny.toml, as CI does (needs cargo-deny installed)
 deny:
     cargo deny check
+    cargo deny --manifest-path bindings/node/Cargo.toml check
+    cargo deny --manifest-path bindings/python/packages/native/Cargo.toml check
 
 # verify every manifest, lockfile, and generated loader carries the workspace version
 version-check:
