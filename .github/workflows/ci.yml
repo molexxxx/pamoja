@@ -271,23 +271,33 @@ jobs:
             --exclude xtask --exclude pamoja-examples
 
   deny:
-    name: license + advisory audit
+    name: license + source audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@v2.87.29
+        uses: taiki-e/install-action@v2.90.6
         with:
           tool: cargo-deny
 
-      # Audits the shipped dependency graph against deny.toml: security advisories,
-      # license policy, duplicate-version bans, and unknown sources. Run over the
-      # default-feature graph a consumer actually installs; the heavy optional zenoh
-      # QUIC/TLS paths (which pull quinn/rsa/lz4 and their upstream advisories) are
-      # exercised instead in the ros2 + zenoh bridge job, not force-enabled here.
-      - name: cargo deny
-        run: cargo deny check
+      # Audits each shipped dependency graph against deny.toml: license policy,
+      # duplicate-version bans, and unknown sources. The crates and the .NET native library
+      # are built from the workspace, and the Node and Python native modules from their own
+      # lockfiles. Each runs over the default-feature graph a consumer actually installs;
+      # the heavy optional zenoh QUIC/TLS paths (which pull quinn/rsa/lz4 and their
+      # upstream advisories) are exercised instead in the ros2 + zenoh bridge job, not
+      # force-enabled here. Security advisories are checked by advisories.yml.
+      - name: cargo deny (workspace)
+        run: cargo deny check bans licenses sources
+
+      - name: cargo deny (Node binding)
+        if: ${{ !cancelled() }}
+        run: cargo deny --manifest-path bindings/node/Cargo.toml check bans licenses sources
+
+      - name: cargo deny (Python binding)
+        if: ${{ !cancelled() }}
+        run: cargo deny --manifest-path bindings/python/packages/native/Cargo.toml check bans licenses sources
 
   ros-bridge:
     name: ros2 + zenoh bridge

@@ -51,9 +51,9 @@ cargo test --workspace                                 # test
 
 `just ci` runs the full set (formatting, clippy, the `no_std` builds, the dashboard
 checks, and the generated-docs sync check) if you have [just](https://github.com/casey/just)
-installed. `cargo xtask` lists the workspace tasks. `cargo deny check` audits the
-dependency graph if you have [cargo-deny](https://github.com/EmbarkStudios/cargo-deny)
-installed.
+installed. `cargo xtask` lists the workspace tasks. `just deny` audits the workspace and
+the lockfiles the Node and Python native modules are built from, as CI does, if you have
+[cargo-deny](https://github.com/EmbarkStudios/cargo-deny) installed.
 
 ## What the code expects
 

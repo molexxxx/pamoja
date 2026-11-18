@@ -43,7 +43,9 @@ jobs:
       # The changes go up as a pull request under the same token the badge refresh uses,
       # so every check runs on it, with the report as its description. A refresh that
       # never merged is closed as superseded, and this one merges itself once every
-      # check passes; one that fails stays open for a person to read.
+      # check passes; one that fails stays open for a person to read. The commit is
+      # authored as the token's own account: an address borrowed from main's last commit
+      # can belong to Dependabot, and the squash then carries it as a co-author.
       - name: Open a pull request with what changed, and merge it once its checks pass
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -53,8 +55,9 @@ jobs:
             exit 0
           fi
           branch="prices/$(date -u +%Y-%m-%d)"
-          git config user.name "molexxxx"
-          git config user.email "$(git log -1 --format=%ae)"
+          login="$(gh api user --jq .login)"
+          git config user.name "$login"
+          git config user.email "$(gh api user --jq .id)+${login}@users.noreply.github.com"
           git switch -c "$branch"
           git commit -am "Refresh the hardware prices"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
@@ -70,10 +73,12 @@ jobs:
               gh pr close "$old" --delete-branch --comment "Superseded by $url."
             done
 
+          # gh pr checks fails with "no checks reported" until it sees a check of its own,
+          # even when gh pr view already lists one, so the wait polls the same command.
           for attempt in $(seq 1 30); do
-            started="$(gh pr view "$url" --json statusCheckRollup --jq '.statusCheckRollup | length')"
-            [ "$started" -gt 0 ] && break
             sleep 20
+            registered="$(gh pr checks "$url" --json name --jq length 2>/dev/null || true)"
+            [ "${registered:-0}" -gt 0 ] && break
           done
           gh pr checks "$url" --watch --fail-fast --interval 60
           gh pr merge "$url" --squash --delete-branch
