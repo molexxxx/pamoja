@@ -19,6 +19,7 @@ jobs:
     uses: ./.github/workflows/release-preflight.yml
     with:
       version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+      from-tag: true
 
   build:
     name: wheels ${{ matrix.target }}
@@ -44,6 +45,8 @@ jobs:
             target: x86_64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - uses: actions/setup-python@v7
         with:
@@ -70,6 +73,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1
@@ -90,6 +95,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - uses: actions/setup-python@v7
         with:
@@ -116,10 +123,12 @@ jobs:
 
   publish:
     name: publish to PyPI
-    needs: [build, sdist, pure]
+    needs: [preflight, build, sdist, pure]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - name: Download wheel and sdist artifacts
         uses: actions/download-artifact@v8
@@ -142,7 +151,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PIP_TOKEN }}
-          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+          VERSION: ${{ needs.preflight.outputs.tag }}
         run: |
           python -m pip install --quiet twine
           bash .github/scripts/pypi-upload.sh dist "${VERSION#v}"
