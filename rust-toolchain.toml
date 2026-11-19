@@ -1,3 +1,5 @@
+# An exact release, so a new Rust's lints arrive as a pull request instead of turning main
+# red. .github/workflows/toolchain.yml moves it to each new stable release.
 [toolchain]
-channel = "stable"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]

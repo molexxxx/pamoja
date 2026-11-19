@@ -1,0 +1,54 @@
+name: toolchain
+
+on:
+  schedule:
+    # Daily, so a new stable Rust is tried within a day of its release.
+    - cron: "43 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: toolchain
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: move to the newest stable Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      # The checkout's own token is read-only and, left in the git config, git sends it in
+      # place of the one the push uses, so it is not kept.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # rust-toolchain.toml pins an exact release, so a new Rust's lints reach main only
+      # through this pull request, which merges itself once every check passes. One that
+      # fails stays open, and a fix pushed to it is merged by the next run. The version is
+      # read from the stable channel manifest that rustup itself installs from.
+      - name: Open a pull request for a newer stable Rust, and merge it once its checks pass
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          current="$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
+          latest="$(curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml |
+            awk '/^\[pkg\.rust\]$/ { inside = 1; next } inside && !found && /^version = / { gsub(/"/, "", $3); print $3; found = 1 }')"
+          if ! printf '%s' "$latest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::the stable channel manifest gave no version: '$latest'"
+            exit 1
+          fi
+          if [ "$latest" = "$current" ]; then
+            echo "already on Rust $current"
+            exit 0
+          fi
+          sed -i "s/^channel = \".*\"$/channel = \"$latest\"/" rust-toolchain.toml
+          {
+            echo "Rust $latest is the current stable release, so this moves rust-toolchain.toml from $current."
+            echo
+            echo "Release notes: https://github.com/rust-lang/rust/releases/tag/$latest"
+          } > "${{ runner.temp }}/toolchain.md"
+          bash .github/scripts/merge-when-green.sh --keep-open "toolchain/rust-$latest" \
+            "Move to Rust $latest" "${{ runner.temp }}/toolchain.md" dependencies
