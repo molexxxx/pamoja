@@ -8,7 +8,9 @@
 #
 # A pull request whose checks fail stays open as the report, and the run still succeeds.
 # A scheduled run reports on main's latest commit, so failing it would mark main red for
-# a change main never took.
+# a change main never took. The pull request gets one comment, updated on each run, that
+# links the failed checks and says what happens next, so an open bot pull request always
+# explains itself.
 #
 #   merge-when-green.sh [--keep-open] <branch> <title> <body file> <label>
 #
@@ -33,6 +35,32 @@ title="${2:?title}"
 body_file="${3:?body file}"
 label="${4:?label}"
 prefix="${branch%/*}/"
+marker="<!-- merge-when-green -->"
+
+report_failure() {
+    local body existing
+    body="$(mktemp)"
+    {
+        echo "$marker"
+        echo "This pull request was not merged because a check failed:"
+        echo
+        gh pr checks "$url" --json name,bucket,link \
+            --jq '.[] | select(.bucket == "fail" or .bucket == "cancel") | "- [\(.name)](\(.link))"'
+        echo
+        if [ "$keep_open" -eq 1 ]; then
+            echo "A fix pushed to \`$branch\` is merged by the next run once every check passes."
+        else
+            echo "The next run replaces this pull request with a fresh one."
+        fi
+    } > "$body"
+    existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/${url##*/}/comments" \
+        --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1)"
+    if [ -n "$existing" ]; then
+        gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F "body=@$body" > /dev/null
+    else
+        gh pr comment "$url" --body-file "$body" > /dev/null
+    fi
+}
 
 url="$(gh pr list --head "$branch" --state open --json url --jq '.[0].url // empty')"
 
@@ -74,5 +102,6 @@ if gh pr checks "$url" --watch --fail-fast --interval 60; then
     # differs from the account's commit email, even for the same account.
     gh pr merge "$url" --squash --delete-branch --body ""
 else
+    report_failure
     echo "::warning::$url has a failing check, so it stays open for a person to read"
 fi
