@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-gateway"
-version = "0.2.0"
+version = "0.2.1"
 description = "What a LoRaWAN gateway speaks: the Semtech packet forwarder protocol and the Basics Station protocol on both sides, the network side of a single site, and a bridge from the radio to the link that leaves it."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,8 +19,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-lora==0.2.0",
-    "pamoja-native==0.2.0",
+    "pamoja-lora==0.2.1",
+    "pamoja-native==0.2.1",
 ]
 
 [project.urls]

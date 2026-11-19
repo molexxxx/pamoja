@@ -3165,7 +3165,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-actuators",
  "pamoja-audit",
@@ -3205,7 +3205,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-actuators"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -3214,7 +3214,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-audit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "pamoja-security",
@@ -3223,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-bus"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "tokio",
@@ -3231,7 +3231,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-can"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libc",
  "nix 0.31.3",
@@ -3240,7 +3240,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-coap"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "coap-lite",
  "pamoja-core",
@@ -3249,7 +3249,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-codec"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ciborium",
  "pamoja-core",
@@ -3260,11 +3260,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-core"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "pamoja-dashboard"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "flate2",
  "getrandom 0.4.3",
@@ -3278,7 +3278,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-examples"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "getrandom 0.4.3",
  "pamoja",
@@ -3325,7 +3325,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-ffi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cbindgen",
  "pamoja-actuators",
@@ -3368,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-gateway"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "futures-util",
@@ -3385,7 +3385,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-gpio"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -3394,7 +3394,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-hal"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "linux-embedded-hal",
@@ -3403,14 +3403,14 @@ dependencies = [
 
 [[package]]
 name = "pamoja-kit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "pamoja-ladder"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-codec",
  "pamoja-core",
@@ -3422,7 +3422,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-loopback"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "tokio",
@@ -3430,11 +3430,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-lora"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "pamoja-lorawan"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "aes 0.9.4",
  "pamoja-lora",
@@ -3443,7 +3443,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-mavlink"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "proptest",
@@ -3454,14 +3454,14 @@ dependencies = [
 
 [[package]]
 name = "pamoja-mesh"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "pamoja-modbus"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-hal",
  "proptest",
@@ -3469,7 +3469,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-mqtt"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "rcgen",
@@ -3484,11 +3484,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-power"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "pamoja-profile"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-codec",
  "pamoja-core",
@@ -3506,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-radios"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -3519,7 +3519,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-ros2"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "futures",
  "pamoja-core",
@@ -3530,11 +3530,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-routing"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "pamoja-security"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ed25519-dalek",
  "pamoja-core",
@@ -3542,7 +3542,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-sensors"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "embedded-hal",
  "pamoja-core",
@@ -3551,14 +3551,14 @@ dependencies = [
 
 [[package]]
 name = "pamoja-serial"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "pamoja-session"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chacha20poly1305",
  "hkdf",
@@ -3569,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-sim"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "pamoja-kit",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-sync"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "pamoja-loopback",
@@ -3589,11 +3589,11 @@ dependencies = [
 
 [[package]]
 name = "pamoja-telemetry"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "pamoja-update"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "pamoja-security",
@@ -3602,7 +3602,7 @@ dependencies = [
 
 [[package]]
 name = "pamoja-zenoh"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "pamoja-core",
  "tokio",
@@ -6460,7 +6460,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "flate2",
  "jsonschema",

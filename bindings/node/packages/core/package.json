@@ -1,6 +1,6 @@
 {
   "name": "@pamoja/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The pamoja engine's surface for Node: the runtime version and the transport every link shares, the counterpart of the pamoja-core crate.",
   "license": "MIT",
   "publishConfig": {
@@ -38,6 +38,6 @@
     "node": ">= 16"
   },
   "dependencies": {
-    "@pamoja/native": "0.2.0"
+    "@pamoja/native": "0.2.1"
   }
 }

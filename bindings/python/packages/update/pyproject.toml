@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-update"
-version = "0.2.0"
+version = "0.2.1"
 description = "Signed firmware manifests, streaming image verification, and A/B slots that fall back on their own."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,8 +19,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.2.0",
-    "pamoja-security==0.2.0",
+    "pamoja-native==0.2.1",
+    "pamoja-security==0.2.1",
 ]
 
 [project.urls]
