@@ -25,7 +25,7 @@ linux = ["bus", "dep:nix", "dep:libc"]
 # The raw socket SocketCAN is reached through, and the kernel's frame layouts. Already in the
 # graph through pamoja-hal.
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "0.31", optional = true, default-features = false, features = ["socket", "poll", "net"] }
+nix = { version = "0.32", optional = true, default-features = false, features = ["socket", "poll", "net"] }
 libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
