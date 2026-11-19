@@ -120,7 +120,8 @@ fn check(expected: Option<&str>) -> Result<(), String> {
 fn bump(new: &str) -> Result<(), String> {
     validate(new)?;
     let root = repo_root();
-    println!("xtask version: {} -> {new}", current()?);
+    let old = current()?;
+    println!("xtask version: {old} -> {new}");
 
     edit_toml(&root.join("Cargo.toml"), |doc| {
         let workspace = doc
@@ -189,7 +190,6 @@ fn bump(new: &str) -> Result<(), String> {
         }
     }
 
-    let old = current()?;
     for site in PROSE_SITES {
         let path = root.join(site);
         let text = read(&path)?;

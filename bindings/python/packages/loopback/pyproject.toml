@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-loopback"
-version = "0.2.0"
+version = "0.2.1"
 description = "An in-process transport with topic matching, a fault injector, and outages on demand, for testing with no broker."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.2.0",
+    "pamoja-native==0.2.1",
 ]
 
 [project.urls]

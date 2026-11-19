@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pamoja-security"
-version = "0.2.0"
+version = "0.2.1"
 description = "ed25519 device identity: sign a reading and verify it, so a gateway can prove it is authentic."
 readme = "README.md"
 license = { text = "MIT" }
@@ -19,7 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pamoja-native==0.2.0",
+    "pamoja-native==0.2.1",
 ]
 
 [project.urls]
