@@ -33,11 +33,11 @@ embedded-hal = "1.0"
 linux-embedded-hal = { version = "0.5", optional = true, default-features = false, features = ["gpio_cdev", "i2c", "spi"] }
 # The terminal settings a serial port is opened raw with, and the poll a read waits in.
 # Already in the graph above, and safe wrappers, which keeps this crate free of unsafe code.
-nix = { version = "0.31", optional = true, default-features = false, features = ["term", "poll"] }
+nix = { version = "0.32", optional = true, default-features = false, features = ["term", "poll"] }
 
 # A pseudo-terminal stands in for a serial device in the Linux tests.
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-nix = { version = "0.31", default-features = false, features = ["term", "fs", "poll"] }
+nix = { version = "0.32", default-features = false, features = ["term", "fs", "poll"] }
 
 [lints]
 workspace = true
