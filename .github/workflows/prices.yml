@@ -44,8 +44,9 @@ jobs:
       # so every check runs on it, with the report as its description. A refresh that
       # never merged is closed as superseded, and this one merges itself once every
       # check passes; one that fails stays open for a person to read. The commit is
-      # authored as the token's own account: an address borrowed from main's last commit
-      # can belong to Dependabot, and the squash then carries it as a co-author.
+      # authored as the token's own account, and the squash is given an empty body: the
+      # body GitHub generates adds a co-author line for any branch commit whose address
+      # differs from the account's commit email, even when both belong to the same account.
       - name: Open a pull request with what changed, and merge it once its checks pass
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -81,4 +82,4 @@ jobs:
             [ "${registered:-0}" -gt 0 ] && break
           done
           gh pr checks "$url" --watch --fail-fast --interval 60
-          gh pr merge "$url" --squash --delete-branch
+          gh pr merge "$url" --squash --delete-branch --body ""

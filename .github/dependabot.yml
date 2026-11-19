@@ -58,7 +58,8 @@ updates:
           - patch
 
   # The toolchain that renders the Node binding's API reference: typedoc and the
-  # TypeScript it pins.
+  # TypeScript it pins. typedoc's peer range names each TypeScript minor line it supports,
+  # so TypeScript takes patch releases here and otherwise moves with typedoc.
   - package-ecosystem: npm
     directory: /bindings/node/docs
     schedule:
@@ -70,6 +71,11 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
 
   # The Python binding's build and test dependencies.
   - package-ecosystem: pip
