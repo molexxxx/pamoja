@@ -472,7 +472,7 @@ source = "https://www.ti.com/lit/ds/symlink/ina226.pdf"
 vendor = "M5Stack"
 name = "INA226-1A Current Voltage Power Monitor Unit"
 url = "https://shop.m5stack.com/products/ina226-1a-current-voltage-power-monitor-unit"
-price = "US$8.50"
+price = "US$6.80"
 checked = "2026-11-19"
 verified = true
 
@@ -699,7 +699,7 @@ source = "https://www.ti.com/lit/ds/symlink/drv8825.pdf"
 vendor = "M5Stack"
 name = "ATOMIC Stepmotor Base (DRV8825)"
 url = "https://shop.m5stack.com/products/atomic-stepmotor-base-drv8825"
-price = "US$8.95"
+price = "US$7.61"
 checked = "2026-11-19"
 verified = true
 
@@ -809,8 +809,8 @@ verified = true
 vendor = "Heltec Automation"
 name = "WiFi LoRa 32 (V3), ESP32-S3 + SX1262 LoRa node, 863 to 870 or 902 to 928 MHz variants"
 url = "https://heltec.org/project/wifi-lora-32-v3/"
-price = "US$17.90 to US$19.90"
-checked = "2026-09-06"
+price = "US$17.90"
+checked = "2026-11-19"
 verified = true
 
 [[entry.buy]]
@@ -856,7 +856,7 @@ source = "https://www.semtech.com/products/wireless-rf/lora-connect/llcc68"
 vendor = "M5Stack"
 name = "LoRa Unit 433MHz with Antenna (E220), an LLCC68 module"
 url = "https://shop.m5stack.com/products/lora-unit-433mhz-with-antenna-e220"
-price = "US$12.95"
+price = "US$11.01"
 checked = "2026-11-19"
 
 [[entry.buy]]
@@ -1130,7 +1130,7 @@ verified = true
 vendor = "The Pi Hut"
 name = "Seeed XIAO ESP32C3 (board with loose headers)"
 url = "https://thepihut.com/products/seeed-xiao-esp32c3?variant=53975115661697"
-price = "£5.40"
+price = "£5.50"
 checked = "2026-11-19"
 verified = true
 
