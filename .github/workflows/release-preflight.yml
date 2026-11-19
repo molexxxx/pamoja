@@ -14,6 +14,18 @@ on:
         description: The version being released, with or without a leading v.
         required: true
         type: string
+      from-tag:
+        description: Check the commit the version's tag points at rather than the one the run started on.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      sha:
+        description: The commit that passed, which the release builds.
+        value: ${{ jobs.preflight.outputs.sha }}
+      tag:
+        description: The version's tag, with its leading v.
+        value: ${{ jobs.preflight.outputs.tag }}
   workflow_dispatch:
     inputs:
       version:
@@ -28,11 +40,30 @@ jobs:
   preflight:
     name: preflight ${{ inputs.version }}
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      tag: ${{ steps.commit.outputs.tag }}
     steps:
       # The ancestry check below reads main, so the clone needs its history.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      # A release restarted by hand runs on a branch, yet it must rebuild exactly what was
+      # tagged, so the release workflows ask for the tag's commit. On a tag push the two
+      # are the same commit.
+      - name: Settle the commit under check
+        id: commit
+        env:
+          VERSION: ${{ inputs.version }}
+          FROM_TAG: ${{ inputs.from-tag }}
+        run: |
+          tag="v${VERSION#v}"
+          if [ "$FROM_TAG" = "true" ]; then
+            git checkout --quiet --detach "refs/tags/$tag"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       # Every manifest, lockfile, and generated loader must already carry this version,
       # and CHANGELOG.md must have its entry. The task checks all of them structurally,
@@ -45,9 +76,11 @@ jobs:
       # A tag on a branch, or on a commit that was force-pushed away, would publish code
       # that never landed. Releases come from main or they do not happen.
       - name: The commit is on main
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
         run: |
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::${GITHUB_SHA} is not an ancestor of origin/main; tag a merged commit."
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::${SHA} is not an ancestor of origin/main; tag a merged commit."
             exit 1
           fi
 
@@ -56,14 +89,15 @@ jobs:
       - name: Every suite passed on this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
         run: |
           failed=0
           for workflow in ci.yml node.yml python.yml dotnet.yml; do
-            conclusion=$(gh run list --commit "$GITHUB_SHA" --workflow "$workflow" \
+            conclusion=$(gh run list --commit "$SHA" --workflow "$workflow" \
               --json status,conclusion --jq \
               'map(select(.status == "completed" and .conclusion == "success")) | length')
             if [ "${conclusion:-0}" -eq 0 ]; then
-              echo "::error::${workflow} has no completed successful run on ${GITHUB_SHA}."
+              echo "::error::${workflow} has no completed successful run on ${SHA}."
               failed=1
             else
               echo "${workflow}: passed"

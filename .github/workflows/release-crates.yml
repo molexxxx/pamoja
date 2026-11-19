@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/release-preflight.yml
     with:
       version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+      from-tag: true
 
   publish:
     name: publish to crates.io
@@ -34,6 +35,8 @@ jobs:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - name: Cache cargo
         uses: actions/cache@v6

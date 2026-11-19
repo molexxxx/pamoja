@@ -25,6 +25,7 @@ jobs:
     uses: ./.github/workflows/release-preflight.yml
     with:
       version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+      from-tag: true
 
   release:
     name: publish the release notes
@@ -35,12 +36,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.preflight.outputs.sha }}
           fetch-depth: 0
 
       - name: Assemble the notes
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+          TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           set -euo pipefail
           version="${TAG#v}"
@@ -99,7 +101,7 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+          TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           gh release create "$TAG" \
             --verify-tag \

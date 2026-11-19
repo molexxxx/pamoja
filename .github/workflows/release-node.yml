@@ -19,6 +19,7 @@ jobs:
     uses: ./.github/workflows/release-preflight.yml
     with:
       version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+      from-tag: true
 
   build:
     name: build ${{ matrix.target }}
@@ -46,6 +47,8 @@ jobs:
         working-directory: bindings/node
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - uses: actions/setup-node@v7
         with:
@@ -76,7 +79,7 @@ jobs:
 
   publish:
     name: publish to npm
-    needs: build
+    needs: [preflight, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -86,6 +89,8 @@ jobs:
         working-directory: bindings/node
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - uses: actions/setup-node@v7
         with:

@@ -50,7 +50,9 @@ version.
 ## When one stalls
 
 Every release workflow also takes a version by hand, so a run that failed
-partway can be restarted without inventing a new tag. crates.io publishes new
+partway can be restarted without inventing a new tag. Whichever branch it is
+started from, it checks and builds the commit that version's tag points at, so it
+publishes what was tagged even after main has moved on. crates.io publishes new
 crates at one per ten minutes, and `cargo xtask release` waits that out and skips
 what is already published, so a rerun continues rather than starting over.
 

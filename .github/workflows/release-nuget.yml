@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/release-preflight.yml
     with:
       version: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+      from-tag: true
 
   native:
     name: native ${{ matrix.rid }}
@@ -57,10 +58,13 @@ jobs:
             lib: libpamoja_ffi.dylib
     steps:
       - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          ref: ${{ needs.preflight.outputs.sha }}
+
+      # rustup adds the target to the toolchain rust-toolchain.toml pins; a toolchain action
+      # would add it to `stable`, which this build does not use.
+      - name: Add the target
+        run: rustup target add ${{ matrix.target }}
 
       - name: Build the native library
         run: cargo build -p pamoja-ffi --release --target ${{ matrix.target }}
@@ -80,7 +84,7 @@ jobs:
 
   publish:
     name: pack and publish to NuGet
-    needs: native
+    needs: [preflight, native]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,6 +92,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
 
       - uses: actions/setup-dotnet@v6
         with:
