@@ -42,11 +42,8 @@ jobs:
 
       # The changes go up as a pull request under the same token the badge refresh uses,
       # so every check runs on it, with the report as its description. A refresh that
-      # never merged is closed as superseded, and this one merges itself once every
-      # check passes; one that fails stays open for a person to read. The commit is
-      # authored as the token's own account, and the squash is given an empty body: the
-      # body GitHub generates adds a co-author line for any branch commit whose address
-      # differs from the account's commit email, even when both belong to the same account.
+      # never merged is closed as superseded, and this one merges itself once every check
+      # passes; one that fails stays open for a person to read.
       - name: Open a pull request with what changed, and merge it once its checks pass
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -55,31 +52,5 @@ jobs:
             echo "no price or date changed"
             exit 0
           fi
-          branch="prices/$(date -u +%Y-%m-%d)"
-          login="$(gh api user --jq .login)"
-          git config user.name "$login"
-          git config user.email "$(gh api user --jq .id)+${login}@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -am "Refresh the hardware prices"
-          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
-
-          url="$(gh pr view "$branch" --json url --jq .url 2>/dev/null || true)"
-          if [ -z "$url" ]; then
-            url="$(gh pr create --base main --head "$branch" --title "Refresh the hardware prices" --body-file "${{ runner.temp }}/prices.md" --label documentation)"
-          fi
-
-          gh pr list --state open --search "head:prices/" --json number,headRefName \
-            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
-            while read -r old; do
-              gh pr close "$old" --delete-branch --comment "Superseded by $url."
-            done
-
-          # gh pr checks fails with "no checks reported" until it sees a check of its own,
-          # even when gh pr view already lists one, so the wait polls the same command.
-          for attempt in $(seq 1 30); do
-            sleep 20
-            registered="$(gh pr checks "$url" --json name --jq length 2>/dev/null || true)"
-            [ "${registered:-0}" -gt 0 ] && break
-          done
-          gh pr checks "$url" --watch --fail-fast --interval 60
-          gh pr merge "$url" --squash --delete-branch --body ""
+          bash .github/scripts/merge-when-green.sh "prices/$(date -u +%Y-%m-%d)" \
+            "Refresh the hardware prices" "${{ runner.temp }}/prices.md" documentation
