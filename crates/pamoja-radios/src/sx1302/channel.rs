@@ -1404,8 +1404,8 @@ mod tests {
     #[test]
     fn the_radios_are_read_off_the_receivers() {
         let mut plan = eu868();
-        for at in 4..MULTI_CHANNELS {
-            plan.channels[at] = plan.channels[at].on(Chain::B);
+        for channel in &mut plan.channels[4..] {
+            *channel = channel.on(Chain::B);
         }
         assert_eq!(plan.radios(), 0b1111_0000);
     }
