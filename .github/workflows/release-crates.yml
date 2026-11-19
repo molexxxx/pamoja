@@ -38,15 +38,6 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.sha }}
 
-      - name: Cache cargo
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.toml') }}
-
       # Publish every workspace crate in dependency order. xtask skips versions
       # already on crates.io and waits out the new-crate rate limit (one new
       # crate per ten minutes), retrying until the whole workspace is published,
