@@ -6,7 +6,7 @@
     "build": "typedoc"
   },
   "devDependencies": {
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.7",
     "typedoc": "0.28.20",
     "typescript": "6.0.3"
   }
